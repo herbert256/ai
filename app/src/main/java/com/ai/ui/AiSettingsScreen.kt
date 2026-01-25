@@ -548,6 +548,15 @@ fun ModelSearchScreen(
     availableTogetherModels: List<String>,
     availableOpenRouterModels: List<String>,
     availableDummyModels: List<String>,
+    isLoadingChatGptModels: Boolean = false,
+    isLoadingGeminiModels: Boolean = false,
+    isLoadingGrokModels: Boolean = false,
+    isLoadingGroqModels: Boolean = false,
+    isLoadingDeepSeekModels: Boolean = false,
+    isLoadingMistralModels: Boolean = false,
+    isLoadingTogetherModels: Boolean = false,
+    isLoadingOpenRouterModels: Boolean = false,
+    isLoadingDummyModels: Boolean = false,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSaveAiSettings: (AiSettings) -> Unit,
@@ -563,6 +572,10 @@ fun ModelSearchScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit
 ) {
+    // Check if any provider is loading
+    val isLoading = isLoadingChatGptModels || isLoadingGeminiModels || isLoadingGrokModels ||
+            isLoadingGroqModels || isLoadingDeepSeekModels || isLoadingMistralModels ||
+            isLoadingTogetherModels || isLoadingOpenRouterModels || isLoadingDummyModels
     var searchQuery by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf<ModelSearchItem?>(null) }
 
@@ -749,12 +762,30 @@ fun ModelSearchScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Results count
-        Text(
-            text = "${filteredModels.size} models found",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFAAAAAA)
-        )
+        // Loading indicator or results count
+        if (isLoading) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = Color(0xFFFF9800)
+                )
+                Text(
+                    text = "Loading models from API...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFFF9800)
+                )
+            }
+        } else {
+            Text(
+                text = "${filteredModels.size} models found",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
