@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.ai"
     android:versionCode="1"
-    android:versionName="26.0125.092401" >
+    android:versionName="26.0125.094607" >
 
     <uses-sdk
         android:minSdkVersion="26"
@@ -34,6 +34,12 @@
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Intent filter for external apps to request AI reports -->
+            <intent-filter>
+                <action android:name="com.ai.ACTION_NEW_REPORT" />
+
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
