@@ -177,9 +177,21 @@ fun SwarmEditScreen(
     var name by remember { mutableStateOf(swarm?.name ?: "") }
     var selectedAgentIds by remember { mutableStateOf(swarm?.agentIds?.toSet() ?: emptySet()) }
     var nameError by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
 
     // Get all configured agents
     val configuredAgents = aiSettings.getConfiguredAgents()
+
+    // Filter agents based on search query
+    val filteredAgents = if (searchQuery.isBlank()) {
+        configuredAgents
+    } else {
+        configuredAgents.filter { agent ->
+            agent.name.contains(searchQuery, ignoreCase = true) ||
+            agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+            agent.model.contains(searchQuery, ignoreCase = true)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -238,29 +250,55 @@ fun SwarmEditScreen(
                     fontSize = 14.sp
                 )
             } else {
-                // Select all / Select none buttons
+                // Search box
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search agents") },
+                    placeholder = { Text("Filter by name, provider, or model") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF8B5CF6),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedLabelColor = Color(0xFF8B5CF6),
+                        unfocusedLabelColor = Color.Gray,
+                        cursorColor = Color.White
+                    )
+                )
+
+                // Select all / Select none buttons (operate on filtered agents)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { selectedAgentIds = configuredAgents.map { it.id }.toSet() },
+                        onClick = { selectedAgentIds = selectedAgentIds + filteredAgents.map { it.id }.toSet() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Select all")
                     }
                     OutlinedButton(
-                        onClick = { selectedAgentIds = emptySet() },
+                        onClick = { selectedAgentIds = selectedAgentIds - filteredAgents.map { it.id }.toSet() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Select none")
                     }
                 }
 
+                // Show count of filtered vs total
+                if (searchQuery.isNotBlank()) {
+                    Text(
+                        text = "Showing ${filteredAgents.size} of ${configuredAgents.size} agents",
+                        fontSize = 12.sp,
+                        color = Color(0xFF888888)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Agent checkboxes
-                configuredAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
+                // Agent checkboxes (filtered)
+                filteredAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
