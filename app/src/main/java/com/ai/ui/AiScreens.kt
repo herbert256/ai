@@ -1725,6 +1725,9 @@ fun AiReportsScreen(
     // Selection mode: true = Swarms, false = Agents
     var isSwarmMode by remember { mutableStateOf(true) }
 
+    // Search query
+    var searchQuery by remember { mutableStateOf("") }
+
     // Filter out DUMMY agents when not in developer mode
     val allConfiguredAgents = uiState.aiSettings.getConfiguredAgents()
     val configuredAgents = if (uiState.generalSettings.developerMode) {
@@ -1850,6 +1853,28 @@ fun AiReportsScreen(
                 }
             }
 
+            // Search field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                placeholder = { Text(if (isSwarmMode) "Search swarms..." else "Search agents...") },
+                singleLine = true,
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Text("✕", color = Color.Gray)
+                        }
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -1866,13 +1891,21 @@ fun AiReportsScreen(
                 ) {
                     if (isSwarmMode) {
                         // Swarm selection mode
+                        val filteredSwarms = swarms
+                            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+                            .sortedBy { it.name.lowercase() }
                         if (swarms.isEmpty()) {
                             Text(
                                 text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > AI Swarms.",
                                 color = Color(0xFFAAAAAA)
                             )
+                        } else if (filteredSwarms.isEmpty()) {
+                            Text(
+                                text = "No swarms match \"$searchQuery\"",
+                                color = Color(0xFFAAAAAA)
+                            )
                         } else {
-                            swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
+                            filteredSwarms.forEach { swarm ->
                                 val swarmAgentsList = uiState.aiSettings.getAgentsForSwarm(swarm)
                                 Row(
                                     modifier = Modifier
@@ -1919,13 +1952,26 @@ fun AiReportsScreen(
                         }
                     } else {
                         // Agent selection mode
+                        val filteredAgents = configuredAgents
+                            .filter { agent ->
+                                searchQuery.isBlank() ||
+                                agent.name.contains(searchQuery, ignoreCase = true) ||
+                                agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+                                agent.model.contains(searchQuery, ignoreCase = true)
+                            }
+                            .sortedBy { it.name.lowercase() }
                         if (configuredAgents.isEmpty()) {
                             Text(
                                 text = "No AI agents configured. Please configure agents in Settings > AI Setup > AI Agents.",
                                 color = Color(0xFFAAAAAA)
                             )
+                        } else if (filteredAgents.isEmpty()) {
+                            Text(
+                                text = "No agents match \"$searchQuery\"",
+                                color = Color(0xFFAAAAAA)
+                            )
                         } else {
-                            configuredAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
+                            filteredAgents.forEach { agent ->
                                 val isFromSwarm = agent.id in swarmAgentIds
                                 Row(
                                     modifier = Modifier
