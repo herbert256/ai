@@ -88,6 +88,7 @@ fun AiServiceSettingsScreenTemplate(
     defaultModel: String = "",
     onTestApiKey: (suspend () -> String?)? = null,
     onClearApiKey: (() -> Unit)? = null,
+    onCreateAgent: (() -> Unit)? = null,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -131,25 +132,44 @@ fun AiServiceSettingsScreenTemplate(
             )
 
             // Save button at the top
-            Button(
-                onClick = handleSave,
+            // Buttons row: Save and Create AI Agent
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = hasChanges && !isSaving,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50),
-                    disabledContainerColor = Color(0xFF2E7D32).copy(alpha = 0.5f)
-                )
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
+                Button(
+                    onClick = handleSave,
+                    modifier = Modifier.weight(1f),
+                    enabled = hasChanges && !isSaving,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50),
+                        disabledContainerColor = Color(0xFF2E7D32).copy(alpha = 0.5f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Saving...")
-                } else {
-                    Text("Save")
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Saving...")
+                    } else {
+                        Text("Save")
+                    }
+                }
+
+                // Create AI Agent button (only show if API key is configured)
+                if (onCreateAgent != null && apiKey.isNotBlank()) {
+                    Button(
+                        onClick = onCreateAgent,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2196F3)
+                        )
+                    ) {
+                        Text("Create Agent")
+                    }
                 }
             }
 

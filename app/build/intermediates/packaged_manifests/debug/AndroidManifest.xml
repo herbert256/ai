@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.ai"
     android:versionCode="1"
-    android:versionName="26.0125.141043" >
+    android:versionName="26.0125.185623" >
 
     <uses-sdk
         android:minSdkVersion="26"

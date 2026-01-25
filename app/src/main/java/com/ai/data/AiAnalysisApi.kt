@@ -494,6 +494,18 @@ interface SiliconFlowApi {
 }
 
 /**
+ * Retrofit interface for Z.AI API (OpenAI-compatible format, different endpoint).
+ * Z.AI uses https://api.z.ai/api/paas/v4/chat/completions
+ */
+interface ZaiApi {
+    @POST("chat/completions")
+    suspend fun createChatCompletion(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiRequest
+    ): Response<OpenAiResponse>
+}
+
+/**
  * Retrofit interface for Groq API (OpenAI-compatible).
  */
 interface GroqApi {
@@ -577,9 +589,9 @@ object AiApiFactory {
         return getRetrofit(AiService.SILICONFLOW.baseUrl).create(SiliconFlowApi::class.java)
     }
 
-    fun createZaiApi(): OpenAiApi {
-        // Z.AI uses OpenAI-compatible format
-        return getRetrofit(AiService.ZAI.baseUrl).create(OpenAiApi::class.java)
+    fun createZaiApi(): ZaiApi {
+        // Z.AI uses OpenAI-compatible format with endpoint chat/completions
+        return getRetrofit(AiService.ZAI.baseUrl).create(ZaiApi::class.java)
     }
 
     fun createDummyApi(): OpenAiApi {

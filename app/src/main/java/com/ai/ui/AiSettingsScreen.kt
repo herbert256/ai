@@ -517,6 +517,7 @@ fun AiProvidersScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_DUMMY) }
             )
         }
+
     }
 }
 
