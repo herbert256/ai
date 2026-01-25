@@ -107,29 +107,34 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
         "DUMMY" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey)
     )
 
-    // Convert agents with parameters
+    // Convert agents with parameters (handle null parameters for legacy agents)
     val agents = aiSettings.agents.map { agent ->
+        val params = agent.parameters
         AgentExport(
             id = agent.id,
             name = agent.name,
             provider = agent.provider.name,
             model = agent.model,
             apiKey = agent.apiKey,
-            parameters = AgentParametersExport(
-                temperature = agent.parameters.temperature,
-                maxTokens = agent.parameters.maxTokens,
-                topP = agent.parameters.topP,
-                topK = agent.parameters.topK,
-                frequencyPenalty = agent.parameters.frequencyPenalty,
-                presencePenalty = agent.parameters.presencePenalty,
-                systemPrompt = agent.parameters.systemPrompt,
-                stopSequences = agent.parameters.stopSequences,
-                seed = agent.parameters.seed,
-                responseFormatJson = agent.parameters.responseFormatJson,
-                searchEnabled = agent.parameters.searchEnabled,
-                returnCitations = agent.parameters.returnCitations,
-                searchRecency = agent.parameters.searchRecency
-            )
+            parameters = if (params != null) {
+                AgentParametersExport(
+                    temperature = params.temperature,
+                    maxTokens = params.maxTokens,
+                    topP = params.topP,
+                    topK = params.topK,
+                    frequencyPenalty = params.frequencyPenalty,
+                    presencePenalty = params.presencePenalty,
+                    systemPrompt = params.systemPrompt,
+                    stopSequences = params.stopSequences,
+                    seed = params.seed,
+                    responseFormatJson = params.responseFormatJson,
+                    searchEnabled = params.searchEnabled,
+                    returnCitations = params.returnCitations,
+                    searchRecency = params.searchRecency
+                )
+            } else {
+                AgentParametersExport()  // Default empty parameters
+            }
         )
     }
 
