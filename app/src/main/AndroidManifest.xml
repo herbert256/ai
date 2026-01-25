@@ -21,6 +21,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Intent filter for external apps to request AI reports -->
+            <intent-filter>
+                <action android:name="com.ai.ACTION_NEW_REPORT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <provider

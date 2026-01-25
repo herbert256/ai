@@ -16,6 +16,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Check for incoming intent from external app
+        val externalTitle = intent.getStringExtra("title")
+        val externalPrompt = intent.getStringExtra("prompt")
+
         setContent {
             AiTheme {
                 Scaffold(
@@ -24,7 +29,9 @@ class MainActivity : ComponentActivity() {
                         .systemBarsPadding()
                 ) { innerPadding ->
                     AiNavHost(
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = Modifier.padding(innerPadding),
+                        externalTitle = externalTitle,
+                        externalPrompt = externalPrompt
                     )
                 }
             }

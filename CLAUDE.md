@@ -34,6 +34,7 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer)"
 - Developer mode with comprehensive API tracing
 - HTML report export with markdown rendering, citations, and search results
 - Configuration export/import (JSON format, version 4)
+- External app integration via Intent (see CALL_AI.md)
 
 **Technical Stack:**
 - **Language:** Kotlin

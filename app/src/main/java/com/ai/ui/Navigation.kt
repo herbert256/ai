@@ -35,12 +35,16 @@ object NavRoutes {
 
 /**
  * Main navigation host for the app.
+ * @param externalTitle Optional title from external app intent
+ * @param externalPrompt Optional prompt from external app intent
  */
 @Composable
 fun AiNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    viewModel: AiViewModel = viewModel()
+    viewModel: AiViewModel = viewModel(),
+    externalTitle: String? = null,
+    externalPrompt: String? = null
 ) {
     // Navigate to home, clearing the back stack
     val navigateHome: () -> Unit = {
@@ -49,9 +53,16 @@ fun AiNavHost(
         }
     }
 
+    // Determine start destination based on external intent
+    val startDestination = if (externalPrompt != null) {
+        NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)
+    } else {
+        NavRoutes.AI
+    }
+
     NavHost(
         navController = navController,
-        startDestination = NavRoutes.AI,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable(NavRoutes.AI) {
