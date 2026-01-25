@@ -312,15 +312,21 @@ fun AiSetupScreen(
             }
         }
 
-        // Export AI configuration button
-        Button(
-            onClick = {
-                exportAiConfigToFile(context, aiSettings)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            Text("Export AI configuration")
+        // Export AI configuration button (only show if setup is complete)
+        val canExport = hasApiKeyForSearch &&
+                aiSettings.agents.isNotEmpty() &&
+                aiSettings.swarms.isNotEmpty()
+
+        if (canExport) {
+            Button(
+                onClick = {
+                    exportAiConfigToFile(context, aiSettings)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text("Export AI configuration")
+            }
         }
 
         // Import AI configuration button (opens file picker)
