@@ -1738,7 +1738,7 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Report Ready"
                 isGenerating -> "Generating Report"
-                else -> uiState.genericAiPromptTitle
+                else -> "Select swarm(s)"
             },
             onBackClick = onDismiss,
             onAiClick = onNavigateHome
