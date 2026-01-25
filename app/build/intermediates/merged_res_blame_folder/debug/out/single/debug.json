@@ -1,138 +1,134 @@
 [
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_white_bishop.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_white_bishop.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_white_rook.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_white_rook.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/xml_data_extraction_rules.xml.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/xml/data_extraction_rules.xml"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_black_bishop.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_black_bishop.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_ic_launcher_background.xml.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/ic_launcher_background.xml"
+        "merged": "com.ai.app-merged_res-58:/xml_data_extraction_rules.xml.flat",
+        "source": "com.ai.app-main-60:/xml/data_extraction_rules.xml"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/raw_castle.wav.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/raw/castle.wav"
+        "merged": "com.ai.app-merged_res-58:/raw_move.wav.flat",
+        "source": "com.ai.app-main-60:/raw/move.wav"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-mdpi_ic_launcher.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-mdpi/ic_launcher.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_white_queen.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_white_queen.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-xhdpi_ic_launcher.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-xhdpi/ic_launcher.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-xhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_black_rook.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_black_rook.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_black_pawn.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_black_pawn.png"
     },
     {
-        "merged": "com.eval.app-merged_res-58:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.eval.app-main-60:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.ai.app-merged_res-58:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.ai.app-main-60:/mipmap-anydpi-v26/ic_launcher_round.xml"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_white_rook.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_white_rook.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.ai.app-main-60:/drawable/ic_launcher_background.xml"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_black_pawn.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_black_pawn.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_black_rook.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_black_rook.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_black_bishop.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_black_bishop.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.ai.app-main-60:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.ai.app-merged_res-58:/raw_castle.wav.flat",
+        "source": "com.ai.app-main-60:/raw/castle.wav"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-xhdpi_ic_launcher_round.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-xhdpi/ic_launcher_round.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_white_king.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_white_king.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/raw_check.wav.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/raw/check.wav"
+        "merged": "com.ai.app-merged_res-58:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-xxhdpi/ic_launcher.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-anydpi-v26/ic_launcher_round.xml"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_black_queen.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_black_queen.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_white_queen.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_white_queen.png"
+        "merged": "com.ai.app-merged_res-58:/xml_file_paths.xml.flat",
+        "source": "com.ai.app-main-60:/xml/file_paths.xml"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-xxxhdpi_ic_launcher.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-xxxhdpi/ic_launcher.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-mdpi_ic_launcher.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-mdpi/ic_launcher.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_black_knight.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_black_knight.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_black_knight.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_black_knight.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_white_pawn.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_white_pawn.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-hdpi_ic_launcher.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-hdpi/ic_launcher.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-xhdpi/ic_launcher.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-hdpi_ic_launcher_round.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-hdpi/ic_launcher_round.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.ai.app-main-60:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/xml_file_paths.xml.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/xml/file_paths.xml"
+        "merged": "com.ai.app-merged_res-58:/xml_backup_rules.xml.flat",
+        "source": "com.ai.app-main-60:/xml/backup_rules.xml"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_white_pawn.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_white_pawn.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-xxxhdpi/ic_launcher.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-xxxhdpi/ic_launcher_round.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-xxhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_black_king.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_black_king.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-xxxhdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-xxhdpi_ic_launcher_round.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-xxhdpi/ic_launcher_round.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-mdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/raw_move.wav.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/raw/move.wav"
+        "merged": "com.ai.app-merged_res-58:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-hdpi/ic_launcher.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_white_king.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_white_king.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_black_king.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_black_king.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/raw_capture.wav.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/raw/capture.wav"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_white_knight.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_white_knight.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_black_queen.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_black_queen.png"
+        "merged": "com.ai.app-merged_res-58:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.ai.app-main-60:/mipmap-hdpi/ic_launcher_round.png"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/xml_backup_rules.xml.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/xml/backup_rules.xml"
+        "merged": "com.ai.app-merged_res-58:/raw_check.wav.flat",
+        "source": "com.ai.app-main-60:/raw/check.wav"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-xxhdpi_ic_launcher.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-xxhdpi/ic_launcher.png"
+        "merged": "com.ai.app-merged_res-58:/raw_capture.wav.flat",
+        "source": "com.ai.app-main-60:/raw/capture.wav"
     },
     {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/mipmap-mdpi_ic_launcher_round.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/mipmap-mdpi/ic_launcher_round.png"
-    },
-    {
-        "merged": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-merged_res-58:/drawable_piece_white_knight.png.flat",
-        "source": "/Users/herbert/.gradle/daemon/8.5/com.eval.app-main-60:/drawable/piece_white_knight.png"
+        "merged": "com.ai.app-merged_res-58:/drawable_piece_white_bishop.png.flat",
+        "source": "com.ai.app-main-60:/drawable/piece_white_bishop.png"
     }
 ]

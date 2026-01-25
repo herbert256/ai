@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.eval.app-mergeDebugResources-56:/values-ne/values-ne.xml",
+            "outputFile": "com.ai.app-mergeDebugResources-56:/values-ne/values-ne.xml",
             "map": [
                 {
                     "source": "/Users/herbert/.gradle/caches/transforms-3/2caccf84b680d4c7ae4fcc3dee12d280/transformed/ui-release/res/values-ne/values-ne.xml",

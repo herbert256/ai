@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.eval"
+    package="com.ai"
     android:versionCode="1"
-    android:versionName="26.0125.050641" >
+    android:versionName="26.0125.092401" >
 
     <uses-sdk
         android:minSdkVersion="26"
@@ -11,10 +11,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <permission
-        android:name="com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        android:name="com.ai.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         android:protectionLevel="signature" />
 
-    <uses-permission android:name="com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+    <uses-permission android:name="com.ai.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
 
     <application
         android:allowBackup="false"
@@ -27,7 +27,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AI" >
         <activity
-            android:name="com.eval.MainActivity"
+            android:name="com.ai.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.AI" >
             <intent-filter>
@@ -39,7 +39,7 @@
 
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.eval.fileprovider"
+            android:authorities="com.ai.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true" >
             <meta-data
@@ -53,7 +53,7 @@
 
         <provider
             android:name="androidx.startup.InitializationProvider"
-            android:authorities="com.eval.androidx-startup"
+            android:authorities="com.ai.androidx-startup"
             android:exported="false" >
             <meta-data
                 android:name="androidx.emoji2.text.EmojiCompatInitializer"

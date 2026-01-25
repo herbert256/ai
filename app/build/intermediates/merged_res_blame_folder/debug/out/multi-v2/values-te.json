@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.eval.app-mergeDebugResources-56:/values-te/values-te.xml",
+            "outputFile": "com.ai.app-mergeDebugResources-56:/values-te/values-te.xml",
             "map": [
                 {
                     "source": "/Users/herbert/.gradle/caches/transforms-3/969c256550ff689e1e8d432e05f269b8/transformed/foundation-release/res/values-te/values-te.xml",

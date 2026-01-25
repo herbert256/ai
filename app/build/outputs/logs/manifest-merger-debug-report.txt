@@ -137,7 +137,7 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/herbert/.gradle/cach
 		ADDED from /Users/herbert/ai/app/src/main/AndroidManifest.xml:8:9-36
 	android:theme
 		ADDED from /Users/herbert/ai/app/src/main/AndroidManifest.xml:14:9-40
-activity#com.eval.MainActivity
+activity#com.ai.MainActivity
 ADDED from /Users/herbert/ai/app/src/main/AndroidManifest.xml:16:9-24:20
 	android:exported
 		ADDED from /Users/herbert/ai/app/src/main/AndroidManifest.xml:18:13-36
@@ -357,7 +357,7 @@ ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-
 		ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
 	android:name
 		ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
-permission#com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+permission#com.ai.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
 ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
 	android:protectionLevel
 		ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
@@ -367,7 +367,7 @@ uses-permission#${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
 ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
 	android:name
 		ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
-uses-permission#com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+uses-permission#com.ai.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
 ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
 	android:name
 		ADDED from [androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
