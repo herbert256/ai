@@ -87,7 +87,7 @@ fun AiHubScreen(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         } else if (uiState.aiSettings.agents.isEmpty()) {
             // Warning if no agents configured (only show if API keys exist)
             Card(
@@ -111,7 +111,7 @@ fun AiHubScreen(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Cards

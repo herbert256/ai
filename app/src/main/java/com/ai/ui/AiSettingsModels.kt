@@ -138,6 +138,15 @@ val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
         AiParameter.SYSTEM_PROMPT,
         AiParameter.STOP_SEQUENCES
     ),
+    AiService.ZAI to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES
+    ),
     AiService.DUMMY to setOf(
         AiParameter.TEMPERATURE,
         AiParameter.MAX_TOKENS,
@@ -204,6 +213,19 @@ val SILICONFLOW_MODELS = listOf(
 )
 
 /**
+ * Available Z.AI models (hardcoded - uses ZhipuAI GLM models).
+ */
+val ZAI_MODELS = listOf(
+    "glm-4.7-flash",
+    "glm-4.7",
+    "glm-4.5-flash",
+    "glm-4.5",
+    "glm-4-plus",
+    "glm-4-long",
+    "glm-4-flash"
+)
+
+/**
  * AI Agent - user-created configuration combining provider, model, API key, and parameters.
  */
 data class AiAgent(
@@ -263,6 +285,10 @@ data class AiSettings(
     val siliconFlowModel: String = "Qwen/Qwen2.5-7B-Instruct",
     val siliconFlowModelSource: ModelSource = ModelSource.MANUAL,
     val siliconFlowManualModels: List<String> = SILICONFLOW_MODELS,
+    val zaiApiKey: String = "",
+    val zaiModel: String = "glm-4.7-flash",
+    val zaiModelSource: ModelSource = ModelSource.MANUAL,
+    val zaiManualModels: List<String> = ZAI_MODELS,
     val dummyApiKey: String = "",
     val dummyModel: String = "abc",
     val dummyModelSource: ModelSource = ModelSource.API,
@@ -283,6 +309,7 @@ data class AiSettings(
             AiService.TOGETHER -> togetherApiKey
             AiService.OPENROUTER -> openRouterApiKey
             AiService.SILICONFLOW -> siliconFlowApiKey
+            AiService.ZAI -> zaiApiKey
             AiService.DUMMY -> dummyApiKey
         }
     }
@@ -300,6 +327,7 @@ data class AiSettings(
             AiService.TOGETHER -> togetherModel
             AiService.OPENROUTER -> openRouterModel
             AiService.SILICONFLOW -> siliconFlowModel
+            AiService.ZAI -> zaiModel
             AiService.DUMMY -> dummyModel
         }
     }
@@ -317,6 +345,7 @@ data class AiSettings(
             AiService.TOGETHER -> copy(togetherModel = model)
             AiService.OPENROUTER -> copy(openRouterModel = model)
             AiService.SILICONFLOW -> copy(siliconFlowModel = model)
+            AiService.ZAI -> copy(zaiModel = model)
             AiService.DUMMY -> this
         }
     }
@@ -334,6 +363,7 @@ data class AiSettings(
             AiService.TOGETHER -> togetherModelSource
             AiService.OPENROUTER -> openRouterModelSource
             AiService.SILICONFLOW -> siliconFlowModelSource
+            AiService.ZAI -> zaiModelSource
             AiService.DUMMY -> dummyModelSource
         }
     }
@@ -351,6 +381,7 @@ data class AiSettings(
             AiService.TOGETHER -> togetherManualModels
             AiService.OPENROUTER -> openRouterManualModels
             AiService.SILICONFLOW -> siliconFlowManualModels
+            AiService.ZAI -> zaiManualModels
             AiService.DUMMY -> dummyManualModels
         }
     }
@@ -365,7 +396,8 @@ data class AiSettings(
                 perplexityApiKey.isNotBlank() ||
                 togetherApiKey.isNotBlank() ||
                 openRouterApiKey.isNotBlank() ||
-                siliconFlowApiKey.isNotBlank()
+                siliconFlowApiKey.isNotBlank() ||
+                zaiApiKey.isNotBlank()
     }
 
     fun getConfiguredServices(): List<AiService> {

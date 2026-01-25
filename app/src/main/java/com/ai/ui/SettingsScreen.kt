@@ -35,11 +35,13 @@ enum class SettingsSubScreen {
     AI_TOGETHER,
     AI_OPENROUTER,
     AI_SILICONFLOW,
+    AI_ZAI,
     AI_DUMMY,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
     AI_PROVIDERS,   // Provider model configuration
-    AI_AGENTS       // Agents CRUD
+    AI_AGENTS,      // Agents CRUD
+    MODEL_SEARCH    // Search models across providers
 }
 
 /**
@@ -105,10 +107,13 @@ fun SettingsScreen(
             SettingsSubScreen.AI_PERPLEXITY,
             SettingsSubScreen.AI_TOGETHER,
             SettingsSubScreen.AI_OPENROUTER,
+            SettingsSubScreen.AI_SILICONFLOW,
+            SettingsSubScreen.AI_ZAI,
             SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
-            SettingsSubScreen.AI_AGENTS -> currentSubScreen = SettingsSubScreen.AI_SETUP
+            SettingsSubScreen.AI_AGENTS,
+            SettingsSubScreen.MODEL_SEARCH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -241,6 +246,13 @@ fun SettingsScreen(
             onSave = onSaveAi,
             onTestApiKey = onTestAiModel
         )
+        SettingsSubScreen.AI_ZAI -> ZaiSettingsScreen(
+            aiSettings = aiSettings,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onTestApiKey = onTestAiModel
+        )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,
             availableModels = availableDummyModels,
@@ -284,6 +296,34 @@ fun SettingsScreen(
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
+            onTestAiModel = onTestAiModel,
+            onFetchChatGptModels = onFetchChatGptModels,
+            onFetchGeminiModels = onFetchGeminiModels,
+            onFetchGrokModels = onFetchGrokModels,
+            onFetchGroqModels = onFetchGroqModels,
+            onFetchDeepSeekModels = onFetchDeepSeekModels,
+            onFetchMistralModels = onFetchMistralModels,
+            onFetchPerplexityModels = onFetchPerplexityModels,
+            onFetchTogetherModels = onFetchTogetherModels,
+            onFetchOpenRouterModels = onFetchOpenRouterModels,
+            onFetchDummyModels = onFetchDummyModels
+        )
+        SettingsSubScreen.MODEL_SEARCH -> ModelSearchScreen(
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            availableChatGptModels = availableChatGptModels,
+            availableGeminiModels = availableGeminiModels,
+            availableGrokModels = availableGrokModels,
+            availableGroqModels = availableGroqModels,
+            availableDeepSeekModels = availableDeepSeekModels,
+            availableMistralModels = availableMistralModels,
+            availablePerplexityModels = availablePerplexityModels,
+            availableTogetherModels = availableTogetherModels,
+            availableOpenRouterModels = availableOpenRouterModels,
+            availableDummyModels = availableDummyModels,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSaveAiSettings = onSaveAi,
             onTestAiModel = onTestAiModel,
             onFetchChatGptModels = onFetchChatGptModels,
             onFetchGeminiModels = onFetchGeminiModels,

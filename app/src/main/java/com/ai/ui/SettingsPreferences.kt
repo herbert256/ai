@@ -92,6 +92,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             siliconFlowModel = prefs.getString(KEY_AI_SILICONFLOW_MODEL, "Qwen/Qwen2.5-7B-Instruct") ?: "Qwen/Qwen2.5-7B-Instruct",
             siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.MANUAL),
             siliconFlowManualModels = loadManualModelsWithDefault(KEY_AI_SILICONFLOW_MANUAL_MODELS, SILICONFLOW_MODELS),
+            zaiApiKey = prefs.getString(KEY_AI_ZAI_API_KEY, "") ?: "",
+            zaiModel = prefs.getString(KEY_AI_ZAI_MODEL, "glm-4.7-flash") ?: "glm-4.7-flash",
+            zaiModelSource = loadModelSource(KEY_AI_ZAI_MODEL_SOURCE, ModelSource.MANUAL),
+            zaiManualModels = loadManualModelsWithDefault(KEY_AI_ZAI_MANUAL_MODELS, ZAI_MODELS),
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
             dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, "abc") ?: "abc",
             dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
@@ -176,6 +180,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_SILICONFLOW_MODEL, settings.siliconFlowModel)
             .putString(KEY_AI_SILICONFLOW_MODEL_SOURCE, settings.siliconFlowModelSource.name)
             .putString(KEY_AI_SILICONFLOW_MANUAL_MODELS, gson.toJson(settings.siliconFlowManualModels))
+            .putString(KEY_AI_ZAI_API_KEY, settings.zaiApiKey)
+            .putString(KEY_AI_ZAI_MODEL, settings.zaiModel)
+            .putString(KEY_AI_ZAI_MODEL_SOURCE, settings.zaiModelSource.name)
+            .putString(KEY_AI_ZAI_MANUAL_MODELS, gson.toJson(settings.zaiManualModels))
             .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
             .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
             .putString(KEY_AI_DUMMY_MODEL_SOURCE, settings.dummyModelSource.name)
@@ -286,6 +294,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_OPENROUTER_MODEL = "ai_openrouter_model"
         private const val KEY_AI_SILICONFLOW_API_KEY = "ai_siliconflow_api_key"
         private const val KEY_AI_SILICONFLOW_MODEL = "ai_siliconflow_model"
+        private const val KEY_AI_ZAI_API_KEY = "ai_zai_api_key"
+        private const val KEY_AI_ZAI_MODEL = "ai_zai_model"
         private const val KEY_AI_DUMMY_API_KEY = "ai_dummy_api_key"
         private const val KEY_AI_DUMMY_MODEL = "ai_dummy_model"
         private const val KEY_AI_DUMMY_MANUAL_MODELS = "ai_dummy_manual_models"
@@ -302,6 +312,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_TOGETHER_MODEL_SOURCE = "ai_together_model_source"
         private const val KEY_AI_OPENROUTER_MODEL_SOURCE = "ai_openrouter_model_source"
         private const val KEY_AI_SILICONFLOW_MODEL_SOURCE = "ai_siliconflow_model_source"
+        private const val KEY_AI_ZAI_MODEL_SOURCE = "ai_zai_model_source"
         private const val KEY_AI_DUMMY_MODEL_SOURCE = "ai_dummy_model_source"
 
         // AI manual models lists
@@ -316,6 +327,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_TOGETHER_MANUAL_MODELS = "ai_together_manual_models"
         private const val KEY_AI_OPENROUTER_MANUAL_MODELS = "ai_openrouter_manual_models"
         private const val KEY_AI_SILICONFLOW_MANUAL_MODELS = "ai_siliconflow_manual_models"
+        private const val KEY_AI_ZAI_MANUAL_MODELS = "ai_zai_manual_models"
 
         // AI agents
         private const val KEY_AI_AGENTS = "ai_agents"

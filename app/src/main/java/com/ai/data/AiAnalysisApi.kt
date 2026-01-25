@@ -28,6 +28,7 @@ enum class AiService(val displayName: String, val baseUrl: String) {
     TOGETHER("Together", "https://api.together.xyz/"),
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/"),
     SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/"),
+    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/"),
     DUMMY("Dummy", "http://localhost:54321/")
 }
 
@@ -574,6 +575,11 @@ object AiApiFactory {
 
     fun createSiliconFlowApi(): SiliconFlowApi {
         return getRetrofit(AiService.SILICONFLOW.baseUrl).create(SiliconFlowApi::class.java)
+    }
+
+    fun createZaiApi(): OpenAiApi {
+        // Z.AI uses OpenAI-compatible format
+        return getRetrofit(AiService.ZAI.baseUrl).create(OpenAiApi::class.java)
     }
 
     fun createDummyApi(): OpenAiApi {

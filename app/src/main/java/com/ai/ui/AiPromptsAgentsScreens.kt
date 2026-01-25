@@ -69,6 +69,7 @@ fun AiAgentsScreen(
             AiService.DUMMY -> onFetchDummyModels(apiKey)
             AiService.CLAUDE -> {} // Claude has hardcoded models
             AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
+            AiService.ZAI -> {} // Z.AI has hardcoded models
         }
     }
 
@@ -332,7 +333,7 @@ private fun AgentListItem(
  * Full-screen agent add/edit screen.
  */
 @Composable
-private fun AgentEditScreen(
+internal fun AgentEditScreen(
     agent: AiAgent?,
     aiSettings: AiSettings,
     developerMode: Boolean,
@@ -351,9 +352,10 @@ private fun AgentEditScreen(
     onFetchModelsForProvider: (AiService, String) -> Unit,
     onSave: (AiAgent) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    forceAddMode: Boolean = false
 ) {
-    val isEditing = agent != null
+    val isEditing = agent != null && !forceAddMode
     // Filter providers: must have API key configured, exclude DUMMY unless developer mode
     val availableProviders = AiService.entries.filter { provider ->
         // Always include current agent's provider when editing
@@ -450,6 +452,10 @@ private fun AgentEditScreen(
             val manualModels = aiSettings.siliconFlowManualModels
             manualModels.ifEmpty { SILICONFLOW_MODELS }
         }
+        AiService.ZAI -> {
+            val manualModels = aiSettings.zaiManualModels
+            manualModels.ifEmpty { ZAI_MODELS }
+        }
         AiService.DUMMY -> {
             val apiModels = if (aiSettings.dummyModelSource == ModelSource.API) availableDummyModels else emptyList()
             val manualModels = if (aiSettings.dummyModelSource == ModelSource.MANUAL) aiSettings.dummyManualModels else emptyList()
@@ -472,6 +478,7 @@ private fun AgentEditScreen(
             AiService.DUMMY -> aiSettings.dummyModelSource
             AiService.CLAUDE -> ModelSource.MANUAL // Claude has hardcoded models
             AiService.SILICONFLOW -> ModelSource.MANUAL // SiliconFlow has hardcoded models
+            AiService.ZAI -> ModelSource.MANUAL // Z.AI has hardcoded models
         }
     }
 
@@ -999,6 +1006,7 @@ fun getDefaultModelForProvider(provider: AiService): String {
         AiService.TOGETHER -> "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         AiService.OPENROUTER -> "anthropic/claude-3.5-sonnet"
         AiService.SILICONFLOW -> "Qwen/Qwen2.5-7B-Instruct"
+        AiService.ZAI -> "glm-4.7-flash"
         AiService.DUMMY -> "dummy"
     }
 }

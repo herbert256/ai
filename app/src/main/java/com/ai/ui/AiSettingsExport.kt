@@ -104,6 +104,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
         "PERPLEXITY" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.perplexityManualModels, aiSettings.perplexityApiKey),
         "TOGETHER" to ProviderConfigExport(aiSettings.togetherModelSource.name, aiSettings.togetherManualModels, aiSettings.togetherApiKey),
         "OPENROUTER" to ProviderConfigExport(aiSettings.openRouterModelSource.name, aiSettings.openRouterManualModels, aiSettings.openRouterApiKey),
+        "SILICONFLOW" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowApiKey),
+        "ZAI" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.zaiManualModels, aiSettings.zaiApiKey),
         "DUMMY" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey)
     )
 
@@ -210,6 +212,12 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
     }
     if (aiSettings.openRouterApiKey.isNotBlank()) {
         keys.add(ApiKeyEntry("OpenRouter", aiSettings.openRouterApiKey))
+    }
+    if (aiSettings.siliconFlowApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("SiliconFlow", aiSettings.siliconFlowApiKey))
+    }
+    if (aiSettings.zaiApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("Z.AI", aiSettings.zaiApiKey))
     }
 
     val gson = Gson()
@@ -358,6 +366,18 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
                 openRouterModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 openRouterManualModels = p.manualModels,
                 openRouterApiKey = p.apiKey
+            )
+        }
+        export.providers["SILICONFLOW"]?.let { p ->
+            settings = settings.copy(
+                siliconFlowManualModels = p.manualModels,
+                siliconFlowApiKey = p.apiKey
+            )
+        }
+        export.providers["ZAI"]?.let { p ->
+            settings = settings.copy(
+                zaiManualModels = p.manualModels,
+                zaiApiKey = p.apiKey
             )
         }
         export.providers["DUMMY"]?.let { p ->
@@ -517,6 +537,18 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
                 openRouterModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 openRouterManualModels = p.manualModels,
                 openRouterApiKey = p.apiKey
+            )
+        }
+        export.providers["SILICONFLOW"]?.let { p ->
+            settings = settings.copy(
+                siliconFlowManualModels = p.manualModels,
+                siliconFlowApiKey = p.apiKey
+            )
+        }
+        export.providers["ZAI"]?.let { p ->
+            settings = settings.copy(
+                zaiManualModels = p.manualModels,
+                zaiApiKey = p.apiKey
             )
         }
         export.providers["DUMMY"]?.let { p ->

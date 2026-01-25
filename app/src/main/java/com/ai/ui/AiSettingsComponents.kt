@@ -82,44 +82,127 @@ fun AiServiceSettingsScreenTemplate(
     accentColor: Color,
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
+    onSave: () -> Unit,
+    hasChanges: Boolean = false,
+    apiKey: String = "",
+    defaultModel: String = "",
+    onTestApiKey: (suspend () -> String?)? = null,
+    onClearApiKey: (() -> Unit)? = null,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        AiTitleBar(
-            title = title,
-            onBackClick = onBackToAiSettings,
-            onAiClick = onBackToHome
-        )
+    val coroutineScope = rememberCoroutineScope()
+    var isValidating by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
 
-        // Provider info with color indicator
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+    // Handle save with API key validation
+    val handleSave: () -> Unit = {
+        if (apiKey.isNotBlank() && onTestApiKey != null) {
+            isSaving = true
+            coroutineScope.launch {
+                val error = onTestApiKey()
+                isSaving = false
+                if (error == null) {
+                    // API key is valid, save and go back
+                    onSave()
+                    onBackToAiSettings()
+                }
+                // If error, stay on screen (user sees the error from test)
+            }
+        } else {
+            onSave()
+            onBackToAiSettings()
+        }
+    }
+
+    // Show loading overlay when validating
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .background(accentColor, shape = MaterialTheme.shapes.small)
+            AiTitleBar(
+                title = title,
+                onBackClick = onBackToAiSettings,
+                onAiClick = onBackToHome
             )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFFAAAAAA)
-            )
+
+            // Save button at the top
+            Button(
+                onClick = handleSave,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = hasChanges && !isSaving,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50),
+                    disabledContainerColor = Color(0xFF2E7D32).copy(alpha = 0.5f)
+                )
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Saving...")
+                } else {
+                    Text("Save")
+                }
+            }
+
+            // Provider info with color indicator
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .background(accentColor, shape = MaterialTheme.shapes.small)
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFFAAAAAA)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Additional content (model selection, etc.)
+            additionalContent()
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Additional content (model selection, etc.)
-        additionalContent()
-
+        // Loading overlay when saving
+        if (isSaving) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Text("Validating API key...")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -392,6 +475,52 @@ fun ApiKeyInputSection(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Default model input section for provider settings.
+ */
+@Composable
+fun DefaultModelInputSection(
+    defaultModel: String,
+    onDefaultModelChange: (String) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Default Model",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+
+            Text(
+                text = "Model used for API key testing",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
+
+            OutlinedTextField(
+                value = defaultModel,
+                onValueChange = onDefaultModelChange,
+                label = { Text("Model name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                )
+            )
         }
     }
 }
