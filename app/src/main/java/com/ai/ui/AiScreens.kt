@@ -172,6 +172,57 @@ private fun HubCard(
 }
 
 /**
+ * Search within an HTML file for content in specific sections.
+ * Returns true if all non-empty search terms are found in their respective sections.
+ */
+private fun searchInHtmlFile(
+    file: java.io.File,
+    titleSearch: String,
+    promptSearch: String,
+    reportSearch: String
+): Boolean {
+    if (titleSearch.isBlank() && promptSearch.isBlank() && reportSearch.isBlank()) {
+        return true  // No search criteria, match all
+    }
+
+    return try {
+        val content = file.readText()
+
+        // Search in Title section
+        if (titleSearch.isNotBlank()) {
+            val titlePattern = """<div id="Title">(.*?)</div>""".toRegex(RegexOption.DOT_MATCHES_ALL)
+            val titleMatch = titlePattern.find(content)
+            if (titleMatch == null || !titleMatch.groupValues[1].contains(titleSearch, ignoreCase = true)) {
+                return false
+            }
+        }
+
+        // Search in Prompt section
+        if (promptSearch.isNotBlank()) {
+            val promptPattern = """<div id="Prompt"[^>]*>(.*?)</div>\s*<div class="footer">""".toRegex(RegexOption.DOT_MATCHES_ALL)
+            val promptMatch = promptPattern.find(content)
+            if (promptMatch == null || !promptMatch.groupValues[1].contains(promptSearch, ignoreCase = true)) {
+                return false
+            }
+        }
+
+        // Search in Report sections (any agent's report)
+        if (reportSearch.isNotBlank()) {
+            val reportPattern = """<div id="Report-[^"]*"[^>]*>(.*?)</div></div>""".toRegex(RegexOption.DOT_MATCHES_ALL)
+            val reportMatches = reportPattern.findAll(content)
+            val foundInReport = reportMatches.any { it.groupValues[1].contains(reportSearch, ignoreCase = true) }
+            if (!foundInReport) {
+                return false
+            }
+        }
+
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
+
+/**
  * AI History screen showing generated reports with pagination.
  * Layout matches the API Trace Log screen.
  */
@@ -182,14 +233,22 @@ fun AiHistoryScreenNav(
     pageSize: Int = 25
 ) {
     val context = LocalContext.current
-    var historyFiles by remember { mutableStateOf(AiHistoryManager.getHistoryFiles()) }
+    var allHistoryFiles by remember { mutableStateOf(AiHistoryManager.getHistoryFiles()) }
+    var filteredFiles by remember { mutableStateOf(allHistoryFiles) }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val totalPages = (historyFiles.size + pageSize - 1) / pageSize
+    // Search state
+    var searchExpanded by remember { mutableStateOf(false) }
+    var searchTitle by remember { mutableStateOf("") }
+    var searchPrompt by remember { mutableStateOf("") }
+    var searchReport by remember { mutableStateOf("") }
+    var isSearchActive by remember { mutableStateOf(false) }
+
+    val totalPages = (filteredFiles.size + pageSize - 1) / pageSize
     val startIndex = currentPage * pageSize
-    val endIndex = minOf(startIndex + pageSize, historyFiles.size)
-    val currentPageFiles = if (historyFiles.isNotEmpty() && startIndex < historyFiles.size) {
-        historyFiles.subList(startIndex, endIndex)
+    val endIndex = minOf(startIndex + pageSize, filteredFiles.size)
+    val currentPageFiles = if (filteredFiles.isNotEmpty() && startIndex < filteredFiles.size) {
+        filteredFiles.subList(startIndex, endIndex)
     } else {
         emptyList()
     }
@@ -205,6 +264,113 @@ fun AiHistoryScreenNav(
             onBackClick = onNavigateBack,
             onAiClick = onNavigateHome
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Search section - collapsed or expanded
+        if (!searchExpanded) {
+            // Collapsed: just show Search button
+            Button(
+                onClick = { searchExpanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF6B9BFF)
+                )
+            ) {
+                Text(if (isSearchActive) "Search (active)" else "Search")
+            }
+        } else {
+            // Expanded: show search fields
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF2A2A2A)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = searchTitle,
+                        onValueChange = { searchTitle = it },
+                        label = { Text("Title", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF6B9BFF),
+                            unfocusedBorderColor = Color(0xFF444444),
+                            focusedLabelColor = Color(0xFF6B9BFF),
+                            unfocusedLabelColor = Color.Gray,
+                            cursorColor = Color.White
+                        )
+                    )
+                    OutlinedTextField(
+                        value = searchPrompt,
+                        onValueChange = { searchPrompt = it },
+                        label = { Text("Prompt", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF6B9BFF),
+                            unfocusedBorderColor = Color(0xFF444444),
+                            focusedLabelColor = Color(0xFF6B9BFF),
+                            unfocusedLabelColor = Color.Gray,
+                            cursorColor = Color.White
+                        )
+                    )
+                    OutlinedTextField(
+                        value = searchReport,
+                        onValueChange = { searchReport = it },
+                        label = { Text("Report", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF6B9BFF),
+                            unfocusedBorderColor = Color(0xFF444444),
+                            focusedLabelColor = Color(0xFF6B9BFF),
+                            unfocusedLabelColor = Color.Gray,
+                            cursorColor = Color.White
+                        )
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                filteredFiles = allHistoryFiles.filter { fileInfo ->
+                                    searchInHtmlFile(fileInfo.file, searchTitle, searchPrompt, searchReport)
+                                }
+                                currentPage = 0
+                                isSearchActive = searchTitle.isNotBlank() || searchPrompt.isNotBlank() || searchReport.isNotBlank()
+                                searchExpanded = false
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF6B9BFF)
+                            )
+                        ) {
+                            Text("Search")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                searchTitle = ""
+                                searchPrompt = ""
+                                searchReport = ""
+                                filteredFiles = allHistoryFiles
+                                currentPage = 0
+                                isSearchActive = false
+                                searchExpanded = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Clear")
+                        }
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -280,7 +446,7 @@ fun AiHistoryScreenNav(
         Spacer(modifier = Modifier.height(4.dp))
 
         // History list
-        if (historyFiles.isEmpty()) {
+        if (filteredFiles.isEmpty()) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -288,7 +454,7 @@ fun AiHistoryScreenNav(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No AI reports yet",
+                    text = if (allHistoryFiles.isEmpty()) "No AI reports yet" else "No matching reports",
                     color = Color(0xFFAAAAAA),
                     fontSize = 16.sp
                 )
@@ -313,10 +479,11 @@ fun AiHistoryScreenNav(
         Button(
             onClick = {
                 AiHistoryManager.clearHistory()
-                historyFiles = emptyList()
+                allHistoryFiles = emptyList()
+                filteredFiles = emptyList()
                 currentPage = 0
             },
-            enabled = historyFiles.isNotEmpty(),
+            enabled = allHistoryFiles.isNotEmpty(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFCC3333),
                 disabledContainerColor = Color(0xFF444444)
@@ -777,7 +944,7 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
         </head>
         <body>
             <div class="container">
-                <h1>$title</h1>
+                <div id="Title"><h1>$title</h1></div>
 
                 <div class="agent-buttons">
     """.trimIndent())
@@ -800,6 +967,7 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
         htmlBuilder.append("""
                 <div id="agent-$agentId" class="agent-result $activeClass">
                     <div class="agent-header">${agent.provider.displayName} - ${agent.model}</div>
+                    <div id="Report-$agentId" class="report-content">
         """)
 
         if (response.error != null) {
@@ -885,11 +1053,11 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
             """)
         }
 
-        htmlBuilder.append("</div>")
+        htmlBuilder.append("</div></div>")  // Close report-content and agent-result divs
     }
 
     htmlBuilder.append("""
-                <div class="prompt-section">
+                <div id="Prompt" class="prompt-section">
                     <div class="prompt-label">Prompt:</div>
                     <pre class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</pre>
                 </div>
