@@ -431,3 +431,19 @@ data class AiSettings(
             getSwarmById(swarmId)?.let { getAgentsForSwarm(it) } ?: emptyList()
         }.distinctBy { it.id }
 }
+
+/**
+ * Statistics for a specific provider+model combination.
+ * Tracks call count and token usage (normalized across providers).
+ */
+data class AiUsageStats(
+    val provider: AiService,
+    val model: String,
+    val callCount: Int = 0,
+    val inputTokens: Long = 0,
+    val outputTokens: Long = 0,
+    val totalTokens: Long = 0
+) {
+    /** Unique key for this provider+model combination */
+    val key: String get() = "${provider.name}::$model"
+}

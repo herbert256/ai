@@ -25,6 +25,7 @@ object NavRoutes {
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_REPORTS = "ai_reports"
+    const val AI_STATISTICS = "ai_statistics"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun aiNewReportWithParams(title: String, prompt: String): String {
@@ -80,6 +81,7 @@ fun AiNavHost(
                 onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
                 onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
+                onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 viewModel = viewModel
             )
         }
@@ -170,6 +172,13 @@ fun AiNavHost(
             AiReportsScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+
+        composable(NavRoutes.AI_STATISTICS) {
+            AiStatisticsScreen(
+                onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
         }

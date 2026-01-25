@@ -174,6 +174,18 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
 
+                    // Update usage statistics if successful
+                    if (response.error == null && response.tokenUsage != null) {
+                        val usage = response.tokenUsage
+                        settingsPrefs.updateUsageStats(
+                            provider = agent.provider,
+                            model = agent.model,
+                            inputTokens = usage.inputTokens,
+                            outputTokens = usage.outputTokens,
+                            totalTokens = usage.totalTokens
+                        )
+                    }
+
                     // Update state immediately when this agent completes
                     _uiState.value = _uiState.value.copy(
                         genericAiReportsProgress = _uiState.value.genericAiReportsProgress + 1,

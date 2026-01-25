@@ -362,6 +362,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // Selected swarm IDs for report generation
         private const val KEY_SELECTED_SWARM_IDS = "selected_swarm_ids"
+
+        // AI usage statistics
+        private const val KEY_AI_USAGE_STATS = "ai_usage_stats"
     }
 
     // ============================================================================
@@ -382,5 +385,48 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     fun saveSelectedSwarmIds(swarmIds: Set<String>) {
         val json = gson.toJson(swarmIds.toList())
         prefs.edit().putString(KEY_SELECTED_SWARM_IDS, json).apply()
+    }
+
+    // ============================================================================
+    // AI Usage Statistics
+    // ============================================================================
+
+    fun loadUsageStats(): Map<String, AiUsageStats> {
+        val json = prefs.getString(KEY_AI_USAGE_STATS, null) ?: return emptyMap()
+        return try {
+            val type = object : TypeToken<List<AiUsageStats>>() {}.type
+            val list: List<AiUsageStats>? = gson.fromJson(json, type)
+            list?.associateBy { it.key } ?: emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    fun saveUsageStats(stats: Map<String, AiUsageStats>) {
+        val json = gson.toJson(stats.values.toList())
+        prefs.edit().putString(KEY_AI_USAGE_STATS, json).apply()
+    }
+
+    fun updateUsageStats(
+        provider: com.ai.data.AiService,
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        totalTokens: Int
+    ) {
+        val stats = loadUsageStats().toMutableMap()
+        val key = "${provider.name}::$model"
+        val existing = stats[key] ?: AiUsageStats(provider, model)
+        stats[key] = existing.copy(
+            callCount = existing.callCount + 1,
+            inputTokens = existing.inputTokens + inputTokens,
+            outputTokens = existing.outputTokens + outputTokens,
+            totalTokens = existing.totalTokens + totalTokens
+        )
+        saveUsageStats(stats)
+    }
+
+    fun clearUsageStats() {
+        prefs.edit().remove(KEY_AI_USAGE_STATS).apply()
     }
 }

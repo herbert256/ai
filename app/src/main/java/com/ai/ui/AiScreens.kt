@@ -34,6 +34,7 @@ fun AiHubScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToNewReport: () -> Unit,
     onNavigateToPromptHistory: () -> Unit,
+    onNavigateToStatistics: () -> Unit,
     viewModel: AiViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -150,6 +151,8 @@ fun AiHubScreen(
             HubCard(icon = "\uD83D\uDD52", title = "Prompt History", onClick = onNavigateToPromptHistory)
             Spacer(modifier = Modifier.height(8.dp))
             HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
+            Spacer(modifier = Modifier.height(8.dp))
+            HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
             Spacer(modifier = Modifier.height(8.dp))
         }
         HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
