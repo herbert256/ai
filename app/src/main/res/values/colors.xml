@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background_dark">#1A1A2E</color>
+    <color name="surface_dark">#16213E</color>
+    <color name="primary">#4A9EFF</color>
+    <color name="primary_dark">#3A8EEF</color>
+    <color name="on_surface">#EEEEEE</color>
+    <color name="on_surface_variant">#888888</color>
+    <color name="error">#FF4757</color>
+    <color name="result_background">#0F3460</color>
+
+    <color name="board_light">#F0D9B5</color>
+    <color name="board_dark">#B58863</color>
+    <color name="highlight_last_move">#CDD26A</color>
+
+    <color name="eval_white_winning">#FFFFFF</color>
+    <color name="eval_black_winning">#888888</color>
+    <color name="eval_equal">#4A9EFF</color>
+    <color name="eval_mate">#FF6B6B</color>
+</resources>

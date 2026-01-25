@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="ai_analysis" path="ai_analysis/" />
+    <cache-path name="shared_traces" path="shared_traces/" />
+    <files-path name="ai_history" path="ai-history/" />
+</paths>
