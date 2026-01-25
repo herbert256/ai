@@ -9,6 +9,7 @@ import com.ai.data.AiAnalysisResponse
 import com.ai.data.AiHistoryManager
 import com.ai.data.AiService
 import com.ai.data.ApiTracer
+import com.ai.data.DummyApiServer
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
@@ -50,13 +51,28 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
         // Enable API tracing if configured
         ApiTracer.isTracingEnabled = generalSettings.trackApiCalls
+
+        // Start DummyApiServer if developer mode is enabled
+        if (generalSettings.developerMode) {
+            DummyApiServer.start()
+        }
     }
 
     // ========== Settings Management ==========
 
     fun updateGeneralSettings(settings: GeneralSettings) {
+        val oldSettings = _uiState.value.generalSettings
         saveGeneralSettings(settings)
         _uiState.value = _uiState.value.copy(generalSettings = settings)
+
+        // Start/stop DummyApiServer when developer mode changes
+        if (settings.developerMode != oldSettings.developerMode) {
+            if (settings.developerMode) {
+                DummyApiServer.start()
+            } else {
+                DummyApiServer.stop()
+            }
+        }
     }
 
     fun updateAiSettings(settings: AiSettings) {
@@ -328,6 +344,21 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingOpenRouterModels = false)
+            }
+        }
+    }
+
+    fun fetchDummyModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingDummyModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchDummyModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableDummyModels = models,
+                    isLoadingDummyModels = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingDummyModels = false)
             }
         }
     }

@@ -27,7 +27,7 @@ enum class AiService(val displayName: String, val baseUrl: String) {
     PERPLEXITY("Perplexity", "https://api.perplexity.ai/"),
     TOGETHER("Together", "https://api.together.xyz/"),
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/"),
-    DUMMY("Dummy", "")
+    DUMMY("Dummy", "http://localhost:54321/")
 }
 
 // OpenAI / ChatGPT models
@@ -547,4 +547,8 @@ object AiApiFactory {
         return getRetrofit(AiService.OPENROUTER.baseUrl).create(OpenRouterApi::class.java)
     }
 
+    fun createDummyApi(): OpenAiApi {
+        // Dummy API uses OpenAI-compatible format
+        return getRetrofit(AiService.DUMMY.baseUrl).create(OpenAiApi::class.java)
+    }
 }

@@ -172,7 +172,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, finalPrompt, perplexityModel)
                 AiService.TOGETHER -> analyzeWithTogether(apiKey, finalPrompt, togetherModel)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, finalPrompt, openRouterModel)
-                AiService.DUMMY -> analyzeWithDummy()
+                AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
 
@@ -254,7 +254,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, finalPrompt, perplexityModel)
                 AiService.TOGETHER -> analyzeWithTogether(apiKey, finalPrompt, togetherModel)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, finalPrompt, openRouterModel)
-                AiService.DUMMY -> analyzeWithDummy()
+                AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
 
@@ -317,7 +317,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.DUMMY -> analyzeWithDummy()
+                AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             // Add agent name and prompt used to result
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
@@ -380,7 +380,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.DUMMY -> analyzeWithDummy()
+                AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
@@ -960,8 +960,84 @@ class AiAnalysisRepository {
         }
     }
 
-    private fun analyzeWithDummy(): AiAnalysisResponse {
-        return AiAnalysisResponse(AiService.DUMMY, "Hi, greetings from AI", null, TokenUsage(10, 5))
+    private suspend fun analyzeWithDummy(
+        apiKey: String,
+        prompt: String,
+        model: String = "abc",
+        parameters: AiAgentParameters? = null
+    ): AiAnalysisResponse {
+        val api = AiApiFactory.createDummyApi()
+
+        val systemPrompt = parameters?.systemPrompt
+        val messages = if (systemPrompt != null) {
+            listOf(
+                OpenAiMessage("system", systemPrompt),
+                OpenAiMessage("user", prompt)
+            )
+        } else {
+            listOf(OpenAiMessage("user", prompt))
+        }
+
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = parameters?.maxTokens,
+            temperature = parameters?.temperature,
+            top_p = parameters?.topP
+        )
+
+        return try {
+            val response = api.createChatCompletion("Bearer $apiKey", request)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                val content = body?.choices?.firstOrNull()?.message?.content ?: ""
+                val usage = body?.usage?.let {
+                    TokenUsage(
+                        inputTokens = it.prompt_tokens ?: 0,
+                        outputTokens = it.completion_tokens ?: 0
+                    )
+                }
+
+                val rawUsage = body?.usage?.let {
+                    GsonBuilder().setPrettyPrinting().create().toJson(it)
+                }
+                val headers = formatHeaders(response.headers())
+
+                AiAnalysisResponse(
+                    service = AiService.DUMMY,
+                    analysis = content,
+                    error = null,
+                    tokenUsage = usage,
+                    rawUsageJson = rawUsage,
+                    httpHeaders = headers
+                )
+            } else {
+                val errorBody = response.errorBody()?.string() ?: "Unknown error"
+                AiAnalysisResponse(AiService.DUMMY, null, "Dummy API error: $errorBody")
+            }
+        } catch (e: Exception) {
+            AiAnalysisResponse(AiService.DUMMY, null, "Dummy API error: ${e.message}")
+        }
+    }
+
+    /**
+     * Fetch available Dummy models.
+     */
+    suspend fun fetchDummyModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val api = AiApiFactory.createDummyApi()
+            val response = api.listModels("Bearer $apiKey")
+
+            if (response.isSuccessful) {
+                response.body()?.data?.mapNotNull { it.id } ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DummyAPI", "Failed to fetch models: ${e.message}")
+            emptyList()
+        }
     }
 
     /**
@@ -974,10 +1050,6 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String
     ): String? = withContext(Dispatchers.IO) {
-        if (service == AiService.DUMMY) {
-            return@withContext null // Dummy always succeeds
-        }
-
         try {
             val response = when (service) {
                 AiService.CHATGPT -> analyzeWithChatGpt(apiKey, TEST_PROMPT, model)
@@ -990,7 +1062,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, TEST_PROMPT, model)
                 AiService.TOGETHER -> analyzeWithTogether(apiKey, TEST_PROMPT, model)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, TEST_PROMPT, model)
-                AiService.DUMMY -> analyzeWithDummy()
+                AiService.DUMMY -> analyzeWithDummy(apiKey, TEST_PROMPT, model)
             }
 
             if (response.isSuccess) {
