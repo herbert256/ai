@@ -41,7 +41,18 @@ data class OpenAiMessage(
 data class OpenAiRequest(
     val model: String = "gpt-4o-mini",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null,
+    val seed: Int? = null,
+    val response_format: OpenAiResponseFormat? = null
+)
+
+data class OpenAiResponseFormat(
+    val type: String = "text"  // "text" or "json_object"
 )
 
 data class OpenAiChoice(
@@ -120,8 +131,13 @@ data class ClaudeMessage(
 
 data class ClaudeRequest(
     val model: String = "claude-sonnet-4-20250514",
-    val max_tokens: Int = 1024,
-    val messages: List<ClaudeMessage>
+    val max_tokens: Int? = 1024,
+    val messages: List<ClaudeMessage>,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val top_k: Int? = null,
+    val system: String? = null,
+    val stop_sequences: List<String>? = null
 )
 
 data class ClaudeContentBlock(
@@ -156,7 +172,17 @@ data class GeminiContent(
 )
 
 data class GeminiRequest(
-    val contents: List<GeminiContent>
+    val contents: List<GeminiContent>,
+    val generationConfig: GeminiGenerationConfig? = null,
+    val systemInstruction: GeminiContent? = null
+)
+
+data class GeminiGenerationConfig(
+    val temperature: Float? = null,
+    val topP: Float? = null,
+    val topK: Int? = null,
+    val maxOutputTokens: Int? = null,
+    val stopSequences: List<String>? = null
 )
 
 data class GeminiCandidate(
@@ -185,49 +211,89 @@ data class GeminiError(
 data class GrokRequest(
     val model: String = "grok-3-mini",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null,
+    val search: Boolean? = null  // Enable web search
 )
 
 // DeepSeek models (uses OpenAI-compatible format)
 data class DeepSeekRequest(
     val model: String = "deepseek-chat",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null
 )
 
 // Mistral models (uses OpenAI-compatible format)
 data class MistralRequest(
     val model: String = "mistral-small-latest",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val stop: List<String>? = null,
+    val random_seed: Int? = null
 )
 
 // Perplexity models (uses OpenAI-compatible format)
 data class PerplexityRequest(
     val model: String = "sonar",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val return_citations: Boolean? = null,
+    val search_recency_filter: String? = null  // "day", "week", "month", "year"
 )
 
 // Together AI models (uses OpenAI-compatible format)
 data class TogetherRequest(
     val model: String = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val top_k: Int? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null
 )
 
 // OpenRouter models (uses OpenAI-compatible format)
 data class OpenRouterRequest(
     val model: String = "anthropic/claude-3.5-sonnet",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val top_k: Int? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null,
+    val seed: Int? = null
 )
 
 // Groq models (uses OpenAI-compatible format)
 data class GroqRequest(
     val model: String = "llama-3.3-70b-versatile",
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int = 1024
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null,
+    val seed: Int? = null
 )
 
 /**

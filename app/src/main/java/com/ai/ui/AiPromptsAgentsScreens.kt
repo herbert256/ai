@@ -92,7 +92,13 @@ fun AiAgentsScreen(
                 }
             }
         } else {
-            aiSettings.agents.sortedBy { it.name.lowercase() }.forEach { agent ->
+            // Filter out DUMMY agents when not in developer mode
+            val visibleAgents = if (developerMode) {
+                aiSettings.agents
+            } else {
+                aiSettings.agents.filter { it.provider != AiService.DUMMY }
+            }
+            visibleAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
                 AgentListItem(
                     agent = agent,
                     onEdit = { editingAgent = agent },
@@ -290,6 +296,26 @@ private fun AgentEditDialog(
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     var testError by remember { mutableStateOf<String?>(null) }
+    var showParameters by remember { mutableStateOf(false) }
+
+    // Parameter state
+    val existingParams = agent?.parameters ?: AiAgentParameters()
+    var temperature by remember { mutableStateOf(existingParams.temperature?.toString() ?: "") }
+    var maxTokens by remember { mutableStateOf(existingParams.maxTokens?.toString() ?: "") }
+    var topP by remember { mutableStateOf(existingParams.topP?.toString() ?: "") }
+    var topK by remember { mutableStateOf(existingParams.topK?.toString() ?: "") }
+    var frequencyPenalty by remember { mutableStateOf(existingParams.frequencyPenalty?.toString() ?: "") }
+    var presencePenalty by remember { mutableStateOf(existingParams.presencePenalty?.toString() ?: "") }
+    var systemPrompt by remember { mutableStateOf(existingParams.systemPrompt ?: "") }
+    var stopSequences by remember { mutableStateOf(existingParams.stopSequences?.joinToString(", ") ?: "") }
+    var seed by remember { mutableStateOf(existingParams.seed?.toString() ?: "") }
+    var responseFormatJson by remember { mutableStateOf(existingParams.responseFormatJson) }
+    var searchEnabled by remember { mutableStateOf(existingParams.searchEnabled) }
+    var returnCitations by remember { mutableStateOf(existingParams.returnCitations) }
+    var searchRecency by remember { mutableStateOf(existingParams.searchRecency ?: "") }
+
+    // Get supported parameters for selected provider
+    val supportedParams = PROVIDER_SUPPORTED_PARAMETERS[selectedProvider] ?: emptySet()
 
     // Get models for selected provider
     val modelsForProvider = when (selectedProvider) {
@@ -473,6 +499,219 @@ private fun AgentEditDialog(
                     }
                 }
 
+                // Parameters toggle
+                HorizontalDivider(color = Color(0xFF444444), modifier = Modifier.padding(vertical = 8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Advanced Parameters",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    TextButton(onClick = { showParameters = !showParameters }) {
+                        Text(
+                            if (showParameters) "Hide ▲" else "Show ▼",
+                            color = Color(0xFF6B9BFF)
+                        )
+                    }
+                }
+
+                // Parameters section (collapsible)
+                if (showParameters) {
+                    // Temperature
+                    if (AiParameter.TEMPERATURE in supportedParams) {
+                        OutlinedTextField(
+                            value = temperature,
+                            onValueChange = { temperature = it },
+                            label = { Text("Temperature (0.0-2.0)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("Controls randomness. Lower = focused, Higher = creative") }
+                        )
+                    }
+
+                    // Max Tokens
+                    if (AiParameter.MAX_TOKENS in supportedParams) {
+                        OutlinedTextField(
+                            value = maxTokens,
+                            onValueChange = { maxTokens = it },
+                            label = { Text("Max Tokens") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("Maximum response length") }
+                        )
+                    }
+
+                    // Top P
+                    if (AiParameter.TOP_P in supportedParams) {
+                        OutlinedTextField(
+                            value = topP,
+                            onValueChange = { topP = it },
+                            label = { Text("Top P (0.0-1.0)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("Nucleus sampling threshold") }
+                        )
+                    }
+
+                    // Top K
+                    if (AiParameter.TOP_K in supportedParams) {
+                        OutlinedTextField(
+                            value = topK,
+                            onValueChange = { topK = it },
+                            label = { Text("Top K") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("Limits vocabulary choices per token") }
+                        )
+                    }
+
+                    // Frequency Penalty
+                    if (AiParameter.FREQUENCY_PENALTY in supportedParams) {
+                        OutlinedTextField(
+                            value = frequencyPenalty,
+                            onValueChange = { frequencyPenalty = it },
+                            label = { Text("Frequency Penalty (-2.0 to 2.0)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("Reduces repetition of frequent tokens") }
+                        )
+                    }
+
+                    // Presence Penalty
+                    if (AiParameter.PRESENCE_PENALTY in supportedParams) {
+                        OutlinedTextField(
+                            value = presencePenalty,
+                            onValueChange = { presencePenalty = it },
+                            label = { Text("Presence Penalty (-2.0 to 2.0)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("Encourages discussing new topics") }
+                        )
+                    }
+
+                    // System Prompt
+                    if (AiParameter.SYSTEM_PROMPT in supportedParams) {
+                        OutlinedTextField(
+                            value = systemPrompt,
+                            onValueChange = { systemPrompt = it },
+                            label = { Text("System Prompt") },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            maxLines = 4,
+                            supportingText = { Text("Instructions for the AI's behavior") }
+                        )
+                    }
+
+                    // Stop Sequences
+                    if (AiParameter.STOP_SEQUENCES in supportedParams) {
+                        OutlinedTextField(
+                            value = stopSequences,
+                            onValueChange = { stopSequences = it },
+                            label = { Text("Stop Sequences") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("Comma-separated list of stop strings") }
+                        )
+                    }
+
+                    // Seed
+                    if (AiParameter.SEED in supportedParams) {
+                        OutlinedTextField(
+                            value = seed,
+                            onValueChange = { seed = it },
+                            label = { Text("Seed") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            supportingText = { Text("For reproducible outputs") }
+                        )
+                    }
+
+                    // Response Format JSON
+                    if (AiParameter.RESPONSE_FORMAT in supportedParams) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = responseFormatJson,
+                                onCheckedChange = { responseFormatJson = it }
+                            )
+                            Text("JSON Response Format")
+                        }
+                    }
+
+                    // Search Enabled (Grok)
+                    if (AiParameter.SEARCH_ENABLED in supportedParams) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = searchEnabled,
+                                onCheckedChange = { searchEnabled = it }
+                            )
+                            Text("Enable Web Search")
+                        }
+                    }
+
+                    // Return Citations (Perplexity)
+                    if (AiParameter.RETURN_CITATIONS in supportedParams) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = returnCitations,
+                                onCheckedChange = { returnCitations = it }
+                            )
+                            Text("Return Citations")
+                        }
+                    }
+
+                    // Search Recency (Perplexity)
+                    if (AiParameter.SEARCH_RECENCY in supportedParams) {
+                        Text(
+                            text = "Search Recency",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFAAAAAA)
+                        )
+                        var recencyExpanded by remember { mutableStateOf(false) }
+                        val recencyOptions = listOf("" to "Default", "day" to "Day", "week" to "Week", "month" to "Month", "year" to "Year")
+                        Box {
+                            OutlinedButton(
+                                onClick = { recencyExpanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = recencyOptions.find { it.first == searchRecency }?.second ?: "Default",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(if (recencyExpanded) "▲" else "▼")
+                            }
+                            DropdownMenu(
+                                expanded = recencyExpanded,
+                                onDismissRequest = { recencyExpanded = false }
+                            ) {
+                                recencyOptions.forEach { (value, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            searchRecency = value
+                                            recencyExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Test error message
                 if (testError != null) {
                     HorizontalDivider(color = Color(0xFF444444))
@@ -500,12 +739,30 @@ private fun AgentEditDialog(
                         if (error != null) {
                             testError = error
                         } else {
+                            // Build parameters
+                            val params = AiAgentParameters(
+                                temperature = temperature.toFloatOrNull(),
+                                maxTokens = maxTokens.toIntOrNull(),
+                                topP = topP.toFloatOrNull(),
+                                topK = topK.toIntOrNull(),
+                                frequencyPenalty = frequencyPenalty.toFloatOrNull(),
+                                presencePenalty = presencePenalty.toFloatOrNull(),
+                                systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
+                                stopSequences = stopSequences.takeIf { it.isNotBlank() }
+                                    ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
+                                seed = seed.toIntOrNull(),
+                                responseFormatJson = responseFormatJson,
+                                searchEnabled = searchEnabled,
+                                returnCitations = returnCitations,
+                                searchRecency = searchRecency.takeIf { it.isNotBlank() }
+                            )
                             val newAgent = AiAgent(
                                 id = agent?.id ?: java.util.UUID.randomUUID().toString(),
                                 name = name.trim(),
                                 provider = selectedProvider,
                                 model = model,
-                                apiKey = apiKey.trim()
+                                apiKey = apiKey.trim(),
+                                parameters = params
                             )
                             onSave(newAgent)
                         }

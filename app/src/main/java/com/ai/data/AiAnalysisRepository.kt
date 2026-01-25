@@ -1,5 +1,6 @@
 package com.ai.data
 
+import com.ai.ui.AiAgentParameters
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -304,17 +305,18 @@ class AiAnalysisRepository {
         val finalPrompt = buildChessPrompt(prompt, fen)
 
         suspend fun makeApiCall(): AiAnalysisResponse {
+            val params = agent.parameters
             val result = when (agent.provider) {
-                AiService.CHATGPT -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model)
-                AiService.CLAUDE -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model)
-                AiService.GEMINI -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model)
-                AiService.GROK -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model)
-                AiService.GROQ -> analyzeWithGroq(agent.apiKey, finalPrompt, agent.model)
-                AiService.DEEPSEEK -> analyzeWithDeepSeek(agent.apiKey, finalPrompt, agent.model)
-                AiService.MISTRAL -> analyzeWithMistral(agent.apiKey, finalPrompt, agent.model)
-                AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model)
-                AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model)
-                AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model)
+                AiService.CHATGPT -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.CLAUDE -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GEMINI -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GROK -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GROQ -> analyzeWithGroq(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.DEEPSEEK -> analyzeWithDeepSeek(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.MISTRAL -> analyzeWithMistral(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy()
             }
             // Add agent name and prompt used to result
@@ -366,17 +368,18 @@ class AiAnalysisRepository {
         val finalPrompt = prompt.replace("@DATE@", formatCurrentDate())
 
         suspend fun makeApiCall(): AiAnalysisResponse {
+            val params = agent.parameters
             val result = when (agent.provider) {
-                AiService.CHATGPT -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model)
-                AiService.CLAUDE -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model)
-                AiService.GEMINI -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model)
-                AiService.GROK -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model)
-                AiService.GROQ -> analyzeWithGroq(agent.apiKey, finalPrompt, agent.model)
-                AiService.DEEPSEEK -> analyzeWithDeepSeek(agent.apiKey, finalPrompt, agent.model)
-                AiService.MISTRAL -> analyzeWithMistral(agent.apiKey, finalPrompt, agent.model)
-                AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model)
-                AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model)
-                AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model)
+                AiService.CHATGPT -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.CLAUDE -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GEMINI -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GROK -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GROQ -> analyzeWithGroq(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.DEEPSEEK -> analyzeWithDeepSeek(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.MISTRAL -> analyzeWithMistral(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy()
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
@@ -417,21 +420,39 @@ class AiAnalysisRepository {
                lowerModel.startsWith("o4")
     }
 
-    private suspend fun analyzeWithChatGpt(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithChatGpt(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
         return if (usesResponsesApi(model)) {
-            analyzeWithChatGptResponsesApi(apiKey, prompt, model)
+            analyzeWithChatGptResponsesApi(apiKey, prompt, model, params)
         } else {
-            analyzeWithChatGptChatCompletions(apiKey, prompt, model)
+            analyzeWithChatGptChatCompletions(apiKey, prompt, model, params)
         }
     }
 
     /**
      * Use the Chat Completions API for older models (gpt-4o, gpt-4, gpt-3.5, etc.)
      */
-    private suspend fun analyzeWithChatGptChatCompletions(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithChatGptChatCompletions(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = OpenAiRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed,
+            response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat(type = "json_object") else null
         )
         val response = openAiApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -463,10 +484,11 @@ class AiAnalysisRepository {
     /**
      * Use the Responses API for newer models (gpt-5.x, o3, o4, etc.)
      */
-    private suspend fun analyzeWithChatGptResponsesApi(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithChatGptResponsesApi(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
         val request = OpenAiResponsesRequest(
             model = model,
-            input = prompt
+            input = prompt,
+            instructions = params?.systemPrompt?.takeIf { it.isNotBlank() }
         )
         val response = openAiApi.createResponse(
             authorization = "Bearer $apiKey",
@@ -497,10 +519,16 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithClaude(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithClaude(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
         val request = ClaudeRequest(
             model = model,
-            messages = listOf(ClaudeMessage(role = "user", content = prompt))
+            messages = listOf(ClaudeMessage(role = "user", content = prompt)),
+            max_tokens = params?.maxTokens ?: 1024,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            top_k = params?.topK,
+            system = params?.systemPrompt?.takeIf { it.isNotBlank() },
+            stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() }
         )
         val response = claudeApi.createMessage(apiKey = apiKey, request = request)
 
@@ -526,11 +554,30 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithGemini(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithGemini(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build generation config if any parameters are set
+        val generationConfig = if (params != null && (params.temperature != null || params.topP != null ||
+            params.topK != null || params.maxTokens != null || !params.stopSequences.isNullOrEmpty())) {
+            GeminiGenerationConfig(
+                temperature = params.temperature,
+                topP = params.topP,
+                topK = params.topK,
+                maxOutputTokens = params.maxTokens,
+                stopSequences = params.stopSequences?.takeIf { it.isNotEmpty() }
+            )
+        } else null
+
+        // System instruction for Gemini
+        val systemInstruction = params?.systemPrompt?.takeIf { it.isNotBlank() }?.let {
+            GeminiContent(parts = listOf(GeminiPart(text = it)))
+        }
+
         val request = GeminiRequest(
             contents = listOf(
                 GeminiContent(parts = listOf(GeminiPart(text = prompt)))
-            )
+            ),
+            generationConfig = generationConfig,
+            systemInstruction = systemInstruction
         )
 
         val response = geminiApi.generateContent(model = model, apiKey = apiKey, request = request)
@@ -561,10 +608,27 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithGrok(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithGrok(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = GrokRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = grokApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -594,10 +658,27 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithGroq(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithGroq(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = GroqRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed
         )
         val response = groqApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -626,10 +707,26 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithDeepSeek(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithDeepSeek(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = DeepSeekRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() }
         )
         val response = deepSeekApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -662,10 +759,25 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithMistral(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithMistral(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = MistralRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            random_seed = params?.seed
         )
         val response = mistralApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -695,10 +807,27 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithPerplexity(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithPerplexity(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = PerplexityRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            return_citations = params?.returnCitations,
+            search_recency_filter = params?.searchRecency
         )
         val response = perplexityApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -730,10 +859,27 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithTogether(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithTogether(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = TogetherRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            top_k = params?.topK,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() }
         )
         val response = togetherApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -763,10 +909,28 @@ class AiAnalysisRepository {
         }
     }
 
-    private suspend fun analyzeWithOpenRouter(apiKey: String, prompt: String, model: String): AiAnalysisResponse {
+    private suspend fun analyzeWithOpenRouter(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
         val request = OpenRouterRequest(
             model = model,
-            messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            top_k = params?.topK,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed
         )
         val response = openRouterApi.createChatCompletion(
             authorization = "Bearer $apiKey",

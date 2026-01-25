@@ -76,12 +76,6 @@ fun TraceListScreen(
             onAiClick = onNavigateHome
         )
 
-        Text(
-            text = "${traceFiles.size} trace files",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFFAAAAAA)
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
         // Pagination controls

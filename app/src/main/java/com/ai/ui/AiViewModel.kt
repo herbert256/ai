@@ -151,6 +151,32 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun stopGenericAiReports() {
+        val currentState = _uiState.value
+        val selectedAgents = currentState.genericAiReportsSelectedAgents
+        val currentResults = currentState.genericAiReportsAgentResults
+
+        // Fill in "Not ready" for agents that haven't responded yet
+        val updatedResults = selectedAgents.associate { agentId ->
+            val existingResult = currentResults[agentId]
+            if (existingResult != null) {
+                agentId to existingResult
+            } else {
+                val agent = currentState.aiSettings.getAgentById(agentId)
+                agentId to AiAnalysisResponse(
+                    service = agent?.provider ?: com.ai.data.AiService.DUMMY,
+                    analysis = "Not ready",
+                    error = null
+                )
+            }
+        }
+
+        _uiState.value = currentState.copy(
+            genericAiReportsProgress = currentState.genericAiReportsTotal,
+            genericAiReportsAgentResults = updatedResults
+        )
+    }
+
     fun dismissGenericAiReportsDialog() {
         _uiState.value = _uiState.value.copy(
             showGenericAiReportsDialog = false,

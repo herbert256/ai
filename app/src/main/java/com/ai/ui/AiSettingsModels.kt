@@ -11,6 +11,150 @@ enum class ModelSource {
 }
 
 /**
+ * AI Parameter types that can be configured per agent.
+ */
+enum class AiParameter {
+    TEMPERATURE,        // Randomness (0.0-2.0)
+    MAX_TOKENS,         // Maximum response length
+    TOP_P,              // Nucleus sampling (0.0-1.0)
+    TOP_K,              // Vocabulary limit
+    FREQUENCY_PENALTY,  // Reduces repetition (-2.0 to 2.0)
+    PRESENCE_PENALTY,   // Encourages new topics (-2.0 to 2.0)
+    SYSTEM_PROMPT,      // System instruction
+    STOP_SEQUENCES,     // Stop generation sequences
+    SEED,               // For reproducibility
+    RESPONSE_FORMAT,    // JSON mode
+    SEARCH_ENABLED,     // Web search (Grok, Perplexity)
+    RETURN_CITATIONS,   // Return citations (Perplexity)
+    SEARCH_RECENCY      // Search recency filter (Perplexity)
+}
+
+/**
+ * Parameters supported by each AI provider.
+ */
+val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
+    AiService.CHATGPT to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES,
+        AiParameter.SEED,
+        AiParameter.RESPONSE_FORMAT
+    ),
+    AiService.CLAUDE to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.TOP_K,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES
+    ),
+    AiService.GEMINI to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.TOP_K,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES
+    ),
+    AiService.GROK to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES,
+        AiParameter.SEARCH_ENABLED
+    ),
+    AiService.GROQ to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES,
+        AiParameter.SEED
+    ),
+    AiService.DEEPSEEK to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES
+    ),
+    AiService.MISTRAL to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES,
+        AiParameter.SEED
+    ),
+    AiService.PERPLEXITY to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.RETURN_CITATIONS,
+        AiParameter.SEARCH_RECENCY
+    ),
+    AiService.TOGETHER to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.TOP_K,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES
+    ),
+    AiService.OPENROUTER to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.TOP_K,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES,
+        AiParameter.SEED
+    ),
+    AiService.DUMMY to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.SYSTEM_PROMPT
+    )
+)
+
+/**
+ * Configuration for AI agent parameters with defaults.
+ */
+data class AiAgentParameters(
+    val temperature: Float? = null,           // null means use provider default
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val topK: Int? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val systemPrompt: String? = null,
+    val stopSequences: List<String>? = null,
+    val seed: Int? = null,
+    val responseFormatJson: Boolean = false,
+    val searchEnabled: Boolean = false,
+    val returnCitations: Boolean = true,
+    val searchRecency: String? = null         // "day", "week", "month", "year"
+)
+
+/**
  * Available Claude models (hardcoded as Anthropic doesn't provide a list models API).
  */
 val CLAUDE_MODELS = listOf(
@@ -35,14 +179,15 @@ val PERPLEXITY_MODELS = listOf(
 )
 
 /**
- * AI Agent - user-created configuration combining provider, model, and API key.
+ * AI Agent - user-created configuration combining provider, model, API key, and parameters.
  */
 data class AiAgent(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val provider: AiService,           // Reference to provider enum
     val model: String,                 // Model name
-    val apiKey: String                 // API key for this agent
+    val apiKey: String,                // API key for this agent
+    val parameters: AiAgentParameters = AiAgentParameters()  // Optional parameters
 )
 
 /**

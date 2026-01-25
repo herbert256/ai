@@ -207,12 +207,6 @@ fun AiHistoryScreenNav(
             onAiClick = onNavigateHome
         )
 
-        Text(
-            text = "${historyFiles.size} report${if (historyFiles.size != 1) "s" else ""}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFFAAAAAA)
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
         // Pagination controls
@@ -1045,12 +1039,6 @@ fun PromptHistoryScreen(
             onAiClick = onNavigateHome
         )
 
-        Text(
-            text = "${historyEntries.size} prompt${if (historyEntries.size != 1) "s" else ""}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFFAAAAAA)
-        )
-
         Spacer(modifier = Modifier.height(8.dp))
 
         // Pagination controls
@@ -1249,6 +1237,7 @@ fun AiReportsScreenNav(
             viewModel.saveAiReportAgents(selectedAgentIds)
             viewModel.generateGenericAiReports(selectedAgentIds)
         },
+        onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
         onOpenInBrowser = { openGenericAiReportsInChrome(context, uiState) },
         onDismiss = handleDismiss,
@@ -1265,6 +1254,7 @@ fun AiReportsScreen(
     uiState: AiUiState,
     savedAgentIds: Set<String>,
     onGenerate: (Set<String>) -> Unit,
+    onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
     onDismiss: () -> Unit,
@@ -1299,14 +1289,20 @@ fun AiReportsScreen(
         AiReportsViewerScreen(
             agentResults = reportsAgentResults,
             aiSettings = uiState.aiSettings,
+            promptText = uiState.genericAiPromptText,
             initialSelectedAgentId = selectedAgentForViewer,
             onDismiss = { showViewer = false }
         )
         return
     }
 
-    // Agent selection state
-    val configuredAgents = uiState.aiSettings.getConfiguredAgents()
+    // Agent selection state - filter out DUMMY agents when not in developer mode
+    val allConfiguredAgents = uiState.aiSettings.getConfiguredAgents()
+    val configuredAgents = if (uiState.generalSettings.developerMode) {
+        allConfiguredAgents
+    } else {
+        allConfiguredAgents.filter { it.provider != com.ai.data.AiService.DUMMY }
+    }
     var selectedAgentIds by remember {
         mutableStateOf(
             if (savedAgentIds.isNotEmpty()) {
@@ -1494,6 +1490,20 @@ fun AiReportsScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
+            // STOP button while generating
+            if (isGenerating && !isComplete) {
+                Button(
+                    onClick = onStop,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFCC3333)
+                    )
+                ) {
+                    Text("STOP", fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             // Action buttons at the bottom
             if (isComplete) {
                 Row(
@@ -1542,6 +1552,7 @@ fun AiReportsScreen(
 fun AiReportsViewerScreen(
     agentResults: Map<String, com.ai.data.AiAnalysisResponse>,
     aiSettings: AiSettings,
+    promptText: String = "",
     initialSelectedAgentId: String? = null,
     onDismiss: () -> Unit
 ) {
@@ -1562,6 +1573,12 @@ fun AiReportsViewerScreen(
     // Get the selected agent's result
     val selectedResult = selectedAgentId?.let { agentResults[it] }
     val selectedAgent = selectedAgentId?.let { aiSettings.getAgentById(it) }
+
+    // Scroll state that resets when agent changes
+    val scrollState = rememberScrollState()
+    LaunchedEffect(selectedAgentId) {
+        scrollState.scrollTo(0)
+    }
 
     Column(
         modifier = Modifier
@@ -1609,9 +1626,9 @@ fun AiReportsViewerScreen(
             if (selectedAgent != null) {
                 Text(
                     text = "${selectedAgent.provider.displayName} - ${selectedAgent.model}",
-                    fontSize = 14.sp,
+                    fontSize = 18.sp,
                     color = Color(0xFF6B9BFF),
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                 )
             }
@@ -1645,7 +1662,7 @@ fun AiReportsViewerScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(scrollState)
                 ) {
                     // HTML content rendered as styled text
                     HtmlContentDisplay(htmlContent = htmlContent)
@@ -1666,6 +1683,25 @@ fun AiReportsViewerScreen(
                     selectedResult.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { relatedQuestions ->
                         Spacer(modifier = Modifier.height(16.dp))
                         RelatedQuestionsSection(relatedQuestions = relatedQuestions)
+                    }
+
+                    // Prompt section
+                    if (promptText.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "Prompt",
+                            fontSize = 18.sp,
+                            color = Color(0xFF6B9BFF),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = promptText,
+                            fontSize = 14.sp,
+                            color = Color.White,
+                            lineHeight = 20.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             } else {
