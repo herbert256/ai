@@ -18,7 +18,7 @@ if (keystoreFile.exists()) {
 }
 
 android {
-    namespace = "com.eval"
+    namespace = "com.ai"
     compileSdk = 34
 
     signingConfigs {
@@ -34,7 +34,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.eval"
+        applicationId = "com.ai"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

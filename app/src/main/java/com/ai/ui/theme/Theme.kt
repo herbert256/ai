@@ -1,4 +1,4 @@
-package com.eval.ui.theme
+package com.ai.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*

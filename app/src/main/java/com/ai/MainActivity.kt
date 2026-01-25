@@ -1,4 +1,4 @@
-package com.eval
+package com.ai
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
-import com.eval.ui.AiNavHost
-import com.eval.ui.theme.AiTheme
+import com.ai.ui.AiNavHost
+import com.ai.ui.theme.AiTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -1,14 +1,14 @@
-package com.eval.ui
+package com.ai.ui
 
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.eval.data.AiAnalysisRepository
-import com.eval.data.AiAnalysisResponse
-import com.eval.data.AiHistoryManager
-import com.eval.data.AiService
-import com.eval.data.ApiTracer
+import com.ai.data.AiAnalysisRepository
+import com.ai.data.AiAnalysisResponse
+import com.ai.data.AiHistoryManager
+import com.ai.data.AiService
+import com.ai.data.ApiTracer
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
@@ -108,7 +108,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     fun generateGenericAiReports(selectedAgentIds: Set<String>) {
         viewModelScope.launch {
             val aiSettings = _uiState.value.aiSettings
-            val title = _uiState.value.genericAiPromptTitle
             val prompt = _uiState.value.genericAiPromptText
 
             _uiState.value = _uiState.value.copy(
@@ -125,32 +124,30 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 aiSettings.getAgentById(agentId)
             }
 
-            // Make all API calls in parallel
-            val results = agents.map { agent ->
+            // Make all API calls in parallel, but update state as each completes
+            agents.map { agent ->
                 async {
-                    try {
-                        val response = aiAnalysisRepository.analyzePositionWithAgent(
+                    val response = try {
+                        aiAnalysisRepository.analyzePositionWithAgent(
                             agent = agent,
                             fen = "",  // No FEN for generic prompts
                             prompt = prompt
                         )
-                        agent.id to response
                     } catch (e: Exception) {
-                        agent.id to AiAnalysisResponse(
+                        AiAnalysisResponse(
                             service = agent.provider,
                             analysis = null,
                             error = e.message ?: "Unknown error"
                         )
                     }
+
+                    // Update state immediately when this agent completes
+                    _uiState.value = _uiState.value.copy(
+                        genericAiReportsProgress = _uiState.value.genericAiReportsProgress + 1,
+                        genericAiReportsAgentResults = _uiState.value.genericAiReportsAgentResults + (agent.id to response)
+                    )
                 }
             }.awaitAll()
-
-            // Update state with all results
-            val resultsMap = results.toMap()
-            _uiState.value = _uiState.value.copy(
-                genericAiReportsProgress = selectedAgentIds.size,
-                genericAiReportsAgentResults = resultsMap
-            )
         }
     }
 

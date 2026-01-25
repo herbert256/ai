@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.eval.data.AiService
+import com.ai.data.AiService
 
 /**
  * Settings sub-screen navigation enum.
@@ -35,10 +35,9 @@ enum class SettingsSubScreen {
     AI_TOGETHER,
     AI_OPENROUTER,
     AI_DUMMY,
-    // Three-tier AI architecture
-    AI_SETUP,       // Hub with 3 navigation cards
+    // AI architecture
+    AI_SETUP,       // Hub with navigation cards
     AI_PROVIDERS,   // Provider model configuration
-    AI_PROMPTS,     // Prompts CRUD
     AI_AGENTS       // Agents CRUD
 }
 
@@ -69,6 +68,7 @@ fun SettingsScreen(
     availableOpenRouterModels: List<String>,
     isLoadingOpenRouterModels: Boolean,
     onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack,
     onSaveGeneral: (GeneralSettings) -> Unit,
     onTrackApiCallsChanged: (Boolean) -> Unit = {},
     onSaveAi: (AiSettings) -> Unit,
@@ -100,9 +100,8 @@ fun SettingsScreen(
             SettingsSubScreen.AI_TOGETHER,
             SettingsSubScreen.AI_OPENROUTER,
             SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            // Three-tier screens navigate back to AI_SETUP
+            // AI screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
-            SettingsSubScreen.AI_PROMPTS,
             SettingsSubScreen.AI_AGENTS -> currentSubScreen = SettingsSubScreen.AI_SETUP
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
@@ -111,18 +110,19 @@ fun SettingsScreen(
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> SettingsMainScreen(
             onBack = onBack,
+            onNavigateHome = onNavigateHome,
             onNavigate = { currentSubScreen = it }
         )
         SettingsSubScreen.GENERAL_SETTINGS -> GeneralSettingsScreen(
             generalSettings = generalSettings,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveGeneral
         )
         SettingsSubScreen.DEVELOPER_SETTINGS -> DeveloperSettingsScreen(
             generalSettings = generalSettings,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveGeneral,
             onTrackApiCallsChanged = onTrackApiCallsChanged
         )
@@ -130,7 +130,7 @@ fun SettingsScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi
         )
@@ -139,14 +139,14 @@ fun SettingsScreen(
             availableModels = availableChatGptModels,
             isLoadingModels = isLoadingChatGptModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchChatGptModels
         )
         SettingsSubScreen.AI_CLAUDE -> ClaudeSettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi
         )
         SettingsSubScreen.AI_GEMINI -> GeminiSettingsScreen(
@@ -154,7 +154,7 @@ fun SettingsScreen(
             availableModels = availableGeminiModels,
             isLoadingModels = isLoadingGeminiModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchGeminiModels
         )
@@ -163,7 +163,7 @@ fun SettingsScreen(
             availableModels = availableGrokModels,
             isLoadingModels = isLoadingGrokModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchGrokModels
         )
@@ -172,7 +172,7 @@ fun SettingsScreen(
             availableModels = availableGroqModels,
             isLoadingModels = isLoadingGroqModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchGroqModels
         )
@@ -181,7 +181,7 @@ fun SettingsScreen(
             availableModels = availableDeepSeekModels,
             isLoadingModels = isLoadingDeepSeekModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchDeepSeekModels
         )
@@ -190,7 +190,7 @@ fun SettingsScreen(
             availableModels = availableMistralModels,
             isLoadingModels = isLoadingMistralModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchMistralModels
         )
@@ -199,7 +199,7 @@ fun SettingsScreen(
             availableModels = availablePerplexityModels,
             isLoadingModels = isLoadingPerplexityModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchPerplexityModels
         )
@@ -208,7 +208,7 @@ fun SettingsScreen(
             availableModels = availableTogetherModels,
             isLoadingModels = isLoadingTogetherModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchTogetherModels
         )
@@ -217,21 +217,21 @@ fun SettingsScreen(
             availableModels = availableOpenRouterModels,
             isLoadingModels = isLoadingOpenRouterModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchOpenRouterModels
         )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi
         )
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi
         )
@@ -239,14 +239,8 @@ fun SettingsScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it }
-        )
-        SettingsSubScreen.AI_PROMPTS -> AiPromptsScreen(
-            aiSettings = aiSettings,
-            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
-            onBackToHome = onBack,
-            onSave = onSaveAi
         )
         SettingsSubScreen.AI_AGENTS -> AiAgentsScreen(
             aiSettings = aiSettings,
@@ -261,7 +255,7 @@ fun SettingsScreen(
             availableTogetherModels = availableTogetherModels,
             availableOpenRouterModels = availableOpenRouterModels,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
-            onBackToHome = onBack,
+            onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onTestAiModel = onTestAiModel
         )
@@ -274,6 +268,7 @@ fun SettingsScreen(
 @Composable
 private fun SettingsMainScreen(
     onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit
 ) {
     Column(
@@ -288,7 +283,7 @@ private fun SettingsMainScreen(
         AiTitleBar(
             title = "Settings",
             onBackClick = onBack,
-            onAiClick = onBack
+            onAiClick = onNavigateHome
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -300,10 +295,10 @@ private fun SettingsMainScreen(
             onClick = { onNavigate(SettingsSubScreen.GENERAL_SETTINGS) }
         )
 
-        // AI Setup settings card (three-tier architecture)
+        // AI Setup settings card
         SettingsNavigationCard(
             title = "AI Setup",
-            description = "Providers, prompts, and agents",
+            description = "Providers and agents",
             onClick = { onNavigate(SettingsSubScreen.AI_SETUP) }
         )
 

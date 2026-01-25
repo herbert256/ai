@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -25,8 +25,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eval.data.ApiTracer
-import com.eval.data.TraceFileInfo
+import com.ai.data.ApiTracer
+import com.ai.data.TraceFileInfo
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -48,6 +48,7 @@ enum class TraceDetailSubScreen {
 @Composable
 fun TraceListScreen(
     onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack,
     onSelectTrace: (String) -> Unit,
     onClearTraces: () -> Unit
 ) {
@@ -72,7 +73,7 @@ fun TraceListScreen(
         AiTitleBar(
             title = "API Trace Log",
             onBackClick = onBack,
-            onAiClick = onBack
+            onAiClick = onNavigateHome
         )
 
         Text(
@@ -272,7 +273,8 @@ private fun TraceListItem(
 @Composable
 fun TraceDetailScreen(
     filename: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack
 ) {
     val context = LocalContext.current
     val trace = remember { ApiTracer.readTraceFile(filename) }
@@ -300,6 +302,7 @@ fun TraceDetailScreen(
                 hasResponseData = !trace.response.body.isNullOrBlank(),
                 hasResponseHeaders = trace.response.headers.isNotEmpty(),
                 onBack = onBack,
+                onNavigateHome = onNavigateHome,
                 onShowPostData = { currentSubScreen = TraceDetailSubScreen.POST_DATA },
                 onShowResponseData = { currentSubScreen = TraceDetailSubScreen.RESPONSE_DATA },
                 onShowResponseHeaders = { currentSubScreen = TraceDetailSubScreen.RESPONSE_HEADERS },
@@ -368,6 +371,7 @@ private fun TraceDetailMainScreen(
     hasResponseData: Boolean,
     hasResponseHeaders: Boolean,
     onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
     onShowPostData: () -> Unit,
     onShowResponseData: () -> Unit,
     onShowResponseHeaders: () -> Unit,
@@ -385,7 +389,7 @@ private fun TraceDetailMainScreen(
         AiTitleBar(
             title = "Trace Detail",
             onBackClick = onBack,
-            onAiClick = onBack
+            onAiClick = onNavigateHome
         )
 
         // Filename display

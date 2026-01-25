@@ -1,6 +1,6 @@
-package com.eval.ui
+package com.ai.ui
 
-import com.eval.data.AiAnalysisResponse
+import com.ai.data.AiAnalysisResponse
 
 // General app settings
 data class GeneralSettings(

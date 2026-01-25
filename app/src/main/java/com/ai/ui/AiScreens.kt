@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import android.content.Intent
 import androidx.compose.foundation.*
@@ -12,8 +12,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.eval.data.AiHistoryManager
-import com.eval.data.AiHistoryFileInfo
+import com.ai.data.AiHistoryManager
+import com.ai.data.AiHistoryFileInfo
 
 /**
  * AI hub screen - the home page of the app.
@@ -44,8 +44,8 @@ fun AiHubScreen(
             onAiClick = {},
             leftContent = {
                 TitleBarIcon(icon = "\u2699", onClick = onNavigateToSettings, fontSize = 28)  // Settings
-                if (uiState.generalSettings.trackApiCalls) {
-                    TitleBarIcon(icon = "\uD83D\uDC1B", onClick = onNavigateToTrace, fontSize = 24)  // Bug/Trace
+                if (uiState.generalSettings.developerMode) {
+                    TitleBarIcon(icon = "\uD83D\uDC1E", onClick = onNavigateToTrace, fontSize = 24)  // Ladybug/Trace
                 }
                 TitleBarIcon(icon = "?", onClick = onNavigateToHelp, fontSize = 28)  // Help
             }
@@ -173,7 +173,8 @@ fun AiHubScreen(
  */
 @Composable
 fun AiHistoryScreenNav(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit = onNavigateBack
 ) {
     val context = LocalContext.current
     val historyFiles = remember { mutableStateOf(AiHistoryManager.getHistoryFiles()) }
@@ -198,7 +199,7 @@ fun AiHistoryScreenNav(
         AiTitleBar(
             title = "AI History",
             onBackClick = onNavigateBack,
-            onAiClick = onNavigateBack
+            onAiClick = onNavigateHome
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -453,6 +454,7 @@ private fun openHistoryFileInChromeNav(context: android.content.Context, file: j
 fun AiNewReportScreen(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToAiReports: () -> Unit = {},
     initialTitle: String = "",
     initialPrompt: String = ""
@@ -486,7 +488,7 @@ fun AiNewReportScreen(
         AiTitleBar(
             title = "New AI Report",
             onBackClick = onNavigateBack,
-            onAiClick = onNavigateBack
+            onAiClick = onNavigateHome
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -567,6 +569,13 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
     val agentResults = uiState.genericAiReportsAgentResults
     val title = uiState.genericAiPromptTitle
     val prompt = uiState.genericAiPromptText
+    val developerMode = uiState.generalSettings.developerMode
+
+    // Get sorted list of agents with results
+    val agentList = agentResults.entries.mapNotNull { (agentId, response) ->
+        val agent = uiState.aiSettings.getAgentById(agentId)
+        if (agent != null) Triple(agentId, agent, response) else null
+    }.sortedBy { it.second.name.lowercase() }
 
     val htmlBuilder = StringBuilder()
     htmlBuilder.append("""
@@ -587,26 +596,76 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
                 }
                 .container { max-width: 800px; margin: 0 auto; }
                 h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; }
-                h2 { color: #4CAF50; margin-top: 30px; }
-                .prompt-section {
-                    background: #2a2a2a;
-                    border-radius: 8px;
-                    padding: 15px;
+                h2 { color: #6B9BFF; font-size: 1.1em; margin-top: 30px; margin-bottom: 10px; }
+                .prompt-section { margin: 30px 0; }
+                .prompt-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
+                .prompt-text {
+                    white-space: pre-wrap;
+                    margin: 0;
+                    font-family: monospace;
+                    font-size: 0.9em;
+                    color: #ccc;
+                }
+                .agent-buttons {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
                     margin: 20px 0;
                 }
-                .prompt-label { color: #888; font-size: 0.9em; margin-bottom: 5px; }
-                .prompt-text { white-space: pre-wrap; }
-                .agent-result {
-                    background: #252525;
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin: 15px 0;
-                    border-left: 4px solid #6B9BFF;
+                .agent-btn {
+                    padding: 8px 16px;
+                    border: 1px solid #444;
+                    background: transparent;
+                    color: #e0e0e0;
+                    cursor: pointer;
+                    font-size: 14px;
                 }
-                .agent-name { color: #6B9BFF; font-weight: bold; font-size: 1.1em; }
-                .agent-model { color: #888; font-size: 0.9em; margin-bottom: 10px; }
+                .agent-btn:hover {
+                    border-color: #6B9BFF;
+                }
+                .agent-btn.active {
+                    border-color: #6B9BFF;
+                    color: #6B9BFF;
+                }
+                .agent-result {
+                    display: none;
+                    margin: 20px 0;
+                }
+                .agent-result.active {
+                    display: block;
+                }
+                .agent-header { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
                 .agent-response { white-space: pre-wrap; }
                 .error { color: #ff6b6b; }
+                .usage-section { margin: 30px 0; }
+                .sources-section { margin-top: 20px; }
+                .sources-label { color: #8B5CF6; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+                .source-link { color: #64B5F6; text-decoration: underline; margin-left: 5px; }
+                .source-item { margin: 4px 0; }
+                .search-results-section { margin-top: 20px; }
+                .search-results-label { color: #FF9800; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+                .search-result { margin: 8px 0; }
+                .search-result-title { color: #64B5F6; text-decoration: underline; font-weight: 500; }
+                .search-result-snippet { color: #aaa; font-size: 0.9em; margin-top: 2px; }
+                .related-questions-section { margin-top: 20px; }
+                .related-questions-label { color: #4CAF50; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+                .related-question { margin: 4px 0; color: #e0e0e0; }
+                .usage-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; }
+                .usage-json {
+                    white-space: pre-wrap;
+                    margin: 0 0 15px 0;
+                    font-family: monospace;
+                    font-size: 0.85em;
+                    color: #aaa;
+                }
+                .headers-text {
+                    white-space: pre-wrap;
+                    margin: 0 0 15px 0;
+                    font-family: monospace;
+                    font-size: 0.8em;
+                    color: #777;
+                }
+                .usage-agent { color: #888; font-size: 0.9em; margin-top: 15px; margin-bottom: 5px; }
                 .footer {
                     margin-top: 40px;
                     padding-top: 20px;
@@ -619,23 +678,29 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
         </head>
         <body>
             <div class="container">
-                <h1>AI Report: $title</h1>
+                <h1>$title</h1>
 
-                <div class="prompt-section">
-                    <div class="prompt-label">Prompt:</div>
-                    <div class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</div>
-                </div>
+                <div class="agent-buttons">
     """.trimIndent())
 
-    // Add each agent's response
-    agentResults.forEach { (agentId, response) ->
-        val agentName = uiState.aiSettings.getAgentById(agentId)?.name ?: "Unknown Agent"
-        val model = uiState.aiSettings.getAgentById(agentId)?.model ?: ""
-
+    // Add agent buttons
+    agentList.forEachIndexed { index, (agentId, agent, _) ->
+        val activeClass = if (index == 0) "active" else ""
         htmlBuilder.append("""
-                <div class="agent-result">
-                    <div class="agent-name">$agentName</div>
-                    <div class="agent-model">$model</div>
+                    <button class="agent-btn $activeClass" onclick="showAgent('$agentId')">${agent.name}</button>
+        """)
+    }
+
+    htmlBuilder.append("""
+                </div>
+    """)
+
+    // Add each agent's response section
+    agentList.forEachIndexed { index, (agentId, agent, response) ->
+        val activeClass = if (index == 0) "active" else ""
+        htmlBuilder.append("""
+                <div id="agent-$agentId" class="agent-result $activeClass">
+                    <div class="agent-header">${agent.provider.displayName} - ${agent.model}</div>
         """)
 
         if (response.error != null) {
@@ -649,14 +714,110 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
             """)
         }
 
+        // Add citations if available
+        response.citations?.takeIf { it.isNotEmpty() }?.let { citations ->
+            htmlBuilder.append("""
+                    <div class="sources-section">
+                        <div class="sources-label">Sources</div>
+            """)
+            citations.forEachIndexed { index, url ->
+                val escapedUrl = url.replace("\"", "&quot;")
+                htmlBuilder.append("""
+                        <div class="source-item">${index + 1}.<a href="$escapedUrl" class="source-link" target="_blank">$escapedUrl</a></div>
+                """)
+            }
+            htmlBuilder.append("</div>")
+        }
+
+        // Add search results if available
+        response.searchResults?.takeIf { it.isNotEmpty() }?.let { searchResults ->
+            htmlBuilder.append("""
+                    <div class="search-results-section">
+                        <div class="search-results-label">Search Results</div>
+            """)
+            searchResults.forEachIndexed { index, result ->
+                val title = (result.name ?: result.url ?: "Link").replace("<", "&lt;").replace(">", "&gt;")
+                val url = result.url?.replace("\"", "&quot;") ?: ""
+                val snippet = result.snippet?.replace("<", "&lt;")?.replace(">", "&gt;") ?: ""
+                htmlBuilder.append("""
+                        <div class="search-result">
+                            ${index + 1}. <a href="$url" class="search-result-title" target="_blank">$title</a>
+                """)
+                if (snippet.isNotEmpty()) {
+                    htmlBuilder.append("""
+                            <div class="search-result-snippet">$snippet</div>
+                    """)
+                }
+                htmlBuilder.append("</div>")
+            }
+            htmlBuilder.append("</div>")
+        }
+
+        // Add related questions if available
+        response.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { relatedQuestions ->
+            htmlBuilder.append("""
+                    <div class="related-questions-section">
+                        <div class="related-questions-label">Related Questions</div>
+            """)
+            relatedQuestions.forEachIndexed { index, question ->
+                val escapedQuestion = question.replace("<", "&lt;").replace(">", "&gt;")
+                htmlBuilder.append("""
+                        <div class="related-question">${index + 1}. $escapedQuestion</div>
+                """)
+            }
+            htmlBuilder.append("</div>")
+        }
+
+        // Add usage data for this agent when developer mode is on
+        if (developerMode && agent.provider != com.ai.data.AiService.DUMMY && response.rawUsageJson != null) {
+            val escapedJson = response.rawUsageJson.replace("<", "&lt;").replace(">", "&gt;")
+            htmlBuilder.append("""
+                    <div class="usage-label">API Usage:</div>
+                    <pre class="usage-json">$escapedJson</pre>
+            """)
+        }
+
+        // Add HTTP headers for this agent when developer mode is on
+        if (developerMode && agent.provider != com.ai.data.AiService.DUMMY && response.httpHeaders != null) {
+            val escapedHeaders = response.httpHeaders.replace("<", "&lt;").replace(">", "&gt;")
+            htmlBuilder.append("""
+                    <div class="usage-label">HTTP Headers:</div>
+                    <pre class="headers-text">$escapedHeaders</pre>
+            """)
+        }
+
         htmlBuilder.append("</div>")
     }
+
+    htmlBuilder.append("""
+                <div class="prompt-section">
+                    <div class="prompt-label">Prompt:</div>
+                    <pre class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</pre>
+                </div>
+    """)
 
     htmlBuilder.append("""
                 <div class="footer">
                     Generated by AI v$appVersion on $timestamp
                 </div>
             </div>
+
+            <script>
+                function showAgent(agentId) {
+                    // Hide all agent results
+                    document.querySelectorAll('.agent-result').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    // Deactivate all buttons
+                    document.querySelectorAll('.agent-btn').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    // Show selected agent result
+                    document.getElementById('agent-' + agentId).classList.add('active');
+                    // Activate clicked button
+                    event.target.classList.add('active');
+                }
+            </script>
         </body>
         </html>
     """.trimIndent())
@@ -672,16 +833,14 @@ internal fun shareGenericAiReports(context: android.content.Context, uiState: Ai
         } catch (e: Exception) { "unknown" }
         val html = convertGenericAiReportsToHtml(uiState, appVersion)
 
-        // Save to AI history
-        com.eval.data.AiHistoryManager.saveReport(html, com.eval.data.AiReportType.GENERAL)
-
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
         if (!cacheDir.exists()) {
             cacheDir.mkdirs()
         }
 
         val title = uiState.genericAiPromptTitle
-        val htmlFile = java.io.File(cacheDir, "generic_ai_reports.html")
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val htmlFile = java.io.File(cacheDir, "ai_$timestamp.html")
         htmlFile.writeText(html)
 
         val contentUri = androidx.core.content.FileProvider.getUriForFile(
@@ -715,15 +874,13 @@ internal fun openGenericAiReportsInChrome(context: android.content.Context, uiSt
         } catch (e: Exception) { "unknown" }
         val html = convertGenericAiReportsToHtml(uiState, appVersion)
 
-        // Save to AI history
-        com.eval.data.AiHistoryManager.saveReport(html, com.eval.data.AiReportType.GENERAL)
-
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
         if (!cacheDir.exists()) {
             cacheDir.mkdirs()
         }
 
-        val htmlFile = java.io.File(cacheDir, "generic_ai_reports.html")
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val htmlFile = java.io.File(cacheDir, "ai_$timestamp.html")
         htmlFile.writeText(html)
 
         val contentUri = androidx.core.content.FileProvider.getUriForFile(
@@ -754,6 +911,7 @@ internal fun openGenericAiReportsInChrome(context: android.content.Context, uiSt
 @Composable
 fun PromptHistoryScreen(
     onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit = onNavigateBack,
     onSelectEntry: (PromptHistoryEntry) -> Unit
 ) {
     val context = LocalContext.current
@@ -781,7 +939,7 @@ fun PromptHistoryScreen(
         AiTitleBar(
             title = "Prompt History",
             onBackClick = onNavigateBack,
-            onAiClick = onNavigateBack
+            onAiClick = onNavigateHome
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -918,7 +1076,8 @@ private fun PromptHistoryRow(
 @Composable
 fun AiReportsScreenNav(
     viewModel: AiViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit = onNavigateBack
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -932,10 +1091,8 @@ fun AiReportsScreenNav(
         },
         onShare = { shareGenericAiReports(context, uiState) },
         onOpenInBrowser = { openGenericAiReportsInChrome(context, uiState) },
-        onDismiss = {
-            viewModel.dismissGenericAiReportsDialog()
-            onNavigateBack()
-        }
+        onDismiss = onNavigateBack,
+        onNavigateHome = onNavigateHome
     )
 }
 
@@ -950,7 +1107,8 @@ fun AiReportsScreen(
     onGenerate: (Set<String>) -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onNavigateHome: () -> Unit = onDismiss
 ) {
     val reportsTotal = uiState.genericAiReportsTotal
     val reportsProgress = uiState.genericAiReportsProgress
@@ -959,6 +1117,18 @@ fun AiReportsScreen(
 
     val isGenerating = reportsTotal > 0
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
+
+    // Save to AI history when report completes
+    val context = LocalContext.current
+    LaunchedEffect(isComplete) {
+        if (isComplete) {
+            val appVersion = try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+            } catch (e: Exception) { "unknown" }
+            val html = convertGenericAiReportsToHtml(uiState, appVersion)
+            com.ai.data.AiHistoryManager.saveReport(html, com.ai.data.AiReportType.GENERAL)
+        }
+    }
 
     // Viewer state
     var showViewer by remember { mutableStateOf(false) }
@@ -997,10 +1167,10 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Report Ready"
                 isGenerating -> "Generating Report"
-                else -> "Report: ${uiState.genericAiPromptTitle}"
+                else -> uiState.genericAiPromptTitle
             },
             onBackClick = onDismiss,
-            onAiClick = onDismiss
+            onAiClick = onNavigateHome
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1104,15 +1274,6 @@ fun AiReportsScreen(
                 Text("Generate Reports")
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Cancel button
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Cancel")
-            }
         } else {
             // Progress/Results UI
             Card(
@@ -1209,14 +1370,6 @@ fun AiReportsScreen(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            // Close/Cancel button
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (isComplete) "Close" else "Cancel")
-            }
         }
     }
 }
@@ -1227,7 +1380,7 @@ fun AiReportsScreen(
  */
 @Composable
 fun AiReportsViewerScreen(
-    agentResults: Map<String, com.eval.data.AiAnalysisResponse>,
+    agentResults: Map<String, com.ai.data.AiAnalysisResponse>,
     aiSettings: AiSettings,
     initialSelectedAgentId: String? = null,
     onDismiss: () -> Unit
@@ -1340,6 +1493,12 @@ fun AiReportsViewerScreen(
                     selectedResult.searchResults?.takeIf { it.isNotEmpty() }?.let { searchResults ->
                         Spacer(modifier = Modifier.height(16.dp))
                         SearchResultsSection(searchResults = searchResults)
+                    }
+
+                    // Related questions section (if available)
+                    selectedResult.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { relatedQuestions ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        RelatedQuestionsSection(relatedQuestions = relatedQuestions)
                     }
                 }
             } else {
@@ -1564,7 +1723,7 @@ private fun CitationsSection(citations: List<String>) {
  * Displays search results returned by the AI service.
  */
 @Composable
-private fun SearchResultsSection(searchResults: List<com.eval.data.SearchResult>) {
+private fun SearchResultsSection(searchResults: List<com.ai.data.SearchResult>) {
     val context = LocalContext.current
 
     Column(
@@ -1629,6 +1788,45 @@ private fun SearchResultsSection(searchResults: List<com.eval.data.SearchResult>
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Displays related questions returned by the AI service (e.g., Perplexity).
+ */
+@Composable
+private fun RelatedQuestionsSection(relatedQuestions: List<String>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF252525), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Related Questions",
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            color = Color(0xFF4CAF50),
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        relatedQuestions.forEachIndexed { index, question ->
+            Row(
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Text(
+                    text = "${index + 1}. ",
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = question,
+                    color = Color(0xFFE0E0E0),
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

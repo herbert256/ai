@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,307 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.eval.data.AiService
+import com.ai.data.AiService
 import kotlinx.coroutines.launch
-
-/**
- * AI Prompts screen - CRUD for prompt templates.
- */
-@Composable
-fun AiPromptsScreen(
-    aiSettings: AiSettings,
-    onBackToAiSetup: () -> Unit,
-    onBackToHome: () -> Unit,
-    onSave: (AiSettings) -> Unit
-) {
-    var showAddDialog by remember { mutableStateOf(false) }
-    var editingPrompt by remember { mutableStateOf<AiPrompt?>(null) }
-    var showDeleteConfirm by remember { mutableStateOf<AiPrompt?>(null) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        AiTitleBar(
-            title = "AI Prompts",
-            onBackClick = onBackToAiSetup,
-            onAiClick = onBackToHome
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Placeholder info
-        PromptPlaceholdersInfo()
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Add button
-        Button(
-            onClick = { showAddDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF4CAF50)
-            )
-        ) {
-            Text("+ Add Prompt")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Prompt list
-        if (aiSettings.prompts.isEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "No prompts configured",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFAAAAAA)
-                    )
-                    Text(
-                        text = "Add a prompt to get started",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF888888)
-                    )
-                }
-            }
-        } else {
-            aiSettings.prompts.forEach { prompt ->
-                PromptListItem(
-                    prompt = prompt,
-                    onEdit = { editingPrompt = prompt },
-                    onDelete = { showDeleteConfirm = prompt }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Back buttons
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(onClick = onBackToAiSetup) {
-                Text("< AI Setup")
-            }
-        }
-    }
-
-    // Add/Edit dialog
-    if (showAddDialog || editingPrompt != null) {
-        PromptEditDialog(
-            prompt = editingPrompt,
-            existingNames = aiSettings.prompts.map { it.name }.toSet(),
-            onSave = { name, text ->
-                val newPrompts = if (editingPrompt != null) {
-                    aiSettings.prompts.map {
-                        if (it.id == editingPrompt!!.id) it.copy(name = name, text = text) else it
-                    }
-                } else {
-                    aiSettings.prompts + AiPrompt(
-                        id = java.util.UUID.randomUUID().toString(),
-                        name = name,
-                        text = text
-                    )
-                }
-                onSave(aiSettings.copy(prompts = newPrompts))
-                showAddDialog = false
-                editingPrompt = null
-            },
-            onDismiss = {
-                showAddDialog = false
-                editingPrompt = null
-            }
-        )
-    }
-
-    // Delete confirmation
-    showDeleteConfirm?.let { prompt ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("Delete Prompt", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text("Are you sure you want to delete \"${prompt.name}\"?")
-
-                    // Check if any agents reference this prompt
-                    val referencingAgents = aiSettings.agents.filter {
-                        it.gamePromptId == prompt.id ||
-                        it.serverPlayerPromptId == prompt.id ||
-                        it.otherPlayerPromptId == prompt.id
-                    }
-                    if (referencingAgents.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Warning: ${referencingAgents.size} agent(s) reference this prompt.",
-                            color = Color(0xFFFF9800),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val newPrompts = aiSettings.prompts.filter { it.id != prompt.id }
-                        onSave(aiSettings.copy(prompts = newPrompts))
-                        showDeleteConfirm = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-}
-
-/**
- * Prompt list item card.
- */
-@Composable
-private fun PromptListItem(
-    prompt: AiPrompt,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = prompt.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TextButton(onClick = onEdit) {
-                        Text("Edit", color = Color(0xFF6B9BFF))
-                    }
-                    TextButton(onClick = onDelete) {
-                        Text("Delete", color = Color(0xFFF44336))
-                    }
-                }
-            }
-            Text(
-                text = prompt.text.take(100) + if (prompt.text.length > 100) "..." else "",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA),
-                maxLines = 2
-            )
-        }
-    }
-}
-
-/**
- * Prompt add/edit dialog.
- */
-@Composable
-private fun PromptEditDialog(
-    prompt: AiPrompt?,
-    existingNames: Set<String>,
-    onSave: (name: String, text: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var name by remember { mutableStateOf(prompt?.name ?: "") }
-    var text by remember { mutableStateOf(prompt?.text ?: "") }
-    val isEditing = prompt != null
-
-    // Validation
-    val nameError = when {
-        name.isBlank() -> "Name is required"
-        !isEditing && existingNames.contains(name) -> "Name already exists"
-        isEditing && name != prompt?.name && existingNames.contains(name) -> "Name already exists"
-        else -> null
-    }
-    val textError = if (text.isBlank()) "Prompt text is required" else null
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (isEditing) "Edit Prompt" else "Add Prompt",
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    isError = nameError != null,
-                    supportingText = nameError?.let { { Text(it, color = Color(0xFFF44336)) } },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text("Prompt text") },
-                    isError = textError != null,
-                    supportingText = textError?.let { { Text(it, color = Color(0xFFF44336)) } },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    maxLines = 10
-                )
-
-                Text(
-                    text = "Use @FEN@, @PLAYER@, @SERVER@, @DATE@ as placeholders",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF888888)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(name.trim(), text) },
-                enabled = nameError == null && textError == null
-            ) {
-                Text(if (isEditing) "Save" else "Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
 
 /**
  * AI Agents screen - CRUD for agent configurations.
@@ -416,14 +117,14 @@ fun AiAgentsScreen(
     // Add/Edit/Copy dialog
     if (showAddDialog || editingAgent != null || copyingAgent != null) {
         // For copy mode, create a template agent with new ID and "(Copy)" suffix
-        val dialogAgent = when {
-            copyingAgent != null -> copyingAgent!!.copy(
+        val dialogAgent = copyingAgent?.let { agent ->
+            agent.copy(
                 id = java.util.UUID.randomUUID().toString(),
-                name = "${copyingAgent!!.name} (Copy)"
+                name = "${agent.name} (Copy)"
             )
-            else -> editingAgent
-        }
+        } ?: editingAgent
         val isEditMode = editingAgent != null
+        val editingAgentId = editingAgent?.id
 
         AgentEditDialog(
             agent = dialogAgent,
@@ -441,8 +142,8 @@ fun AiAgentsScreen(
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
             onSave = { newAgent ->
-                val newAgents = if (isEditMode) {
-                    aiSettings.agents.map { if (it.id == editingAgent!!.id) newAgent else it }
+                val newAgents = if (isEditMode && editingAgentId != null) {
+                    aiSettings.agents.map { if (it.id == editingAgentId) newAgent else it }
                 } else {
                     aiSettings.agents + newAgent
                 }
@@ -581,22 +282,12 @@ private fun AgentEditDialog(
     }
     val coroutineScope = rememberCoroutineScope()
 
-    // Helper to find prompt ID by name, with fallback to first prompt
-    fun findPromptId(name: String): String {
-        return aiSettings.prompts.find { it.name == name }?.id
-            ?: aiSettings.prompts.firstOrNull()?.id
-            ?: ""
-    }
-
     // State
     var name by remember { mutableStateOf(agent?.name ?: "") }
     var selectedProvider by remember { mutableStateOf(agent?.provider ?: AiService.CHATGPT) }
     var model by remember { mutableStateOf(agent?.model ?: "gpt-4o-mini") }
     var apiKey by remember { mutableStateOf(agent?.apiKey ?: aiSettings.getApiKey(agent?.provider ?: AiService.CHATGPT)) }
     var showKey by remember { mutableStateOf(false) }
-    var gamePromptId by remember { mutableStateOf(agent?.gamePromptId ?: findPromptId(DEFAULT_GAME_PROMPT_NAME)) }
-    var serverPlayerPromptId by remember { mutableStateOf(agent?.serverPlayerPromptId ?: findPromptId(DEFAULT_SERVER_PLAYER_PROMPT_NAME)) }
-    var otherPlayerPromptId by remember { mutableStateOf(agent?.otherPlayerPromptId ?: findPromptId(DEFAULT_OTHER_PLAYER_PROMPT_NAME)) }
     var isTesting by remember { mutableStateOf(false) }
     var testError by remember { mutableStateOf<String?>(null) }
 
@@ -782,45 +473,6 @@ private fun AgentEditDialog(
                     }
                 }
 
-                // Prompt selections (only if prompts exist)
-                if (aiSettings.prompts.isNotEmpty()) {
-                    HorizontalDivider(color = Color(0xFF444444))
-
-                    Text(
-                        text = "Prompts",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-
-                    PromptDropdown(
-                        label = "Game Prompt",
-                        selectedId = gamePromptId,
-                        prompts = aiSettings.prompts,
-                        onSelect = { gamePromptId = it }
-                    )
-
-                    PromptDropdown(
-                        label = "Server Player Prompt",
-                        selectedId = serverPlayerPromptId,
-                        prompts = aiSettings.prompts,
-                        onSelect = { serverPlayerPromptId = it }
-                    )
-
-                    PromptDropdown(
-                        label = "Other Player Prompt",
-                        selectedId = otherPlayerPromptId,
-                        prompts = aiSettings.prompts,
-                        onSelect = { otherPlayerPromptId = it }
-                    )
-                } else {
-                    Text(
-                        text = "⚠ No prompts available. Create prompts first.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFFF9800)
-                    )
-                }
-
                 // Test error message
                 if (testError != null) {
                     HorizontalDivider(color = Color(0xFF444444))
@@ -853,16 +505,13 @@ private fun AgentEditDialog(
                                 name = name.trim(),
                                 provider = selectedProvider,
                                 model = model,
-                                apiKey = apiKey.trim(),
-                                gamePromptId = gamePromptId,
-                                serverPlayerPromptId = serverPlayerPromptId,
-                                otherPlayerPromptId = otherPlayerPromptId
+                                apiKey = apiKey.trim()
                             )
                             onSave(newAgent)
                         }
                     }
                 },
-                enabled = !isTesting && nameError == null && (aiSettings.prompts.isNotEmpty() || apiKey.isBlank())
+                enabled = !isTesting && nameError == null
             ) {
                 if (isTesting) {
                     Row(
@@ -886,54 +535,6 @@ private fun AgentEditDialog(
             }
         }
     )
-}
-
-/**
- * Prompt dropdown selector.
- */
-@Composable
-private fun PromptDropdown(
-    label: String,
-    selectedId: String,
-    prompts: List<AiPrompt>,
-    onSelect: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedPrompt = prompts.find { it.id == selectedId }
-
-    Column {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFAAAAAA)
-        )
-        Box {
-            OutlinedButton(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = selectedPrompt?.name ?: "Select...",
-                    modifier = Modifier.weight(1f)
-                )
-                Text(if (expanded) "▲" else "▼")
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                prompts.forEach { prompt ->
-                    DropdownMenuItem(
-                        text = { Text(prompt.name) },
-                        onClick = {
-                            onSelect(prompt.id)
-                            expanded = false
-                        }
-                    )
-                }
-            }
-        }
-    }
 }
 
 /**

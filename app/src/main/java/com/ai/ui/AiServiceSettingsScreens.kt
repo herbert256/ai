@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

@@ -1,4 +1,4 @@
-package com.eval.data
+package com.ai.data
 
 import android.content.Context
 import java.io.File
@@ -44,9 +44,10 @@ object AiHistoryManager {
      * Must be called before using any other methods.
      */
     fun init(context: Context) {
-        historyDir = File(context.filesDir, HISTORY_DIR)
-        if (!historyDir!!.exists()) {
-            historyDir!!.mkdirs()
+        historyDir = File(context.filesDir, HISTORY_DIR).also { dir ->
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
         }
     }
 
@@ -74,8 +75,7 @@ object AiHistoryManager {
             android.util.Log.d("AiHistoryManager", "Saved AI report: $filename")
             file
         } catch (e: Exception) {
-            android.util.Log.e("AiHistoryManager", "Failed to save AI report: ${e.message}")
-            e.printStackTrace()
+            android.util.Log.e("AiHistoryManager", "Failed to save AI report: ${e.message}", e)
             null
         }
     }

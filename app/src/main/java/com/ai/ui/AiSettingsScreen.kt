@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.eval.data.AiService
+import com.ai.data.AiService
 
 /**
  * Main AI settings screen with navigation cards for each AI service.
@@ -230,10 +230,9 @@ fun AiSetupScreen(
 
         // Summary info
         val configuredAgents = aiSettings.agents.count { it.apiKey.isNotBlank() }
-        val totalPrompts = aiSettings.prompts.size
 
         Text(
-            text = "Configure AI services in three steps:",
+            text = "Configure AI services:",
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFFAAAAAA)
         )
@@ -249,19 +248,10 @@ fun AiSetupScreen(
             onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) }
         )
 
-        // AI Prompts card
-        AiSetupNavigationCard(
-            title = "AI Prompts",
-            description = "Create and manage prompt templates",
-            icon = "📝",
-            count = "$totalPrompts prompts",
-            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
-        )
-
         // AI Agents card
         AiSetupNavigationCard(
             title = "AI Agents",
-            description = "Configure agents with provider, model, key, and prompts",
+            description = "Configure agents with provider, model, and API key",
             icon = "🤖",
             count = "$configuredAgents configured",
             onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }

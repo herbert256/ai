@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -42,6 +42,13 @@ fun AiNavHost(
     navController: NavHostController = rememberNavController(),
     viewModel: AiViewModel = viewModel()
 ) {
+    // Navigate to home, clearing the back stack
+    val navigateHome: () -> Unit = {
+        navController.navigate(NavRoutes.AI) {
+            popUpTo(NavRoutes.AI) { inclusive = true }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = NavRoutes.AI,
@@ -62,19 +69,22 @@ fun AiNavHost(
         composable(NavRoutes.SETTINGS) {
             SettingsScreenNav(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
 
         composable(NavRoutes.HELP) {
             HelpScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
 
         composable(NavRoutes.TRACE_LIST) {
             TraceListScreen(
                 onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
                 onSelectTrace = { filename ->
                     navController.navigate(NavRoutes.traceDetail(filename))
                 },
@@ -86,13 +96,15 @@ fun AiNavHost(
             val filename = backStackEntry.arguments?.getString("filename") ?: ""
             TraceDetailScreen(
                 filename = filename,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
 
         composable(NavRoutes.AI_HISTORY) {
             AiHistoryScreenNav(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
 
@@ -100,6 +112,7 @@ fun AiNavHost(
             AiNewReportScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) }
             )
         }
@@ -112,6 +125,7 @@ fun AiNavHost(
             AiNewReportScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
                 initialTitle = title,
                 initialPrompt = prompt
@@ -121,6 +135,7 @@ fun AiNavHost(
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
                 onSelectEntry = { entry ->
                     navController.navigate(NavRoutes.aiNewReportWithParams(entry.title, entry.prompt))
                 }
@@ -130,7 +145,8 @@ fun AiNavHost(
         composable(NavRoutes.AI_REPORTS) {
             AiReportsScreenNav(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
     }
@@ -142,7 +158,8 @@ fun AiNavHost(
 @Composable
 fun SettingsScreenNav(
     viewModel: AiViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -168,6 +185,7 @@ fun SettingsScreenNav(
         availableOpenRouterModels = uiState.availableOpenRouterModels,
         isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
         onBack = onNavigateBack,
+        onNavigateHome = onNavigateHome,
         onSaveGeneral = { viewModel.updateGeneralSettings(it) },
         onTrackApiCallsChanged = { viewModel.updateTrackApiCalls(it) },
         onSaveAi = { viewModel.updateAiSettings(it) },

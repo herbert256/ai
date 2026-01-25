@@ -1,8 +1,7 @@
-package com.eval.data
+package com.ai.data
 
 import android.content.Context
 import com.google.gson.GsonBuilder
-import com.google.gson.JsonParser
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -61,18 +60,22 @@ object ApiTracer {
     private var traceDir: File? = null
     private val gson = GsonBuilder().setPrettyPrinting().create()
     private val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US)
+    private val tracingLock = Any()
 
     @Volatile
     var isTracingEnabled: Boolean = false
+        get() = synchronized(tracingLock) { field }
+        set(value) = synchronized(tracingLock) { field = value }
 
     /**
      * Initialize the tracer with the app context.
      * Must be called before using any other methods.
      */
     fun init(context: Context) {
-        traceDir = File(context.filesDir, TRACE_DIR)
-        if (!traceDir!!.exists()) {
-            traceDir!!.mkdirs()
+        traceDir = File(context.filesDir, TRACE_DIR).also { dir ->
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
         }
     }
 
@@ -94,7 +97,7 @@ object ApiTracer {
         try {
             file.writeText(gson.toJson(trace))
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("ApiTracer", "Failed to save trace: ${e.message}", e)
         }
     }
 
@@ -184,7 +187,8 @@ object ApiTracer {
     fun prettyPrintJson(json: String?): String {
         if (json.isNullOrBlank()) return ""
         return try {
-            val jsonElement = com.google.gson.JsonParser().parse(json)
+            // Use Gson to parse and re-serialize with pretty printing
+            val jsonElement = gson.fromJson(json, com.google.gson.JsonElement::class.java)
             gson.toJson(jsonElement)
         } catch (e: Exception) {
             json
@@ -267,13 +271,26 @@ class TracingInterceptor : Interceptor {
         return response
     }
 
+    private val sensitiveHeaders = setOf(
+        "authorization",
+        "x-api-key",
+        "x-goog-api-key",
+        "api-key",
+        "api_key",
+        "apikey",
+        "bearer",
+        "token",
+        "secret",
+        "password",
+        "anthropic-api-key"
+    )
+
     private fun headersToMap(headers: Headers): Map<String, String> {
         val map = mutableMapOf<String, String>()
         for (i in 0 until headers.size) {
             val name = headers.name(i)
             // Mask sensitive headers
-            val value = if (name.equals("Authorization", ignoreCase = true) ||
-                name.equals("x-api-key", ignoreCase = true)) {
+            val value = if (sensitiveHeaders.contains(name.lowercase())) {
                 maskSensitiveValue(headers.value(i))
             } else {
                 headers.value(i)

@@ -1,4 +1,4 @@
-package com.eval.data
+package com.ai.data
 
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +31,7 @@ data class AiAnalysisResponse(
     val promptUsed: String? = null,  // The actual prompt sent to the AI (with @FEN@ etc. replaced)
     val citations: List<String>? = null,  // Citations/sources returned by AI (e.g., Perplexity)
     val searchResults: List<SearchResult>? = null,  // Search results returned by AI (e.g., Grok, Perplexity)
+    val relatedQuestions: List<String>? = null,  // Related questions returned by AI (e.g., Perplexity)
     val rawUsageJson: String? = null,  // Raw usage/usageMetadata JSON for developer mode
     val httpHeaders: String? = null  // HTTP response headers for developer mode
 ) {
@@ -44,6 +45,11 @@ data class AiAnalysisResponse(
  * Repository for making AI analysis requests to various AI services.
  */
 class AiAnalysisRepository {
+    companion object {
+        private const val RETRY_DELAY_MS = 500L
+        private const val TEST_PROMPT = "Reply with exactly: OK"
+    }
+
     private val openAiApi = AiApiFactory.createOpenAiApi()
     private val claudeApi = AiApiFactory.createClaudeApi()
     private val geminiApi = AiApiFactory.createGeminiApi()
@@ -177,16 +183,16 @@ class AiAnalysisRepository {
             }
             // API returned an error response, retry after delay
             android.util.Log.w("AiAnalysis", "${service.displayName} player analysis first attempt failed: ${result.error}, retrying...")
-            delay(500)
-            makeApiCall()
+            delay(RETRY_DELAY_MS)
+            return@withContext makeApiCall()
         } catch (e: Exception) {
             // Network/exception error, retry after delay
             android.util.Log.w("AiAnalysis", "${service.displayName} player analysis first attempt exception: ${e.message}, retrying...")
             try {
-                delay(500)
-                makeApiCall()
+                delay(RETRY_DELAY_MS)
+                return@withContext makeApiCall()
             } catch (e2: Exception) {
-                AiAnalysisResponse(
+                return@withContext AiAnalysisResponse(
                     service = service,
                     analysis = null,
                     error = "Failed after retry: ${e2.message}"
@@ -259,16 +265,16 @@ class AiAnalysisRepository {
             }
             // API returned an error response, retry after delay
             android.util.Log.w("AiAnalysis", "${service.displayName} first attempt failed: ${result.error}, retrying...")
-            delay(500)
-            makeApiCall()
+            delay(RETRY_DELAY_MS)
+            return@withContext makeApiCall()
         } catch (e: Exception) {
             // Network/exception error, retry after delay
             android.util.Log.w("AiAnalysis", "${service.displayName} first attempt exception: ${e.message}, retrying...")
             try {
-                delay(500)
-                makeApiCall()
+                delay(RETRY_DELAY_MS)
+                return@withContext makeApiCall()
             } catch (e2: Exception) {
-                AiAnalysisResponse(
+                return@withContext AiAnalysisResponse(
                     service = service,
                     analysis = null,
                     error = "Network error after retry: ${e2.message ?: "Unknown error"}"
@@ -282,7 +288,7 @@ class AiAnalysisRepository {
      * Uses the agent's provider, model, and API key.
      */
     suspend fun analyzePositionWithAgent(
-        agent: com.eval.ui.AiAgent,
+        agent: com.ai.ui.AiAgent,
         fen: String,
         prompt: String
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
@@ -322,15 +328,15 @@ class AiAnalysisRepository {
                 return@withContext result
             }
             android.util.Log.w("AiAnalysis", "Agent ${agent.name} first attempt failed: ${result.error}, retrying...")
-            delay(500)
-            makeApiCall()
+            delay(RETRY_DELAY_MS)
+            return@withContext makeApiCall()
         } catch (e: Exception) {
             android.util.Log.w("AiAnalysis", "Agent ${agent.name} first attempt exception: ${e.message}, retrying...")
             try {
-                delay(500)
-                makeApiCall()
+                delay(RETRY_DELAY_MS)
+                return@withContext makeApiCall()
             } catch (e2: Exception) {
-                AiAnalysisResponse(
+                return@withContext AiAnalysisResponse(
                     service = agent.provider,
                     analysis = null,
                     error = "Network error after retry: ${e2.message ?: "Unknown error"}",
@@ -344,7 +350,7 @@ class AiAnalysisRepository {
      * Analyze a player using an AI Agent configuration (no FEN, just prompt).
      */
     suspend fun analyzePlayerWithAgent(
-        agent: com.eval.ui.AiAgent,
+        agent: com.ai.ui.AiAgent,
         prompt: String
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (agent.apiKey.isBlank()) {
@@ -382,15 +388,15 @@ class AiAnalysisRepository {
                 return@withContext result
             }
             android.util.Log.w("AiAnalysis", "Agent ${agent.name} player analysis failed: ${result.error}, retrying...")
-            delay(500)
-            makeApiCall()
+            delay(RETRY_DELAY_MS)
+            return@withContext makeApiCall()
         } catch (e: Exception) {
             android.util.Log.w("AiAnalysis", "Agent ${agent.name} player analysis exception: ${e.message}, retrying...")
             try {
-                delay(500)
-                makeApiCall()
+                delay(RETRY_DELAY_MS)
+                return@withContext makeApiCall()
             } catch (e2: Exception) {
-                AiAnalysisResponse(
+                return@withContext AiAnalysisResponse(
                     service = agent.provider,
                     analysis = null,
                     error = "Network error after retry: ${e2.message ?: "Unknown error"}",
@@ -473,8 +479,15 @@ class AiAnalysisRepository {
             // Extract text from output[0].content where type is "output_text"
             val content = body?.output?.firstOrNull()?.content
                 ?.firstOrNull { it.type == "output_text" }?.text
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0
+                )
+            }
             if (content != null) {
-                AiAnalysisResponse(AiService.CHATGPT, content, null, null, httpHeaders = headers)
+                AiAnalysisResponse(AiService.CHATGPT, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content"
                 AiAnalysisResponse(AiService.CHATGPT, null, errorMsg, httpHeaders = headers)
@@ -519,8 +532,6 @@ class AiAnalysisRepository {
                 GeminiContent(parts = listOf(GeminiPart(text = prompt)))
             )
         )
-
-        android.util.Log.d("GeminiAPI", "Making request with model: $model, key length: ${apiKey.length}")
 
         val response = geminiApi.generateContent(model = model, apiKey = apiKey, request = request)
 
@@ -700,6 +711,7 @@ class AiAnalysisRepository {
             val content = body?.choices?.firstOrNull()?.message?.content
             val citations = body?.citations  // Extract citations from Perplexity response
             val searchResults = body?.search_results  // Extract search results
+            val relatedQuestions = body?.related_questions  // Extract related questions
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
                 TokenUsage(
@@ -708,7 +720,7 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.PERPLEXITY, content, null, usage, citations = citations, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.PERPLEXITY, content, null, usage, citations = citations, searchResults = searchResults, relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, httpHeaders = headers)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content"
                 AiAnalysisResponse(AiService.PERPLEXITY, null, errorMsg, httpHeaders = headers)
@@ -803,18 +815,17 @@ class AiAnalysisRepository {
         }
 
         try {
-            val testPrompt = "Reply with exactly: OK"
             val response = when (service) {
-                AiService.CHATGPT -> analyzeWithChatGpt(apiKey, testPrompt, model)
-                AiService.CLAUDE -> analyzeWithClaude(apiKey, testPrompt, model)
-                AiService.GEMINI -> analyzeWithGemini(apiKey, testPrompt, model)
-                AiService.GROK -> analyzeWithGrok(apiKey, testPrompt, model)
-                AiService.GROQ -> analyzeWithGroq(apiKey, testPrompt, model)
-                AiService.DEEPSEEK -> analyzeWithDeepSeek(apiKey, testPrompt, model)
-                AiService.MISTRAL -> analyzeWithMistral(apiKey, testPrompt, model)
-                AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, testPrompt, model)
-                AiService.TOGETHER -> analyzeWithTogether(apiKey, testPrompt, model)
-                AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, testPrompt, model)
+                AiService.CHATGPT -> analyzeWithChatGpt(apiKey, TEST_PROMPT, model)
+                AiService.CLAUDE -> analyzeWithClaude(apiKey, TEST_PROMPT, model)
+                AiService.GEMINI -> analyzeWithGemini(apiKey, TEST_PROMPT, model)
+                AiService.GROK -> analyzeWithGrok(apiKey, TEST_PROMPT, model)
+                AiService.GROQ -> analyzeWithGroq(apiKey, TEST_PROMPT, model)
+                AiService.DEEPSEEK -> analyzeWithDeepSeek(apiKey, TEST_PROMPT, model)
+                AiService.MISTRAL -> analyzeWithMistral(apiKey, TEST_PROMPT, model)
+                AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, TEST_PROMPT, model)
+                AiService.TOGETHER -> analyzeWithTogether(apiKey, TEST_PROMPT, model)
+                AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, TEST_PROMPT, model)
                 AiService.DUMMY -> analyzeWithDummy()
             }
 

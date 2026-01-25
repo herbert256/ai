@@ -1,4 +1,4 @@
-package com.eval.data
+package com.ai.data
 
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
@@ -10,6 +10,7 @@ import retrofit2.http.Header
 import retrofit2.http.Path
 import retrofit2.http.POST
 import retrofit2.http.Query
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -67,7 +68,8 @@ data class OpenAiResponse(
     val usage: OpenAiUsage?,
     val error: OpenAiError?,
     val citations: List<String>? = null,  // Perplexity returns citations as URLs
-    val search_results: List<SearchResult>? = null  // Some services return search results
+    val search_results: List<SearchResult>? = null,  // Some services return search results
+    val related_questions: List<String>? = null  // Perplexity returns follow-up questions
 )
 
 data class OpenAiError(
@@ -100,7 +102,8 @@ data class OpenAiResponsesApiResponse(
     val id: String?,
     val status: String?,
     val error: OpenAiResponsesError?,
-    val output: List<OpenAiResponsesOutputMessage>?
+    val output: List<OpenAiResponsesOutputMessage>?,
+    val usage: OpenAiUsage?
 )
 
 data class OpenAiResponsesError(
@@ -418,7 +421,7 @@ interface GroqApi {
  * Factory for creating API instances.
  */
 object AiApiFactory {
-    private val retrofitCache = mutableMapOf<String, Retrofit>()
+    private val retrofitCache = ConcurrentHashMap<String, Retrofit>()
 
     // OkHttpClient with extended timeouts for AI API calls
     private val okHttpClient = OkHttpClient.Builder()

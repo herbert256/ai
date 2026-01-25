@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.eval.data.AiService
+import com.ai.data.AiService
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import java.io.BufferedReader
@@ -29,16 +29,7 @@ data class ProviderConfigExport(
 )
 
 /**
- * Data class for prompt in JSON export/import.
- */
-data class PromptExport(
-    val id: String,
-    val name: String,
-    val text: String
-)
-
-/**
- * Data class for agent in JSON export/import.
+ * Data class for agent in JSON export/import (version 4 - current).
  */
 data class AgentExport(
     val id: String,
@@ -46,20 +37,23 @@ data class AgentExport(
     val provider: String,  // Provider enum name (CHATGPT, CLAUDE, etc.)
     val model: String,
     val apiKey: String,
-    val gamePromptId: String,
-    val serverPlayerPromptId: String,
-    val otherPlayerPromptId: String
+    // Legacy fields from version 3 (ignored on import, included for compatibility)
+    val gamePromptId: String? = null,
+    val serverPlayerPromptId: String? = null,
+    val otherPlayerPromptId: String? = null
 )
 
 /**
  * Data class for the complete AI configuration export.
- * Version 3: Three-tier architecture with providers, prompts, and agents.
+ * Version 4: Providers and agents (prompts removed).
+ * Also supports importing version 3 (legacy Eval format with prompts - prompts are ignored).
  */
 data class AiConfigExportV3(
-    val version: Int = 3,
+    val version: Int = 4,
     val providers: Map<String, ProviderConfigExport>,
-    val prompts: List<PromptExport>,
-    val agents: List<AgentExport>
+    val agents: List<AgentExport>,
+    // Legacy field from version 3 (ignored on import)
+    val prompts: List<Any>? = null
 )
 
 /**
@@ -72,7 +66,7 @@ data class ApiKeyEntry(
 
 /**
  * Export AI configuration to a file and share via Android share sheet.
- * Version 3: Exports providers (model config), prompts, and agents.
+ * Exports providers (model config) and agents.
  */
 fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
     // Build providers map (model source, manual models, and API key per provider)
@@ -90,11 +84,6 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
         "DUMMY" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey)
     )
 
-    // Convert prompts
-    val prompts = aiSettings.prompts.map { prompt ->
-        PromptExport(id = prompt.id, name = prompt.name, text = prompt.text)
-    }
-
     // Convert agents
     val agents = aiSettings.agents.map { agent ->
         AgentExport(
@@ -102,16 +91,12 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
             name = agent.name,
             provider = agent.provider.name,
             model = agent.model,
-            apiKey = agent.apiKey,
-            gamePromptId = agent.gamePromptId,
-            serverPlayerPromptId = agent.serverPlayerPromptId,
-            otherPlayerPromptId = agent.otherPlayerPromptId
+            apiKey = agent.apiKey
         )
     }
 
     val export = AiConfigExportV3(
         providers = providers,
-        prompts = prompts,
         agents = agents
     )
 
@@ -196,7 +181,8 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
 
 /**
  * Import AI configuration from clipboard JSON.
- * Supports version 3 format (providers, prompts, agents).
+ * Supports version 3 (legacy Eval with prompts) and version 4 (current AI format).
+ * Prompts from version 3 are ignored.
  */
 fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiSettings? {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -217,21 +203,12 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExportV3::class.java)
 
-        if (export.version != 3) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3.", Toast.LENGTH_LONG).show()
+        if (export.version != 3 && export.version != 4) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3 or 4.", Toast.LENGTH_LONG).show()
             return null
         }
 
-        // Import prompts
-        val prompts = export.prompts.map { promptExport ->
-            AiPrompt(
-                id = promptExport.id,
-                name = promptExport.name,
-                text = promptExport.text
-            )
-        }
-
-        // Import agents
+        // Import agents (prompt fields from version 3 are ignored)
         val agents = export.agents.mapNotNull { agentExport ->
             val provider = try {
                 AiService.valueOf(agentExport.provider)
@@ -244,17 +221,13 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
                     name = agentExport.name,
                     provider = it,
                     model = agentExport.model,
-                    apiKey = agentExport.apiKey,
-                    gamePromptId = agentExport.gamePromptId,
-                    serverPlayerPromptId = agentExport.serverPlayerPromptId,
-                    otherPlayerPromptId = agentExport.otherPlayerPromptId
+                    apiKey = agentExport.apiKey
                 )
             }
         }
 
         // Import provider settings
         var settings = currentSettings.copy(
-            prompts = prompts,
             agents = agents
         )
 
@@ -336,7 +309,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-        Toast.makeText(context, "Imported ${prompts.size} prompts, ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
         settings
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
@@ -349,7 +322,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Supports version 3 format (providers, prompts, agents).
+ * Supports version 3 (legacy Eval with prompts) and version 4 (current AI format).
+ * Prompts from version 3 are ignored.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiSettings? {
     return try {
@@ -371,21 +345,12 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExportV3::class.java)
 
-        if (export.version != 3) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3.", Toast.LENGTH_LONG).show()
+        if (export.version != 3 && export.version != 4) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3 or 4.", Toast.LENGTH_LONG).show()
             return null
         }
 
-        // Import prompts
-        val prompts = export.prompts.map { promptExport ->
-            AiPrompt(
-                id = promptExport.id,
-                name = promptExport.name,
-                text = promptExport.text
-            )
-        }
-
-        // Import agents
+        // Import agents (prompt fields from version 3 are ignored)
         val agents = export.agents.mapNotNull { agentExport ->
             val provider = try {
                 AiService.valueOf(agentExport.provider)
@@ -398,17 +363,13 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
                     name = agentExport.name,
                     provider = it,
                     model = agentExport.model,
-                    apiKey = agentExport.apiKey,
-                    gamePromptId = agentExport.gamePromptId,
-                    serverPlayerPromptId = agentExport.serverPlayerPromptId,
-                    otherPlayerPromptId = agentExport.otherPlayerPromptId
+                    apiKey = agentExport.apiKey
                 )
             }
         }
 
         // Import provider settings
         var settings = currentSettings.copy(
-            prompts = prompts,
             agents = agents
         )
 
@@ -490,7 +451,7 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
 
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-        Toast.makeText(context, "Imported ${prompts.size} prompts, ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
         settings
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
@@ -531,13 +492,13 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration (version 3) exported from this app.",
+                    text = "The clipboard should contain a JSON configuration exported from this app or the Eval app (version 3 or 4).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
 
                 Text(
-                    text = "Warning: This will replace your prompts, agents, API keys, and provider settings.",
+                    text = "Warning: This will replace your agents, API keys, and provider settings.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFFF9800)
                 )

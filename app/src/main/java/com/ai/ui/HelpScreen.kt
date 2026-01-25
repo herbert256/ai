@@ -1,4 +1,4 @@
-package com.eval.ui
+package com.ai.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -17,7 +17,8 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun HelpScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack
 ) {
     // Handle back navigation
     BackHandler { onBack() }
@@ -31,7 +32,7 @@ fun HelpScreen(
         AiTitleBar(
             title = "Help",
             onBackClick = onBack,
-            onAiClick = onBack
+            onAiClick = onNavigateHome
         )
 
         Spacer(modifier = Modifier.height(16.dp))

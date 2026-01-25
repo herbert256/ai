@@ -1,6 +1,6 @@
-package com.eval.ui
+package com.ai.ui
 
-import com.eval.data.AiService
+import com.ai.data.AiService
 
 /**
  * Enum for model source - API (fetched from provider) or Manual (user-maintained list)
@@ -51,79 +51,48 @@ data class AiAgent(
 data class AiSettings(
     val chatGptApiKey: String = "",
     val chatGptModel: String = "gpt-4o-mini",
-    val chatGptPrompt: String = DEFAULT_GAME_PROMPT,
-    val chatGptServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val chatGptOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val chatGptModelSource: ModelSource = ModelSource.API,
     val chatGptManualModels: List<String> = emptyList(),
     val claudeApiKey: String = "",
     val claudeModel: String = "claude-sonnet-4-20250514",
-    val claudePrompt: String = DEFAULT_GAME_PROMPT,
-    val claudeServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val claudeOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val claudeModelSource: ModelSource = ModelSource.MANUAL,
     val claudeManualModels: List<String> = CLAUDE_MODELS,
     val geminiApiKey: String = "",
     val geminiModel: String = "gemini-2.0-flash",
-    val geminiPrompt: String = DEFAULT_GAME_PROMPT,
-    val geminiServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val geminiOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val geminiModelSource: ModelSource = ModelSource.API,
     val geminiManualModels: List<String> = emptyList(),
     val grokApiKey: String = "",
     val grokModel: String = "grok-3-mini",
-    val grokPrompt: String = DEFAULT_GAME_PROMPT,
-    val grokServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val grokOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val grokModelSource: ModelSource = ModelSource.API,
     val grokManualModels: List<String> = emptyList(),
     val groqApiKey: String = "",
     val groqModel: String = "llama-3.3-70b-versatile",
-    val groqPrompt: String = DEFAULT_GAME_PROMPT,
-    val groqServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val groqOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val groqModelSource: ModelSource = ModelSource.API,
     val groqManualModels: List<String> = emptyList(),
     val deepSeekApiKey: String = "",
     val deepSeekModel: String = "deepseek-chat",
-    val deepSeekPrompt: String = DEFAULT_GAME_PROMPT,
-    val deepSeekServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val deepSeekOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val deepSeekModelSource: ModelSource = ModelSource.API,
     val deepSeekManualModels: List<String> = emptyList(),
     val mistralApiKey: String = "",
     val mistralModel: String = "mistral-small-latest",
-    val mistralPrompt: String = DEFAULT_GAME_PROMPT,
-    val mistralServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val mistralOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val mistralModelSource: ModelSource = ModelSource.API,
     val mistralManualModels: List<String> = emptyList(),
     val perplexityApiKey: String = "",
     val perplexityModel: String = "sonar",
-    val perplexityPrompt: String = DEFAULT_GAME_PROMPT,
-    val perplexityServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val perplexityOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val perplexityModelSource: ModelSource = ModelSource.MANUAL,
     val perplexityManualModels: List<String> = PERPLEXITY_MODELS,
     val togetherApiKey: String = "",
     val togetherModel: String = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-    val togetherPrompt: String = DEFAULT_GAME_PROMPT,
-    val togetherServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val togetherOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val togetherModelSource: ModelSource = ModelSource.API,
     val togetherManualModels: List<String> = emptyList(),
     val openRouterApiKey: String = "",
     val openRouterModel: String = "anthropic/claude-3.5-sonnet",
-    val openRouterPrompt: String = DEFAULT_GAME_PROMPT,
-    val openRouterServerPlayerPrompt: String = DEFAULT_SERVER_PLAYER_PROMPT,
-    val openRouterOtherPlayerPrompt: String = DEFAULT_OTHER_PLAYER_PROMPT,
     val openRouterModelSource: ModelSource = ModelSource.API,
     val openRouterManualModels: List<String> = emptyList(),
     val dummyApiKey: String = "",
     val dummyModel: String = "dummy-model",
     val dummyManualModels: List<String> = listOf("dummy-model"),
-    // New three-tier architecture
-    val prompts: List<AiPrompt> = emptyList(),
+    // AI Agents
     val agents: List<AiAgent> = emptyList()
 ) {
     fun getApiKey(service: AiService): String {
@@ -155,56 +124,6 @@ data class AiSettings(
             AiService.TOGETHER -> togetherModel
             AiService.OPENROUTER -> openRouterModel
             AiService.DUMMY -> dummyModel
-        }
-    }
-
-    fun getPrompt(service: AiService): String = getGamePrompt(service)
-
-    fun getGamePrompt(service: AiService): String {
-        return when (service) {
-            AiService.CHATGPT -> chatGptPrompt
-            AiService.CLAUDE -> claudePrompt
-            AiService.GEMINI -> geminiPrompt
-            AiService.GROK -> grokPrompt
-            AiService.GROQ -> groqPrompt
-            AiService.DEEPSEEK -> deepSeekPrompt
-            AiService.MISTRAL -> mistralPrompt
-            AiService.PERPLEXITY -> perplexityPrompt
-            AiService.TOGETHER -> togetherPrompt
-            AiService.OPENROUTER -> openRouterPrompt
-            AiService.DUMMY -> DEFAULT_GAME_PROMPT
-        }
-    }
-
-    fun getServerPlayerPrompt(service: AiService): String {
-        return when (service) {
-            AiService.CHATGPT -> chatGptServerPlayerPrompt
-            AiService.CLAUDE -> claudeServerPlayerPrompt
-            AiService.GEMINI -> geminiServerPlayerPrompt
-            AiService.GROK -> grokServerPlayerPrompt
-            AiService.GROQ -> groqServerPlayerPrompt
-            AiService.DEEPSEEK -> deepSeekServerPlayerPrompt
-            AiService.MISTRAL -> mistralServerPlayerPrompt
-            AiService.PERPLEXITY -> perplexityServerPlayerPrompt
-            AiService.TOGETHER -> togetherServerPlayerPrompt
-            AiService.OPENROUTER -> openRouterServerPlayerPrompt
-            AiService.DUMMY -> DEFAULT_SERVER_PLAYER_PROMPT
-        }
-    }
-
-    fun getOtherPlayerPrompt(service: AiService): String {
-        return when (service) {
-            AiService.CHATGPT -> chatGptOtherPlayerPrompt
-            AiService.CLAUDE -> claudeOtherPlayerPrompt
-            AiService.GEMINI -> geminiOtherPlayerPrompt
-            AiService.GROK -> grokOtherPlayerPrompt
-            AiService.GROQ -> groqOtherPlayerPrompt
-            AiService.DEEPSEEK -> deepSeekOtherPlayerPrompt
-            AiService.MISTRAL -> mistralOtherPlayerPrompt
-            AiService.PERPLEXITY -> perplexityOtherPlayerPrompt
-            AiService.TOGETHER -> togetherOtherPlayerPrompt
-            AiService.OPENROUTER -> openRouterOtherPlayerPrompt
-            AiService.DUMMY -> DEFAULT_OTHER_PLAYER_PROMPT
         }
     }
 
@@ -272,37 +191,8 @@ data class AiSettings(
         return AiService.entries.filter { getApiKey(it).isNotBlank() }
     }
 
-    // Helper methods for prompts
-    fun getPromptById(id: String): AiPrompt? = prompts.find { it.id == id }
-
-    fun getPromptByName(name: String): AiPrompt? = prompts.find { it.name == name }
-
     // Helper methods for agents
     fun getAgentById(id: String): AiAgent? = agents.find { it.id == id }
 
     fun getConfiguredAgents(): List<AiAgent> = agents.filter { it.apiKey.isNotBlank() }
-
-    /**
-     * Get the prompt text for an agent's game analysis.
-     * Falls back to default if prompt not found.
-     */
-    fun getAgentGamePrompt(agent: AiAgent): String {
-        return getPromptById(agent.gamePromptId)?.text ?: DEFAULT_GAME_PROMPT
-    }
-
-    /**
-     * Get the prompt text for an agent's server player analysis.
-     * Falls back to default if prompt not found.
-     */
-    fun getAgentServerPlayerPrompt(agent: AiAgent): String {
-        return getPromptById(agent.serverPlayerPromptId)?.text ?: DEFAULT_SERVER_PLAYER_PROMPT
-    }
-
-    /**
-     * Get the prompt text for an agent's other player analysis.
-     * Falls back to default if prompt not found.
-     */
-    fun getAgentOtherPlayerPrompt(agent: AiAgent): String {
-        return getPromptById(agent.otherPlayerPromptId)?.text ?: DEFAULT_OTHER_PLAYER_PROMPT
-    }
 }
