@@ -11,7 +11,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import com.ai.R
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,13 +45,13 @@ fun AiHubScreen(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Large AI logo
-        Text(
-            text = "AI",
-            fontSize = 72.sp,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = 24.dp)
+        // App logo
+        Image(
+            painter = painterResource(id = R.mipmap.ic_launcher),
+            contentDescription = "AI App Logo",
+            modifier = Modifier
+                .size(120.dp)
+                .padding(vertical = 16.dp)
         )
 
         // Cards
