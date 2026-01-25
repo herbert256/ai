@@ -353,7 +353,11 @@ internal fun AgentEditScreen(
     onSave: (AiAgent) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    forceAddMode: Boolean = false
+    forceAddMode: Boolean = false,
+    prefillProvider: AiService? = null,
+    prefillApiKey: String = "",
+    prefillModel: String = "",
+    prefillName: String = ""
 ) {
     val isEditing = agent != null && !forceAddMode
     // Filter providers: must have API key configured, exclude DUMMY unless developer mode
@@ -367,12 +371,12 @@ internal fun AgentEditScreen(
     }
     val coroutineScope = rememberCoroutineScope()
 
-    // State - default to first available provider when creating new agent
-    val defaultProvider = agent?.provider ?: availableProviders.firstOrNull() ?: AiService.CHATGPT
-    var name by remember { mutableStateOf(agent?.name ?: "") }
+    // State - default to first available provider when creating new agent, or prefill values
+    val defaultProvider = agent?.provider ?: prefillProvider ?: availableProviders.firstOrNull() ?: AiService.CHATGPT
+    var name by remember { mutableStateOf(agent?.name ?: prefillName) }
     var selectedProvider by remember { mutableStateOf(defaultProvider) }
-    var model by remember { mutableStateOf(agent?.model ?: getDefaultModelForProvider(defaultProvider)) }
-    var apiKey by remember { mutableStateOf(agent?.apiKey ?: aiSettings.getApiKey(defaultProvider)) }
+    var model by remember { mutableStateOf(agent?.model ?: prefillModel.ifBlank { getDefaultModelForProvider(defaultProvider) }) }
+    var apiKey by remember { mutableStateOf(agent?.apiKey ?: prefillApiKey.ifBlank { aiSettings.getApiKey(defaultProvider) }) }
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }

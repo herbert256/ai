@@ -41,6 +41,7 @@ enum class SettingsSubScreen {
     AI_SETUP,       // Hub with navigation cards
     AI_PROVIDERS,   // Provider model configuration
     AI_AGENTS,      // Agents CRUD
+    AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
     MODEL_SEARCH    // Search models across providers
 }
 
@@ -93,6 +94,30 @@ fun SettingsScreen(
 ) {
     var currentSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
 
+    // State for pre-filling agent creation from provider screen
+    var prefillAgentProvider by remember { mutableStateOf<AiService?>(null) }
+    var prefillAgentApiKey by remember { mutableStateOf("") }
+    var prefillAgentModel by remember { mutableStateOf("") }
+
+    // Helper to generate unique agent name
+    fun generateUniqueAgentName(baseName: String): String {
+        val existingNames = aiSettings.agents.map { it.name }.toSet()
+        if (baseName !in existingNames) return baseName
+        var counter = 2
+        while ("$baseName $counter" in existingNames) {
+            counter++
+        }
+        return "$baseName $counter"
+    }
+
+    // Helper to navigate to add agent with pre-filled data
+    fun navigateToAddAgent(provider: AiService, apiKey: String, model: String) {
+        prefillAgentProvider = provider
+        prefillAgentApiKey = apiKey
+        prefillAgentModel = model
+        currentSubScreen = SettingsSubScreen.AI_ADD_AGENT
+    }
+
     // Handle Android back button
     BackHandler {
         when (currentSubScreen) {
@@ -114,6 +139,8 @@ fun SettingsScreen(
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
             SettingsSubScreen.MODEL_SEARCH -> currentSubScreen = SettingsSubScreen.AI_SETUP
+            // Add agent goes back to AI_PROVIDERS
+            SettingsSubScreen.AI_ADD_AGENT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -153,14 +180,16 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchChatGptModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.CHATGPT, aiSettings.chatGptApiKey, aiSettings.chatGptModel) }
         )
         SettingsSubScreen.AI_CLAUDE -> ClaudeSettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.CLAUDE, aiSettings.claudeApiKey, aiSettings.claudeModel) }
         )
         SettingsSubScreen.AI_GEMINI -> GeminiSettingsScreen(
             aiSettings = aiSettings,
@@ -170,7 +199,8 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchGeminiModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.GEMINI, aiSettings.geminiApiKey, aiSettings.geminiModel) }
         )
         SettingsSubScreen.AI_GROK -> GrokSettingsScreen(
             aiSettings = aiSettings,
@@ -180,7 +210,8 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchGrokModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.GROK, aiSettings.grokApiKey, aiSettings.grokModel) }
         )
         SettingsSubScreen.AI_GROQ -> GroqSettingsScreen(
             aiSettings = aiSettings,
@@ -190,7 +221,8 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchGroqModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.GROQ, aiSettings.groqApiKey, aiSettings.groqModel) }
         )
         SettingsSubScreen.AI_DEEPSEEK -> DeepSeekSettingsScreen(
             aiSettings = aiSettings,
@@ -200,7 +232,8 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchDeepSeekModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.DEEPSEEK, aiSettings.deepSeekApiKey, aiSettings.deepSeekModel) }
         )
         SettingsSubScreen.AI_MISTRAL -> MistralSettingsScreen(
             aiSettings = aiSettings,
@@ -210,14 +243,16 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchMistralModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.MISTRAL, aiSettings.mistralApiKey, aiSettings.mistralModel) }
         )
         SettingsSubScreen.AI_PERPLEXITY -> PerplexitySettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.PERPLEXITY, aiSettings.perplexityApiKey, aiSettings.perplexityModel) }
         )
         SettingsSubScreen.AI_TOGETHER -> TogetherSettingsScreen(
             aiSettings = aiSettings,
@@ -227,7 +262,8 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchTogetherModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.TOGETHER, aiSettings.togetherApiKey, aiSettings.togetherModel) }
         )
         SettingsSubScreen.AI_OPENROUTER -> OpenRouterSettingsScreen(
             aiSettings = aiSettings,
@@ -237,21 +273,24 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchOpenRouterModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.OPENROUTER, aiSettings.openRouterApiKey, aiSettings.openRouterModel) }
         )
         SettingsSubScreen.AI_SILICONFLOW -> SiliconFlowSettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.SILICONFLOW, aiSettings.siliconFlowApiKey, aiSettings.siliconFlowModel) }
         )
         SettingsSubScreen.AI_ZAI -> ZaiSettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.ZAI, aiSettings.zaiApiKey, aiSettings.zaiModel) }
         )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,
@@ -261,7 +300,8 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchDummyModels,
-            onTestApiKey = onTestAiModel
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.DUMMY, aiSettings.dummyApiKey, aiSettings.dummyModel) }
         )
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
@@ -336,6 +376,72 @@ fun SettingsScreen(
             onFetchOpenRouterModels = onFetchOpenRouterModels,
             onFetchDummyModels = onFetchDummyModels
         )
+        SettingsSubScreen.AI_ADD_AGENT -> {
+            // Helper to fetch models for a provider
+            val fetchModelsForProvider: (com.ai.data.AiService, String) -> Unit = { provider, apiKey ->
+                when (provider) {
+                    com.ai.data.AiService.CHATGPT -> onFetchChatGptModels(apiKey)
+                    com.ai.data.AiService.GEMINI -> onFetchGeminiModels(apiKey)
+                    com.ai.data.AiService.GROK -> onFetchGrokModels(apiKey)
+                    com.ai.data.AiService.GROQ -> onFetchGroqModels(apiKey)
+                    com.ai.data.AiService.DEEPSEEK -> onFetchDeepSeekModels(apiKey)
+                    com.ai.data.AiService.MISTRAL -> onFetchMistralModels(apiKey)
+                    com.ai.data.AiService.PERPLEXITY -> onFetchPerplexityModels(apiKey)
+                    com.ai.data.AiService.TOGETHER -> onFetchTogetherModels(apiKey)
+                    com.ai.data.AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
+                    com.ai.data.AiService.DUMMY -> onFetchDummyModels(apiKey)
+                    com.ai.data.AiService.CLAUDE -> {} // Claude has hardcoded models
+                    com.ai.data.AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
+                    com.ai.data.AiService.ZAI -> {} // Z.AI has hardcoded models
+                }
+            }
+
+            // Calculate prefill name with unique suffix if needed
+            val prefillName = prefillAgentProvider?.let { provider ->
+                generateUniqueAgentName(provider.displayName)
+            } ?: ""
+
+            AgentEditScreen(
+                agent = null,
+                aiSettings = aiSettings,
+                developerMode = generalSettings.developerMode,
+                availableChatGptModels = availableChatGptModels,
+                availableGeminiModels = availableGeminiModels,
+                availableGrokModels = availableGrokModels,
+                availableGroqModels = availableGroqModels,
+                availableDeepSeekModels = availableDeepSeekModels,
+                availableMistralModels = availableMistralModels,
+                availablePerplexityModels = availablePerplexityModels,
+                availableTogetherModels = availableTogetherModels,
+                availableOpenRouterModels = availableOpenRouterModels,
+                availableDummyModels = availableDummyModels,
+                existingNames = aiSettings.agents.map { it.name }.toSet(),
+                onTestAiModel = onTestAiModel,
+                onFetchModelsForProvider = fetchModelsForProvider,
+                forceAddMode = true,
+                prefillProvider = prefillAgentProvider,
+                prefillApiKey = prefillAgentApiKey,
+                prefillModel = prefillAgentModel,
+                prefillName = prefillName,
+                onSave = { newAgent ->
+                    val newAgents = aiSettings.agents + newAgent
+                    onSaveAi(aiSettings.copy(agents = newAgents))
+                    // Clear prefill data
+                    prefillAgentProvider = null
+                    prefillAgentApiKey = ""
+                    prefillAgentModel = ""
+                    currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                },
+                onBack = {
+                    // Clear prefill data on back
+                    prefillAgentProvider = null
+                    prefillAgentApiKey = ""
+                    prefillAgentModel = ""
+                    currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
     }
 }
 

@@ -25,7 +25,8 @@ fun ChatGptSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.chatGptApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.chatGptModel) }
@@ -56,7 +57,8 @@ fun ChatGptSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.CHATGPT, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -88,7 +90,8 @@ fun ClaudeSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.claudeApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.claudeModel) }
@@ -118,7 +121,8 @@ fun ClaudeSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.CLAUDE, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -153,7 +157,8 @@ fun GeminiSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.geminiApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.geminiModel) }
@@ -183,7 +188,8 @@ fun GeminiSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.GEMINI, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -218,7 +224,8 @@ fun GrokSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.grokApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.grokModel) }
@@ -248,7 +255,8 @@ fun GrokSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.GROK, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -283,7 +291,8 @@ fun GroqSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.groqApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.groqModel) }
@@ -313,7 +322,8 @@ fun GroqSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -348,7 +358,8 @@ fun DeepSeekSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.deepSeekApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.deepSeekModel) }
@@ -378,7 +389,8 @@ fun DeepSeekSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -413,7 +425,8 @@ fun MistralSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.mistralApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.mistralModel) }
@@ -443,7 +456,8 @@ fun MistralSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -475,7 +489,8 @@ fun PerplexitySettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.perplexityApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.perplexityModel) }
@@ -505,7 +520,8 @@ fun PerplexitySettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -540,7 +556,8 @@ fun TogetherSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.togetherApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.togetherModel) }
@@ -570,7 +587,8 @@ fun TogetherSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -605,7 +623,8 @@ fun OpenRouterSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.openRouterApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.openRouterModel) }
@@ -635,7 +654,8 @@ fun OpenRouterSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -667,7 +687,8 @@ fun SiliconFlowSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.siliconFlowApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.siliconFlowModel) }
@@ -697,7 +718,8 @@ fun SiliconFlowSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -729,7 +751,8 @@ fun ZaiSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.zaiApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.zaiModel) }
@@ -759,7 +782,8 @@ fun ZaiSettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.ZAI, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -794,7 +818,8 @@ fun DummySettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
-    onTestApiKey: suspend (AiService, String, String) -> String?
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.dummyApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.dummyModel) }
@@ -824,7 +849,8 @@ fun DummySettingsScreen(
         apiKey = apiKey,
         defaultModel = defaultModel,
         onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" }
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
     ) {
         // Info card
         Card(
