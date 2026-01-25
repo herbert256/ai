@@ -47,11 +47,11 @@ fun AiHubScreen(
     ) {
         // App logo
         Image(
-            painter = painterResource(id = R.mipmap.ic_launcher),
+            painter = painterResource(id = R.drawable.ic_launcher_foreground),
             contentDescription = "AI App Logo",
             modifier = Modifier
-                .size(120.dp)
-                .padding(vertical = 16.dp)
+                .size(140.dp)
+                .padding(vertical = 8.dp)
         )
 
         // Cards
