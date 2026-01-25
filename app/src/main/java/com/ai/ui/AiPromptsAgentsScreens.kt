@@ -33,6 +33,7 @@ fun AiAgentsScreen(
     availablePerplexityModels: List<String>,
     availableTogetherModels: List<String>,
     availableOpenRouterModels: List<String>,
+    availableDummyModels: List<String>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -183,6 +184,7 @@ fun AiAgentsScreen(
             availablePerplexityModels = availablePerplexityModels,
             availableTogetherModels = availableTogetherModels,
             availableOpenRouterModels = availableOpenRouterModels,
+            availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
             onSave = { newAgent ->
@@ -312,6 +314,7 @@ private fun AgentEditDialog(
     availablePerplexityModels: List<String>,
     availableTogetherModels: List<String>,
     availableOpenRouterModels: List<String>,
+    availableDummyModels: List<String>,
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
     onSave: (AiAgent) -> Unit,
@@ -411,7 +414,11 @@ private fun AgentEditDialog(
             val manualModels = aiSettings.siliconFlowManualModels
             manualModels.ifEmpty { SILICONFLOW_MODELS }
         }
-        AiService.DUMMY -> aiSettings.dummyManualModels.ifEmpty { listOf("dummy-model") }
+        AiService.DUMMY -> {
+            val apiModels = if (aiSettings.dummyModelSource == ModelSource.API) availableDummyModels else emptyList()
+            val manualModels = if (aiSettings.dummyModelSource == ModelSource.MANUAL) aiSettings.dummyManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { listOf(model) }
+        }
     }
 
     // Update model and API key when provider changes

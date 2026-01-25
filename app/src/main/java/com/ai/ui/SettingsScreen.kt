@@ -68,6 +68,8 @@ fun SettingsScreen(
     isLoadingTogetherModels: Boolean,
     availableOpenRouterModels: List<String>,
     isLoadingOpenRouterModels: Boolean,
+    availableDummyModels: List<String>,
+    isLoadingDummyModels: Boolean,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack,
     onSaveGeneral: (GeneralSettings) -> Unit,
@@ -82,6 +84,7 @@ fun SettingsScreen(
     onFetchPerplexityModels: (String) -> Unit,
     onFetchTogetherModels: (String) -> Unit,
     onFetchOpenRouterModels: (String) -> Unit,
+    onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onFetchModelsAfterImport: (AiSettings) -> Unit = {}
 ) {
@@ -239,9 +242,13 @@ fun SettingsScreen(
         )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,
+            availableModels = availableDummyModels,
+            isLoadingModels = isLoadingDummyModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
-            onSave = onSaveAi
+            onSave = onSaveAi,
+            onFetchModels = onFetchDummyModels,
+            onTestApiKey = onTestAiModel
         )
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
@@ -271,6 +278,7 @@ fun SettingsScreen(
             availablePerplexityModels = availablePerplexityModels,
             availableTogetherModels = availableTogetherModels,
             availableOpenRouterModels = availableOpenRouterModels,
+            availableDummyModels = availableDummyModels,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,

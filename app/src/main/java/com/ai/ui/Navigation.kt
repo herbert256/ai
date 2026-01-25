@@ -208,6 +208,8 @@ fun SettingsScreenNav(
         isLoadingTogetherModels = uiState.isLoadingTogetherModels,
         availableOpenRouterModels = uiState.availableOpenRouterModels,
         isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
+        availableDummyModels = uiState.availableDummyModels,
+        isLoadingDummyModels = uiState.isLoadingDummyModels,
         onBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onSaveGeneral = { viewModel.updateGeneralSettings(it) },
@@ -222,6 +224,7 @@ fun SettingsScreenNav(
         onFetchPerplexityModels = { viewModel.fetchPerplexityModels(it) },
         onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
+        onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onFetchModelsAfterImport = { viewModel.fetchModelsForApiSourceProviders(it) }
     )

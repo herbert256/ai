@@ -264,8 +264,9 @@ data class AiSettings(
     val siliconFlowModelSource: ModelSource = ModelSource.MANUAL,
     val siliconFlowManualModels: List<String> = SILICONFLOW_MODELS,
     val dummyApiKey: String = "",
-    val dummyModel: String = "dummy-model",
-    val dummyManualModels: List<String> = listOf("dummy-model"),
+    val dummyModel: String = "abc",
+    val dummyModelSource: ModelSource = ModelSource.API,
+    val dummyManualModels: List<String> = listOf("abc", "klm", "xyz"),
     // AI Agents
     val agents: List<AiAgent> = emptyList()
 ) {
@@ -333,7 +334,7 @@ data class AiSettings(
             AiService.TOGETHER -> togetherModelSource
             AiService.OPENROUTER -> openRouterModelSource
             AiService.SILICONFLOW -> siliconFlowModelSource
-            AiService.DUMMY -> ModelSource.MANUAL
+            AiService.DUMMY -> dummyModelSource
         }
     }
 
@@ -350,7 +351,7 @@ data class AiSettings(
             AiService.TOGETHER -> togetherManualModels
             AiService.OPENROUTER -> openRouterManualModels
             AiService.SILICONFLOW -> siliconFlowManualModels
-            AiService.DUMMY -> emptyList()
+            AiService.DUMMY -> dummyManualModels
         }
     }
 

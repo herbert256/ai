@@ -93,7 +93,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.MANUAL),
             siliconFlowManualModels = loadManualModelsWithDefault(KEY_AI_SILICONFLOW_MANUAL_MODELS, SILICONFLOW_MODELS),
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
-            dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, "dummy-model") ?: "dummy-model",
+            dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, "abc") ?: "abc",
+            dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
             dummyManualModels = loadManualModelsWithDefault(KEY_AI_DUMMY_MANUAL_MODELS, listOf("dummy-model"))
         )
     }
@@ -177,6 +178,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_SILICONFLOW_MANUAL_MODELS, gson.toJson(settings.siliconFlowManualModels))
             .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
             .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
+            .putString(KEY_AI_DUMMY_MODEL_SOURCE, settings.dummyModelSource.name)
             .putString(KEY_AI_DUMMY_MANUAL_MODELS, gson.toJson(settings.dummyManualModels))
             // Save agents
             .putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
@@ -282,6 +284,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_TOGETHER_MODEL_SOURCE = "ai_together_model_source"
         private const val KEY_AI_OPENROUTER_MODEL_SOURCE = "ai_openrouter_model_source"
         private const val KEY_AI_SILICONFLOW_MODEL_SOURCE = "ai_siliconflow_model_source"
+        private const val KEY_AI_DUMMY_MODEL_SOURCE = "ai_dummy_model_source"
 
         // AI manual models lists
         private const val KEY_AI_CHATGPT_MANUAL_MODELS = "ai_chatgpt_manual_models"

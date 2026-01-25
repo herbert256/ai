@@ -566,145 +566,84 @@ fun SiliconFlowSettingsScreen(
 }
 
 /**
- * Dummy settings screen (for testing without real API calls).
+ * Dummy settings screen (for testing with local HTTP server).
  */
 @Composable
 fun DummySettingsScreen(
     aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
-    onSave: (AiSettings) -> Unit
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.dummyApiKey) }
+    var modelSource by remember { mutableStateOf(aiSettings.dummyModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.dummyManualModels) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    AiServiceSettingsScreenTemplate(
+        title = "Dummy",
+        subtitle = "Local test server (port 54321)",
+        accentColor = Color(0xFF888888),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome
     ) {
-        AiTitleBar(
-            title = "Dummy",
-            onBackClick = onBackToAiSettings,
-            onAiClick = onBackToHome
-        )
-
-        // Provider info with color indicator
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .background(Color(0xFF888888), shape = MaterialTheme.shapes.small)
-            )
-            Text(
-                text = "For testing (stub provider)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFFAAAAAA)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
         // Info card
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                containerColor = Color(0xFF2A3A2A)
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = "Stub Provider",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Test Provider",
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White
+                    color = Color(0xFF00E676)
                 )
                 Text(
-                    text = "Returns a fake response without making actual API calls. Useful for testing.",
+                    text = "Uses local HTTP server on port 54321. API key must be \"dummy\".",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFAAAAAA)
                 )
                 Text(
-                    text = "Response: \"Hi, greetings from AI\"",
+                    text = "Response: \"Hi, Greetings from AI\"",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF00E676)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-        // API Key section
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "API Key",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-
-                ApiKeyInputSection(
-                    apiKey = apiKey,
-                    onApiKeyChange = {
-                        apiKey = it
-                        onSave(aiSettings.copy(dummyApiKey = it))
-                    }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Model selection section
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Models",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-
-                UnifiedModelSelectionSection(
-                    modelSource = ModelSource.MANUAL,
-                    manualModels = manualModels,
-                    availableApiModels = emptyList(),
-                    isLoadingModels = false,
-                    onModelSourceChange = { /* Dummy only supports manual models */ },
-                    onManualModelsChange = {
-                        manualModels = it
-                        onSave(aiSettings.copy(dummyManualModels = it))
-                    },
-                    onFetchModels = { /* No API fetch for Dummy */ }
-                )
-            }
-        }
-
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = {
+                apiKey = it
+                onSave(aiSettings.copy(dummyApiKey = it))
+            },
+            onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, "abc") }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = {
+                modelSource = it
+                onSave(aiSettings.copy(dummyModelSource = it))
+            },
+            onManualModelsChange = {
+                manualModels = it
+                onSave(aiSettings.copy(dummyManualModels = it))
+            },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
     }
 }
