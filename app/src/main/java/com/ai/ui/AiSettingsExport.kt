@@ -149,7 +149,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
     try {
         // Create file in cache/ai_analysis directory (must match FileProvider paths)
         val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-        val fileName = "eval_ai_config_$timestamp.json"
+        val fileName = "ai_config_$timestamp.json"
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
         if (!cacheDir.exists()) cacheDir.mkdirs()
         val file = java.io.File(cacheDir, fileName)
