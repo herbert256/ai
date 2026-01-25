@@ -29,7 +29,28 @@ data class ProviderConfigExport(
 )
 
 /**
- * Data class for agent in JSON export/import (version 4 - current).
+ * Data class for agent parameters in JSON export/import (version 5+).
+ */
+data class AgentParametersExport(
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val topK: Int? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val systemPrompt: String? = null,
+    val stopSequences: List<String>? = null,
+    val seed: Int? = null,
+    val responseFormatJson: Boolean = false,
+    val searchEnabled: Boolean = false,
+    val returnCitations: Boolean = true,
+    val searchRecency: String? = null
+)
+
+/**
+ * Data class for agent in JSON export/import.
+ * Version 4: Basic agent info only.
+ * Version 5: Added parameters field.
  */
 data class AgentExport(
     val id: String,
@@ -37,6 +58,8 @@ data class AgentExport(
     val provider: String,  // Provider enum name (CHATGPT, CLAUDE, etc.)
     val model: String,
     val apiKey: String,
+    // Parameters (version 5+)
+    val parameters: AgentParametersExport? = null,
     // Legacy fields from version 3 (ignored on import, included for compatibility)
     val gamePromptId: String? = null,
     val serverPlayerPromptId: String? = null,
@@ -45,11 +68,11 @@ data class AgentExport(
 
 /**
  * Data class for the complete AI configuration export.
- * Version 4: Providers and agents (prompts removed).
- * Also supports importing version 3 (legacy Eval format with prompts - prompts are ignored).
+ * Version 5: Providers and agents with parameters.
+ * Also supports importing version 3/4 (legacy formats - prompts ignored, parameters default).
  */
-data class AiConfigExportV3(
-    val version: Int = 4,
+data class AiConfigExport(
+    val version: Int = 5,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     // Legacy field from version 3 (ignored on import)
@@ -84,18 +107,33 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
         "DUMMY" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey)
     )
 
-    // Convert agents
+    // Convert agents with parameters
     val agents = aiSettings.agents.map { agent ->
         AgentExport(
             id = agent.id,
             name = agent.name,
             provider = agent.provider.name,
             model = agent.model,
-            apiKey = agent.apiKey
+            apiKey = agent.apiKey,
+            parameters = AgentParametersExport(
+                temperature = agent.parameters.temperature,
+                maxTokens = agent.parameters.maxTokens,
+                topP = agent.parameters.topP,
+                topK = agent.parameters.topK,
+                frequencyPenalty = agent.parameters.frequencyPenalty,
+                presencePenalty = agent.parameters.presencePenalty,
+                systemPrompt = agent.parameters.systemPrompt,
+                stopSequences = agent.parameters.stopSequences,
+                seed = agent.parameters.seed,
+                responseFormatJson = agent.parameters.responseFormatJson,
+                searchEnabled = agent.parameters.searchEnabled,
+                returnCitations = agent.parameters.returnCitations,
+                searchRecency = agent.parameters.searchRecency
+            )
         )
     }
 
-    val export = AiConfigExportV3(
+    val export = AiConfigExport(
         providers = providers,
         agents = agents
     )
@@ -181,7 +219,7 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
 
 /**
  * Import AI configuration from clipboard JSON.
- * Supports version 3 (legacy Eval with prompts) and version 4 (current AI format).
+ * Supports version 3/4 (legacy formats) and version 5 (current with parameters).
  * Prompts from version 3 are ignored.
  */
 fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiSettings? {
@@ -201,14 +239,14 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
     return try {
         val gson = Gson()
-        val export = gson.fromJson(json, AiConfigExportV3::class.java)
+        val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version != 3 && export.version != 4) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3 or 4.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..5) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3, 4, or 5.", Toast.LENGTH_LONG).show()
             return null
         }
 
-        // Import agents (prompt fields from version 3 are ignored)
+        // Import agents with parameters (prompt fields from version 3 are ignored)
         val agents = export.agents.mapNotNull { agentExport ->
             val provider = try {
                 AiService.valueOf(agentExport.provider)
@@ -221,7 +259,24 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
                     name = agentExport.name,
                     provider = it,
                     model = agentExport.model,
-                    apiKey = agentExport.apiKey
+                    apiKey = agentExport.apiKey,
+                    parameters = agentExport.parameters?.let { p ->
+                        AiAgentParameters(
+                            temperature = p.temperature,
+                            maxTokens = p.maxTokens,
+                            topP = p.topP,
+                            topK = p.topK,
+                            frequencyPenalty = p.frequencyPenalty,
+                            presencePenalty = p.presencePenalty,
+                            systemPrompt = p.systemPrompt,
+                            stopSequences = p.stopSequences,
+                            seed = p.seed,
+                            responseFormatJson = p.responseFormatJson,
+                            searchEnabled = p.searchEnabled,
+                            returnCitations = p.returnCitations,
+                            searchRecency = p.searchRecency
+                        )
+                    } ?: AiAgentParameters()
                 )
             }
         }
@@ -322,7 +377,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Supports version 3 (legacy Eval with prompts) and version 4 (current AI format).
+ * Supports version 3/4 (legacy formats) and version 5 (current with parameters).
  * Prompts from version 3 are ignored.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiSettings? {
@@ -343,14 +398,14 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         }
 
         val gson = Gson()
-        val export = gson.fromJson(json, AiConfigExportV3::class.java)
+        val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version != 3 && export.version != 4) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3 or 4.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..5) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3, 4, or 5.", Toast.LENGTH_LONG).show()
             return null
         }
 
-        // Import agents (prompt fields from version 3 are ignored)
+        // Import agents with parameters (prompt fields from version 3 are ignored)
         val agents = export.agents.mapNotNull { agentExport ->
             val provider = try {
                 AiService.valueOf(agentExport.provider)
@@ -363,7 +418,24 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
                     name = agentExport.name,
                     provider = it,
                     model = agentExport.model,
-                    apiKey = agentExport.apiKey
+                    apiKey = agentExport.apiKey,
+                    parameters = agentExport.parameters?.let { p ->
+                        AiAgentParameters(
+                            temperature = p.temperature,
+                            maxTokens = p.maxTokens,
+                            topP = p.topP,
+                            topK = p.topK,
+                            frequencyPenalty = p.frequencyPenalty,
+                            presencePenalty = p.presencePenalty,
+                            systemPrompt = p.systemPrompt,
+                            stopSequences = p.stopSequences,
+                            seed = p.seed,
+                            responseFormatJson = p.responseFormatJson,
+                            searchEnabled = p.searchEnabled,
+                            returnCitations = p.returnCitations,
+                            searchRecency = p.searchRecency
+                        )
+                    } ?: AiAgentParameters()
                 )
             }
         }
@@ -492,7 +564,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app or the Eval app (version 3 or 4).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 3, 4, or 5).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )

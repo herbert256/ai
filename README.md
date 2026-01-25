@@ -272,10 +272,10 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 
 ## Configuration Export Format
 
-Version 4 JSON format:
+Version 5 JSON format (supports importing versions 3, 4, and 5):
 ```json
 {
-  "version": 4,
+  "version": 5,
   "providers": {
     "CHATGPT": {
       "modelSource": "API",
@@ -293,7 +293,17 @@ Version 4 JSON format:
       "parameters": {
         "temperature": 0.7,
         "maxTokens": 2048,
-        "systemPrompt": "You are helpful."
+        "topP": null,
+        "topK": null,
+        "frequencyPenalty": null,
+        "presencePenalty": null,
+        "systemPrompt": "You are helpful.",
+        "stopSequences": null,
+        "seed": null,
+        "responseFormatJson": false,
+        "searchEnabled": false,
+        "returnCitations": true,
+        "searchRecency": null
       }
     }
   ]
