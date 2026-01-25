@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
  * @param onAiClick Callback when "AI" text is clicked (typically navigates to home)
  * @param backText The text/icon for the back button (default: "< Back")
  * @param leftContent Optional custom content for the left side (replaces back button if provided)
+ * @param centered If true, centers the "AI" text (used on home screen)
  */
 @Composable
 fun AiTitleBar(
@@ -29,53 +30,73 @@ fun AiTitleBar(
     onBackClick: (() -> Unit)? = null,
     onAiClick: () -> Unit = {},
     backText: String = "< Back",
-    leftContent: (@Composable RowScope.() -> Unit)? = null
+    leftContent: (@Composable RowScope.() -> Unit)? = null,
+    centered: Boolean = false
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Left side: custom content or back button
-        if (leftContent != null) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                leftContent()
-            }
-        } else if (onBackClick != null) {
-            TextButton(onClick = onBackClick) {
-                Text(backText, color = Color.White, fontSize = 16.sp)
-            }
-        } else {
-            Spacer(modifier = Modifier.width(1.dp))
-        }
-
-        // Middle: title (if provided)
-        if (title != null) {
+    if (centered) {
+        // Centered layout for home screen
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
+                text = "AI",
+                fontSize = 36.sp,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center
+                modifier = Modifier.clickable { onAiClick() }
             )
         }
+    } else {
+        // Standard layout with back button and right-aligned AI
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left side: custom content or back button
+            if (leftContent != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    leftContent()
+                }
+            } else if (onBackClick != null) {
+                TextButton(onClick = onBackClick) {
+                    Text(backText, color = Color.White, fontSize = 16.sp)
+                }
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
+            }
 
-        // Right side: "AI" branding
-        Text(
-            text = "AI",
-            fontSize = 36.sp,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            modifier = Modifier.clickable { onAiClick() }
-        )
+            // Middle: title (if provided)
+            if (title != null) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Right side: "AI" branding
+            Text(
+                text = "AI",
+                fontSize = 36.sp,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                modifier = Modifier.clickable { onAiClick() }
+            )
+        }
     }
 }
 

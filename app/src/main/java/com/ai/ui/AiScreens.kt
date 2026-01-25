@@ -45,7 +45,8 @@ fun AiHubScreen(
         AiTitleBar(
             title = null,
             onBackClick = null,
-            onAiClick = {}
+            onAiClick = {},
+            centered = true
         )
 
         Spacer(modifier = Modifier.height(16.dp))
