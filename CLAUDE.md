@@ -70,14 +70,13 @@ com.ai/
     ├── DeveloperSettingsScreen.kt    # Developer settings: API tracing (118 lines)
     ├── HelpScreen.kt                 # In-app documentation (260 lines)
     ├── TraceScreen.kt                # API trace list and detail viewer (560 lines)
-    ├── ColorPickerDialog.kt          # HSV color picker dialog (254 lines)
     ├── SettingsPreferences.kt        # SharedPreferences persistence (298 lines)
     ├── SharedComponents.kt           # AiTitleBar, common widgets (106 lines)
     ├── Navigation.kt                 # Jetpack Navigation routes (203 lines)
     └── theme/Theme.kt                # Material3 dark theme (32 lines)
 ```
 
-**Total:** 23 Kotlin files, ~9,300 lines of code
+**Total:** 22 Kotlin files, ~9,050 lines of code
 
 ### Key Data Classes
 
