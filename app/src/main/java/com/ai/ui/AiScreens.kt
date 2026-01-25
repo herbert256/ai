@@ -52,6 +52,32 @@ fun AiHubScreen(
             modifier = Modifier.size(280.dp)
         )
 
+        // Warning if no agents configured
+        if (uiState.aiSettings.agents.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF4A3A2A)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "⚠️", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "No AI agents configured. Go to Settings → AI Setup → AI Agents to add your first agent.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFFFCC80)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         // Cards
         HubCard(icon = "\uD83D\uDCDD", title = "New AI Report", onClick = onNavigateToNewReport)
         Spacer(modifier = Modifier.height(8.dp))
