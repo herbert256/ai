@@ -21,7 +21,6 @@ import com.ai.data.AiService
 enum class SettingsSubScreen {
     MAIN,
     GENERAL_SETTINGS,
-    DEVELOPER_SETTINGS,
     // AI settings structure
     AI_SETTINGS,
     AI_CHATGPT,
@@ -162,12 +161,6 @@ fun SettingsScreen(
             onNavigate = { currentSubScreen = it }
         )
         SettingsSubScreen.GENERAL_SETTINGS -> GeneralSettingsScreen(
-            generalSettings = generalSettings,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveGeneral
-        )
-        SettingsSubScreen.DEVELOPER_SETTINGS -> DeveloperSettingsScreen(
             generalSettings = generalSettings,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
             onBackToHome = onNavigateHome,
@@ -544,13 +537,6 @@ private fun SettingsMainScreen(
             title = "AI Setup",
             description = "Providers and agents",
             onClick = { onNavigate(SettingsSubScreen.AI_SETUP) }
-        )
-
-        // Developer settings card
-        SettingsNavigationCard(
-            title = "Developer settings",
-            description = "Developer mode, API tracking",
-            onClick = { onNavigate(SettingsSubScreen.DEVELOPER_SETTINGS) }
         )
     }
 }

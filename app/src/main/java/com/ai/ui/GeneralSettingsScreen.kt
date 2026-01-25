@@ -21,13 +21,18 @@ fun GeneralSettingsScreen(
     generalSettings: GeneralSettings,
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
-    onSave: (GeneralSettings) -> Unit
+    onSave: (GeneralSettings) -> Unit,
+    onTrackApiCallsChanged: (Boolean) -> Unit = {}
 ) {
     var paginationPageSize by remember { mutableFloatStateOf(generalSettings.paginationPageSize.toFloat()) }
+    var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
+    var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
 
     fun saveSettings() {
         onSave(generalSettings.copy(
-            paginationPageSize = paginationPageSize.roundToInt()
+            paginationPageSize = paginationPageSize.roundToInt(),
+            developerMode = developerMode,
+            trackApiCalls = trackApiCalls
         ))
     }
 
@@ -91,6 +96,79 @@ fun GeneralSettingsScreen(
                         valueRange = 5f..50f,
                         steps = 8,  // 5, 10, 15, 20, 25, 30, 35, 40, 45, 50
                         modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        // Developer settings card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Developer",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                // Developer mode toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Developer mode", color = Color.White)
+                        Text(
+                            text = "Enable developer features",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFAAAAAA)
+                        )
+                    }
+                    Switch(
+                        checked = developerMode,
+                        onCheckedChange = {
+                            developerMode = it
+                            saveSettings()
+                        }
+                    )
+                }
+
+                HorizontalDivider(color = Color(0xFF404040))
+
+                // Track API calls toggle (disabled when developer mode is off)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Track API calls",
+                            color = if (developerMode) Color.White else Color(0xFF666666)
+                        )
+                        Text(
+                            text = "Log all API requests for debugging",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (developerMode) Color(0xFFAAAAAA) else Color(0xFF555555)
+                        )
+                    }
+                    Switch(
+                        checked = trackApiCalls,
+                        onCheckedChange = {
+                            trackApiCalls = it
+                            saveSettings()
+                            onTrackApiCallsChanged(it)
+                        },
+                        enabled = developerMode
                     )
                 }
             }
