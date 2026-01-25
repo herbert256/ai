@@ -203,7 +203,8 @@ fun AiSetupScreen(
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModelsAfterImport: (AiSettings) -> Unit = {}
+    onFetchModelsAfterImport: (AiSettings) -> Unit = {},
+    onRetrieveModelLists: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -288,6 +289,15 @@ fun AiSetupScreen(
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
         ) {
             Text("Import AI configuration")
+        }
+
+        // Retrieve model lists button
+        Button(
+            onClick = onRetrieveModelLists,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+        ) {
+            Text("Retrieve model lists")
         }
     }
 }

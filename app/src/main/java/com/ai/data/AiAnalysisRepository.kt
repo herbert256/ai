@@ -1022,6 +1022,8 @@ class AiAnalysisRepository {
         model: String = "abc",
         parameters: AiAgentParameters? = null
     ): AiAnalysisResponse {
+        // Ensure Dummy server is running
+        DummyApiServer.start()
         val api = AiApiFactory.createDummyApi()
 
         val systemPrompt = parameters?.systemPrompt
@@ -1081,6 +1083,8 @@ class AiAnalysisRepository {
      * Fetch available Dummy models.
      */
     suspend fun fetchDummyModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        // Ensure Dummy server is running
+        DummyApiServer.start()
         try {
             val api = AiApiFactory.createDummyApi()
             val response = api.listModels("Bearer $apiKey")

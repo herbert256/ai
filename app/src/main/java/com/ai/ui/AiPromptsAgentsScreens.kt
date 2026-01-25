@@ -37,130 +37,43 @@ fun AiAgentsScreen(
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null }
+    onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
+    onFetchChatGptModels: (String) -> Unit = {},
+    onFetchGeminiModels: (String) -> Unit = {},
+    onFetchGrokModels: (String) -> Unit = {},
+    onFetchGroqModels: (String) -> Unit = {},
+    onFetchDeepSeekModels: (String) -> Unit = {},
+    onFetchMistralModels: (String) -> Unit = {},
+    onFetchPerplexityModels: (String) -> Unit = {},
+    onFetchTogetherModels: (String) -> Unit = {},
+    onFetchOpenRouterModels: (String) -> Unit = {},
+    onFetchDummyModels: (String) -> Unit = {}
 ) {
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddScreen by remember { mutableStateOf(false) }
     var editingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var copyingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<AiAgent?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        AiTitleBar(
-            title = "AI Agents",
-            onBackClick = onBackToAiSetup,
-            onAiClick = onBackToHome
-        )
-
-        // Check if any provider has an API key configured
-        val hasAnyApiKey = aiSettings.chatGptApiKey.isNotBlank() ||
-                aiSettings.claudeApiKey.isNotBlank() ||
-                aiSettings.geminiApiKey.isNotBlank() ||
-                aiSettings.grokApiKey.isNotBlank() ||
-                aiSettings.groqApiKey.isNotBlank() ||
-                aiSettings.deepSeekApiKey.isNotBlank() ||
-                aiSettings.mistralApiKey.isNotBlank() ||
-                aiSettings.perplexityApiKey.isNotBlank() ||
-                aiSettings.togetherApiKey.isNotBlank() ||
-                aiSettings.openRouterApiKey.isNotBlank()
-
-        if (!hasAnyApiKey) {
-            // Show error if no API keys configured
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF4A2A2A)
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "❌", fontSize = 20.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "No API keys configured. Go to Settings → AI Setup → AI Providers to add an API key.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFFF8080)
-                    )
-                }
-            }
-        } else {
-            // Add button
-            Button(
-                onClick = { showAddDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
-                )
-            ) {
-                Text("+ Add Agent")
-            }
-
-            // Agent list
-            if (aiSettings.agents.isEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "No agents configured",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFAAAAAA)
-                    )
-                    Text(
-                        text = "Add an agent to start using AI analysis",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF888888)
-                    )
-                }
-            }
-        } else {
-            // Filter out DUMMY agents when not in developer mode
-            val visibleAgents = if (developerMode) {
-                aiSettings.agents
-            } else {
-                aiSettings.agents.filter { it.provider != AiService.DUMMY }
-            }
-            visibleAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
-                AgentListItem(
-                    agent = agent,
-                    onEdit = { editingAgent = agent },
-                    onCopy = { copyingAgent = agent },
-                    onDelete = { showDeleteConfirm = agent }
-                )
-            }
-        }
-        } // end else block for hasAnyApiKey
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Back buttons
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(onClick = onBackToAiSetup) {
-                Text("< AI Setup")
-            }
+    // Helper to fetch models for a provider
+    val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
+        when (provider) {
+            AiService.CHATGPT -> onFetchChatGptModels(apiKey)
+            AiService.GEMINI -> onFetchGeminiModels(apiKey)
+            AiService.GROK -> onFetchGrokModels(apiKey)
+            AiService.GROQ -> onFetchGroqModels(apiKey)
+            AiService.DEEPSEEK -> onFetchDeepSeekModels(apiKey)
+            AiService.MISTRAL -> onFetchMistralModels(apiKey)
+            AiService.PERPLEXITY -> onFetchPerplexityModels(apiKey)
+            AiService.TOGETHER -> onFetchTogetherModels(apiKey)
+            AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
+            AiService.DUMMY -> onFetchDummyModels(apiKey)
+            AiService.CLAUDE -> {} // Claude has hardcoded models
+            AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
         }
     }
 
-    // Add/Edit/Copy dialog
-    if (showAddDialog || editingAgent != null || copyingAgent != null) {
+    // Show Add/Edit/Copy screen (full screen)
+    if (showAddScreen || editingAgent != null || copyingAgent != null) {
         // For copy mode, create a template agent with new ID and "(Copy)" suffix
         val dialogAgent = copyingAgent?.let { agent ->
             agent.copy(
@@ -171,7 +84,7 @@ fun AiAgentsScreen(
         val isEditMode = editingAgent != null
         val editingAgentId = editingAgent?.id
 
-        AgentEditDialog(
+        AgentEditScreen(
             agent = dialogAgent,
             aiSettings = aiSettings,
             developerMode = developerMode,
@@ -187,6 +100,7 @@ fun AiAgentsScreen(
             availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
+            onFetchModelsForProvider = fetchModelsForProvider,
             onSave = { newAgent ->
                 val newAgents = if (isEditMode && editingAgentId != null) {
                     aiSettings.agents.map { if (it.id == editingAgentId) newAgent else it }
@@ -194,42 +108,159 @@ fun AiAgentsScreen(
                     aiSettings.agents + newAgent
                 }
                 onSave(aiSettings.copy(agents = newAgents))
-                showAddDialog = false
+                showAddScreen = false
                 editingAgent = null
                 copyingAgent = null
             },
-            onDismiss = {
-                showAddDialog = false
+            onBack = {
+                showAddScreen = false
                 editingAgent = null
                 copyingAgent = null
-            }
+            },
+            onNavigateHome = onBackToHome
         )
-    }
+    } else {
+        // Agent list screen
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            AiTitleBar(
+                title = "AI Agents",
+                onBackClick = onBackToAiSetup,
+                onAiClick = onBackToHome
+            )
 
-    // Delete confirmation
-    showDeleteConfirm?.let { agent ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("Delete Agent", fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to delete \"${agent.name}\"?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val newAgents = aiSettings.agents.filter { it.id != agent.id }
-                        onSave(aiSettings.copy(agents = newAgents))
-                        showDeleteConfirm = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+            // Check if any provider has an API key configured
+            val hasAnyApiKey = aiSettings.chatGptApiKey.isNotBlank() ||
+                    aiSettings.claudeApiKey.isNotBlank() ||
+                    aiSettings.geminiApiKey.isNotBlank() ||
+                    aiSettings.grokApiKey.isNotBlank() ||
+                    aiSettings.groqApiKey.isNotBlank() ||
+                    aiSettings.deepSeekApiKey.isNotBlank() ||
+                    aiSettings.mistralApiKey.isNotBlank() ||
+                    aiSettings.perplexityApiKey.isNotBlank() ||
+                    aiSettings.togetherApiKey.isNotBlank() ||
+                    aiSettings.openRouterApiKey.isNotBlank()
+
+            if (!hasAnyApiKey) {
+                // Show error if no API keys configured
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF4A2A2A)
+                    )
                 ) {
-                    Text("Delete")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "X", fontSize = 20.sp, color = Color(0xFFFF8080))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "No API keys configured. Go to Settings -> AI Setup -> AI Providers to add an API key.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFFF8080)
+                        )
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) {
-                    Text("Cancel")
+            } else {
+                // Add button
+                Button(
+                    onClick = { showAddScreen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    )
+                ) {
+                    Text("+ Add Agent")
+                }
+
+                // Agent list
+                if (aiSettings.agents.isEmpty()) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "No agents configured",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFFAAAAAA)
+                            )
+                            Text(
+                                text = "Add an agent to start using AI analysis",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF888888)
+                            )
+                        }
+                    }
+                } else {
+                    // Filter out DUMMY agents when not in developer mode
+                    val visibleAgents = if (developerMode) {
+                        aiSettings.agents
+                    } else {
+                        aiSettings.agents.filter { it.provider != AiService.DUMMY }
+                    }
+                    visibleAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
+                        AgentListItem(
+                            agent = agent,
+                            onEdit = { editingAgent = agent },
+                            onCopy = { copyingAgent = agent },
+                            onDelete = { showDeleteConfirm = agent }
+                        )
+                    }
                 }
             }
-        )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Back buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onClick = onBackToAiSetup) {
+                    Text("< AI Setup")
+                }
+            }
+        }
+
+        // Delete confirmation
+        showDeleteConfirm?.let { agent ->
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = null },
+                title = { Text("Delete Agent", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete \"${agent.name}\"?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val newAgents = aiSettings.agents.filter { it.id != agent.id }
+                            onSave(aiSettings.copy(agents = newAgents))
+                            showDeleteConfirm = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -298,10 +329,10 @@ private fun AgentListItem(
 }
 
 /**
- * Agent add/edit dialog.
+ * Full-screen agent add/edit screen.
  */
 @Composable
-private fun AgentEditDialog(
+private fun AgentEditScreen(
     agent: AiAgent?,
     aiSettings: AiSettings,
     developerMode: Boolean,
@@ -317,8 +348,10 @@ private fun AgentEditDialog(
     availableDummyModels: List<String>,
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
+    onFetchModelsForProvider: (AiService, String) -> Unit,
     onSave: (AiAgent) -> Unit,
-    onDismiss: () -> Unit
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
 ) {
     val isEditing = agent != null
     // Filter providers: must have API key configured, exclude DUMMY unless developer mode
@@ -340,7 +373,10 @@ private fun AgentEditDialog(
     var apiKey by remember { mutableStateOf(agent?.apiKey ?: aiSettings.getApiKey(defaultProvider)) }
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
-    var testError by remember { mutableStateOf<String?>(null) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    var testSuccess by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
     var showParameters by remember { mutableStateOf(false) }
 
     // Parameter state
@@ -421,8 +457,38 @@ private fun AgentEditDialog(
         }
     }
 
-    // Update model and API key when provider changes
+    // Helper to check if provider uses API model source
+    fun getModelSourceForProvider(provider: AiService): ModelSource {
+        return when (provider) {
+            AiService.CHATGPT -> aiSettings.chatGptModelSource
+            AiService.GEMINI -> aiSettings.geminiModelSource
+            AiService.GROK -> aiSettings.grokModelSource
+            AiService.GROQ -> aiSettings.groqModelSource
+            AiService.DEEPSEEK -> aiSettings.deepSeekModelSource
+            AiService.MISTRAL -> aiSettings.mistralModelSource
+            AiService.PERPLEXITY -> aiSettings.perplexityModelSource
+            AiService.TOGETHER -> aiSettings.togetherModelSource
+            AiService.OPENROUTER -> aiSettings.openRouterModelSource
+            AiService.DUMMY -> aiSettings.dummyModelSource
+            AiService.CLAUDE -> ModelSource.MANUAL // Claude has hardcoded models
+            AiService.SILICONFLOW -> ModelSource.MANUAL // SiliconFlow has hardcoded models
+        }
+    }
+
+    // Fetch models on initial load (for edit mode) and when provider changes
     LaunchedEffect(selectedProvider) {
+        val currentApiKey = if (isEditing && agent?.provider == selectedProvider) {
+            agent.apiKey
+        } else {
+            aiSettings.getApiKey(selectedProvider)
+        }
+
+        // Fetch if using API model source and API key is available
+        if (getModelSourceForProvider(selectedProvider) == ModelSource.API && currentApiKey.isNotBlank()) {
+            onFetchModelsForProvider(selectedProvider, currentApiKey)
+        }
+
+        // Update model and API key when provider changes
         if (!isEditing || agent?.provider != selectedProvider) {
             model = modelsForProvider.firstOrNull() ?: getDefaultModelForProvider(selectedProvider)
             // For new agents, also update API key from provider settings
@@ -440,388 +506,161 @@ private fun AgentEditDialog(
         else -> null
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (isEditing) "Edit Agent" else "Add Agent",
-                fontWeight = FontWeight.Bold
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        // Title bar
+        AiTitleBar(
+            title = if (isEditing) "Edit Agent" else "Add Agent",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Scrollable content
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Name
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Agent Name") },
+                isError = nameError != null,
+                supportingText = nameError?.let { { Text(it, color = Color(0xFFF44336)) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Name
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Agent Name") },
-                    isError = nameError != null,
-                    supportingText = nameError?.let { { Text(it, color = Color(0xFFF44336)) } },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
 
-                // Provider dropdown
-                Text(
-                    text = "Provider",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
-                )
-                var providerExpanded by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(
-                        onClick = { providerExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = selectedProvider.displayName,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(if (providerExpanded) "▲" else "▼")
-                    }
-                    DropdownMenu(
-                        expanded = providerExpanded,
-                        onDismissRequest = { providerExpanded = false }
-                    ) {
-                        availableProviders.forEach { provider ->
-                            DropdownMenuItem(
-                                text = { Text(provider.displayName) },
-                                onClick = {
-                                    selectedProvider = provider
-                                    providerExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Model dropdown
-                Text(
-                    text = "Model",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
-                )
-                var modelExpanded by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(
-                        onClick = { modelExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = model,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1
-                        )
-                        Text(if (modelExpanded) "▲" else "▼")
-                    }
-                    DropdownMenu(
-                        expanded = modelExpanded,
-                        onDismissRequest = { modelExpanded = false }
-                    ) {
-                        modelsForProvider.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
-                                    model = m
-                                    modelExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // API Key
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        label = { Text("API Key") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation()
-                    )
-                    TextButton(onClick = { showKey = !showKey }) {
-                        Text(if (showKey) "Hide" else "Show", color = Color(0xFF6B9BFF))
-                    }
-                }
-
-                // Parameters toggle
-                HorizontalDivider(color = Color(0xFF444444), modifier = Modifier.padding(vertical = 8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            // Provider dropdown
+            Text(
+                text = "Provider",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
+            var providerExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(
+                    onClick = { providerExpanded = true },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Advanced Parameters",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
+                        text = selectedProvider.displayName,
+                        modifier = Modifier.weight(1f)
                     )
-                    TextButton(onClick = { showParameters = !showParameters }) {
-                        Text(
-                            if (showParameters) "Hide ▲" else "Show ▼",
-                            color = Color(0xFF6B9BFF)
-                        )
-                    }
+                    Text(if (providerExpanded) "^" else "v")
                 }
-
-                // Parameters section (collapsible)
-                if (showParameters) {
-                    // Temperature
-                    if (AiParameter.TEMPERATURE in supportedParams) {
-                        OutlinedTextField(
-                            value = temperature,
-                            onValueChange = { temperature = it },
-                            label = { Text("Temperature (0.0-2.0)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("Controls randomness. Lower = focused, Higher = creative") }
-                        )
-                    }
-
-                    // Max Tokens
-                    if (AiParameter.MAX_TOKENS in supportedParams) {
-                        OutlinedTextField(
-                            value = maxTokens,
-                            onValueChange = { maxTokens = it },
-                            label = { Text("Max Tokens") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("Maximum response length") }
-                        )
-                    }
-
-                    // Top P
-                    if (AiParameter.TOP_P in supportedParams) {
-                        OutlinedTextField(
-                            value = topP,
-                            onValueChange = { topP = it },
-                            label = { Text("Top P (0.0-1.0)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("Nucleus sampling threshold") }
-                        )
-                    }
-
-                    // Top K
-                    if (AiParameter.TOP_K in supportedParams) {
-                        OutlinedTextField(
-                            value = topK,
-                            onValueChange = { topK = it },
-                            label = { Text("Top K") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("Limits vocabulary choices per token") }
-                        )
-                    }
-
-                    // Frequency Penalty
-                    if (AiParameter.FREQUENCY_PENALTY in supportedParams) {
-                        OutlinedTextField(
-                            value = frequencyPenalty,
-                            onValueChange = { frequencyPenalty = it },
-                            label = { Text("Frequency Penalty (-2.0 to 2.0)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("Reduces repetition of frequent tokens") }
-                        )
-                    }
-
-                    // Presence Penalty
-                    if (AiParameter.PRESENCE_PENALTY in supportedParams) {
-                        OutlinedTextField(
-                            value = presencePenalty,
-                            onValueChange = { presencePenalty = it },
-                            label = { Text("Presence Penalty (-2.0 to 2.0)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("Encourages discussing new topics") }
-                        )
-                    }
-
-                    // System Prompt
-                    if (AiParameter.SYSTEM_PROMPT in supportedParams) {
-                        OutlinedTextField(
-                            value = systemPrompt,
-                            onValueChange = { systemPrompt = it },
-                            label = { Text("System Prompt") },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 2,
-                            maxLines = 4,
-                            supportingText = { Text("Instructions for the AI's behavior") }
-                        )
-                    }
-
-                    // Stop Sequences
-                    if (AiParameter.STOP_SEQUENCES in supportedParams) {
-                        OutlinedTextField(
-                            value = stopSequences,
-                            onValueChange = { stopSequences = it },
-                            label = { Text("Stop Sequences") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("Comma-separated list of stop strings") }
-                        )
-                    }
-
-                    // Seed
-                    if (AiParameter.SEED in supportedParams) {
-                        OutlinedTextField(
-                            value = seed,
-                            onValueChange = { seed = it },
-                            label = { Text("Seed") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            supportingText = { Text("For reproducible outputs") }
-                        )
-                    }
-
-                    // Response Format JSON
-                    if (AiParameter.RESPONSE_FORMAT in supportedParams) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = responseFormatJson,
-                                onCheckedChange = { responseFormatJson = it }
-                            )
-                            Text("JSON Response Format")
-                        }
-                    }
-
-                    // Search Enabled (Grok)
-                    if (AiParameter.SEARCH_ENABLED in supportedParams) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = searchEnabled,
-                                onCheckedChange = { searchEnabled = it }
-                            )
-                            Text("Enable Web Search")
-                        }
-                    }
-
-                    // Return Citations (Perplexity)
-                    if (AiParameter.RETURN_CITATIONS in supportedParams) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = returnCitations,
-                                onCheckedChange = { returnCitations = it }
-                            )
-                            Text("Return Citations")
-                        }
-                    }
-
-                    // Search Recency (Perplexity)
-                    if (AiParameter.SEARCH_RECENCY in supportedParams) {
-                        Text(
-                            text = "Search Recency",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFAAAAAA)
-                        )
-                        var recencyExpanded by remember { mutableStateOf(false) }
-                        val recencyOptions = listOf("" to "Default", "day" to "Day", "week" to "Week", "month" to "Month", "year" to "Year")
-                        Box {
-                            OutlinedButton(
-                                onClick = { recencyExpanded = true },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = recencyOptions.find { it.first == searchRecency }?.second ?: "Default",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(if (recencyExpanded) "▲" else "▼")
+                DropdownMenu(
+                    expanded = providerExpanded,
+                    onDismissRequest = { providerExpanded = false }
+                ) {
+                    availableProviders.forEach { provider ->
+                        DropdownMenuItem(
+                            text = { Text(provider.displayName) },
+                            onClick = {
+                                selectedProvider = provider
+                                providerExpanded = false
+                                // Clear test result when provider changes
+                                testResult = null
                             }
-                            DropdownMenu(
-                                expanded = recencyExpanded,
-                                onDismissRequest = { recencyExpanded = false }
-                            ) {
-                                recencyOptions.forEach { (value, label) ->
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = {
-                                            searchRecency = value
-                                            recencyExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        )
                     }
-                }
-
-                // Test error message
-                if (testError != null) {
-                    HorizontalDivider(color = Color(0xFF444444))
-                    Text(
-                        text = "API Test Failed: $testError",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFF44336)
-                    )
                 }
             }
-        },
-        confirmButton = {
+
+            // Model dropdown
+            Text(
+                text = "Model",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
+            var modelExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(
+                    onClick = { modelExpanded = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = model,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1
+                    )
+                    Text(if (modelExpanded) "^" else "v")
+                }
+                DropdownMenu(
+                    expanded = modelExpanded,
+                    onDismissRequest = { modelExpanded = false }
+                ) {
+                    modelsForProvider.forEach { m ->
+                        DropdownMenuItem(
+                            text = { Text(m) },
+                            onClick = {
+                                model = m
+                                modelExpanded = false
+                                // Clear test result when model changes
+                                testResult = null
+                            }
+                        )
+                    }
+                }
+            }
+
+            // API Key
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = {
+                        apiKey = it
+                        // Clear test result when API key changes
+                        testResult = null
+                    },
+                    label = { Text("API Key") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation()
+                )
+                TextButton(onClick = { showKey = !showKey }) {
+                    Text(if (showKey) "Hide" else "Show", color = Color(0xFF6B9BFF))
+                }
+            }
+
+            // Test API Key button
             Button(
                 onClick = {
-                    testError = null
+                    testResult = null
                     isTesting = true
                     coroutineScope.launch {
-                        // Skip test for empty API key, test all providers including DUMMY
                         val error = if (apiKey.isBlank()) {
-                            null
+                            "API key is empty"
                         } else {
                             onTestAiModel(selectedProvider, apiKey.trim(), model)
                         }
                         isTesting = false
                         if (error != null) {
-                            testError = error
+                            testResult = error
+                            testSuccess = false
                         } else {
-                            // Build parameters
-                            val params = AiAgentParameters(
-                                temperature = temperature.toFloatOrNull(),
-                                maxTokens = maxTokens.toIntOrNull(),
-                                topP = topP.toFloatOrNull(),
-                                topK = topK.toIntOrNull(),
-                                frequencyPenalty = frequencyPenalty.toFloatOrNull(),
-                                presencePenalty = presencePenalty.toFloatOrNull(),
-                                systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
-                                stopSequences = stopSequences.takeIf { it.isNotBlank() }
-                                    ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
-                                seed = seed.toIntOrNull(),
-                                responseFormatJson = responseFormatJson,
-                                searchEnabled = searchEnabled,
-                                returnCitations = returnCitations,
-                                searchRecency = searchRecency.takeIf { it.isNotBlank() }
-                            )
-                            val newAgent = AiAgent(
-                                id = agent?.id ?: java.util.UUID.randomUUID().toString(),
-                                name = name.trim(),
-                                provider = selectedProvider,
-                                model = model,
-                                apiKey = apiKey.trim(),
-                                parameters = params
-                            )
-                            onSave(newAgent)
+                            testResult = "API key is valid"
+                            testSuccess = true
                         }
                     }
                 },
-                enabled = !isTesting && nameError == null
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isTesting && apiKey.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2196F3)
+                )
             ) {
                 if (isTesting) {
                     Row(
@@ -830,21 +669,318 @@ private fun AgentEditDialog(
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
+                            strokeWidth = 2.dp,
+                            color = Color.White
                         )
                         Text("Testing...")
+                    }
+                } else {
+                    Text("Test API Key")
+                }
+            }
+
+            // Test result message
+            if (testResult != null) {
+                Text(
+                    text = testResult!!,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (testSuccess) Color(0xFF4CAF50) else Color(0xFFF44336)
+                )
+            }
+
+            // Parameters toggle
+            HorizontalDivider(color = Color(0xFF444444), modifier = Modifier.padding(vertical = 8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Advanced Parameters",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                TextButton(onClick = { showParameters = !showParameters }) {
+                    Text(
+                        if (showParameters) "Hide ^" else "Show v",
+                        color = Color(0xFF6B9BFF)
+                    )
+                }
+            }
+
+            // Parameters section (collapsible)
+            if (showParameters) {
+                // Temperature
+                if (AiParameter.TEMPERATURE in supportedParams) {
+                    OutlinedTextField(
+                        value = temperature,
+                        onValueChange = { temperature = it },
+                        label = { Text("Temperature (0.0-2.0)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Controls randomness. Lower = focused, Higher = creative") }
+                    )
+                }
+
+                // Max Tokens
+                if (AiParameter.MAX_TOKENS in supportedParams) {
+                    OutlinedTextField(
+                        value = maxTokens,
+                        onValueChange = { maxTokens = it },
+                        label = { Text("Max Tokens") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Maximum response length") }
+                    )
+                }
+
+                // Top P
+                if (AiParameter.TOP_P in supportedParams) {
+                    OutlinedTextField(
+                        value = topP,
+                        onValueChange = { topP = it },
+                        label = { Text("Top P (0.0-1.0)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Nucleus sampling threshold") }
+                    )
+                }
+
+                // Top K
+                if (AiParameter.TOP_K in supportedParams) {
+                    OutlinedTextField(
+                        value = topK,
+                        onValueChange = { topK = it },
+                        label = { Text("Top K") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Limits vocabulary choices per token") }
+                    )
+                }
+
+                // Frequency Penalty
+                if (AiParameter.FREQUENCY_PENALTY in supportedParams) {
+                    OutlinedTextField(
+                        value = frequencyPenalty,
+                        onValueChange = { frequencyPenalty = it },
+                        label = { Text("Frequency Penalty (-2.0 to 2.0)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Reduces repetition of frequent tokens") }
+                    )
+                }
+
+                // Presence Penalty
+                if (AiParameter.PRESENCE_PENALTY in supportedParams) {
+                    OutlinedTextField(
+                        value = presencePenalty,
+                        onValueChange = { presencePenalty = it },
+                        label = { Text("Presence Penalty (-2.0 to 2.0)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Encourages discussing new topics") }
+                    )
+                }
+
+                // System Prompt
+                if (AiParameter.SYSTEM_PROMPT in supportedParams) {
+                    OutlinedTextField(
+                        value = systemPrompt,
+                        onValueChange = { systemPrompt = it },
+                        label = { Text("System Prompt") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4,
+                        supportingText = { Text("Instructions for the AI's behavior") }
+                    )
+                }
+
+                // Stop Sequences
+                if (AiParameter.STOP_SEQUENCES in supportedParams) {
+                    OutlinedTextField(
+                        value = stopSequences,
+                        onValueChange = { stopSequences = it },
+                        label = { Text("Stop Sequences") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("Comma-separated list of stop strings") }
+                    )
+                }
+
+                // Seed
+                if (AiParameter.SEED in supportedParams) {
+                    OutlinedTextField(
+                        value = seed,
+                        onValueChange = { seed = it },
+                        label = { Text("Seed") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        supportingText = { Text("For reproducible outputs") }
+                    )
+                }
+
+                // Response Format JSON
+                if (AiParameter.RESPONSE_FORMAT in supportedParams) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = responseFormatJson,
+                            onCheckedChange = { responseFormatJson = it }
+                        )
+                        Text("JSON Response Format")
+                    }
+                }
+
+                // Search Enabled (Grok)
+                if (AiParameter.SEARCH_ENABLED in supportedParams) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = searchEnabled,
+                            onCheckedChange = { searchEnabled = it }
+                        )
+                        Text("Enable Web Search")
+                    }
+                }
+
+                // Return Citations (Perplexity)
+                if (AiParameter.RETURN_CITATIONS in supportedParams) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = returnCitations,
+                            onCheckedChange = { returnCitations = it }
+                        )
+                        Text("Return Citations")
+                    }
+                }
+
+                // Search Recency (Perplexity)
+                if (AiParameter.SEARCH_RECENCY in supportedParams) {
+                    Text(
+                        text = "Search Recency",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFAAAAAA)
+                    )
+                    var recencyExpanded by remember { mutableStateOf(false) }
+                    val recencyOptions = listOf("" to "Default", "day" to "Day", "week" to "Week", "month" to "Month", "year" to "Year")
+                    Box {
+                        OutlinedButton(
+                            onClick = { recencyExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = recencyOptions.find { it.first == searchRecency }?.second ?: "Default",
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(if (recencyExpanded) "^" else "v")
+                        }
+                        DropdownMenu(
+                            expanded = recencyExpanded,
+                            onDismissRequest = { recencyExpanded = false }
+                        ) {
+                            recencyOptions.forEach { (value, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        searchRecency = value
+                                        recencyExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save error message
+            if (saveError != null) {
+                Text(
+                    text = "Save Failed: $saveError",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFF44336)
+                )
+            }
+        }
+
+        // Bottom buttons
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Cancel")
+            }
+            Button(
+                onClick = {
+                    saveError = null
+                    isSaving = true
+                    coroutineScope.launch {
+                        // Build parameters
+                        val params = AiAgentParameters(
+                            temperature = temperature.toFloatOrNull(),
+                            maxTokens = maxTokens.toIntOrNull(),
+                            topP = topP.toFloatOrNull(),
+                            topK = topK.toIntOrNull(),
+                            frequencyPenalty = frequencyPenalty.toFloatOrNull(),
+                            presencePenalty = presencePenalty.toFloatOrNull(),
+                            systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
+                            stopSequences = stopSequences.takeIf { it.isNotBlank() }
+                                ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
+                            seed = seed.toIntOrNull(),
+                            responseFormatJson = responseFormatJson,
+                            searchEnabled = searchEnabled,
+                            returnCitations = returnCitations,
+                            searchRecency = searchRecency.takeIf { it.isNotBlank() }
+                        )
+                        val newAgent = AiAgent(
+                            id = agent?.id ?: java.util.UUID.randomUUID().toString(),
+                            name = name.trim(),
+                            provider = selectedProvider,
+                            model = model,
+                            apiKey = apiKey.trim(),
+                            parameters = params
+                        )
+                        isSaving = false
+                        onSave(newAgent)
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                enabled = !isSaving && nameError == null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50)
+                )
+            ) {
+                if (isSaving) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                        Text("Saving...")
                     }
                 } else {
                     Text(if (isEditing) "Save" else "Add")
                 }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
         }
-    )
+    }
 }
 
 /**

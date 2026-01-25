@@ -226,6 +226,7 @@ fun SettingsScreenNav(
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
-        onFetchModelsAfterImport = { viewModel.fetchModelsForApiSourceProviders(it) }
+        onFetchModelsAfterImport = { viewModel.fetchModelsForApiSourceProviders(it) },
+        onRetrieveModelLists = { viewModel.fetchModelsForApiSourceProviders(uiState.aiSettings) }
     )
 }

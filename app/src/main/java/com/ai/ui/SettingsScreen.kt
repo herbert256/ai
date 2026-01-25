@@ -86,7 +86,8 @@ fun SettingsScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onFetchModelsAfterImport: (AiSettings) -> Unit = {}
+    onFetchModelsAfterImport: (AiSettings) -> Unit = {},
+    onRetrieveModelLists: () -> Unit = {}
 ) {
     var currentSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
 
@@ -257,7 +258,8 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi,
-            onFetchModelsAfterImport = onFetchModelsAfterImport
+            onFetchModelsAfterImport = onFetchModelsAfterImport,
+            onRetrieveModelLists = onRetrieveModelLists
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,
@@ -282,7 +284,17 @@ fun SettingsScreen(
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onTestAiModel = onTestAiModel
+            onTestAiModel = onTestAiModel,
+            onFetchChatGptModels = onFetchChatGptModels,
+            onFetchGeminiModels = onFetchGeminiModels,
+            onFetchGrokModels = onFetchGrokModels,
+            onFetchGroqModels = onFetchGroqModels,
+            onFetchDeepSeekModels = onFetchDeepSeekModels,
+            onFetchMistralModels = onFetchMistralModels,
+            onFetchPerplexityModels = onFetchPerplexityModels,
+            onFetchTogetherModels = onFetchTogetherModels,
+            onFetchOpenRouterModels = onFetchOpenRouterModels,
+            onFetchDummyModels = onFetchDummyModels
         )
     }
 }
