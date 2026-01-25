@@ -1820,39 +1820,6 @@ fun AiReportsScreen(
                 }
             }
 
-            // Select all / Select none buttons
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        if (isSwarmMode) {
-                            selectedSwarmIds = swarms.map { it.id }.toSet()
-                        } else {
-                            directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Select all")
-                }
-                OutlinedButton(
-                    onClick = {
-                        if (isSwarmMode) {
-                            selectedSwarmIds = emptySet()
-                        } else {
-                            directlySelectedAgentIds = emptySet()
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Select none")
-                }
-            }
-
             // Search field
             OutlinedTextField(
                 value = searchQuery,
@@ -2023,6 +1990,39 @@ fun AiReportsScreen(
                             }
                         }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Select all / Select none buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        if (isSwarmMode) {
+                            selectedSwarmIds = swarms.map { it.id }.toSet()
+                        } else {
+                            directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Select all")
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (isSwarmMode) {
+                            selectedSwarmIds = emptySet()
+                        } else {
+                            directlySelectedAgentIds = emptySet()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Select none")
                 }
             }
 
