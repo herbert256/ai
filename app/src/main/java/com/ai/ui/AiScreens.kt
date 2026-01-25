@@ -845,23 +845,77 @@ private fun processThinkSectionsForHtml(text: String, agentId: String): String {
         """<button id="think-btn-$id" class="think-btn" onclick="toggleThink('$id')">Think</button><div id="think-$id" class="think-content">$thinkContent</div>"""
     }
 
-    // Escape remaining HTML entities (excluding our inserted HTML)
+    // Process remaining text parts - convert markdown to HTML
     // We need to be careful here - the think sections are already processed
-    // So we only escape the parts that aren't our inserted HTML
+    // So we only convert the parts that aren't our inserted HTML
     val parts = result.split(Regex("(<button.*?</button><div.*?</div>)"))
-    val escapedParts = parts.mapIndexed { index, part ->
+    val processedParts = parts.mapIndexed { index, part ->
         if (index % 2 == 0) {
-            // This is regular text, escape it
-            part.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
+            // This is regular text, convert markdown to HTML
+            convertMarkdownToHtmlForExport(part)
         } else {
             // This is our inserted HTML, keep it as-is
             part
         }
     }
 
-    return escapedParts.joinToString("")
+    return processedParts.joinToString("")
+}
+
+/**
+ * Converts markdown to HTML for HTML file export.
+ * Similar to convertMarkdownToSimpleHtml but returns HTML string for embedding.
+ */
+private fun convertMarkdownToHtmlForExport(markdown: String): String {
+    if (markdown.isBlank()) return ""
+
+    // First normalize line endings and remove multiple blank lines
+    var html = markdown
+        .replace("\r\n", "\n")
+        .replace(Regex("\n{3,}"), "\n\n")  // Replace 3+ newlines with 2
+
+    // Escape HTML entities first
+    html = html
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+
+    // Basic markdown to HTML conversion
+    html = html
+        // Code blocks (triple backticks) - must be before other processing
+        .replace(Regex("```([\\s\\S]*?)```")) { match ->
+            "<pre><code>${match.groupValues[1].trim()}</code></pre>"
+        }
+        // Inline code (single backticks)
+        .replace(Regex("`([^`]+)`"), "<code>$1</code>")
+        // Headers
+        .replace(Regex("^### (.+)$", RegexOption.MULTILINE), "<h4>$1</h4>")
+        .replace(Regex("^## (.+)$", RegexOption.MULTILINE), "<h3>$1</h3>")
+        .replace(Regex("^# (.+)$", RegexOption.MULTILINE), "<h2>$1</h2>")
+        // Bold
+        .replace(Regex("\\*\\*(.+?)\\*\\*"), "<strong>$1</strong>")
+        // Italic
+        .replace(Regex("\\*(.+?)\\*"), "<em>$1</em>")
+        // Bullet points
+        .replace(Regex("^- (.+)$", RegexOption.MULTILINE), "<li>$1</li>")
+        .replace(Regex("^\\* (.+)$", RegexOption.MULTILINE), "<li>$1</li>")
+        // Numbered lists
+        .replace(Regex("^\\d+\\. (.+)$", RegexOption.MULTILINE), "<li>$1</li>")
+        // Line breaks - convert double newlines to paragraph breaks
+        .replace("\n\n", "</p><p>")
+        .replace("\n", "<br>")
+
+    // Wrap consecutive <li> items in <ul>
+    html = html.replace(Regex("(<li>.*?</li>)+")) { match ->
+        "<ul>${match.value}</ul>"
+    }
+
+    // Wrap in paragraph if not empty
+    if (html.isNotBlank()) {
+        html = "<p>$html</p>"
+    }
+
+    return html
 }
 
 // Helper function to convert generic AI reports to HTML
@@ -938,7 +992,18 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
                     display: block;
                 }
                 .agent-header { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
-                .agent-response { white-space: pre-wrap; }
+                .agent-response { }
+                .agent-response p { margin: 0 0 1em 0; }
+                .agent-response h2 { color: #6B9BFF; font-size: 1.3em; margin: 1.2em 0 0.5em 0; }
+                .agent-response h3 { color: #6B9BFF; font-size: 1.15em; margin: 1em 0 0.4em 0; }
+                .agent-response h4 { color: #6B9BFF; font-size: 1.05em; margin: 0.8em 0 0.3em 0; }
+                .agent-response ul { margin: 0.5em 0; padding-left: 1.5em; }
+                .agent-response li { margin: 0.3em 0; }
+                .agent-response code { background: #333; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+                .agent-response pre { background: #2a2a2a; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 1em 0; }
+                .agent-response pre code { background: none; padding: 0; }
+                .agent-response strong { color: #fff; }
+                .agent-response em { font-style: italic; }
                 .error { color: #ff6b6b; }
                 .usage-section { margin: 30px 0; }
                 .sources-section { margin-top: 20px; }
