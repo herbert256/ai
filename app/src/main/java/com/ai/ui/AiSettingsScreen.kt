@@ -288,13 +288,28 @@ fun AiSetupScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Search model button
-        Button(
-            onClick = { onNavigate(SettingsSubScreen.MODEL_SEARCH) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
-        ) {
-            Text("Search model")
+        // Search model button (only show if at least one API key is configured)
+        val hasApiKeyForSearch = aiSettings.chatGptApiKey.isNotBlank() ||
+                aiSettings.claudeApiKey.isNotBlank() ||
+                aiSettings.geminiApiKey.isNotBlank() ||
+                aiSettings.grokApiKey.isNotBlank() ||
+                aiSettings.groqApiKey.isNotBlank() ||
+                aiSettings.deepSeekApiKey.isNotBlank() ||
+                aiSettings.mistralApiKey.isNotBlank() ||
+                aiSettings.perplexityApiKey.isNotBlank() ||
+                aiSettings.togetherApiKey.isNotBlank() ||
+                aiSettings.openRouterApiKey.isNotBlank() ||
+                aiSettings.siliconFlowApiKey.isNotBlank() ||
+                aiSettings.zaiApiKey.isNotBlank()
+
+        if (hasApiKeyForSearch) {
+            Button(
+                onClick = { onNavigate(SettingsSubScreen.MODEL_SEARCH) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+            ) {
+                Text("Search model")
+            }
         }
 
         // Export AI configuration button
