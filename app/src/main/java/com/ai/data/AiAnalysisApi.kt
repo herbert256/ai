@@ -27,6 +27,7 @@ enum class AiService(val displayName: String, val baseUrl: String) {
     PERPLEXITY("Perplexity", "https://api.perplexity.ai/"),
     TOGETHER("Together", "https://api.together.xyz/"),
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/"),
+    SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/"),
     DUMMY("Dummy", "http://localhost:54321/")
 }
 
@@ -283,6 +284,19 @@ data class OpenRouterRequest(
     val seed: Int? = null
 )
 
+// SiliconFlow models (uses OpenAI-compatible format)
+data class SiliconFlowRequest(
+    val model: String = "Qwen/Qwen2.5-7B-Instruct",
+    val messages: List<OpenAiMessage>,
+    val max_tokens: Int? = 1024,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val top_k: Int? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null
+)
+
 // Groq models (uses OpenAI-compatible format)
 data class GroqRequest(
     val model: String = "llama-3.3-70b-versatile",
@@ -468,6 +482,17 @@ interface OpenRouterApi {
 }
 
 /**
+ * Retrofit interface for SiliconFlow API (OpenAI-compatible).
+ */
+interface SiliconFlowApi {
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletion(
+        @Header("Authorization") authorization: String,
+        @Body request: SiliconFlowRequest
+    ): Response<OpenAiResponse>
+}
+
+/**
  * Retrofit interface for Groq API (OpenAI-compatible).
  */
 interface GroqApi {
@@ -545,6 +570,10 @@ object AiApiFactory {
 
     fun createOpenRouterApi(): OpenRouterApi {
         return getRetrofit(AiService.OPENROUTER.baseUrl).create(OpenRouterApi::class.java)
+    }
+
+    fun createSiliconFlowApi(): SiliconFlowApi {
+        return getRetrofit(AiService.SILICONFLOW.baseUrl).create(SiliconFlowApi::class.java)
     }
 
     fun createDummyApi(): OpenAiApi {

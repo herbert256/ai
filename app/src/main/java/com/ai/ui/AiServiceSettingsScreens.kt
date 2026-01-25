@@ -518,6 +518,54 @@ fun OpenRouterSettingsScreen(
 }
 
 /**
+ * SiliconFlow settings screen.
+ */
+@Composable
+fun SiliconFlowSettingsScreen(
+    aiSettings: AiSettings,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.siliconFlowApiKey) }
+    var modelSource by remember { mutableStateOf(aiSettings.siliconFlowModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.siliconFlowManualModels) }
+
+    AiServiceSettingsScreenTemplate(
+        title = "SiliconFlow",
+        subtitle = "SiliconFlow AI",
+        accentColor = Color(0xFF00B4D8),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = {
+                apiKey = it
+                onSave(aiSettings.copy(siliconFlowApiKey = it))
+            },
+            onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, "Qwen/Qwen2.5-7B-Instruct") }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = emptyList(),  // SiliconFlow doesn't have a list API
+            isLoadingModels = false,
+            onModelSourceChange = {
+                modelSource = it
+                onSave(aiSettings.copy(siliconFlowModelSource = it))
+            },
+            onManualModelsChange = {
+                manualModels = it
+                onSave(aiSettings.copy(siliconFlowManualModels = it))
+            },
+            onFetchModels = { }  // No API for fetching models
+        )
+    }
+}
+
+/**
  * Dummy settings screen (for testing without real API calls).
  */
 @Composable

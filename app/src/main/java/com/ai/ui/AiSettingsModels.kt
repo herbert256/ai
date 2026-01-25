@@ -128,6 +128,16 @@ val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
         AiParameter.STOP_SEQUENCES,
         AiParameter.SEED
     ),
+    AiService.SILICONFLOW to setOf(
+        AiParameter.TEMPERATURE,
+        AiParameter.MAX_TOKENS,
+        AiParameter.TOP_P,
+        AiParameter.TOP_K,
+        AiParameter.FREQUENCY_PENALTY,
+        AiParameter.PRESENCE_PENALTY,
+        AiParameter.SYSTEM_PROMPT,
+        AiParameter.STOP_SEQUENCES
+    ),
     AiService.DUMMY to setOf(
         AiParameter.TEMPERATURE,
         AiParameter.MAX_TOKENS,
@@ -176,6 +186,21 @@ val PERPLEXITY_MODELS = listOf(
     "sonar-pro",
     "sonar-reasoning-pro",
     "sonar-deep-research"
+)
+
+/**
+ * Available SiliconFlow models (hardcoded - popular models).
+ */
+val SILICONFLOW_MODELS = listOf(
+    "Qwen/Qwen2.5-7B-Instruct",
+    "Qwen/Qwen2.5-14B-Instruct",
+    "Qwen/Qwen2.5-32B-Instruct",
+    "Qwen/Qwen2.5-72B-Instruct",
+    "Qwen/QwQ-32B",
+    "deepseek-ai/DeepSeek-V3",
+    "deepseek-ai/DeepSeek-R1",
+    "THUDM/glm-4-9b-chat",
+    "meta-llama/Llama-3.3-70B-Instruct"
 )
 
 /**
@@ -234,6 +259,10 @@ data class AiSettings(
     val openRouterModel: String = "anthropic/claude-3.5-sonnet",
     val openRouterModelSource: ModelSource = ModelSource.API,
     val openRouterManualModels: List<String> = emptyList(),
+    val siliconFlowApiKey: String = "",
+    val siliconFlowModel: String = "Qwen/Qwen2.5-7B-Instruct",
+    val siliconFlowModelSource: ModelSource = ModelSource.MANUAL,
+    val siliconFlowManualModels: List<String> = SILICONFLOW_MODELS,
     val dummyApiKey: String = "",
     val dummyModel: String = "dummy-model",
     val dummyManualModels: List<String> = listOf("dummy-model"),
@@ -252,6 +281,7 @@ data class AiSettings(
             AiService.PERPLEXITY -> perplexityApiKey
             AiService.TOGETHER -> togetherApiKey
             AiService.OPENROUTER -> openRouterApiKey
+            AiService.SILICONFLOW -> siliconFlowApiKey
             AiService.DUMMY -> dummyApiKey
         }
     }
@@ -268,6 +298,7 @@ data class AiSettings(
             AiService.PERPLEXITY -> perplexityModel
             AiService.TOGETHER -> togetherModel
             AiService.OPENROUTER -> openRouterModel
+            AiService.SILICONFLOW -> siliconFlowModel
             AiService.DUMMY -> dummyModel
         }
     }
@@ -284,6 +315,7 @@ data class AiSettings(
             AiService.PERPLEXITY -> copy(perplexityModel = model)
             AiService.TOGETHER -> copy(togetherModel = model)
             AiService.OPENROUTER -> copy(openRouterModel = model)
+            AiService.SILICONFLOW -> copy(siliconFlowModel = model)
             AiService.DUMMY -> this
         }
     }
@@ -300,6 +332,7 @@ data class AiSettings(
             AiService.PERPLEXITY -> perplexityModelSource
             AiService.TOGETHER -> togetherModelSource
             AiService.OPENROUTER -> openRouterModelSource
+            AiService.SILICONFLOW -> siliconFlowModelSource
             AiService.DUMMY -> ModelSource.MANUAL
         }
     }
@@ -316,6 +349,7 @@ data class AiSettings(
             AiService.PERPLEXITY -> perplexityManualModels
             AiService.TOGETHER -> togetherManualModels
             AiService.OPENROUTER -> openRouterManualModels
+            AiService.SILICONFLOW -> siliconFlowManualModels
             AiService.DUMMY -> emptyList()
         }
     }
@@ -329,7 +363,8 @@ data class AiSettings(
                 mistralApiKey.isNotBlank() ||
                 perplexityApiKey.isNotBlank() ||
                 togetherApiKey.isNotBlank() ||
-                openRouterApiKey.isNotBlank()
+                openRouterApiKey.isNotBlank() ||
+                siliconFlowApiKey.isNotBlank()
     }
 
     fun getConfiguredServices(): List<AiService> {

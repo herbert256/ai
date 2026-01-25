@@ -34,6 +34,7 @@ enum class SettingsSubScreen {
     AI_PERPLEXITY,
     AI_TOGETHER,
     AI_OPENROUTER,
+    AI_SILICONFLOW,
     AI_DUMMY,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
@@ -227,6 +228,13 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onFetchModels = onFetchOpenRouterModels,
+            onTestApiKey = onTestAiModel
+        )
+        SettingsSubScreen.AI_SILICONFLOW -> SiliconFlowSettingsScreen(
+            aiSettings = aiSettings,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
             onTestApiKey = onTestAiModel
         )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(

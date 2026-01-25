@@ -127,6 +127,12 @@ fun AiSettingsScreen(
             accentColor = Color(0xFF6B5AED),
             onClick = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
         )
+        AiServiceNavigationCard(
+            title = "SiliconFlow",
+            subtitle = "SiliconFlow AI",
+            accentColor = Color(0xFF00B4D8),
+            onClick = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
+        )
         // Dummy provider only visible in developer mode
         if (developerMode) {
             AiServiceNavigationCard(
@@ -442,6 +448,13 @@ fun AiProvidersScreen(
             accentColor = Color(0xFF6B5AED),
             hasApiKey = aiSettings.openRouterApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
+        )
+        AiServiceNavigationCard(
+            title = "SiliconFlow",
+            subtitle = "SiliconFlow AI",
+            accentColor = Color(0xFF00B4D8),
+            hasApiKey = aiSettings.siliconFlowApiKey.isNotBlank(),
+            onClick = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
         )
         // Dummy provider only visible in developer mode
         if (developerMode) {

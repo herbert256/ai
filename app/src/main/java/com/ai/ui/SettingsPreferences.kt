@@ -88,6 +88,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             openRouterModel = prefs.getString(KEY_AI_OPENROUTER_MODEL, "anthropic/claude-3.5-sonnet") ?: "anthropic/claude-3.5-sonnet",
             openRouterModelSource = loadModelSource(KEY_AI_OPENROUTER_MODEL_SOURCE, ModelSource.API),
             openRouterManualModels = loadManualModels(KEY_AI_OPENROUTER_MANUAL_MODELS),
+            siliconFlowApiKey = prefs.getString(KEY_AI_SILICONFLOW_API_KEY, "") ?: "",
+            siliconFlowModel = prefs.getString(KEY_AI_SILICONFLOW_MODEL, "Qwen/Qwen2.5-7B-Instruct") ?: "Qwen/Qwen2.5-7B-Instruct",
+            siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.MANUAL),
+            siliconFlowManualModels = loadManualModelsWithDefault(KEY_AI_SILICONFLOW_MANUAL_MODELS, SILICONFLOW_MODELS),
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
             dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, "dummy-model") ?: "dummy-model",
             dummyManualModels = loadManualModelsWithDefault(KEY_AI_DUMMY_MANUAL_MODELS, listOf("dummy-model"))
@@ -167,6 +171,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_OPENROUTER_MODEL, settings.openRouterModel)
             .putString(KEY_AI_OPENROUTER_MODEL_SOURCE, settings.openRouterModelSource.name)
             .putString(KEY_AI_OPENROUTER_MANUAL_MODELS, gson.toJson(settings.openRouterManualModels))
+            .putString(KEY_AI_SILICONFLOW_API_KEY, settings.siliconFlowApiKey)
+            .putString(KEY_AI_SILICONFLOW_MODEL, settings.siliconFlowModel)
+            .putString(KEY_AI_SILICONFLOW_MODEL_SOURCE, settings.siliconFlowModelSource.name)
+            .putString(KEY_AI_SILICONFLOW_MANUAL_MODELS, gson.toJson(settings.siliconFlowManualModels))
             .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
             .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
             .putString(KEY_AI_DUMMY_MANUAL_MODELS, gson.toJson(settings.dummyManualModels))
@@ -256,6 +264,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_TOGETHER_MODEL = "ai_together_model"
         private const val KEY_AI_OPENROUTER_API_KEY = "ai_openrouter_api_key"
         private const val KEY_AI_OPENROUTER_MODEL = "ai_openrouter_model"
+        private const val KEY_AI_SILICONFLOW_API_KEY = "ai_siliconflow_api_key"
+        private const val KEY_AI_SILICONFLOW_MODEL = "ai_siliconflow_model"
         private const val KEY_AI_DUMMY_API_KEY = "ai_dummy_api_key"
         private const val KEY_AI_DUMMY_MODEL = "ai_dummy_model"
         private const val KEY_AI_DUMMY_MANUAL_MODELS = "ai_dummy_manual_models"
@@ -271,6 +281,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_PERPLEXITY_MODEL_SOURCE = "ai_perplexity_model_source"
         private const val KEY_AI_TOGETHER_MODEL_SOURCE = "ai_together_model_source"
         private const val KEY_AI_OPENROUTER_MODEL_SOURCE = "ai_openrouter_model_source"
+        private const val KEY_AI_SILICONFLOW_MODEL_SOURCE = "ai_siliconflow_model_source"
 
         // AI manual models lists
         private const val KEY_AI_CHATGPT_MANUAL_MODELS = "ai_chatgpt_manual_models"
@@ -283,6 +294,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_PERPLEXITY_MANUAL_MODELS = "ai_perplexity_manual_models"
         private const val KEY_AI_TOGETHER_MANUAL_MODELS = "ai_together_manual_models"
         private const val KEY_AI_OPENROUTER_MANUAL_MODELS = "ai_openrouter_manual_models"
+        private const val KEY_AI_SILICONFLOW_MANUAL_MODELS = "ai_siliconflow_manual_models"
 
         // AI agents
         private const val KEY_AI_AGENTS = "ai_agents"

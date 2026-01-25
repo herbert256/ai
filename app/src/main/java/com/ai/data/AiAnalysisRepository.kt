@@ -61,6 +61,7 @@ class AiAnalysisRepository {
     private val perplexityApi = AiApiFactory.createPerplexityApi()
     private val togetherApi = AiApiFactory.createTogetherApi()
     private val openRouterApi = AiApiFactory.createOpenRouterApi()
+    private val siliconFlowApi = AiApiFactory.createSiliconFlowApi()
 
     // Gson instance for pretty printing usage JSON
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -148,7 +149,8 @@ class AiAnalysisRepository {
         mistralModel: String = "mistral-small-latest",
         perplexityModel: String = "sonar",
         togetherModel: String = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        openRouterModel: String = "anthropic/claude-3.5-sonnet"
+        openRouterModel: String = "anthropic/claude-3.5-sonnet",
+        siliconFlowModel: String = "Qwen/Qwen2.5-7B-Instruct"
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -172,6 +174,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, finalPrompt, perplexityModel)
                 AiService.TOGETHER -> analyzeWithTogether(apiKey, finalPrompt, togetherModel)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, finalPrompt, openRouterModel)
+                AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, finalPrompt, siliconFlowModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -230,7 +233,8 @@ class AiAnalysisRepository {
         mistralModel: String = "mistral-small-latest",
         perplexityModel: String = "sonar",
         togetherModel: String = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        openRouterModel: String = "anthropic/claude-3.5-sonnet"
+        openRouterModel: String = "anthropic/claude-3.5-sonnet",
+        siliconFlowModel: String = "Qwen/Qwen2.5-7B-Instruct"
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -254,6 +258,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, finalPrompt, perplexityModel)
                 AiService.TOGETHER -> analyzeWithTogether(apiKey, finalPrompt, togetherModel)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, finalPrompt, openRouterModel)
+                AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, finalPrompt, siliconFlowModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -317,6 +322,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.SILICONFLOW -> analyzeWithSiliconFlow(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             // Add agent name and prompt used to result
@@ -380,6 +386,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.TOGETHER -> analyzeWithTogether(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.SILICONFLOW -> analyzeWithSiliconFlow(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
@@ -960,6 +967,55 @@ class AiAnalysisRepository {
         }
     }
 
+    private suspend fun analyzeWithSiliconFlow(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
+        val request = SiliconFlowRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            top_k = params?.topK,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() }
+        )
+        val response = siliconFlowApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+
+        val headers = formatHeaders(response.headers())
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.firstOrNull()?.message?.content
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.SILICONFLOW, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content"
+                AiAnalysisResponse(AiService.SILICONFLOW, null, errorMsg, httpHeaders = headers)
+            }
+        } else {
+            AiAnalysisResponse(AiService.SILICONFLOW, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+        }
+    }
+
     private suspend fun analyzeWithDummy(
         apiKey: String,
         prompt: String,
@@ -1062,6 +1118,7 @@ class AiAnalysisRepository {
                 AiService.PERPLEXITY -> analyzeWithPerplexity(apiKey, TEST_PROMPT, model)
                 AiService.TOGETHER -> analyzeWithTogether(apiKey, TEST_PROMPT, model)
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, TEST_PROMPT, model)
+                AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, TEST_PROMPT, model)
                 AiService.DUMMY -> analyzeWithDummy(apiKey, TEST_PROMPT, model)
             }
 

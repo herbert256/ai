@@ -1185,16 +1185,35 @@ fun PromptHistoryScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
     val settingsPrefs = remember { SettingsPreferences(prefs) }
-    var historyEntries by remember { mutableStateOf(settingsPrefs.loadPromptHistory()) }
+    val allHistoryEntries = remember { mutableStateOf(settingsPrefs.loadPromptHistory()) }
+    var searchText by remember { mutableStateOf("") }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val totalPages = (historyEntries.size + pageSize - 1) / pageSize
+    // Filter entries based on search text
+    val filteredEntries = remember(allHistoryEntries.value, searchText) {
+        if (searchText.isBlank()) {
+            allHistoryEntries.value
+        } else {
+            val searchLower = searchText.lowercase()
+            allHistoryEntries.value.filter { entry ->
+                entry.title.lowercase().contains(searchLower) ||
+                entry.prompt.lowercase().contains(searchLower)
+            }
+        }
+    }
+
+    val totalPages = (filteredEntries.size + pageSize - 1) / pageSize
     val startIndex = currentPage * pageSize
-    val endIndex = minOf(startIndex + pageSize, historyEntries.size)
-    val currentPageEntries = if (historyEntries.isNotEmpty() && startIndex < historyEntries.size) {
-        historyEntries.subList(startIndex, endIndex)
+    val endIndex = minOf(startIndex + pageSize, filteredEntries.size)
+    val currentPageEntries = if (filteredEntries.isNotEmpty() && startIndex < filteredEntries.size) {
+        filteredEntries.subList(startIndex, endIndex)
     } else {
         emptyList()
+    }
+
+    // Reset to first page when search changes
+    LaunchedEffect(searchText) {
+        currentPage = 0
     }
 
     Column(
@@ -1207,6 +1226,31 @@ fun PromptHistoryScreen(
             title = "Prompt History",
             onBackClick = onNavigateBack,
             onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Search field
+        OutlinedTextField(
+            value = searchText,
+            onValueChange = { searchText = it },
+            placeholder = { Text("Search in title or prompt...", color = Color(0xFF888888)) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF555555),
+                cursorColor = Color(0xFF6B9BFF)
+            ),
+            trailingIcon = {
+                if (searchText.isNotEmpty()) {
+                    IconButton(onClick = { searchText = "" }) {
+                        Text("✕", color = Color(0xFF888888))
+                    }
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1283,7 +1327,7 @@ fun PromptHistoryScreen(
         Spacer(modifier = Modifier.height(4.dp))
 
         // History list
-        if (historyEntries.isEmpty()) {
+        if (filteredEntries.isEmpty()) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -1291,7 +1335,7 @@ fun PromptHistoryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No prompt history yet",
+                    text = if (allHistoryEntries.value.isEmpty()) "No prompt history yet" else "No matches found",
                     color = Color(0xFFAAAAAA),
                     fontSize = 16.sp
                 )
@@ -1316,10 +1360,11 @@ fun PromptHistoryScreen(
         Button(
             onClick = {
                 settingsPrefs.clearPromptHistory()
-                historyEntries = emptyList()
+                allHistoryEntries.value = emptyList()
+                searchText = ""
                 currentPage = 0
             },
-            enabled = historyEntries.isNotEmpty(),
+            enabled = allHistoryEntries.value.isNotEmpty(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFCC3333),
                 disabledContainerColor = Color(0xFF444444)

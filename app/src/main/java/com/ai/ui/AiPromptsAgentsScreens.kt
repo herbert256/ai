@@ -407,6 +407,10 @@ private fun AgentEditDialog(
             val manualModels = if (aiSettings.openRouterModelSource == ModelSource.MANUAL) aiSettings.openRouterManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { listOf(model) }
         }
+        AiService.SILICONFLOW -> {
+            val manualModels = aiSettings.siliconFlowManualModels
+            manualModels.ifEmpty { SILICONFLOW_MODELS }
+        }
         AiService.DUMMY -> aiSettings.dummyManualModels.ifEmpty { listOf("dummy-model") }
     }
 
@@ -851,6 +855,7 @@ fun getDefaultModelForProvider(provider: AiService): String {
         AiService.PERPLEXITY -> "sonar"
         AiService.TOGETHER -> "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         AiService.OPENROUTER -> "anthropic/claude-3.5-sonnet"
+        AiService.SILICONFLOW -> "Qwen/Qwen2.5-7B-Instruct"
         AiService.DUMMY -> "dummy"
     }
 }
