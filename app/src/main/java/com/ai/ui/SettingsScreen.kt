@@ -535,7 +535,7 @@ private fun SettingsMainScreen(
         // AI Setup settings card
         SettingsNavigationCard(
             title = "AI Setup",
-            description = "Providers and agents",
+            description = "Providers, Agents and Swarms",
             onClick = { onNavigate(SettingsSubScreen.AI_SETUP) }
         )
     }
