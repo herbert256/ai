@@ -1656,10 +1656,10 @@ fun AiReportsScreenNav(
         uiState = uiState,
         savedAgentIds = viewModel.loadAiReportAgents(),
         savedSwarmIds = viewModel.loadAiReportSwarms(),
-        onGenerate = { selectedAgentIds, selectedSwarmIds ->
-            viewModel.saveAiReportAgents(selectedAgentIds)
+        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds ->
+            viewModel.saveAiReportAgents(directAgentIds)
             viewModel.saveAiReportSwarms(selectedSwarmIds)
-            viewModel.generateGenericAiReports(selectedAgentIds)
+            viewModel.generateGenericAiReports(combinedAgentIds)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -1678,7 +1678,7 @@ fun AiReportsScreen(
     uiState: AiUiState,
     savedAgentIds: Set<String>,
     savedSwarmIds: Set<String>,
-    onGenerate: (Set<String>, Set<String>) -> Unit,
+    onGenerate: (Set<String>, Set<String>, Set<String>) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -1722,6 +1722,17 @@ fun AiReportsScreen(
         return
     }
 
+    // Selection mode: true = Swarms, false = Agents
+    var isSwarmMode by remember { mutableStateOf(true) }
+
+    // Filter out DUMMY agents when not in developer mode
+    val allConfiguredAgents = uiState.aiSettings.getConfiguredAgents()
+    val configuredAgents = if (uiState.generalSettings.developerMode) {
+        allConfiguredAgents
+    } else {
+        allConfiguredAgents.filter { it.provider != com.ai.data.AiService.DUMMY }
+    }
+
     // Swarm selection state
     val swarms = uiState.aiSettings.swarms
     val validSwarmIds = swarms.map { it.id }.toSet()
@@ -1733,16 +1744,17 @@ fun AiReportsScreen(
         )
     }
 
-    // Get agents from selected swarms (for display and generation)
-    val selectedAgentIds = uiState.aiSettings.getAgentsForSwarms(selectedSwarmIds).map { it.id }.toSet()
+    // Direct agent selection state (separate from swarm-based selection)
+    // Filter to only include agents that still exist
+    val validAgentIds = allConfiguredAgents.map { it.id }.toSet()
+    val validSavedAgents = savedAgentIds.filter { it in validAgentIds }.toSet()
+    var directlySelectedAgentIds by remember { mutableStateOf(validSavedAgents) }
 
-    // Filter out DUMMY agents when not in developer mode
-    val allConfiguredAgents = uiState.aiSettings.getConfiguredAgents()
-    val configuredAgents = if (uiState.generalSettings.developerMode) {
-        allConfiguredAgents
-    } else {
-        allConfiguredAgents.filter { it.provider != com.ai.data.AiService.DUMMY }
-    }
+    // Get agents from selected swarms
+    val swarmAgentIds = uiState.aiSettings.getAgentsForSwarms(selectedSwarmIds).map { it.id }.toSet()
+
+    // Combined unique agent IDs (from swarms + directly selected)
+    val combinedAgentIds = swarmAgentIds + directlySelectedAgentIds
 
     Column(
         modifier = Modifier
@@ -1754,7 +1766,8 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Report Ready"
                 isGenerating -> "Generating Report"
-                else -> "Select swarm(s)"
+                isSwarmMode -> "Select Swarm(s)"
+                else -> "Select Agent(s)"
             },
             onBackClick = onDismiss,
             onAiClick = onNavigateHome
@@ -1765,17 +1778,44 @@ fun AiReportsScreen(
         if (!isGenerating) {
             // Generate button at top
             Button(
-                onClick = { onGenerate(selectedAgentIds, selectedSwarmIds) },
-                enabled = selectedSwarmIds.isNotEmpty() && selectedAgentIds.isNotEmpty(),
+                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds) },
+                enabled = combinedAgentIds.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF8B5CF6)
                 )
             ) {
-                Text("Generate Reports")
+                Text("Generate Reports (${combinedAgentIds.size} agent${if (combinedAgentIds.size == 1) "" else "s"})")
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Mode toggle buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { isSwarmMode = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSwarmMode) Color(0xFF6B9BFF) else Color(0xFF444444)
+                    )
+                ) {
+                    Text("Swarms")
+                }
+                Button(
+                    onClick = { isSwarmMode = false },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (!isSwarmMode) Color(0xFF6B9BFF) else Color(0xFF444444)
+                    )
+                ) {
+                    Text("Agents")
+                }
+            }
 
             // Select all / Select none buttons
             Row(
@@ -1785,13 +1825,25 @@ fun AiReportsScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
-                    onClick = { selectedSwarmIds = swarms.map { it.id }.toSet() },
+                    onClick = {
+                        if (isSwarmMode) {
+                            selectedSwarmIds = swarms.map { it.id }.toSet()
+                        } else {
+                            directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Select all")
                 }
                 OutlinedButton(
-                    onClick = { selectedSwarmIds = emptySet() },
+                    onClick = {
+                        if (isSwarmMode) {
+                            selectedSwarmIds = emptySet()
+                        } else {
+                            directlySelectedAgentIds = emptySet()
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Select none")
@@ -1812,53 +1864,110 @@ fun AiReportsScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (swarms.isEmpty()) {
-                        Text(
-                            text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > AI Swarms.",
-                            color = Color(0xFFAAAAAA)
-                        )
+                    if (isSwarmMode) {
+                        // Swarm selection mode
+                        if (swarms.isEmpty()) {
+                            Text(
+                                text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > AI Swarms.",
+                                color = Color(0xFFAAAAAA)
+                            )
+                        } else {
+                            swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
+                                val swarmAgentsList = uiState.aiSettings.getAgentsForSwarm(swarm)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedSwarmIds = if (swarm.id in selectedSwarmIds) {
+                                                selectedSwarmIds - swarm.id
+                                            } else {
+                                                selectedSwarmIds + swarm.id
+                                            }
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = swarm.id in selectedSwarmIds,
+                                        onCheckedChange = { checked ->
+                                            selectedSwarmIds = if (checked) {
+                                                selectedSwarmIds + swarm.id
+                                            } else {
+                                                selectedSwarmIds - swarm.id
+                                            }
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = swarm.name,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = if (swarmAgentsList.isEmpty()) {
+                                                "No agents"
+                                            } else {
+                                                "${swarmAgentsList.size} agent${if (swarmAgentsList.size == 1) "" else "s"}: ${swarmAgentsList.take(3).joinToString(", ") { it.name }}${if (swarmAgentsList.size > 3) "..." else ""}"
+                                            },
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFAAAAAA)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     } else {
-                        swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
-                            val swarmAgents = uiState.aiSettings.getAgentsForSwarm(swarm)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedSwarmIds = if (swarm.id in selectedSwarmIds) {
-                                            selectedSwarmIds - swarm.id
-                                        } else {
-                                            selectedSwarmIds + swarm.id
+                        // Agent selection mode
+                        if (configuredAgents.isEmpty()) {
+                            Text(
+                                text = "No AI agents configured. Please configure agents in Settings > AI Setup > AI Agents.",
+                                color = Color(0xFFAAAAAA)
+                            )
+                        } else {
+                            configuredAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
+                                val isFromSwarm = agent.id in swarmAgentIds
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            directlySelectedAgentIds = if (agent.id in directlySelectedAgentIds) {
+                                                directlySelectedAgentIds - agent.id
+                                            } else {
+                                                directlySelectedAgentIds + agent.id
+                                            }
                                         }
-                                    }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = swarm.id in selectedSwarmIds,
-                                    onCheckedChange = { checked ->
-                                        selectedSwarmIds = if (checked) {
-                                            selectedSwarmIds + swarm.id
-                                        } else {
-                                            selectedSwarmIds - swarm.id
-                                        }
-                                    }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = swarm.name,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = if (swarmAgents.isEmpty()) {
-                                            "No agents"
-                                        } else {
-                                            "${swarmAgents.size} agent${if (swarmAgents.size == 1) "" else "s"}: ${swarmAgents.take(3).joinToString(", ") { it.name }}${if (swarmAgents.size > 3) "..." else ""}"
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = agent.id in directlySelectedAgentIds || isFromSwarm,
+                                        onCheckedChange = { checked ->
+                                            directlySelectedAgentIds = if (checked) {
+                                                directlySelectedAgentIds + agent.id
+                                            } else {
+                                                directlySelectedAgentIds - agent.id
+                                            }
                                         },
-                                        fontSize = 12.sp,
-                                        color = Color(0xFFAAAAAA)
+                                        enabled = !isFromSwarm  // Disable if already included via swarm
                                     )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = agent.name,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (isFromSwarm) Color(0xFF6B9BFF) else Color.White
+                                        )
+                                        Text(
+                                            text = if (isFromSwarm) {
+                                                "${agent.provider.displayName} / ${agent.model} (via swarm)"
+                                            } else {
+                                                "${agent.provider.displayName} / ${agent.model}"
+                                            },
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFAAAAAA)
+                                        )
+                                    }
                                 }
                             }
                         }

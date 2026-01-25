@@ -63,9 +63,13 @@ data class OpenAiChoice(
 )
 
 data class OpenAiUsage(
+    // Chat Completions API uses prompt_tokens/completion_tokens
     val prompt_tokens: Int?,
     val completion_tokens: Int?,
-    val total_tokens: Int?
+    val total_tokens: Int?,
+    // Responses API uses input_tokens/output_tokens
+    val input_tokens: Int? = null,
+    val output_tokens: Int? = null
 )
 
 // Search result from AI services that perform web searches

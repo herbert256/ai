@@ -479,8 +479,8 @@ class AiAnalysisRepository {
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
                 TokenUsage(
-                    inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: it.output_tokens ?: 0
                 )
             }
             if (content != null) {
@@ -515,10 +515,11 @@ class AiAnalysisRepository {
             val content = body?.output?.firstOrNull()?.content
                 ?.firstOrNull { it.type == "output_text" }?.text
             val rawUsageJson = formatUsageJson(body?.usage)
+            // Responses API uses input_tokens/output_tokens (not prompt_tokens/completion_tokens)
             val usage = body?.usage?.let {
                 TokenUsage(
-                    inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    inputTokens = it.input_tokens ?: it.prompt_tokens ?: 0,
+                    outputTokens = it.output_tokens ?: it.completion_tokens ?: 0
                 )
             }
             if (content != null) {
