@@ -2,163 +2,155 @@
 2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
 3    package="com.eval"
 4    android:versionCode="1"
-5    android:versionName="26.0125.043617" >
+5    android:versionName="26.0125.050641" >
 6
 7    <uses-sdk
 8        android:minSdkVersion="26"
 9        android:targetSdkVersion="34" />
 10
 11    <uses-permission android:name="android.permission.INTERNET" />
-11-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:5:5-67
-11-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:5:22-64
+11-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:5:5-67
+11-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:5:22-64
 12
-13    <!-- Query Stockfish package to use system-installed engine -->
-14    <queries>
-14-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:8:5-10:15
-15        <package android:name="com.stockfish141" />
-15-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:9:9-52
-15-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:9:18-49
-16    </queries>
-17
-18    <permission
-18-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
-19        android:name="com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-19-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
-20        android:protectionLevel="signature" />
-20-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
-21
-22    <uses-permission android:name="com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
-22-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
-22-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
-23
-24    <application
-24-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:12:5-40:19
-25        android:allowBackup="false"
-25-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:13:9-36
-26        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
-26-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
-27        android:debuggable="true"
-28        android:extractNativeLibs="true"
-28-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:14:9-41
-29        android:icon="@mipmap/ic_launcher"
-29-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:15:9-43
-30        android:label="@string/app_name"
-30-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:16:9-41
-31        android:roundIcon="@mipmap/ic_launcher_round"
-31-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:17:9-54
-32        android:supportsRtl="true"
-32-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:18:9-35
-33        android:theme="@style/Theme.Eval" >
-33-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:19:9-42
-34        <activity
-34-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:21:9-29:20
-35            android:name="com.eval.MainActivity"
-35-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:22:13-41
-36            android:exported="true"
-36-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:23:13-36
-37            android:theme="@style/Theme.Eval" >
-37-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:24:13-46
-38            <intent-filter>
-38-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:25:13-28:29
-39                <action android:name="android.intent.action.MAIN" />
-39-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:26:17-69
-39-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:26:25-66
-40
-41                <category android:name="android.intent.category.LAUNCHER" />
-41-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:27:17-77
-41-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:27:27-74
-42            </intent-filter>
-43        </activity>
-44
-45        <provider
-46            android:name="androidx.core.content.FileProvider"
-46-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:32:13-62
-47            android:authorities="com.eval.fileprovider"
-47-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:33:13-64
-48            android:exported="false"
-48-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:34:13-37
-49            android:grantUriPermissions="true" >
-49-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:35:13-47
-50            <meta-data
-50-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:36:13-38:54
-51                android:name="android.support.FILE_PROVIDER_PATHS"
-51-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:37:17-67
-52                android:resource="@xml/file_paths" />
-52-->/Users/herbert/eval/app/src/main/AndroidManifest.xml:38:17-51
-53        </provider>
-54
-55        <activity
-55-->[androidx.compose.ui:ui-tooling-android:1.6.6] /Users/herbert/.gradle/caches/transforms-3/5817059a0e5208d9b2c4f6c555d0e4cf/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
-56            android:name="androidx.compose.ui.tooling.PreviewActivity"
-56-->[androidx.compose.ui:ui-tooling-android:1.6.6] /Users/herbert/.gradle/caches/transforms-3/5817059a0e5208d9b2c4f6c555d0e4cf/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
-57            android:exported="true" />
-57-->[androidx.compose.ui:ui-tooling-android:1.6.6] /Users/herbert/.gradle/caches/transforms-3/5817059a0e5208d9b2c4f6c555d0e4cf/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
-58
-59        <provider
-59-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
-60            android:name="androidx.startup.InitializationProvider"
-60-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
-61            android:authorities="com.eval.androidx-startup"
-61-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
-62            android:exported="false" >
-62-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
-63            <meta-data
-63-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
-64                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-64-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
-65                android:value="androidx.startup" />
-65-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
-66            <meta-data
-66-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/herbert/.gradle/caches/transforms-3/071a979a1ebdb25559f7f439d1522302/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
-67                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-67-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/herbert/.gradle/caches/transforms-3/071a979a1ebdb25559f7f439d1522302/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
-68                android:value="androidx.startup" />
-68-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/herbert/.gradle/caches/transforms-3/071a979a1ebdb25559f7f439d1522302/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
-69            <meta-data
-69-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
-70                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-70-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
-71                android:value="androidx.startup" />
-71-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
-72        </provider>
-73
-74        <receiver
-74-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
-75            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-75-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
-76            android:directBootAware="false"
-76-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
-77            android:enabled="true"
-77-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
-78            android:exported="true"
-78-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
-79            android:permission="android.permission.DUMP" >
-79-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
-80            <intent-filter>
-80-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
-81                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-81-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
-81-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
-82            </intent-filter>
-83            <intent-filter>
-83-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
-84                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-84-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
-84-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
-85            </intent-filter>
-86            <intent-filter>
-86-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
-87                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-87-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
-87-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
-88            </intent-filter>
-89            <intent-filter>
-89-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
-90                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-90-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
-90-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
-91            </intent-filter>
-92        </receiver>
-93    </application>
-94
-95</manifest>
+13    <permission
+13-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+14        android:name="com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+14-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+15        android:protectionLevel="signature" />
+15-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+16
+17    <uses-permission android:name="com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+17-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+17-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+18
+19    <application
+19-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:7:5-35:19
+20        android:allowBackup="false"
+20-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:8:9-36
+21        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+21-->[androidx.core:core:1.13.1] /Users/herbert/.gradle/caches/transforms-3/d183cbc2b4c53c488f3856897f3761fb/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+22        android:debuggable="true"
+23        android:extractNativeLibs="true"
+23-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:9:9-41
+24        android:icon="@mipmap/ic_launcher"
+24-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:10:9-43
+25        android:label="@string/app_name"
+25-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:11:9-41
+26        android:roundIcon="@mipmap/ic_launcher_round"
+26-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:12:9-54
+27        android:supportsRtl="true"
+27-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:13:9-35
+28        android:theme="@style/Theme.AI" >
+28-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:14:9-40
+29        <activity
+29-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:16:9-24:20
+30            android:name="com.eval.MainActivity"
+30-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:17:13-41
+31            android:exported="true"
+31-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:18:13-36
+32            android:theme="@style/Theme.AI" >
+32-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:19:13-44
+33            <intent-filter>
+33-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:20:13-23:29
+34                <action android:name="android.intent.action.MAIN" />
+34-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:21:17-69
+34-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:21:25-66
+35
+36                <category android:name="android.intent.category.LAUNCHER" />
+36-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:22:17-77
+36-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:22:27-74
+37            </intent-filter>
+38        </activity>
+39
+40        <provider
+41            android:name="androidx.core.content.FileProvider"
+41-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:27:13-62
+42            android:authorities="com.eval.fileprovider"
+42-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:28:13-64
+43            android:exported="false"
+43-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:29:13-37
+44            android:grantUriPermissions="true" >
+44-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:30:13-47
+45            <meta-data
+45-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:31:13-33:54
+46                android:name="android.support.FILE_PROVIDER_PATHS"
+46-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:32:17-67
+47                android:resource="@xml/file_paths" />
+47-->/Users/herbert/ai/app/src/main/AndroidManifest.xml:33:17-51
+48        </provider>
+49
+50        <activity
+50-->[androidx.compose.ui:ui-tooling-android:1.6.6] /Users/herbert/.gradle/caches/transforms-3/5817059a0e5208d9b2c4f6c555d0e4cf/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
+51            android:name="androidx.compose.ui.tooling.PreviewActivity"
+51-->[androidx.compose.ui:ui-tooling-android:1.6.6] /Users/herbert/.gradle/caches/transforms-3/5817059a0e5208d9b2c4f6c555d0e4cf/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
+52            android:exported="true" />
+52-->[androidx.compose.ui:ui-tooling-android:1.6.6] /Users/herbert/.gradle/caches/transforms-3/5817059a0e5208d9b2c4f6c555d0e4cf/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
+53
+54        <provider
+54-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+55            android:name="androidx.startup.InitializationProvider"
+55-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+56            android:authorities="com.eval.androidx-startup"
+56-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+57            android:exported="false" >
+57-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
+58            <meta-data
+58-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+59                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+59-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+60                android:value="androidx.startup" />
+60-->[androidx.emoji2:emoji2:1.3.0] /Users/herbert/.gradle/caches/transforms-3/9796bbaa23384b5476374a64a0794a81/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+61            <meta-data
+61-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/herbert/.gradle/caches/transforms-3/071a979a1ebdb25559f7f439d1522302/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+62                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+62-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/herbert/.gradle/caches/transforms-3/071a979a1ebdb25559f7f439d1522302/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+63                android:value="androidx.startup" />
+63-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/herbert/.gradle/caches/transforms-3/071a979a1ebdb25559f7f439d1522302/transformed/lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+64            <meta-data
+64-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+65                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+65-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+66                android:value="androidx.startup" />
+66-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+67        </provider>
+68
+69        <receiver
+69-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+70            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+70-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+71            android:directBootAware="false"
+71-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+72            android:enabled="true"
+72-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+73            android:exported="true"
+73-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+74            android:permission="android.permission.DUMP" >
+74-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+75            <intent-filter>
+75-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+76                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+77            </intent-filter>
+78            <intent-filter>
+78-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+79                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+80            </intent-filter>
+81            <intent-filter>
+81-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+82                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+83            </intent-filter>
+84            <intent-filter>
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+85                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/herbert/.gradle/caches/transforms-3/137ec8b442aadb8b3995c0941f8e7963/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+86            </intent-filter>
+87        </receiver>
+88    </application>
+89
+90</manifest>

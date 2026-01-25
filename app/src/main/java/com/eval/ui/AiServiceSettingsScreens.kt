@@ -21,7 +21,7 @@ fun ChatGptSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -34,7 +34,7 @@ fun ChatGptSettingsScreen(
         subtitle = "OpenAI",
         accentColor = Color(0xFF10A37F),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -68,7 +68,7 @@ fun ChatGptSettingsScreen(
 fun ClaudeSettingsScreen(
     aiSettings: AiSettings,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.claudeApiKey) }
@@ -80,7 +80,7 @@ fun ClaudeSettingsScreen(
         subtitle = "Anthropic",
         accentColor = Color(0xFFD97706),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -116,7 +116,7 @@ fun GeminiSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -129,7 +129,7 @@ fun GeminiSettingsScreen(
         subtitle = "Google",
         accentColor = Color(0xFF4285F4),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -165,7 +165,7 @@ fun GrokSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -178,7 +178,7 @@ fun GrokSettingsScreen(
         subtitle = "xAI",
         accentColor = Color(0xFFFFFFFF),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -214,7 +214,7 @@ fun GroqSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -227,7 +227,7 @@ fun GroqSettingsScreen(
         subtitle = "Groq",
         accentColor = Color(0xFFF55036),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -263,7 +263,7 @@ fun DeepSeekSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -276,7 +276,7 @@ fun DeepSeekSettingsScreen(
         subtitle = "DeepSeek AI",
         accentColor = Color(0xFF4D6BFE),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -312,7 +312,7 @@ fun MistralSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -325,7 +325,7 @@ fun MistralSettingsScreen(
         subtitle = "Mistral AI",
         accentColor = Color(0xFFFF7000),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -361,7 +361,7 @@ fun PerplexitySettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -374,7 +374,7 @@ fun PerplexitySettingsScreen(
         subtitle = "Perplexity AI",
         accentColor = Color(0xFF20B2AA),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -410,7 +410,7 @@ fun TogetherSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -423,7 +423,7 @@ fun TogetherSettingsScreen(
         subtitle = "Together AI",
         accentColor = Color(0xFF6366F1),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -459,7 +459,7 @@ fun OpenRouterSettingsScreen(
     availableModels: List<String>,
     isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit
 ) {
@@ -472,7 +472,7 @@ fun OpenRouterSettingsScreen(
         subtitle = "OpenRouter AI",
         accentColor = Color(0xFF6B5AED),
         onBackToAiSettings = onBackToAiSettings,
-        onBackToGame = onBackToGame
+        onBackToHome = onBackToHome
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -506,7 +506,7 @@ fun OpenRouterSettingsScreen(
 fun DummySettingsScreen(
     aiSettings: AiSettings,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.dummyApiKey) }
@@ -520,10 +520,10 @@ fun DummySettingsScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "Dummy",
             onBackClick = onBackToAiSettings,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         // Provider info with color indicator

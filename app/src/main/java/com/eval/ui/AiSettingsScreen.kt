@@ -25,7 +25,7 @@ fun AiSettingsScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     onBackToSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (AiSettings) -> Unit
 ) {
@@ -51,10 +51,10 @@ fun AiSettingsScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "AI Analysis",
             onBackClick = onBackToSettings,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -194,7 +194,7 @@ fun AiSettingsScreen(
 fun AiSetupScreen(
     aiSettings: AiSettings,
     onBackToSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (AiSettings) -> Unit
 ) {
@@ -220,10 +220,10 @@ fun AiSetupScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "AI Setup",
             onBackClick = onBackToSettings,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -362,7 +362,7 @@ fun AiProvidersScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     onBackToAiSetup: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit
 ) {
     Column(
@@ -373,10 +373,10 @@ fun AiProvidersScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "AI Providers",
             onBackClick = onBackToAiSetup,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         // Provider cards - navigate to individual provider screens for model config

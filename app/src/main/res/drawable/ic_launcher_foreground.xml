@@ -4,31 +4,47 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Chess Knight Icon -->
+    <!-- AI Icon with neural network nodes -->
+
+    <!-- Letter A -->
+    <path
+        android:fillColor="#6B9BFF"
+        android:pathData="M28,75 L38,35 L48,35 L58,75 L50,75 L48,67 L38,67 L36,75 Z M40,60 L46,60 L43,47 Z"/>
+
+    <!-- Letter I -->
+    <path
+        android:fillColor="#6B9BFF"
+        android:pathData="M62,35 L70,35 L70,75 L62,75 Z"/>
+
+    <!-- Neural network nodes - top (drawn as circles using arc paths) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,24
-            C44,24 36,32 36,42
-            C36,48 39,54 44,58
-            L40,72
-            L34,72
-            L34,84
-            L74,84
-            L74,72
-            L68,72
-            L64,58
-            C69,54 72,48 72,42
-            C72,32 64,24 54,24
-            M50,36
-            C52,34 56,34 58,36
-            C60,38 60,42 58,44
-            C56,46 52,46 50,44
-            C48,42 48,38 50,36
-            M44,50
-            L46,48
-            L54,56
-            L62,48
-            L64,50
-            L54,60
-            Z"/>
+        android:pathData="M30,24 a4,4 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,20 a4,4 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,24 a4,4 0 1,0 0.01,0 z"/>
+
+    <!-- Neural network nodes - bottom -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M35,81 a3,3 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,83 a3,3 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M73,81 a3,3 0 1,0 0.01,0 z"/>
+
+    <!-- Connection lines -->
+    <path
+        android:strokeColor="#4A7ACC"
+        android:strokeWidth="1.5"
+        android:pathData="M30,28 L43,35 M54,24 L43,35 M78,28 L48,35"/>
+    <path
+        android:strokeColor="#4A7ACC"
+        android:strokeWidth="1.5"
+        android:pathData="M35,81 L43,75 M54,83 L54,75 M73,81 L66,75"/>
 </vector>

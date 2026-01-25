@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 fun AiPromptsScreen(
     aiSettings: AiSettings,
     onBackToAiSetup: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -38,10 +38,10 @@ fun AiPromptsScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "AI Prompts",
             onBackClick = onBackToAiSetup,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -332,7 +332,7 @@ fun AiAgentsScreen(
     availableTogetherModels: List<String>,
     availableOpenRouterModels: List<String>,
     onBackToAiSetup: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null }
 ) {
@@ -349,10 +349,10 @@ fun AiAgentsScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "AI Agents",
             onBackClick = onBackToAiSetup,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         // Add button

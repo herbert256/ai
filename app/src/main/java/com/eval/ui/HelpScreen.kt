@@ -28,10 +28,10 @@ fun HelpScreen(
             .background(Color(0xFF1A1A1A))
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "Help",
             onBackClick = onBack,
-            onEvalClick = onBack
+            onAiClick = onBack
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -45,70 +45,38 @@ fun HelpScreen(
         ) {
             // Welcome section
             HelpSection(
-                title = "Welcome to Eval",
-                content = "Analyze your chess games from Lichess.org and Chess.com with the powerful Stockfish 17.1 engine and 9 AI services. " +
-                    "The app automatically fetches your games and provides deep analysis to help you improve."
+                title = "Welcome to AI",
+                content = "Create and manage AI-powered reports using 9 different AI services. " +
+                    "Configure providers, prompts, and agents to generate custom AI analysis on any topic."
             )
 
             // Getting Started
             HelpSection(
                 title = "Getting Started",
                 icon = "\uD83D\uDE80",
-                content = "Enter your username in the Lichess or Chess.com card and tap 'Retrieve' to fetch games. " +
-                    "You can also browse tournaments, broadcasts, TV channels, streamers, or import PGN files. " +
-                    "Select a game to start the analysis. The app remembers your last game for quick startup."
+                content = "1. Go to Settings > AI Setup to configure your AI providers\n" +
+                    "2. Add API keys for your preferred AI services\n" +
+                    "3. Create prompts with custom templates\n" +
+                    "4. Create agents that combine providers with prompts\n" +
+                    "5. Use 'New AI Report' to generate reports with your agents"
             )
 
-            // Analysis Stages
+            // AI Hub
             HelpSection(
-                title = "Analysis Stages",
-                icon = "\uD83D\uDCCA",
-                content = "Games progress through three analysis stages:\n\n" +
-                    "1. Preview Stage (orange) - Quick scan of all positions (50ms/move)\n" +
-                    "2. Analyse Stage (blue) - Deep analysis backward (1s/move), tap to skip\n" +
-                    "3. Manual Stage - Interactive exploration with real-time analysis"
+                title = "AI Hub",
+                icon = "\uD83D\uDCDD",
+                content = "The main screen provides access to AI features:\n\n" +
+                    "• New AI Report - Create custom AI reports with any prompt\n" +
+                    "• Prompt History - Reuse previously submitted prompts\n" +
+                    "• AI History - View previously generated reports\n\n" +
+                    "Reports are saved as HTML files you can view in Chrome or share."
             )
 
-            // Navigation
+            // AI Services
             HelpSection(
-                title = "Board Navigation",
-                icon = "♟",
-                content = "Use the navigation buttons:\n\n" +
-                    "⏮  Go to start\n" +
-                    "◀  Previous move\n" +
-                    "▶  Next move\n" +
-                    "⏭  Go to end\n" +
-                    "↻  Flip board\n\n" +
-                    "Tap or drag on the evaluation graph to jump to any position."
-            )
-
-            // Evaluation Graphs
-            HelpSection(
-                title = "Evaluation Graphs",
-                icon = "\uD83D\uDCC8",
-                content = "The line graph shows position evaluation over time:\n" +
-                    "• Green = good for you\n" +
-                    "• Red = bad for you\n" +
-                    "• Yellow line = deep analysis scores\n\n" +
-                    "The bar graph shows score changes between moves - tall red bars indicate blunders!"
-            )
-
-            // Arrows
-            HelpSection(
-                title = "Analysis Arrows",
-                icon = "↗",
-                content = "In Manual stage, tap the ↗ icon to cycle through three arrow modes:\n\n" +
-                    "• Off - No arrows\n" +
-                    "• Main line - Best continuation with numbered moves\n" +
-                    "• Multi-line - One arrow per analysis line with scores\n\n" +
-                    "Arrow colors can be customized in Settings."
-            )
-
-            // AI Analysis
-            HelpSection(
-                title = "AI Position Analysis",
+                title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
-                content = "In Manual stage, tap AI logos next to the board to get intelligent analysis from 9 AI services:\n\n" +
+                content = "The app supports 9 AI services:\n\n" +
                     "• ChatGPT (OpenAI)\n" +
                     "• Claude (Anthropic)\n" +
                     "• Gemini (Google)\n" +
@@ -118,93 +86,62 @@ fun HelpScreen(
                     "• Perplexity\n" +
                     "• Together AI\n" +
                     "• OpenRouter\n\n" +
-                    "Configure API keys in Settings > AI Setup."
-            )
-
-            // AI Hub
-            HelpSection(
-                title = "AI Hub",
-                icon = "\uD83D\uDCDD",
-                content = "Access the AI Hub from the main screen for advanced AI features:\n\n" +
-                    "• New AI Report - Create custom AI reports with any prompt\n" +
-                    "• Prompt History - Reuse previously submitted prompts\n" +
-                    "• AI History - View previously generated reports\n\n" +
-                    "Reports are saved as HTML files you can view in Chrome or share."
+                    "Each service requires an API key from the provider."
             )
 
             // Three-Tier AI Architecture
             HelpSection(
-                title = "AI Agents",
+                title = "AI Setup: Three-Tier Architecture",
                 icon = "⚙",
-                content = "Configure AI analysis with the three-tier architecture:\n\n" +
-                    "• Providers - AI services with model settings\n" +
-                    "• Prompts - Reusable prompt templates with placeholders (@FEN@, @PLAYER@, @SERVER@)\n" +
-                    "• Agents - Combine provider + model + API key + prompts\n\n" +
+                content = "Configure AI analysis with three components:\n\n" +
+                    "1. Providers - AI services with model settings and API configuration\n\n" +
+                    "2. Prompts - Reusable prompt templates. You can use placeholders like @DATE@ for dynamic content\n\n" +
+                    "3. Agents - Combine a provider + model + API key + prompt to create a reusable configuration\n\n" +
                     "Create multiple agents for different analysis purposes."
             )
 
-            // Content Sources
+            // Creating Reports
             HelpSection(
-                title = "Game Sources",
-                icon = "\uD83C\uDFAE",
-                content = "Lichess.org:\n" +
-                    "• User games, Tournaments, Broadcasts, TV channels, Streamers, Rankings\n\n" +
-                    "Chess.com:\n" +
-                    "• User games, Daily puzzle, Rankings\n\n" +
-                    "Local sources:\n" +
-                    "• PGN files (with ZIP support), ECO openings, FEN positions, Game history"
+                title = "Creating AI Reports",
+                icon = "\uD83D\uDCCA",
+                content = "To create a new AI report:\n\n" +
+                    "1. Tap 'New AI Report' from the AI Hub\n" +
+                    "2. Enter a title and your prompt\n" +
+                    "3. Select which agents to use\n" +
+                    "4. Tap 'Generate' to create the report\n\n" +
+                    "Reports can include responses from multiple agents for comparison."
             )
 
-            // Player Info
+            // Prompt History
             HelpSection(
-                title = "Player Information",
-                icon = "\uD83D\uDC64",
-                content = "View detailed player profiles with ratings across time controls, " +
-                    "game statistics, and recent games. " +
-                    "Generate AI reports about players using the AI Report feature on the player screen."
+                title = "Prompt History",
+                icon = "\uD83D\uDCDC",
+                content = "Previously submitted prompts are saved for reuse:\n\n" +
+                    "• Access from AI Hub > Prompt History\n" +
+                    "• Tap any entry to reuse that prompt\n" +
+                    "• History stores up to 100 entries\n" +
+                    "• Entries show title, prompt preview, and timestamp"
             )
 
-            // Opening Explorer
+            // AI History
             HelpSection(
-                title = "Opening Explorer",
-                icon = "\uD83D\uDCD6",
-                content = "Enable Opening Explorer in Settings > Interface Elements to see position statistics:\n\n" +
-                    "• Popular moves played in this position\n" +
-                    "• Win/Draw/Loss percentages\n" +
-                    "• Number of games with each move\n\n" +
-                    "Data from Lichess opening database."
-            )
-
-            // Top Bar Icons
-            HelpSection(
-                title = "Top Bar Icons",
-                icon = "\uD83D\uDD27",
-                content = "↻  Reload latest game\n" +
-                    "≡  Return to game selection\n" +
-                    "↗  Toggle arrow display mode\n" +
-                    "⚙  Settings\n" +
-                    "?  This help screen\n" +
-                    "\uD83D\uDC1B  API trace viewer (when enabled)"
-            )
-
-            // Exploring Lines
-            HelpSection(
-                title = "Exploring Lines",
-                icon = "\uD83D\uDD0D",
-                content = "In the analysis panel, tap any move in a Stockfish line to explore that variation. " +
-                    "The board will show the position after those moves. " +
-                    "Tap 'Back to game' to return to the main game position."
+                title = "AI History",
+                icon = "\uD83D\uDCC2",
+                content = "Generated reports are stored locally:\n\n" +
+                    "• Access from AI Hub > AI History\n" +
+                    "• View reports as HTML in Chrome\n" +
+                    "• Share reports via email\n" +
+                    "• Reports include all agent responses"
             )
 
             // Export Features
             HelpSection(
                 title = "Export Features",
                 icon = "\uD83D\uDCE4",
-                content = "Share your analysis:\n\n" +
-                    "• PGN - Full game with evaluation comments\n" +
-                    "• GIF - Animated replay of the game\n" +
-                    "• AI Reports - HTML with interactive board, graphs, and AI analysis\n\n" +
-                    "Use Android share sheet or email directly from the app."
+                content = "Share your AI reports:\n\n" +
+                    "• View in Chrome - Open as interactive HTML\n" +
+                    "• Share via Email - Send HTML as attachment\n" +
+                    "• Use Android share sheet for other apps"
             )
 
             // Settings Overview
@@ -212,45 +149,17 @@ fun HelpScreen(
                 title = "Settings Overview",
                 icon = "⚙",
                 content = "Customize the app:\n\n" +
-                    "• Board Layout - Colors, coordinates, player bars, eval bar\n" +
-                    "• Interface Elements - Show/hide UI per stage\n" +
-                    "• Graph Settings - Evaluation graph colors and ranges\n" +
-                    "• Arrow Settings - Arrow modes, colors, count\n" +
-                    "• Stockfish - Engine settings per analysis stage\n" +
-                    "• AI Setup - Providers, prompts, agents\n" +
-                    "• General - Fullscreen, sounds, pagination"
-            )
-
-            // Tips
-            HelpSection(
-                title = "Tips",
-                icon = "\uD83D\uDCA1",
-                content = "• Background color shows result: green (win), red (loss), blue (draw)\n" +
-                    "• Scores are always from your perspective\n" +
-                    "• Player bars show remaining clock time when available\n" +
-                    "• Tap 'Analysis running' banner to jump to biggest mistake\n" +
-                    "• Enable 'Red border for player to move' to see whose turn it is\n" +
-                    "• Move list shows colored scores - green moves are good, red are mistakes\n" +
-                    "• Long tap for fullscreen mode (if enabled in General settings)"
-            )
-
-            // Live Games
-            HelpSection(
-                title = "Live Games",
-                icon = "\uD83D\uDCFA",
-                content = "Follow games in real-time:\n\n" +
-                    "• Select a game from TV channels or streamers\n" +
-                    "• Enable 'Auto-follow' to update automatically\n" +
-                    "• Watch moves appear as they're played\n" +
-                    "• Analysis updates with each new move"
+                    "• General - Pagination settings\n" +
+                    "• AI Setup - Providers, prompts, agents configuration\n" +
+                    "• Developer - API tracking for debugging"
             )
 
             // API Tracing
             HelpSection(
                 title = "Developer: API Tracing",
                 icon = "\uD83D\uDC1B",
-                content = "Enable 'Track API calls' in General settings to log all network requests:\n\n" +
-                    "• All Lichess, Chess.com, and AI service calls are logged\n" +
+                content = "Enable 'Track API calls' in Developer settings to log all network requests:\n\n" +
+                    "• All AI service API calls are logged\n" +
                     "• View requests/responses in the trace viewer\n" +
                     "• Useful for debugging API issues\n" +
                     "• Traces are cleared when tracking is disabled"
@@ -260,9 +169,7 @@ fun HelpScreen(
             HelpSection(
                 title = "About",
                 icon = "ℹ",
-                content = "Eval uses Stockfish 17.1, the world's strongest open-source chess engine.\n\n" +
-                    "Game data from Lichess.org and Chess.com public APIs.\n\n" +
-                    "AI analysis from OpenAI, Anthropic, Google, xAI, DeepSeek, Mistral, Perplexity, Together AI, and OpenRouter.\n\n" +
+                content = "AI analysis powered by OpenAI, Anthropic, Google, xAI, DeepSeek, Mistral, Perplexity, Together AI, and OpenRouter.\n\n" +
                     "All data stored locally on your device."
             )
 

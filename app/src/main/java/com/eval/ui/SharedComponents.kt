@@ -15,19 +15,19 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Generic title bar used across all screens in the app.
- * Shows a back button on the left, optional title in the middle, and "Eval" on the right.
+ * Shows a back button on the left, optional title in the middle, and "AI" on the right.
  *
  * @param title The screen title to display (optional)
  * @param onBackClick Callback when back button is clicked (if null, no back button shown)
- * @param onEvalClick Callback when "Eval" text is clicked (typically navigates to home)
+ * @param onAiClick Callback when "AI" text is clicked (typically navigates to home)
  * @param backText The text/icon for the back button (default: "< Back")
  * @param leftContent Optional custom content for the left side (replaces back button if provided)
  */
 @Composable
-fun EvalTitleBar(
+fun AiTitleBar(
     title: String? = null,
     onBackClick: (() -> Unit)? = null,
-    onEvalClick: () -> Unit = {},
+    onAiClick: () -> Unit = {},
     backText: String = "< Back",
     leftContent: (@Composable RowScope.() -> Unit)? = null
 ) {
@@ -66,15 +66,15 @@ fun EvalTitleBar(
             )
         }
 
-        // Right side: "Eval" branding
+        // Right side: "AI" branding
         Text(
-            text = "Eval",
+            text = "AI",
             fontSize = 36.sp,
             color = Color.White,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End,
             maxLines = 1,
-            modifier = Modifier.clickable { onEvalClick() }
+            modifier = Modifier.clickable { onAiClick() }
         )
     }
 }

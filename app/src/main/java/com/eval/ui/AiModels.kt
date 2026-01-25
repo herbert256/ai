@@ -1,0 +1,55 @@
+package com.eval.ui
+
+import com.eval.data.AiAnalysisResponse
+
+// General app settings
+data class GeneralSettings(
+    val paginationPageSize: Int = 25,
+    val developerMode: Boolean = false,
+    val trackApiCalls: Boolean = false
+)
+
+// Prompt history entry
+data class PromptHistoryEntry(
+    val timestamp: Long,
+    val title: String,
+    val prompt: String
+)
+
+// AI UI State - main state for the AI app
+data class AiUiState(
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    // General settings
+    val generalSettings: GeneralSettings = GeneralSettings(),
+    // AI settings
+    val aiSettings: AiSettings = AiSettings(),
+    // Model availability for each provider
+    val availableChatGptModels: List<String> = emptyList(),
+    val isLoadingChatGptModels: Boolean = false,
+    val availableGeminiModels: List<String> = emptyList(),
+    val isLoadingGeminiModels: Boolean = false,
+    val availableGrokModels: List<String> = emptyList(),
+    val isLoadingGrokModels: Boolean = false,
+    val availableGroqModels: List<String> = emptyList(),
+    val isLoadingGroqModels: Boolean = false,
+    val availableDeepSeekModels: List<String> = emptyList(),
+    val isLoadingDeepSeekModels: Boolean = false,
+    val availableMistralModels: List<String> = emptyList(),
+    val isLoadingMistralModels: Boolean = false,
+    val availablePerplexityModels: List<String> = emptyList(),
+    val isLoadingPerplexityModels: Boolean = false,
+    val availableTogetherModels: List<String> = emptyList(),
+    val isLoadingTogetherModels: Boolean = false,
+    val availableOpenRouterModels: List<String> = emptyList(),
+    val isLoadingOpenRouterModels: Boolean = false,
+    // Generic AI Reports (main feature)
+    val showGenericAiAgentSelection: Boolean = false,
+    val showGenericAiReportsDialog: Boolean = false,
+    val genericAiPromptTitle: String = "",
+    val genericAiPromptText: String = "",
+    val genericAiReportsProgress: Int = 0,
+    val genericAiReportsTotal: Int = 0,
+    val genericAiReportsSelectedAgents: Set<String> = emptySet(),
+    val genericAiReportsAgentResults: Map<String, AiAnalysisResponse> = emptyMap()
+)

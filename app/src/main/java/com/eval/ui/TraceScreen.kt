@@ -69,10 +69,10 @@ fun TraceListScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "API Trace Log",
             onBackClick = onBack,
-            onEvalClick = onBack
+            onAiClick = onBack
         )
 
         Text(
@@ -382,10 +382,10 @@ private fun TraceDetailMainScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "Trace Detail",
             onBackClick = onBack,
-            onEvalClick = onBack
+            onAiClick = onBack
         )
 
         // Filename display
@@ -500,10 +500,10 @@ private fun DataViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = title,
             onBackClick = onBack,
-            onEvalClick = onBack
+            onAiClick = onBack
         )
 
         // Filename display

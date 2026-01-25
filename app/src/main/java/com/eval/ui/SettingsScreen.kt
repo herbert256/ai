@@ -22,12 +22,7 @@ enum class SettingsSubScreen {
     MAIN,
     GENERAL_SETTINGS,
     DEVELOPER_SETTINGS,
-    ARROW_SETTINGS,
-    STOCKFISH,
-    BOARD_LAYOUT,
-    GRAPH_SETTINGS,
-    INTERFACE_VISIBILITY,
-    // Old AI settings structure (kept for backwards compatibility in navigation)
+    // AI settings structure
     AI_SETTINGS,
     AI_CHATGPT,
     AI_CLAUDE,
@@ -40,7 +35,7 @@ enum class SettingsSubScreen {
     AI_TOGETHER,
     AI_OPENROUTER,
     AI_DUMMY,
-    // New three-tier AI architecture
+    // Three-tier AI architecture
     AI_SETUP,       // Hub with 3 navigation cards
     AI_PROVIDERS,   // Provider model configuration
     AI_PROMPTS,     // Prompts CRUD
@@ -53,10 +48,6 @@ enum class SettingsSubScreen {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    stockfishSettings: StockfishSettings,
-    boardLayoutSettings: BoardLayoutSettings,
-    graphSettings: GraphSettings,
-    interfaceVisibility: InterfaceVisibilitySettings,
     generalSettings: GeneralSettings,
     aiSettings: AiSettings,
     availableChatGptModels: List<String>,
@@ -78,13 +69,8 @@ fun SettingsScreen(
     availableOpenRouterModels: List<String>,
     isLoadingOpenRouterModels: Boolean,
     onBack: () -> Unit,
-    onSaveStockfish: (StockfishSettings) -> Unit,
-    onSaveBoardLayout: (BoardLayoutSettings) -> Unit,
-    onSaveGraph: (GraphSettings) -> Unit,
-    onSaveInterfaceVisibility: (InterfaceVisibilitySettings) -> Unit,
     onSaveGeneral: (GeneralSettings) -> Unit,
     onTrackApiCallsChanged: (Boolean) -> Unit = {},
-    onDeveloperModeChanged: () -> Unit = {},
     onSaveAi: (AiSettings) -> Unit,
     onFetchChatGptModels: (String) -> Unit,
     onFetchGeminiModels: (String) -> Unit,
@@ -114,7 +100,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_TOGETHER,
             SettingsSubScreen.AI_OPENROUTER,
             SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            // New three-tier screens navigate back to AI_SETUP
+            // Three-tier screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_PROMPTS,
             SettingsSubScreen.AI_AGENTS -> currentSubScreen = SettingsSubScreen.AI_SETUP
@@ -130,52 +116,21 @@ fun SettingsScreen(
         SettingsSubScreen.GENERAL_SETTINGS -> GeneralSettingsScreen(
             generalSettings = generalSettings,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveGeneral
         )
         SettingsSubScreen.DEVELOPER_SETTINGS -> DeveloperSettingsScreen(
             generalSettings = generalSettings,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveGeneral,
-            onTrackApiCallsChanged = onTrackApiCallsChanged,
-            onDeveloperModeChanged = onDeveloperModeChanged
-        )
-        SettingsSubScreen.ARROW_SETTINGS -> ArrowSettingsScreen(
-            stockfishSettings = stockfishSettings,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
-            onSave = onSaveStockfish
-        )
-        SettingsSubScreen.STOCKFISH -> StockfishSettingsScreen(
-            stockfishSettings = stockfishSettings,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
-            onSave = onSaveStockfish
-        )
-        SettingsSubScreen.BOARD_LAYOUT -> BoardLayoutSettingsScreen(
-            boardLayoutSettings = boardLayoutSettings,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
-            onSave = onSaveBoardLayout
-        )
-        SettingsSubScreen.GRAPH_SETTINGS -> GraphSettingsScreen(
-            graphSettings = graphSettings,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
-            onSave = onSaveGraph
-        )
-        SettingsSubScreen.INTERFACE_VISIBILITY -> InterfaceSettingsScreen(
-            interfaceVisibility = interfaceVisibility,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
-            onSave = onSaveInterfaceVisibility
+            onTrackApiCallsChanged = onTrackApiCallsChanged
         )
         SettingsSubScreen.AI_SETTINGS -> AiSettingsScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi
         )
@@ -184,14 +139,14 @@ fun SettingsScreen(
             availableModels = availableChatGptModels,
             isLoadingModels = isLoadingChatGptModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchChatGptModels
         )
         SettingsSubScreen.AI_CLAUDE -> ClaudeSettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi
         )
         SettingsSubScreen.AI_GEMINI -> GeminiSettingsScreen(
@@ -199,7 +154,7 @@ fun SettingsScreen(
             availableModels = availableGeminiModels,
             isLoadingModels = isLoadingGeminiModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchGeminiModels
         )
@@ -208,7 +163,7 @@ fun SettingsScreen(
             availableModels = availableGrokModels,
             isLoadingModels = isLoadingGrokModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchGrokModels
         )
@@ -217,7 +172,7 @@ fun SettingsScreen(
             availableModels = availableGroqModels,
             isLoadingModels = isLoadingGroqModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchGroqModels
         )
@@ -226,7 +181,7 @@ fun SettingsScreen(
             availableModels = availableDeepSeekModels,
             isLoadingModels = isLoadingDeepSeekModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchDeepSeekModels
         )
@@ -235,7 +190,7 @@ fun SettingsScreen(
             availableModels = availableMistralModels,
             isLoadingModels = isLoadingMistralModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchMistralModels
         )
@@ -244,7 +199,7 @@ fun SettingsScreen(
             availableModels = availablePerplexityModels,
             isLoadingModels = isLoadingPerplexityModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchPerplexityModels
         )
@@ -253,7 +208,7 @@ fun SettingsScreen(
             availableModels = availableTogetherModels,
             isLoadingModels = isLoadingTogetherModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchTogetherModels
         )
@@ -262,21 +217,21 @@ fun SettingsScreen(
             availableModels = availableOpenRouterModels,
             isLoadingModels = isLoadingOpenRouterModels,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onFetchModels = onFetchOpenRouterModels
         )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi
         )
-        // New three-tier AI architecture screens
+        // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi
         )
@@ -284,13 +239,13 @@ fun SettingsScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onNavigate = { currentSubScreen = it }
         )
         SettingsSubScreen.AI_PROMPTS -> AiPromptsScreen(
             aiSettings = aiSettings,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi
         )
         SettingsSubScreen.AI_AGENTS -> AiAgentsScreen(
@@ -306,7 +261,7 @@ fun SettingsScreen(
             availableTogetherModels = availableTogetherModels,
             availableOpenRouterModels = availableOpenRouterModels,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
-            onBackToGame = onBack,
+            onBackToHome = onBack,
             onSave = onSaveAi,
             onTestAiModel = onTestAiModel
         )
@@ -330,10 +285,10 @@ private fun SettingsMainScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Title bar
-        EvalTitleBar(
+        AiTitleBar(
             title = "Settings",
             onBackClick = onBack,
-            onEvalClick = onBack
+            onAiClick = onBack
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -341,43 +296,8 @@ private fun SettingsMainScreen(
         // General settings card
         SettingsNavigationCard(
             title = "General settings",
-            description = "Full screen mode, app-wide settings",
+            description = "App-wide settings",
             onClick = { onNavigate(SettingsSubScreen.GENERAL_SETTINGS) }
-        )
-
-        // Board layout card
-        SettingsNavigationCard(
-            title = "Board layout",
-            description = "Coordinates, colors, last move highlight",
-            onClick = { onNavigate(SettingsSubScreen.BOARD_LAYOUT) }
-        )
-
-        // Graph settings card
-        SettingsNavigationCard(
-            title = "Graph settings",
-            description = "Graph colors for scores and lines",
-            onClick = { onNavigate(SettingsSubScreen.GRAPH_SETTINGS) }
-        )
-
-        // Arrow settings card
-        SettingsNavigationCard(
-            title = "Arrow settings",
-            description = "Arrow display, colors, numbers",
-            onClick = { onNavigate(SettingsSubScreen.ARROW_SETTINGS) }
-        )
-
-        // Stockfish settings card
-        SettingsNavigationCard(
-            title = "Stockfish",
-            description = "Engine settings for all stages",
-            onClick = { onNavigate(SettingsSubScreen.STOCKFISH) }
-        )
-
-        // Interface visibility settings card
-        SettingsNavigationCard(
-            title = "Show interface elements",
-            description = "Configure visible UI elements per stage",
-            onClick = { onNavigate(SettingsSubScreen.INTERFACE_VISIBILITY) }
         )
 
         // AI Setup settings card (three-tier architecture)
@@ -393,7 +313,6 @@ private fun SettingsMainScreen(
             description = "Developer mode, API tracking",
             onClick = { onNavigate(SettingsSubScreen.DEVELOPER_SETTINGS) }
         )
-
     }
 }
 
@@ -441,4 +360,3 @@ private fun SettingsNavigationCard(
         }
     }
 }
-

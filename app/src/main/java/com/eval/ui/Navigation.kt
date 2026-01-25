@@ -14,18 +14,15 @@ import androidx.navigation.compose.rememberNavController
  * Navigation routes for the app.
  */
 object NavRoutes {
-    const val GAME = "game"
+    const val AI = "ai"
     const val SETTINGS = "settings"
     const val HELP = "help"
     const val TRACE_LIST = "trace_list"
     const val TRACE_DETAIL = "trace_detail/{filename}"
-    const val RETRIEVE = "retrieve"
-    const val AI = "ai"
     const val AI_HISTORY = "ai_history"
     const val AI_NEW_REPORT = "ai_new_report"
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
-    const val PLAYER_INFO = "player_info"
     const val AI_REPORTS = "ai_reports"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
@@ -40,26 +37,25 @@ object NavRoutes {
  * Main navigation host for the app.
  */
 @Composable
-fun EvalNavHost(
+fun AiNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    viewModel: GameViewModel = viewModel()
+    viewModel: AiViewModel = viewModel()
 ) {
     NavHost(
         navController = navController,
-        startDestination = NavRoutes.GAME,
+        startDestination = NavRoutes.AI,
         modifier = modifier
     ) {
-        composable(NavRoutes.GAME) {
-            GameScreenContent(
-                viewModel = viewModel,
+        composable(NavRoutes.AI) {
+            AiHubScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
-                onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.TRACE_LIST) },
-                onNavigateToRetrieve = { navController.navigate(NavRoutes.RETRIEVE) },
-                onNavigateToAi = { navController.navigate(NavRoutes.AI) },
-                onNavigateToPlayerInfo = { navController.navigate(NavRoutes.PLAYER_INFO) },
-                onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) }
+                onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
+                onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
+                onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
+                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
+                viewModel = viewModel
             )
         }
 
@@ -91,23 +87,6 @@ fun EvalNavHost(
             TraceDetailScreen(
                 filename = filename,
                 onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(NavRoutes.RETRIEVE) {
-            RetrieveScreenNav(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToGame = { navController.navigate(NavRoutes.GAME) }
-            )
-        }
-
-        composable(NavRoutes.AI) {
-            AiHubScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
-                onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
-                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) }
             )
         }
 
@@ -148,13 +127,6 @@ fun EvalNavHost(
             )
         }
 
-        composable(NavRoutes.PLAYER_INFO) {
-            PlayerInfoScreenNav(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
         composable(NavRoutes.AI_REPORTS) {
             AiReportsScreenNav(
                 viewModel = viewModel,
@@ -169,16 +141,12 @@ fun EvalNavHost(
  */
 @Composable
 fun SettingsScreenNav(
-    viewModel: GameViewModel,
+    viewModel: AiViewModel,
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     SettingsScreen(
-        stockfishSettings = uiState.stockfishSettings,
-        boardLayoutSettings = uiState.boardLayoutSettings,
-        graphSettings = uiState.graphSettings,
-        interfaceVisibility = uiState.interfaceVisibility,
         generalSettings = uiState.generalSettings,
         aiSettings = uiState.aiSettings,
         availableChatGptModels = uiState.availableChatGptModels,
@@ -200,16 +168,8 @@ fun SettingsScreenNav(
         availableOpenRouterModels = uiState.availableOpenRouterModels,
         isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
         onBack = onNavigateBack,
-        onSaveStockfish = { viewModel.updateStockfishSettings(it) },
-        onSaveBoardLayout = { viewModel.updateBoardLayoutSettings(it) },
-        onSaveGraph = { viewModel.updateGraphSettings(it) },
-        onSaveInterfaceVisibility = { viewModel.updateInterfaceVisibilitySettings(it) },
         onSaveGeneral = { viewModel.updateGeneralSettings(it) },
         onTrackApiCallsChanged = { viewModel.updateTrackApiCalls(it) },
-        onDeveloperModeChanged = {
-            viewModel.resetToHomepage()
-            onNavigateBack()
-        },
         onSaveAi = { viewModel.updateAiSettings(it) },
         onFetchChatGptModels = { viewModel.fetchChatGptModels(it) },
         onFetchGeminiModels = { viewModel.fetchGeminiModels(it) },
@@ -221,24 +181,5 @@ fun SettingsScreenNav(
         onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) }
-    )
-}
-
-/**
- * Wrapper for RetrieveScreen that gets state from ViewModel.
- */
-@Composable
-fun RetrieveScreenNav(
-    viewModel: GameViewModel,
-    onNavigateBack: () -> Unit,
-    onNavigateToGame: () -> Unit = {}
-) {
-    val uiState by viewModel.uiState.collectAsState()
-
-    RetrieveScreen(
-        viewModel = viewModel,
-        uiState = uiState,
-        onBack = onNavigateBack,
-        onNavigateToGame = onNavigateToGame
     )
 }

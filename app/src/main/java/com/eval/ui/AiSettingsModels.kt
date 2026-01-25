@@ -3,59 +3,6 @@ package com.eval.ui
 import com.eval.data.AiService
 
 /**
- * Default prompt template for AI chess game analysis.
- */
-const val DEFAULT_GAME_PROMPT = """You are an expert chess analyst. Analyze the following chess position given in FEN notation.
-
-FEN: @FEN@
-
-Please provide:
-1. A brief assessment of the position (who is better and why)
-2. Key strategic themes and plans for the side to play
-
-No need to use an chess engine to look for tactical opportunities, Stockfish is already doing that for me.
-
-Keep your analysis concise but insightful, suitable for a chess player looking to understand the position better."""
-
-// Keep old constant name for backwards compatibility
-const val DEFAULT_AI_PROMPT = DEFAULT_GAME_PROMPT
-
-/**
- * Default prompt template for lichess.org & chess.com player analysis.
- */
-const val DEFAULT_SERVER_PLAYER_PROMPT = """What do you know about user @PLAYER@ on chess server @SERVER@ ?. What is the real name of this player? What is good and the bad about this player? Is there any gossip on the internet?"""
-
-/**
- * Default prompt template for other player analysis.
- */
-const val DEFAULT_OTHER_PLAYER_PROMPT = """You are a professional chess journalist. Write a profile of the chess player @PLAYER@ (1000 words) for a serious publication.
-
-Rules: Do not invent facts, quotes, games, ratings, titles, events, or personal details. If info is missing or uncertain, say so and label it 'unverified' or 'unknown.' If web access exists, verify key facts via reputable sources (e.g., FIDE, national federation, major chess media) and list sources at the end.
-
-Must cover (with subheadings):
-
-Career timeline + key results + rating/title context (only if verified)
-
-Playing style: openings, strengths/weaknesses, psychology—grounded in evidence
-
-2–3 signature games (human explanation; minimal notation; no engine-dump)
-
-Rivalries/peers and place in today's chess landscape
-
-Off-the-board work (coaching/streaming/writing/sponsors/controversies—verified only)
-
-Current form (last 12 months) and realistic outlook
-
-End with a tight conclusion"""
-
-/**
- * Default prompt names for migration and initialization.
- */
-const val DEFAULT_GAME_PROMPT_NAME = "Game Analysis"
-const val DEFAULT_SERVER_PLAYER_PROMPT_NAME = "Server Player"
-const val DEFAULT_OTHER_PLAYER_PROMPT_NAME = "Other Player"
-
-/**
  * Enum for model source - API (fetched from provider) or Manual (user-maintained list)
  */
 enum class ModelSource {
@@ -88,26 +35,14 @@ val PERPLEXITY_MODELS = listOf(
 )
 
 /**
- * AI Prompt - user-created prompt template for AI analysis.
- */
-data class AiPrompt(
-    val id: String,    // UUID
-    val name: String,  // User-defined name
-    val text: String   // Prompt template with @FEN@, @PLAYER@, @SERVER@, @DATE@ placeholders
-)
-
-/**
- * AI Agent - user-created configuration combining provider, model, API key, and prompts.
+ * AI Agent - user-created configuration combining provider, model, and API key.
  */
 data class AiAgent(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val provider: AiService,           // Reference to provider enum
     val model: String,                 // Model name
-    val apiKey: String,                // API key for this agent
-    val gamePromptId: String,          // Reference to AiPrompt by ID
-    val serverPlayerPromptId: String,  // Reference to AiPrompt by ID
-    val otherPlayerPromptId: String    // Reference to AiPrompt by ID
+    val apiKey: String                 // API key for this agent
 )
 
 /**

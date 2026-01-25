@@ -16,26 +16,39 @@ import com.eval.data.AiHistoryManager
 import com.eval.data.AiHistoryFileInfo
 
 /**
- * AI hub screen with links to New AI Report, AI History, and Prompt History.
- * Used as a navigation destination.
+ * AI hub screen - the home page of the app.
+ * Shows links to New AI Report, AI History, and Prompt History.
+ * Also has navigation icons for Settings, Trace, and Help.
  */
 @Composable
 fun AiHubScreen(
-    onNavigateBack: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToTrace: () -> Unit,
+    onNavigateToHelp: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToNewReport: () -> Unit,
-    onNavigateToPromptHistory: () -> Unit
+    onNavigateToPromptHistory: () -> Unit,
+    viewModel: AiViewModel
 ) {
+    val uiState by viewModel.uiState.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
-            title = "AI",
-            onBackClick = onNavigateBack,
-            onEvalClick = onNavigateBack
+        AiTitleBar(
+            title = null,
+            onBackClick = null,
+            onAiClick = {},
+            leftContent = {
+                TitleBarIcon(icon = "\u2699", onClick = onNavigateToSettings, fontSize = 28)  // Settings
+                if (uiState.generalSettings.trackApiCalls) {
+                    TitleBarIcon(icon = "\uD83D\uDC1B", onClick = onNavigateToTrace, fontSize = 24)  // Bug/Trace
+                }
+                TitleBarIcon(icon = "?", onClick = onNavigateToHelp, fontSize = 28)  // Help
+            }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -182,10 +195,10 @@ fun AiHistoryScreenNav(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "AI History",
             onBackClick = onNavigateBack,
-            onEvalClick = onNavigateBack
+            onAiClick = onNavigateBack
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -438,7 +451,7 @@ private fun openHistoryFileInChromeNav(context: android.content.Context, file: j
  */
 @Composable
 fun AiNewReportScreen(
-    viewModel: GameViewModel,
+    viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToAiReports: () -> Unit = {},
     initialTitle: String = "",
@@ -470,10 +483,10 @@ fun AiNewReportScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "New AI Report",
             onBackClick = onNavigateBack,
-            onEvalClick = onNavigateBack
+            onAiClick = onNavigateBack
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -546,8 +559,113 @@ fun AiNewReportScreen(
     }
 }
 
+// Helper function to convert generic AI reports to HTML
+internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: String): String {
+    val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+        .format(java.util.Date())
+
+    val agentResults = uiState.genericAiReportsAgentResults
+    val title = uiState.genericAiPromptTitle
+    val prompt = uiState.genericAiPromptText
+
+    val htmlBuilder = StringBuilder()
+    htmlBuilder.append("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>AI Report - $title</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: #1a1a1a;
+                    color: #e0e0e0;
+                    margin: 0;
+                    padding: 20px;
+                    line-height: 1.6;
+                }
+                .container { max-width: 800px; margin: 0 auto; }
+                h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                h2 { color: #4CAF50; margin-top: 30px; }
+                .prompt-section {
+                    background: #2a2a2a;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin: 20px 0;
+                }
+                .prompt-label { color: #888; font-size: 0.9em; margin-bottom: 5px; }
+                .prompt-text { white-space: pre-wrap; }
+                .agent-result {
+                    background: #252525;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin: 15px 0;
+                    border-left: 4px solid #6B9BFF;
+                }
+                .agent-name { color: #6B9BFF; font-weight: bold; font-size: 1.1em; }
+                .agent-model { color: #888; font-size: 0.9em; margin-bottom: 10px; }
+                .agent-response { white-space: pre-wrap; }
+                .error { color: #ff6b6b; }
+                .footer {
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #333;
+                    color: #666;
+                    font-size: 0.9em;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>AI Report: $title</h1>
+
+                <div class="prompt-section">
+                    <div class="prompt-label">Prompt:</div>
+                    <div class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</div>
+                </div>
+    """.trimIndent())
+
+    // Add each agent's response
+    agentResults.forEach { (agentId, response) ->
+        val agentName = uiState.aiSettings.getAgentById(agentId)?.name ?: "Unknown Agent"
+        val model = uiState.aiSettings.getAgentById(agentId)?.model ?: ""
+
+        htmlBuilder.append("""
+                <div class="agent-result">
+                    <div class="agent-name">$agentName</div>
+                    <div class="agent-model">$model</div>
+        """)
+
+        if (response.error != null) {
+            htmlBuilder.append("""
+                    <div class="error">Error: ${response.error}</div>
+            """)
+        } else {
+            val analysis = response.analysis?.replace("<", "&lt;")?.replace(">", "&gt;") ?: "No response"
+            htmlBuilder.append("""
+                    <div class="agent-response">$analysis</div>
+            """)
+        }
+
+        htmlBuilder.append("</div>")
+    }
+
+    htmlBuilder.append("""
+                <div class="footer">
+                    Generated by AI v$appVersion on $timestamp
+                </div>
+            </div>
+        </body>
+        </html>
+    """.trimIndent())
+
+    return htmlBuilder.toString()
+}
+
 // Helper functions for sharing/opening generic AI reports
-internal fun shareGenericAiReports(context: android.content.Context, uiState: GameUiState) {
+internal fun shareGenericAiReports(context: android.content.Context, uiState: AiUiState) {
     try {
         val appVersion = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
@@ -590,7 +708,7 @@ internal fun shareGenericAiReports(context: android.content.Context, uiState: Ga
     }
 }
 
-internal fun openGenericAiReportsInChrome(context: android.content.Context, uiState: GameUiState) {
+internal fun openGenericAiReportsInChrome(context: android.content.Context, uiState: AiUiState) {
     try {
         val appVersion = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
@@ -660,10 +778,10 @@ fun PromptHistoryScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "Prompt History",
             onBackClick = onNavigateBack,
-            onEvalClick = onNavigateBack
+            onAiClick = onNavigateBack
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -795,60 +913,27 @@ private fun PromptHistoryRow(
 }
 
 /**
- * Type of AI report being generated.
- */
-enum class AiReportScreenType { GAME, PLAYER, GENERIC }
-
-/**
  * Navigation wrapper for AI Reports screen.
  */
 @Composable
 fun AiReportsScreenNav(
-    viewModel: GameViewModel,
+    viewModel: AiViewModel,
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // Determine report type: generic > player > game
-    val reportType = when {
-        uiState.genericAiPromptTitle.isNotEmpty() -> AiReportScreenType.GENERIC
-        uiState.playerAiReportsPlayerName.isNotEmpty() -> AiReportScreenType.PLAYER
-        else -> AiReportScreenType.GAME
-    }
-
     AiReportsScreen(
         uiState = uiState,
         savedAgentIds = viewModel.loadAiReportAgents(),
-        reportType = reportType,
         onGenerate = { selectedAgentIds ->
             viewModel.saveAiReportAgents(selectedAgentIds)
-            when (reportType) {
-                AiReportScreenType.GENERIC -> viewModel.generateGenericAiReports(selectedAgentIds)
-                AiReportScreenType.PLAYER -> viewModel.startPlayerAiReportsWithAgents(selectedAgentIds)
-                AiReportScreenType.GAME -> viewModel.generateAiReportsWithAgents(selectedAgentIds)
-            }
+            viewModel.generateGenericAiReports(selectedAgentIds)
         },
-        onShare = {
-            when (reportType) {
-                AiReportScreenType.GENERIC -> shareGenericAiReports(context, uiState)
-                AiReportScreenType.PLAYER -> sharePlayerAiReports(context, uiState)
-                AiReportScreenType.GAME -> shareAiReports(context, uiState)
-            }
-        },
-        onOpenInBrowser = {
-            when (reportType) {
-                AiReportScreenType.GENERIC -> openGenericAiReportsInChrome(context, uiState)
-                AiReportScreenType.PLAYER -> openPlayerAiReportsInChrome(context, uiState)
-                AiReportScreenType.GAME -> openAiReportsInChrome(context, uiState)
-            }
-        },
+        onShare = { shareGenericAiReports(context, uiState) },
+        onOpenInBrowser = { openGenericAiReportsInChrome(context, uiState) },
         onDismiss = {
-            when (reportType) {
-                AiReportScreenType.GENERIC -> viewModel.dismissGenericAiReportsDialog()
-                AiReportScreenType.PLAYER -> viewModel.dismissPlayerAiReportsDialog()
-                AiReportScreenType.GAME -> viewModel.dismissAiReportsDialog()
-            }
+            viewModel.dismissGenericAiReportsDialog()
             onNavigateBack()
         }
     )
@@ -857,39 +942,20 @@ fun AiReportsScreenNav(
 /**
  * Full-screen AI Reports generation and results screen.
  * Shows agent selection first, then progress and results.
- * Supports game reports, player reports, and generic reports.
  */
 @Composable
 fun AiReportsScreen(
-    uiState: GameUiState,
+    uiState: AiUiState,
     savedAgentIds: Set<String>,
-    reportType: AiReportScreenType = AiReportScreenType.GAME,
     onGenerate: (Set<String>) -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Use appropriate state based on report type
-    val reportsTotal = when (reportType) {
-        AiReportScreenType.GENERIC -> uiState.genericAiReportsTotal
-        AiReportScreenType.PLAYER -> uiState.playerAiReportsTotal
-        AiReportScreenType.GAME -> uiState.aiReportsTotal
-    }
-    val reportsProgress = when (reportType) {
-        AiReportScreenType.GENERIC -> uiState.genericAiReportsProgress
-        AiReportScreenType.PLAYER -> uiState.playerAiReportsProgress
-        AiReportScreenType.GAME -> uiState.aiReportsProgress
-    }
-    val reportsAgentResults = when (reportType) {
-        AiReportScreenType.GENERIC -> uiState.genericAiReportsAgentResults
-        AiReportScreenType.PLAYER -> uiState.playerAiReportsAgentResults
-        AiReportScreenType.GAME -> uiState.aiReportsAgentResults
-    }
-    val reportsSelectedAgents = when (reportType) {
-        AiReportScreenType.GENERIC -> uiState.genericAiReportsSelectedAgents
-        AiReportScreenType.PLAYER -> uiState.playerAiReportsSelectedAgents
-        AiReportScreenType.GAME -> uiState.aiReportsSelectedAgents
-    }
+    val reportsTotal = uiState.genericAiReportsTotal
+    val reportsProgress = uiState.genericAiReportsProgress
+    val reportsAgentResults = uiState.genericAiReportsAgentResults
+    val reportsSelectedAgents = uiState.genericAiReportsSelectedAgents
 
     val isGenerating = reportsTotal > 0
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
@@ -927,26 +993,14 @@ fun AiReportsScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = when {
-                isComplete -> when (reportType) {
-                    AiReportScreenType.GENERIC -> "Report Ready"
-                    AiReportScreenType.PLAYER -> "Player Reports Ready"
-                    AiReportScreenType.GAME -> "AI Reports Ready"
-                }
-                isGenerating -> when (reportType) {
-                    AiReportScreenType.GENERIC -> "Generating Report"
-                    AiReportScreenType.PLAYER -> "Generating Player Reports"
-                    AiReportScreenType.GAME -> "Generating AI Reports"
-                }
-                else -> when (reportType) {
-                    AiReportScreenType.GENERIC -> "Report: ${uiState.genericAiPromptTitle}"
-                    AiReportScreenType.PLAYER -> "Player: ${uiState.playerAiReportsPlayerName}"
-                    AiReportScreenType.GAME -> "AI Reports"
-                }
+                isComplete -> "Report Ready"
+                isGenerating -> "Generating Report"
+                else -> "Report: ${uiState.genericAiPromptTitle}"
             },
             onBackClick = onDismiss,
-            onEvalClick = onDismiss
+            onAiClick = onDismiss
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1207,10 +1261,10 @@ fun AiReportsViewerScreen(
         } else {
             "View Reports"
         }
-        EvalTitleBar(
+        AiTitleBar(
             title = titleText,
             onBackClick = onDismiss,
-            onEvalClick = onDismiss
+            onAiClick = onDismiss
         )
 
         // Agent selection buttons - wrapping flow layout

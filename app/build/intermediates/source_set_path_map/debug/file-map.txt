@@ -52,9 +52,9 @@ com.eval.app-customview-poolingcontainer-1.0.0-50 /Users/herbert/.gradle/caches/
 com.eval.app-lifecycle-viewmodel-2.7.0-51 /Users/herbert/.gradle/caches/transforms-3/f8b4a7cacbd2d8afde30c932ef73f6ec/transformed/lifecycle-viewmodel-2.7.0/res
 com.eval.app-material-release-52 /Users/herbert/.gradle/caches/transforms-3/f9bdfe974aaa280045818f3d230ded25/transformed/material-release/res
 com.eval.app-ext-tables-4.6.2-53 /Users/herbert/.gradle/caches/transforms-3/f9eb28c559c8f080e3fb65bf3a65122c/transformed/ext-tables-4.6.2/res
-com.eval.app-resValues-54 /Users/herbert/eval/app/build/generated/res/resValues/debug
-com.eval.app-packageDebugResources-55 /Users/herbert/eval/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-com.eval.app-packageDebugResources-56 /Users/herbert/eval/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-com.eval.app-merged_res-57 /Users/herbert/eval/app/build/intermediates/merged_res/debug
-com.eval.app-debug-58 /Users/herbert/eval/app/src/debug/res
-com.eval.app-main-59 /Users/herbert/eval/app/src/main/res
+com.eval.app-resValues-54 /Users/herbert/ai/app/build/generated/res/resValues/debug
+com.eval.app-packageDebugResources-55 /Users/herbert/ai/app/build/intermediates/incremental/debug/packageDebugResources/merged.dir
+com.eval.app-packageDebugResources-56 /Users/herbert/ai/app/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
+com.eval.app-merged_res-57 /Users/herbert/ai/app/build/intermediates/merged_res/debug
+com.eval.app-debug-58 /Users/herbert/ai/app/src/debug/res
+com.eval.app-main-59 /Users/herbert/ai/app/src/main/res

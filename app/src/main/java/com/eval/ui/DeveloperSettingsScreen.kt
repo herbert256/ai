@@ -19,10 +19,9 @@ import androidx.compose.ui.unit.dp
 fun DeveloperSettingsScreen(
     generalSettings: GeneralSettings,
     onBackToSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     onSave: (GeneralSettings) -> Unit,
-    onTrackApiCallsChanged: (Boolean) -> Unit = {},
-    onDeveloperModeChanged: () -> Unit = {}
+    onTrackApiCallsChanged: (Boolean) -> Unit = {}
 ) {
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
     var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
@@ -42,10 +41,10 @@ fun DeveloperSettingsScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = "Developer settings",
             onBackClick = onBackToSettings,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -80,7 +79,6 @@ fun DeveloperSettingsScreen(
                         onCheckedChange = {
                             developerMode = it
                             saveSettings()
-                            onDeveloperModeChanged()
                         }
                     )
                 }

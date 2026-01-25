@@ -2,18 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.eval"
     android:versionCode="1"
-    android:versionName="26.0125.043617" >
+    android:versionName="26.0125.050641" >
 
     <uses-sdk
         android:minSdkVersion="26"
         android:targetSdkVersion="34" />
 
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Query Stockfish package to use system-installed engine -->
-    <queries>
-        <package android:name="com.stockfish141" />
-    </queries>
 
     <permission
         android:name="com.eval.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
@@ -30,11 +25,11 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Eval" >
+        android:theme="@style/Theme.AI" >
         <activity
             android:name="com.eval.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Eval" >
+            android:theme="@style/Theme.AI" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

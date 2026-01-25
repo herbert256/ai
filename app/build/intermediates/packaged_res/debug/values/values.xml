@@ -15,27 +15,10 @@
     <color name="primary_dark">#3A8EEF</color>
     <color name="result_background">#0F3460</color>
     <color name="surface_dark">#16213E</color>
-    <string name="analysis_disabled">Analysis disabled</string>
-    <string name="analyzing">Analyzing...</string>
-    <string name="app_name">Eval</string>
-    <string name="best_move">Best</string>
-    <string name="black_wins">0-1 (Black wins)</string>
-    <string name="depth">Depth</string>
-    <string name="draw">½-½ (Draw)</string>
-    <string name="enter_username">Enter username</string>
+    <string name="app_name">AI</string>
     <string name="error_network">Network error. Please check your connection.</string>
-    <string name="error_no_games">No games found for this user</string>
-    <string name="error_user_not_found">User not found</string>
-    <string name="fetch_game">Fetch Games</string>
     <string name="loading">Loading...</string>
-    <string name="moves">Moves</string>
-    <string name="speed_fast">Fast</string>
-    <string name="speed_normal">Normal</string>
-    <string name="speed_slow">Slow</string>
-    <string name="speed_very_fast">Very Fast</string>
-    <string name="stockfish_analysis">Stockfish Analysis</string>
-    <string name="white_wins">1-0 (White wins)</string>
-    <style name="Theme.Eval" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.AI" parent="android:Theme.Material.NoActionBar">
         <item name="android:colorBackground">@color/background_dark</item>
         <item name="android:statusBarColor">@color/background_dark</item>
         <item name="android:navigationBarColor">@color/background_dark</item>

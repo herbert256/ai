@@ -21,7 +21,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun EvalTheme(
+fun AiTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(

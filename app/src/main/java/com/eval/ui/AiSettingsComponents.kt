@@ -72,7 +72,7 @@ fun AiServiceSettingsScreenTemplate(
     subtitle: String,
     accentColor: Color,
     onBackToAiSettings: () -> Unit,
-    onBackToGame: () -> Unit,
+    onBackToHome: () -> Unit,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
     Column(
@@ -83,10 +83,10 @@ fun AiServiceSettingsScreenTemplate(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        EvalTitleBar(
+        AiTitleBar(
             title = title,
             onBackClick = onBackToAiSettings,
-            onEvalClick = onBackToGame
+            onAiClick = onBackToHome
         )
 
         // Provider info with color indicator
