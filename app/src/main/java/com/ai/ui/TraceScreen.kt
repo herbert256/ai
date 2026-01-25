@@ -227,7 +227,7 @@ private fun TraceListItem(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1E1E1E)
+            containerColor = Color(0xFF3A3A3A)
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -250,7 +250,7 @@ private fun TraceListItem(
             )
             Text(
                 text = dateFormat.format(Date(traceInfo.timestamp)),
-                color = Color(0xFFAAAAAA),
+                color = Color.White,
                 fontSize = 12.sp,
                 modifier = Modifier.weight(1.2f),
                 textAlign = TextAlign.Center

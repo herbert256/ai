@@ -218,6 +218,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         prefs.edit().putString(KEY_PROMPT_HISTORY, json).apply()
     }
 
+    fun clearPromptHistory() {
+        prefs.edit().remove(KEY_PROMPT_HISTORY).apply()
+    }
+
     companion object {
         const val PREFS_NAME = "eval_prefs"
 
