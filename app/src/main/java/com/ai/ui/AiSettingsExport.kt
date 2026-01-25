@@ -67,14 +67,24 @@ data class AgentExport(
 )
 
 /**
+ * Data class for swarm in JSON export/import (version 6+).
+ */
+data class SwarmExport(
+    val id: String,
+    val name: String,
+    val agentIds: List<String>
+)
+
+/**
  * Data class for the complete AI configuration export.
- * Version 5: Providers and agents with parameters.
- * Also supports importing version 3/4 (legacy formats - prompts ignored, parameters default).
+ * Version 6: Providers, agents with parameters, and swarms.
+ * Also supports importing version 3/4/5 (legacy formats - prompts ignored, parameters/swarms default).
  */
 data class AiConfigExport(
-    val version: Int = 5,
+    val version: Int = 6,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
+    val swarms: List<SwarmExport>? = null,  // Version 6+
     // Legacy field from version 3 (ignored on import)
     val prompts: List<Any>? = null
 )
@@ -140,9 +150,19 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
         )
     }
 
+    // Convert swarms
+    val swarms = aiSettings.swarms.map { swarm ->
+        SwarmExport(
+            id = swarm.id,
+            name = swarm.name,
+            agentIds = swarm.agentIds
+        )
+    }
+
     val export = AiConfigExport(
         providers = providers,
-        agents = agents
+        agents = agents,
+        swarms = swarms
     )
 
     val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
@@ -254,8 +274,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..5) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3, 4, or 5.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..6) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-6.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -294,9 +314,19 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             }
         }
 
+        // Import swarms (version 6+)
+        val swarms = export.swarms?.map { swarmExport ->
+            AiSwarm(
+                id = swarmExport.id,
+                name = swarmExport.name,
+                agentIds = swarmExport.agentIds
+            )
+        } ?: emptyList()
+
         // Import provider settings
         var settings = currentSettings.copy(
-            agents = agents
+            agents = agents,
+            swarms = swarms
         )
 
         // Update provider model sources, manual models, and API keys
@@ -425,8 +455,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..5) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3, 4, or 5.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..6) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-6.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -465,9 +495,19 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             }
         }
 
+        // Import swarms (version 6+)
+        val swarms = export.swarms?.map { swarmExport ->
+            AiSwarm(
+                id = swarmExport.id,
+                name = swarmExport.name,
+                agentIds = swarmExport.agentIds
+            )
+        } ?: emptyList()
+
         // Import provider settings
         var settings = currentSettings.copy(
-            agents = agents
+            agents = agents,
+            swarms = swarms
         )
 
         // Update provider model sources, manual models, and API keys
