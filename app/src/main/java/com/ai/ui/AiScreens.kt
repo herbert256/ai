@@ -827,6 +827,43 @@ fun AiNewReportScreen(
     }
 }
 
+/**
+ * Process <think>...</think> sections in AI response for HTML output.
+ * Replaces think sections with collapsible buttons and hidden content.
+ */
+private fun processThinkSectionsForHtml(text: String, agentId: String): String {
+    val thinkPattern = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
+    var result = text
+    var thinkIndex = 0
+
+    result = thinkPattern.replace(result) { match ->
+        val thinkContent = match.groupValues[1]
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        val id = "${agentId}-${thinkIndex++}"
+        """<button id="think-btn-$id" class="think-btn" onclick="toggleThink('$id')">Think</button><div id="think-$id" class="think-content">$thinkContent</div>"""
+    }
+
+    // Escape remaining HTML entities (excluding our inserted HTML)
+    // We need to be careful here - the think sections are already processed
+    // So we only escape the parts that aren't our inserted HTML
+    val parts = result.split(Regex("(<button.*?</button><div.*?</div>)"))
+    val escapedParts = parts.mapIndexed { index, part ->
+        if (index % 2 == 0) {
+            // This is regular text, escape it
+            part.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+        } else {
+            // This is our inserted HTML, keep it as-is
+            part
+        }
+    }
+
+    return escapedParts.joinToString("")
+}
+
 // Helper function to convert generic AI reports to HTML
 internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: String): String {
     val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
@@ -940,7 +977,47 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
                     font-size: 0.9em;
                     text-align: center;
                 }
+                .think-btn {
+                    padding: 4px 12px;
+                    border: 1px solid #666;
+                    background: #2a2a2a;
+                    color: #aaa;
+                    cursor: pointer;
+                    font-size: 13px;
+                    margin: 8px 0;
+                    border-radius: 4px;
+                }
+                .think-btn:hover {
+                    border-color: #888;
+                    color: #ccc;
+                }
+                .think-content {
+                    display: none;
+                    background: #252525;
+                    border-left: 3px solid #555;
+                    padding: 12px;
+                    margin: 8px 0;
+                    color: #999;
+                    font-size: 0.9em;
+                    white-space: pre-wrap;
+                }
+                .think-content.visible {
+                    display: block;
+                }
             </style>
+            <script>
+                function toggleThink(id) {
+                    var content = document.getElementById('think-' + id);
+                    var btn = document.getElementById('think-btn-' + id);
+                    if (content.classList.contains('visible')) {
+                        content.classList.remove('visible');
+                        btn.textContent = 'Think';
+                    } else {
+                        content.classList.add('visible');
+                        btn.textContent = 'Hide Think';
+                    }
+                }
+            </script>
         </head>
         <body>
             <div class="container">
@@ -975,9 +1052,11 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
                     <div class="error">Error: ${response.error}</div>
             """)
         } else {
-            val analysis = response.analysis?.replace("<", "&lt;")?.replace(">", "&gt;") ?: "No response"
+            val rawAnalysis = response.analysis ?: "No response"
+            // Process <think>...</think> sections before escaping HTML
+            val processedAnalysis = processThinkSectionsForHtml(rawAnalysis, agentId)
             htmlBuilder.append("""
-                    <div class="agent-response">$analysis</div>
+                    <div class="agent-response">$processedAnalysis</div>
             """)
         }
 
@@ -1894,18 +1973,14 @@ fun AiReportsViewerScreen(
                     )
                 }
             } else if (selectedResult?.analysis != null) {
-                // Show the HTML content in a WebView-like display
-                val htmlContent = remember(selectedResult.analysis) {
-                    convertMarkdownToSimpleHtml(selectedResult.analysis)
-                }
-
+                // Show the content with collapsible think sections
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(scrollState)
                 ) {
-                    // HTML content rendered as styled text
-                    HtmlContentDisplay(htmlContent = htmlContent)
+                    // Content rendered with think sections as collapsible blocks
+                    ContentWithThinkSections(analysis = selectedResult.analysis)
 
                     // Citations section (if available)
                     selectedResult.citations?.takeIf { it.isNotEmpty() }?.let { citations ->
@@ -1956,6 +2031,128 @@ fun AiReportsViewerScreen(
                         fontSize = 16.sp
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Represents a segment of AI response content.
+ */
+private sealed class ContentSegment {
+    data class Text(val content: String) : ContentSegment()
+    data class Think(val content: String) : ContentSegment()
+}
+
+/**
+ * Parses AI response text into segments, extracting <think>...</think> sections.
+ */
+private fun parseContentWithThinkSections(text: String): List<ContentSegment> {
+    val segments = mutableListOf<ContentSegment>()
+    val thinkPattern = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
+    var lastEnd = 0
+
+    thinkPattern.findAll(text).forEach { match ->
+        // Add text before this think section
+        if (match.range.first > lastEnd) {
+            val textBefore = text.substring(lastEnd, match.range.first).trim()
+            if (textBefore.isNotEmpty()) {
+                segments.add(ContentSegment.Text(textBefore))
+            }
+        }
+        // Add the think section
+        val thinkContent = match.groupValues[1].trim()
+        if (thinkContent.isNotEmpty()) {
+            segments.add(ContentSegment.Think(thinkContent))
+        }
+        lastEnd = match.range.last + 1
+    }
+
+    // Add remaining text after last think section
+    if (lastEnd < text.length) {
+        val remainingText = text.substring(lastEnd).trim()
+        if (remainingText.isNotEmpty()) {
+            segments.add(ContentSegment.Text(remainingText))
+        }
+    }
+
+    // If no segments were created (no think tags), add the whole text
+    if (segments.isEmpty() && text.isNotBlank()) {
+        segments.add(ContentSegment.Text(text))
+    }
+
+    return segments
+}
+
+/**
+ * Composable to display a collapsible think section.
+ */
+@Composable
+private fun ThinkSection(content: String) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Column {
+        Button(
+            onClick = { isExpanded = !isExpanded },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF2A2A2A)
+            ),
+            border = BorderStroke(1.dp, Color(0xFF666666)),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            modifier = Modifier.padding(vertical = 8.dp)
+        ) {
+            Text(
+                text = if (isExpanded) "Hide Think" else "Think",
+                color = Color(0xFFAAAAAA),
+                fontSize = 13.sp
+            )
+        }
+
+        if (isExpanded) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF252525))
+            ) {
+                // Left border
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .fillMaxHeight()
+                        .background(Color(0xFF555555))
+                )
+                // Content
+                Text(
+                    text = content,
+                    color = Color(0xFF999999),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Displays content with think sections as collapsible blocks.
+ */
+@Composable
+private fun ContentWithThinkSections(analysis: String) {
+    val segments = remember(analysis) {
+        parseContentWithThinkSections(analysis)
+    }
+
+    segments.forEach { segment ->
+        when (segment) {
+            is ContentSegment.Text -> {
+                val htmlContent = remember(segment.content) {
+                    convertMarkdownToSimpleHtml(segment.content)
+                }
+                HtmlContentDisplay(htmlContent = htmlContent)
+            }
+            is ContentSegment.Think -> {
+                ThinkSection(content = segment.content)
             }
         }
     }
