@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
 import kotlinx.coroutines.launch
 
@@ -56,19 +57,55 @@ fun AiAgentsScreen(
             onAiClick = onBackToHome
         )
 
-        // Add button
-        Button(
-            onClick = { showAddDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF4CAF50)
-            )
-        ) {
-            Text("+ Add Agent")
-        }
+        // Check if any provider has an API key configured
+        val hasAnyApiKey = aiSettings.chatGptApiKey.isNotBlank() ||
+                aiSettings.claudeApiKey.isNotBlank() ||
+                aiSettings.geminiApiKey.isNotBlank() ||
+                aiSettings.grokApiKey.isNotBlank() ||
+                aiSettings.groqApiKey.isNotBlank() ||
+                aiSettings.deepSeekApiKey.isNotBlank() ||
+                aiSettings.mistralApiKey.isNotBlank() ||
+                aiSettings.perplexityApiKey.isNotBlank() ||
+                aiSettings.togetherApiKey.isNotBlank() ||
+                aiSettings.openRouterApiKey.isNotBlank()
 
-        // Agent list
-        if (aiSettings.agents.isEmpty()) {
+        if (!hasAnyApiKey) {
+            // Show error if no API keys configured
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF4A2A2A)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "❌", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "No API keys configured. Go to Settings → AI Setup → AI Providers to add an API key.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFFF8080)
+                    )
+                }
+            }
+        } else {
+            // Add button
+            Button(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50)
+                )
+            ) {
+                Text("+ Add Agent")
+            }
+
+            // Agent list
+            if (aiSettings.agents.isEmpty()) {
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -107,6 +144,7 @@ fun AiAgentsScreen(
                 )
             }
         }
+        } // end else block for hasAnyApiKey
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -280,19 +318,23 @@ private fun AgentEditDialog(
     onDismiss: () -> Unit
 ) {
     val isEditing = agent != null
-    // Filter providers based on developer mode (exclude DUMMY if not in developer mode)
-    val availableProviders = if (developerMode) {
-        AiService.entries.toList()
-    } else {
-        AiService.entries.filter { it != AiService.DUMMY }
+    // Filter providers: must have API key configured, exclude DUMMY unless developer mode
+    val availableProviders = AiService.entries.filter { provider ->
+        // Always include current agent's provider when editing
+        if (isEditing && provider == agent?.provider) return@filter true
+        // Exclude DUMMY unless in developer mode
+        if (provider == AiService.DUMMY && !developerMode) return@filter false
+        // Only include providers with an API key configured
+        aiSettings.getApiKey(provider).isNotBlank()
     }
     val coroutineScope = rememberCoroutineScope()
 
-    // State
+    // State - default to first available provider when creating new agent
+    val defaultProvider = agent?.provider ?: availableProviders.firstOrNull() ?: AiService.CHATGPT
     var name by remember { mutableStateOf(agent?.name ?: "") }
-    var selectedProvider by remember { mutableStateOf(agent?.provider ?: AiService.CHATGPT) }
-    var model by remember { mutableStateOf(agent?.model ?: "gpt-4o-mini") }
-    var apiKey by remember { mutableStateOf(agent?.apiKey ?: aiSettings.getApiKey(agent?.provider ?: AiService.CHATGPT)) }
+    var selectedProvider by remember { mutableStateOf(defaultProvider) }
+    var model by remember { mutableStateOf(agent?.model ?: getDefaultModelForProvider(defaultProvider)) }
+    var apiKey by remember { mutableStateOf(agent?.apiKey ?: aiSettings.getApiKey(defaultProvider)) }
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     var testError by remember { mutableStateOf<String?>(null) }

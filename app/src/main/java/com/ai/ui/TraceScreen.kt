@@ -30,8 +30,6 @@ import com.ai.data.TraceFileInfo
 import java.text.SimpleDateFormat
 import java.util.*
 
-private const val PAGE_SIZE = 25
-
 /**
  * Enum for trace detail sub-screens
  */
@@ -50,14 +48,15 @@ fun TraceListScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack,
     onSelectTrace: (String) -> Unit,
-    onClearTraces: () -> Unit
+    onClearTraces: () -> Unit,
+    pageSize: Int = 25
 ) {
     var traceFiles by remember { mutableStateOf(ApiTracer.getTraceFiles()) }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val totalPages = (traceFiles.size + PAGE_SIZE - 1) / PAGE_SIZE
-    val startIndex = currentPage * PAGE_SIZE
-    val endIndex = minOf(startIndex + PAGE_SIZE, traceFiles.size)
+    val totalPages = (traceFiles.size + pageSize - 1) / pageSize
+    val startIndex = currentPage * pageSize
+    val endIndex = minOf(startIndex + pageSize, traceFiles.size)
     val currentPageItems = if (traceFiles.isNotEmpty() && startIndex < traceFiles.size) {
         traceFiles.subList(startIndex, endIndex)
     } else {

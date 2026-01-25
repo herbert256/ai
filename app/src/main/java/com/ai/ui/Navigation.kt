@@ -1,6 +1,7 @@
 package com.ai.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -37,6 +38,7 @@ object NavRoutes {
  * Main navigation host for the app.
  * @param externalTitle Optional title from external app intent
  * @param externalPrompt Optional prompt from external app intent
+ * @param onExternalIntentHandled Callback when external intent has been processed
  */
 @Composable
 fun AiNavHost(
@@ -44,7 +46,8 @@ fun AiNavHost(
     navController: NavHostController = rememberNavController(),
     viewModel: AiViewModel = viewModel(),
     externalTitle: String? = null,
-    externalPrompt: String? = null
+    externalPrompt: String? = null,
+    onExternalIntentHandled: () -> Unit = {}
 ) {
     // Navigate to home, clearing the back stack
     val navigateHome: () -> Unit = {
@@ -53,16 +56,20 @@ fun AiNavHost(
         }
     }
 
-    // Determine start destination based on external intent
-    val startDestination = if (externalPrompt != null) {
-        NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)
-    } else {
-        NavRoutes.AI
+    // Handle external intent - navigate to new report when external prompt is provided
+    LaunchedEffect(externalPrompt) {
+        if (externalPrompt != null) {
+            navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)) {
+                // Clear back stack so back button goes to home
+                popUpTo(NavRoutes.AI) { inclusive = false }
+            }
+            onExternalIntentHandled()
+        }
     }
 
     NavHost(
         navController = navController,
-        startDestination = startDestination,
+        startDestination = NavRoutes.AI,
         modifier = modifier
     ) {
         composable(NavRoutes.AI) {
@@ -93,13 +100,15 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.TRACE_LIST) {
+            val uiState by viewModel.uiState.collectAsState()
             TraceListScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectTrace = { filename ->
                     navController.navigate(NavRoutes.traceDetail(filename))
                 },
-                onClearTraces = { viewModel.clearTraces() }
+                onClearTraces = { viewModel.clearTraces() },
+                pageSize = uiState.generalSettings.paginationPageSize
             )
         }
 
@@ -113,9 +122,11 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_HISTORY) {
+            val uiState by viewModel.uiState.collectAsState()
             AiHistoryScreenNav(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                pageSize = uiState.generalSettings.paginationPageSize
             )
         }
 
@@ -144,12 +155,14 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_PROMPT_HISTORY) {
+            val uiState by viewModel.uiState.collectAsState()
             PromptHistoryScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectEntry = { entry ->
                     navController.navigate(NavRoutes.aiNewReportWithParams(entry.title, entry.prompt))
-                }
+                },
+                pageSize = uiState.generalSettings.paginationPageSize
             )
         }
 
@@ -209,6 +222,7 @@ fun SettingsScreenNav(
         onFetchPerplexityModels = { viewModel.fetchPerplexityModels(it) },
         onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
-        onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) }
+        onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
+        onFetchModelsAfterImport = { viewModel.fetchModelsForApiSourceProviders(it) }
     )
 }

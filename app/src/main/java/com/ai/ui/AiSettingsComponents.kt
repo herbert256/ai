@@ -14,6 +14,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /**
  * Navigation card for an AI service.
@@ -23,6 +25,7 @@ fun AiServiceNavigationCard(
     title: String,
     subtitle: String,
     accentColor: Color,
+    hasApiKey: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
@@ -52,6 +55,12 @@ fun AiServiceNavigationCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White,
                 modifier = Modifier.weight(1f)
+            )
+
+            // API key indicator
+            Text(
+                text = if (hasApiKey) "🔑" else "❌",
+                fontSize = 14.sp
             )
 
             Text(
@@ -284,9 +293,14 @@ fun HardcodedModelSelectionSection(
 @Composable
 fun ApiKeyInputSection(
     apiKey: String,
-    onApiKeyChange: (String) -> Unit
+    onApiKeyChange: (String) -> Unit,
+    onTestApiKey: (suspend () -> String?)? = null
 ) {
     var showApiKey by remember { mutableStateOf(false) }
+    var isTesting by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    var testSuccess by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     Card(
         colors = CardDefaults.cardColors(
@@ -307,7 +321,10 @@ fun ApiKeyInputSection(
 
             OutlinedTextField(
                 value = apiKey,
-                onValueChange = onApiKeyChange,
+                onValueChange = {
+                    onApiKeyChange(it)
+                    testResult = null  // Clear test result when key changes
+                },
                 label = { Text("API Key") },
                 singleLine = true,
                 visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
@@ -325,6 +342,56 @@ fun ApiKeyInputSection(
                     unfocusedTextColor = Color.White
                 )
             )
+
+            // Test API Key button
+            if (onTestApiKey != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = {
+                            if (apiKey.isBlank()) {
+                                testResult = "API key is empty"
+                                testSuccess = false
+                                return@Button
+                            }
+                            isTesting = true
+                            testResult = null
+                            coroutineScope.launch {
+                                val error = onTestApiKey()
+                                testResult = error ?: "API key is valid!"
+                                testSuccess = error == null
+                                isTesting = false
+                            }
+                        },
+                        enabled = !isTesting && apiKey.isNotBlank()
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Testing...")
+                        } else {
+                            Text("Test API Key")
+                        }
+                    }
+
+                    // Test result
+                    if (testResult != null) {
+                        Text(
+                            text = testResult!!,
+                            color = if (testSuccess) Color(0xFF4CAF50) else Color(0xFFEF5350),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
         }
     }
 }

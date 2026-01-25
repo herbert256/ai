@@ -52,8 +52,44 @@ fun AiHubScreen(
             modifier = Modifier.size(280.dp)
         )
 
-        // Warning if no agents configured
-        if (uiState.aiSettings.agents.isEmpty()) {
+        // Check if any provider has an API key configured
+        val hasAnyApiKey = uiState.aiSettings.chatGptApiKey.isNotBlank() ||
+                uiState.aiSettings.claudeApiKey.isNotBlank() ||
+                uiState.aiSettings.geminiApiKey.isNotBlank() ||
+                uiState.aiSettings.grokApiKey.isNotBlank() ||
+                uiState.aiSettings.groqApiKey.isNotBlank() ||
+                uiState.aiSettings.deepSeekApiKey.isNotBlank() ||
+                uiState.aiSettings.mistralApiKey.isNotBlank() ||
+                uiState.aiSettings.perplexityApiKey.isNotBlank() ||
+                uiState.aiSettings.togetherApiKey.isNotBlank() ||
+                uiState.aiSettings.openRouterApiKey.isNotBlank()
+
+        // Warning if no API keys configured
+        if (!hasAnyApiKey) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF4A2A2A)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "❌", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "No API keys configured. Go to Settings → AI Setup → AI Providers to add an API key.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFFF8080)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else if (uiState.aiSettings.agents.isEmpty()) {
+            // Warning if no agents configured (only show if API keys exist)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -135,8 +171,6 @@ private fun HubCard(
     }
 }
 
-private const val HISTORY_PAGE_SIZE = 25
-
 /**
  * AI History screen showing generated reports with pagination.
  * Layout matches the API Trace Log screen.
@@ -144,15 +178,16 @@ private const val HISTORY_PAGE_SIZE = 25
 @Composable
 fun AiHistoryScreenNav(
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit = onNavigateBack
+    onNavigateHome: () -> Unit = onNavigateBack,
+    pageSize: Int = 25
 ) {
     val context = LocalContext.current
     var historyFiles by remember { mutableStateOf(AiHistoryManager.getHistoryFiles()) }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val totalPages = (historyFiles.size + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
-    val startIndex = currentPage * HISTORY_PAGE_SIZE
-    val endIndex = minOf(startIndex + HISTORY_PAGE_SIZE, historyFiles.size)
+    val totalPages = (historyFiles.size + pageSize - 1) / pageSize
+    val startIndex = currentPage * pageSize
+    val endIndex = minOf(startIndex + pageSize, historyFiles.size)
     val currentPageFiles = if (historyFiles.isNotEmpty() && startIndex < historyFiles.size) {
         historyFiles.subList(startIndex, endIndex)
     } else {
@@ -361,7 +396,7 @@ private fun AiHistoryRowNav(
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("Chrome", fontSize = 12.sp)
+                        Text("Browser", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { shareHistoryFileNav(context, fileInfo.file) },
@@ -525,13 +560,15 @@ fun AiNewReportScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     // Load last used title and prompt from SharedPreferences
-    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
-    val lastTitle = remember { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" }
-    val lastPrompt = remember { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" }
+    // Don't use remember for prefs values - read fresh each time to avoid stale data
+    val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    val lastTitle = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: ""
+    val lastPrompt = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: ""
 
-    // Use initialTitle/initialPrompt if provided (from prompt history), otherwise use last saved values
-    var title by remember { mutableStateOf(initialTitle.ifEmpty { lastTitle }) }
-    var prompt by remember { mutableStateOf(initialPrompt.ifEmpty { lastPrompt }) }
+    // Use initialTitle/initialPrompt if provided (from external app or prompt history), otherwise use last saved values
+    // Key on initial values so state resets when navigating with new parameters
+    var title by remember(initialTitle, initialPrompt) { mutableStateOf(initialTitle.ifEmpty { lastTitle }) }
+    var prompt by remember(initialTitle, initialPrompt) { mutableStateOf(initialPrompt.ifEmpty { lastPrompt }) }
 
     // Navigate to AI Reports screen when agent selection is triggered
     LaunchedEffect(uiState.showGenericAiAgentSelection) {
@@ -974,7 +1011,8 @@ internal fun openGenericAiReportsInChrome(context: android.content.Context, uiSt
 fun PromptHistoryScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
-    onSelectEntry: (PromptHistoryEntry) -> Unit
+    onSelectEntry: (PromptHistoryEntry) -> Unit,
+    pageSize: Int = 25
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
@@ -982,9 +1020,9 @@ fun PromptHistoryScreen(
     var historyEntries by remember { mutableStateOf(settingsPrefs.loadPromptHistory()) }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val totalPages = (historyEntries.size + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
-    val startIndex = currentPage * HISTORY_PAGE_SIZE
-    val endIndex = minOf(startIndex + HISTORY_PAGE_SIZE, historyEntries.size)
+    val totalPages = (historyEntries.size + pageSize - 1) / pageSize
+    val startIndex = currentPage * pageSize
+    val endIndex = minOf(startIndex + pageSize, historyEntries.size)
     val currentPageEntries = if (historyEntries.isNotEmpty() && startIndex < historyEntries.size) {
         historyEntries.subList(startIndex, endIndex)
     } else {
@@ -1255,7 +1293,8 @@ fun AiReportsScreen(
             aiSettings = uiState.aiSettings,
             promptText = uiState.genericAiPromptText,
             initialSelectedAgentId = selectedAgentForViewer,
-            onDismiss = { showViewer = false }
+            onDismiss = { showViewer = false },
+            onNavigateHome = onNavigateHome
         )
         return
     }
@@ -1296,6 +1335,20 @@ fun AiReportsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (!isGenerating) {
+            // Generate button at top
+            Button(
+                onClick = { onGenerate(selectedAgentIds) },
+                enabled = selectedAgentIds.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF8B5CF6)
+                )
+            ) {
+                Text("Generate Reports")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Select all / Select none buttons
             Row(
                 modifier = Modifier
@@ -1380,21 +1433,44 @@ fun AiReportsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Generate button
-            Button(
-                onClick = { onGenerate(selectedAgentIds) },
-                enabled = selectedAgentIds.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF8B5CF6)
-                )
-            ) {
-                Text("Generate Reports")
+        } else {
+            // Action buttons at top when complete
+            if (isComplete) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { showViewer = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2196F3)
+                        )
+                    ) {
+                        Text("View")
+                    }
+                    Button(
+                        onClick = onShare,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        )
+                    ) {
+                        Text("Share")
+                    }
+                    Button(
+                        onClick = onOpenInBrowser,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8B5CF6)
+                        )
+                    ) {
+                        Text("Browser")
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-        } else {
             // Progress/Results UI
             Card(
                 colors = CardDefaults.cardColors(
@@ -1467,43 +1543,6 @@ fun AiReportsScreen(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            // Action buttons at the bottom
-            if (isComplete) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { showViewer = true },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2196F3)
-                        )
-                    ) {
-                        Text("View")
-                    }
-                    Button(
-                        onClick = onShare,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
-                        )
-                    ) {
-                        Text("Share")
-                    }
-                    Button(
-                        onClick = onOpenInBrowser,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF8B5CF6)
-                        )
-                    ) {
-                        Text("Browser")
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
         }
     }
 }
@@ -1518,7 +1557,8 @@ fun AiReportsViewerScreen(
     aiSettings: AiSettings,
     promptText: String = "",
     initialSelectedAgentId: String? = null,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onNavigateHome: () -> Unit = onDismiss
 ) {
     // Get agents with successful results
     val agentsWithResults = agentResults.entries
@@ -1554,7 +1594,7 @@ fun AiReportsViewerScreen(
         AiTitleBar(
             title = titleText,
             onBackClick = onDismiss,
-            onAiClick = onDismiss
+            onAiClick = onNavigateHome
         )
 
         // Agent selection buttons - wrapping flow layout
@@ -1563,7 +1603,7 @@ fun AiReportsViewerScreen(
             androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {

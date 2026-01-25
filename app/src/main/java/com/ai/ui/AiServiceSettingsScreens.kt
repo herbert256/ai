@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ai.data.AiService
 
 /**
  * ChatGPT settings screen.
@@ -23,7 +24,8 @@ fun ChatGptSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.chatGptApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.chatGptModelSource) }
@@ -41,7 +43,8 @@ fun ChatGptSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(chatGptApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.CHATGPT, apiKey, "gpt-4o-mini") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -69,7 +72,8 @@ fun ClaudeSettingsScreen(
     aiSettings: AiSettings,
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
-    onSave: (AiSettings) -> Unit
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.claudeApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.claudeModelSource) }
@@ -87,7 +91,8 @@ fun ClaudeSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(claudeApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.CLAUDE, apiKey, "claude-sonnet-4-20250514") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -118,7 +123,8 @@ fun GeminiSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.geminiApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.geminiModelSource) }
@@ -136,7 +142,8 @@ fun GeminiSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(geminiApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.GEMINI, apiKey, "gemini-2.0-flash") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -167,7 +174,8 @@ fun GrokSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.grokApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.grokModelSource) }
@@ -185,7 +193,8 @@ fun GrokSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(grokApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.GROK, apiKey, "grok-3-mini") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -216,7 +225,8 @@ fun GroqSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.groqApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.groqModelSource) }
@@ -234,7 +244,8 @@ fun GroqSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(groqApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, "llama-3.3-70b-versatile") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -265,7 +276,8 @@ fun DeepSeekSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.deepSeekApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.deepSeekModelSource) }
@@ -283,7 +295,8 @@ fun DeepSeekSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(deepSeekApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, "deepseek-chat") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -314,7 +327,8 @@ fun MistralSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.mistralApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.mistralModelSource) }
@@ -332,7 +346,8 @@ fun MistralSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(mistralApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, "mistral-small-latest") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -358,12 +373,10 @@ fun MistralSettingsScreen(
 @Composable
 fun PerplexitySettingsScreen(
     aiSettings: AiSettings,
-    availableModels: List<String>,
-    isLoadingModels: Boolean,
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.perplexityApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.perplexityModelSource) }
@@ -381,13 +394,14 @@ fun PerplexitySettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(perplexityApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, "sonar") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
-            availableApiModels = availableModels,
-            isLoadingModels = isLoadingModels,
+            availableApiModels = emptyList(),  // Perplexity has no model list API
+            isLoadingModels = false,
             onModelSourceChange = {
                 modelSource = it
                 onSave(aiSettings.copy(perplexityModelSource = it))
@@ -396,7 +410,7 @@ fun PerplexitySettingsScreen(
                 manualModels = it
                 onSave(aiSettings.copy(perplexityManualModels = it))
             },
-            onFetchModels = { onFetchModels(apiKey) }
+            onFetchModels = { }  // No-op for Perplexity
         )
     }
 }
@@ -412,7 +426,8 @@ fun TogetherSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.togetherApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.togetherModelSource) }
@@ -430,7 +445,8 @@ fun TogetherSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(togetherApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, "meta-llama/Llama-3.3-70B-Instruct-Turbo") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -461,7 +477,8 @@ fun OpenRouterSettingsScreen(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModels: (String) -> Unit
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.openRouterApiKey) }
     var modelSource by remember { mutableStateOf(aiSettings.openRouterModelSource) }
@@ -479,7 +496,8 @@ fun OpenRouterSettingsScreen(
             onApiKeyChange = {
                 apiKey = it
                 onSave(aiSettings.copy(openRouterApiKey = it))
-            }
+            },
+            onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, "anthropic/claude-3.5-sonnet") }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,

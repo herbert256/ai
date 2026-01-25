@@ -95,7 +95,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(
             genericAiPromptTitle = title,
             genericAiPromptText = prompt,
-            showGenericAiAgentSelection = true
+            showGenericAiAgentSelection = true,
+            // Clear previous report state to prevent showing old results
+            showGenericAiReportsDialog = false,
+            genericAiReportsProgress = 0,
+            genericAiReportsTotal = 0,
+            genericAiReportsSelectedAgents = emptySet(),
+            genericAiReportsAgentResults = emptyMap()
         )
     }
 
@@ -323,6 +329,50 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingOpenRouterModels = false)
             }
+        }
+    }
+
+    // ========== Fetch Models After Import ==========
+
+    /**
+     * Fetch models for all providers that have API as model source.
+     * Called after importing configuration.
+     */
+    fun fetchModelsForApiSourceProviders(settings: AiSettings) {
+        viewModelScope.launch {
+            // ChatGPT
+            if (settings.chatGptModelSource == ModelSource.API && settings.chatGptApiKey.isNotBlank()) {
+                fetchChatGptModels(settings.chatGptApiKey)
+            }
+            // Gemini
+            if (settings.geminiModelSource == ModelSource.API && settings.geminiApiKey.isNotBlank()) {
+                fetchGeminiModels(settings.geminiApiKey)
+            }
+            // Grok
+            if (settings.grokModelSource == ModelSource.API && settings.grokApiKey.isNotBlank()) {
+                fetchGrokModels(settings.grokApiKey)
+            }
+            // Groq
+            if (settings.groqModelSource == ModelSource.API && settings.groqApiKey.isNotBlank()) {
+                fetchGroqModels(settings.groqApiKey)
+            }
+            // DeepSeek
+            if (settings.deepSeekModelSource == ModelSource.API && settings.deepSeekApiKey.isNotBlank()) {
+                fetchDeepSeekModels(settings.deepSeekApiKey)
+            }
+            // Mistral
+            if (settings.mistralModelSource == ModelSource.API && settings.mistralApiKey.isNotBlank()) {
+                fetchMistralModels(settings.mistralApiKey)
+            }
+            // Together
+            if (settings.togetherModelSource == ModelSource.API && settings.togetherApiKey.isNotBlank()) {
+                fetchTogetherModels(settings.togetherApiKey)
+            }
+            // OpenRouter
+            if (settings.openRouterModelSource == ModelSource.API && settings.openRouterApiKey.isNotBlank()) {
+                fetchOpenRouterModels(settings.openRouterApiKey)
+            }
+            // Note: Claude and Perplexity don't have model list APIs
         }
     }
 

@@ -196,7 +196,8 @@ fun AiSetupScreen(
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
-    onSave: (AiSettings) -> Unit
+    onSave: (AiSettings) -> Unit,
+    onFetchModelsAfterImport: (AiSettings) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -208,6 +209,8 @@ fun AiSetupScreen(
             val imported = importAiConfigFromFile(context, it, aiSettings)
             if (imported != null) {
                 onSave(imported)
+                // Fetch models for providers with API model source
+                onFetchModelsAfterImport(imported)
             }
         }
     }
@@ -374,60 +377,70 @@ fun AiProvidersScreen(
             title = "ChatGPT",
             subtitle = "OpenAI",
             accentColor = Color(0xFF10A37F),
+            hasApiKey = aiSettings.chatGptApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_CHATGPT) }
         )
         AiServiceNavigationCard(
             title = "Claude",
             subtitle = "Anthropic",
             accentColor = Color(0xFFD97706),
+            hasApiKey = aiSettings.claudeApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_CLAUDE) }
         )
         AiServiceNavigationCard(
             title = "Gemini",
             subtitle = "Google",
             accentColor = Color(0xFF4285F4),
+            hasApiKey = aiSettings.geminiApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_GEMINI) }
         )
         AiServiceNavigationCard(
             title = "Grok",
             subtitle = "xAI",
             accentColor = Color(0xFFFFFFFF),
+            hasApiKey = aiSettings.grokApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_GROK) }
         )
         AiServiceNavigationCard(
             title = "Groq",
             subtitle = "Groq",
             accentColor = Color(0xFFF55036),
+            hasApiKey = aiSettings.groqApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_GROQ) }
         )
         AiServiceNavigationCard(
             title = "DeepSeek",
             subtitle = "DeepSeek AI",
             accentColor = Color(0xFF4D6BFE),
+            hasApiKey = aiSettings.deepSeekApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
         )
         AiServiceNavigationCard(
             title = "Mistral",
             subtitle = "Mistral AI",
             accentColor = Color(0xFFFF7000),
+            hasApiKey = aiSettings.mistralApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
         )
         AiServiceNavigationCard(
             title = "Perplexity",
             subtitle = "Perplexity AI",
             accentColor = Color(0xFF20B2AA),
+            hasApiKey = aiSettings.perplexityApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
         )
         AiServiceNavigationCard(
             title = "Together",
             subtitle = "Together AI",
             accentColor = Color(0xFF6366F1),
+            hasApiKey = aiSettings.togetherApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
         )
         AiServiceNavigationCard(
             title = "OpenRouter",
             subtitle = "OpenRouter AI",
             accentColor = Color(0xFF6B5AED),
+            hasApiKey = aiSettings.openRouterApiKey.isNotBlank(),
             onClick = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
         )
         // Dummy provider only visible in developer mode
@@ -436,6 +449,7 @@ fun AiProvidersScreen(
                 title = "Dummy",
                 subtitle = "For testing",
                 accentColor = Color(0xFF888888),
+                hasApiKey = true,  // Dummy always has a "key"
                 onClick = { onNavigate(SettingsSubScreen.AI_DUMMY) }
             )
         }
