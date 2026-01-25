@@ -49,7 +49,7 @@ fun AiHubScreen(
         Image(
             painter = painterResource(id = R.drawable.ic_launcher_foreground),
             contentDescription = "AI App Logo",
-            modifier = Modifier.size(280.dp)
+            modifier = Modifier.size(320.dp)
         )
 
         // Check if any provider has an API key configured
