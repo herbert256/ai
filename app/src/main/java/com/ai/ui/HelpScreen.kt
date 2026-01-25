@@ -47,30 +47,32 @@ fun HelpScreen(
             // Welcome section
             HelpSection(
                 title = "Welcome to AI",
-                content = "Create and manage AI-powered reports using 10 different AI services. " +
-                    "Configure providers, prompts, and agents to generate custom AI analysis on any topic."
+                content = "Create AI-powered reports using 10 different AI services simultaneously. " +
+                    "Configure multiple agents with custom parameters and compare responses side-by-side."
             )
 
             // Getting Started
             HelpSection(
                 title = "Getting Started",
                 icon = "\uD83D\uDE80",
-                content = "1. Go to Settings > AI Setup to configure your AI providers\n" +
-                    "2. Add API keys for your preferred AI services\n" +
-                    "3. Create prompts with custom templates\n" +
-                    "4. Create agents that combine providers with prompts\n" +
-                    "5. Use 'New AI Report' to generate reports with your agents"
+                content = "1. Go to Settings > AI Setup > AI Agents\n" +
+                    "2. Tap '+ Add Agent' to create your first agent\n" +
+                    "3. Select a provider (ChatGPT, Claude, etc.)\n" +
+                    "4. Enter your API key for that service\n" +
+                    "5. Optionally configure advanced parameters\n" +
+                    "6. Save and return to AI Hub\n" +
+                    "7. Tap 'New AI Report' to generate your first report"
             )
 
             // AI Hub
             HelpSection(
                 title = "AI Hub",
                 icon = "\uD83D\uDCDD",
-                content = "The main screen provides access to AI features:\n\n" +
-                    "• New AI Report - Create custom AI reports with any prompt\n" +
+                content = "The home screen provides access to all AI features:\n\n" +
+                    "• New AI Report - Create reports with custom prompts\n" +
                     "• Prompt History - Reuse previously submitted prompts\n" +
-                    "• AI History - View previously generated reports\n\n" +
-                    "Reports are saved as HTML files you can view in Chrome or share."
+                    "• AI History - View and share generated reports\n\n" +
+                    "Use the gear icon for Settings, bug icon for API traces (developer mode)."
             )
 
             // AI Services
@@ -78,32 +80,49 @@ fun HelpScreen(
                 title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
                 content = "The app supports 10 AI services:\n\n" +
-                    "• ChatGPT (OpenAI)\n" +
-                    "• Claude (Anthropic)\n" +
-                    "• Gemini (Google)\n" +
-                    "• Grok (xAI)\n" +
-                    "• Groq (ultra-fast inference)\n" +
-                    "• DeepSeek\n" +
-                    "• Mistral\n" +
-                    "• Perplexity (with web search)\n" +
-                    "• Together AI\n" +
-                    "• OpenRouter (access multiple models)\n\n" +
-                    "Each service requires an API key from the provider."
+                    "• ChatGPT (OpenAI) - GPT-4o, GPT-5.x, o3, o4\n" +
+                    "• Claude (Anthropic) - Claude 4, Claude 3.5\n" +
+                    "• Gemini (Google) - Gemini 2.0 Flash\n" +
+                    "• Grok (xAI) - With optional web search\n" +
+                    "• Groq - Ultra-fast inference\n" +
+                    "• DeepSeek - Reasoning models\n" +
+                    "• Mistral - European AI\n" +
+                    "• Perplexity - Web search with citations\n" +
+                    "• Together AI - Open-source models\n" +
+                    "• OpenRouter - Access multiple providers\n\n" +
+                    "Each service requires an API key from the provider's website."
             )
 
-            // Three-Tier AI Architecture
+            // AI Agents
             HelpSection(
-                title = "AI Setup: Three-Tier Architecture",
+                title = "AI Agents",
                 icon = "⚙",
-                content = "Configure AI analysis with three components:\n\n" +
-                    "1. AI Providers - Configure model source (API or Manual) and available models per service\n\n" +
-                    "2. AI Prompts - Create reusable prompt templates. Use @DATE@ placeholder for current date\n\n" +
-                    "3. AI Agents - Your working configurations combining:\n" +
-                    "   • Name for easy identification\n" +
-                    "   • Provider (which AI service)\n" +
-                    "   • Model (which model to use)\n" +
-                    "   • API Key (your credentials)\n\n" +
-                    "Create multiple agents to compare responses from different AI services."
+                content = "Agents are your configured AI assistants:\n\n" +
+                    "Each agent combines:\n" +
+                    "• Name - For easy identification\n" +
+                    "• Provider - Which AI service to use\n" +
+                    "• Model - Which model (fetched via API or manual)\n" +
+                    "• API Key - Your credentials for that service\n" +
+                    "• Parameters - Optional advanced settings\n\n" +
+                    "Create multiple agents to compare different services or configurations."
+            )
+
+            // Agent Parameters
+            HelpSection(
+                title = "Agent Parameters",
+                icon = "\uD83D\uDD27",
+                content = "Each agent can be customized with advanced parameters:\n\n" +
+                    "• Temperature (0-2) - Creativity level. Lower = focused, higher = creative\n" +
+                    "• Max Tokens - Maximum response length\n" +
+                    "• System Prompt - Instructions for AI behavior\n" +
+                    "• Top P / Top K - Sampling parameters\n" +
+                    "• Frequency/Presence Penalty - Reduce repetition\n" +
+                    "• Seed - For reproducible outputs\n\n" +
+                    "Provider-specific options:\n" +
+                    "• ChatGPT: JSON response format\n" +
+                    "• Grok: Web search toggle\n" +
+                    "• Perplexity: Citations, search recency filter\n\n" +
+                    "Leave parameters empty to use provider defaults."
             )
 
             // Creating Reports
@@ -111,12 +130,29 @@ fun HelpScreen(
                 title = "Creating AI Reports",
                 icon = "\uD83D\uDCCA",
                 content = "To create a new AI report:\n\n" +
-                    "1. Tap 'New AI Report' from the AI Hub\n" +
-                    "2. Enter a title and your prompt\n" +
-                    "3. Select which agents to use (one or multiple)\n" +
-                    "4. Tap 'Generate' to create the report\n\n" +
-                    "Multiple agents run in parallel for fast comparison. " +
-                    "Toggle individual agent responses on/off in the report viewer."
+                    "1. Tap 'New AI Report' from AI Hub\n" +
+                    "2. Enter a title (optional) and your prompt\n" +
+                    "3. Tap the 'Generate' button at the top\n" +
+                    "4. Select one or more agents in the dialog\n" +
+                    "5. Watch real-time progress as agents respond\n" +
+                    "6. Tap STOP to end early if needed\n\n" +
+                    "Multiple agents run in parallel for fast comparison.\n\n" +
+                    "Tip: Use @DATE@ in your prompt to insert the current date."
+            )
+
+            // Report Results
+            HelpSection(
+                title = "Report Results",
+                icon = "\uD83D\uDCC4",
+                content = "After generation, the results dialog shows:\n\n" +
+                    "• Agent buttons - Toggle visibility of each response\n" +
+                    "• Markdown rendering - Formatted AI responses\n" +
+                    "• Citations & sources - When provided by Perplexity/Grok\n" +
+                    "• Token usage - Input/output counts (developer mode)\n\n" +
+                    "Actions:\n" +
+                    "• View in Chrome - Open as interactive HTML\n" +
+                    "• Share via Email - Send as attachment\n" +
+                    "• Close - Return to report screen"
             )
 
             // Prompt History
@@ -127,20 +163,21 @@ fun HelpScreen(
                     "• Access from AI Hub > Prompt History\n" +
                     "• Tap any entry to reuse that prompt\n" +
                     "• History stores up to 100 entries\n" +
-                    "• Entries show title, prompt preview, and timestamp"
+                    "• Shows title, prompt preview, and timestamp\n" +
+                    "• Most recent prompts appear first"
             )
 
             // AI History
             HelpSection(
                 title = "AI History",
                 icon = "\uD83D\uDCC2",
-                content = "Generated reports are stored locally:\n\n" +
+                content = "Generated reports are stored locally as HTML:\n\n" +
                     "• Access from AI Hub > AI History\n" +
-                    "• View reports as HTML in Chrome\n" +
-                    "• Share reports via email\n" +
+                    "• Tap to view report in Chrome\n" +
+                    "• Long-press or use menu to share/delete\n" +
                     "• Reports include all agent responses\n" +
-                    "• Markdown formatting rendered as HTML\n" +
-                    "• Toggle visibility of individual agent responses"
+                    "• Toggle agent visibility with buttons\n" +
+                    "• Reports persist until manually deleted"
             )
 
             // Special AI Features
@@ -148,20 +185,40 @@ fun HelpScreen(
                 title = "Special AI Features",
                 icon = "✨",
                 content = "Some AI services provide enhanced responses:\n\n" +
-                    "• Perplexity - Includes citations, search results, and related questions\n" +
-                    "• Grok - May include web search results\n" +
-                    "• DeepSeek - Reasoning models show thinking process\n\n" +
-                    "These extras are automatically included in HTML reports when available."
+                    "• Perplexity - Citations with source URLs, search results, related questions\n" +
+                    "• Grok - Web search results when enabled\n" +
+                    "• DeepSeek - Reasoning models show thinking process\n" +
+                    "• ChatGPT - JSON response format option\n\n" +
+                    "These extras are automatically displayed in reports when available."
             )
 
-            // Export Features
+            // Export/Import Configuration
             HelpSection(
-                title = "Export Features",
-                icon = "\uD83D\uDCE4",
-                content = "Share your AI reports:\n\n" +
-                    "• View in Chrome - Open as interactive HTML\n" +
-                    "• Share via Email - Send HTML as attachment (email saved for reuse)\n" +
-                    "• Use Android share sheet for other apps"
+                title = "Export/Import Configuration",
+                icon = "\uD83D\uDCBE",
+                content = "Backup and restore your AI configuration:\n\n" +
+                    "Export:\n" +
+                    "• Settings > AI Setup > Export Configuration\n" +
+                    "• Saves providers, agents, and API keys as JSON (v5)\n" +
+                    "• Share via email or other apps\n\n" +
+                    "Import:\n" +
+                    "• Settings > AI Setup > Import from File\n" +
+                    "• Or paste JSON and tap Import from Clipboard\n" +
+                    "• Supports versions 3, 4, and 5\n\n" +
+                    "All agent parameters are preserved in exports."
+            )
+
+            // External App Integration
+            HelpSection(
+                title = "External App Integration",
+                icon = "\uD83D\uDD17",
+                content = "Other apps can launch AI to generate reports:\n\n" +
+                    "When launched from another app:\n" +
+                    "• AI opens directly to New Report screen\n" +
+                    "• Title and prompt are pre-filled\n" +
+                    "• Select agents and generate as usual\n" +
+                    "• Results stay in AI app's history\n\n" +
+                    "See CALL_AI.md for integration details."
             )
 
             // Settings Overview
@@ -169,45 +226,61 @@ fun HelpScreen(
                 title = "Settings Overview",
                 icon = "⚙",
                 content = "Customize the app:\n\n" +
-                    "• General - Pagination settings\n" +
-                    "• AI Setup - Providers, prompts, agents configuration\n" +
-                    "• Developer - API tracking for debugging"
+                    "General:\n" +
+                    "• Pagination size (5-50 items per page)\n" +
+                    "• Developer mode toggle\n\n" +
+                    "AI Setup:\n" +
+                    "• Configure providers and models\n" +
+                    "• Create and manage agents\n" +
+                    "• Export/import configuration\n\n" +
+                    "Developer (when enabled):\n" +
+                    "• API call tracing toggle"
             )
 
-            // Export/Import Configuration
+            // Developer Mode
             HelpSection(
-                title = "Export/Import Configuration",
-                icon = "\uD83D\uDCBE",
-                content = "Share your AI configuration between devices:\n\n" +
-                    "• Export: Settings > AI Setup > Export Configuration\n" +
-                    "• Saves providers, prompts, and agents as JSON\n" +
-                    "• Import: Settings > AI Setup > Import from Clipboard\n" +
-                    "• Copy JSON to clipboard, then import\n\n" +
-                    "Note: API keys are NOT included in exports for security."
-            )
-
-            // API Tracing
-            HelpSection(
-                title = "Developer: API Tracing",
+                title = "Developer Mode",
                 icon = "\uD83D\uDC1B",
-                content = "Enable 'Track API calls' in Developer settings to log all network requests:\n\n" +
-                    "• All AI service API calls are logged\n" +
-                    "• View requests and responses in trace viewer\n" +
-                    "• See HTTP status codes (color-coded)\n" +
-                    "• Inspect full JSON request/response bodies\n" +
-                    "• Sensitive headers (API keys) are masked\n" +
+                content = "Enable in Settings > General > Developer Mode:\n\n" +
+                    "Features unlocked:\n" +
+                    "• DUMMY provider for testing (no API needed)\n" +
+                    "• API tracing option in Developer settings\n" +
+                    "• Token usage shown in reports\n" +
+                    "• HTTP headers visible in reports\n\n" +
+                    "API Tracing (when enabled):\n" +
+                    "• All API calls logged with request/response\n" +
                     "• Access via bug icon in title bar\n" +
+                    "• Color-coded status codes\n" +
+                    "• Sensitive headers (API keys) are masked\n" +
                     "• Useful for debugging API issues"
             )
 
-            // About
+            // Privacy & Security
             HelpSection(
-                title = "About",
-                icon = "ℹ",
-                content = "AI analysis powered by OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, and OpenRouter.\n\n" +
-                    "• All data stored locally on your device\n" +
+                title = "Privacy & Security",
+                icon = "\uD83D\uDD12",
+                content = "Your data stays on your device:\n\n" +
+                    "• All reports stored locally\n" +
                     "• No analytics or telemetry\n" +
-                    "• API keys stored securely in app's private storage"
+                    "• API keys in app's private storage\n" +
+                    "• Keys masked in API traces (first 4 + last 4 chars)\n" +
+                    "• Direct API calls to providers only"
+            )
+
+            // Troubleshooting
+            HelpSection(
+                title = "Troubleshooting",
+                icon = "\uD83D\uDEE0",
+                content = "Common issues:\n\n" +
+                    "\"API key not configured\"\n" +
+                    "→ Add your API key when creating the agent\n\n" +
+                    "\"Network error\"\n" +
+                    "→ Check internet connection (retries automatically once)\n\n" +
+                    "\"Model not found\"\n" +
+                    "→ Model may be deprecated, try fetching fresh models\n\n" +
+                    "Slow responses?\n" +
+                    "→ AI APIs can take minutes for complex prompts. Timeout is 7 min.\n\n" +
+                    "For API debugging, enable Developer Mode and API tracing."
             )
 
             Spacer(modifier = Modifier.height(32.dp))
