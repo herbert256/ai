@@ -33,7 +33,7 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer)"
 - Prompt history (up to 100 entries) and HTML report history
 - Developer mode with comprehensive API tracing
 - HTML report export with markdown rendering, citations, and search results
-- Configuration export/import (JSON format, version 4)
+- Configuration export/import (JSON format, version 5 with parameters)
 - External app integration via Intent (see CALL_AI.md)
 
 **Technical Stack:**
@@ -65,7 +65,7 @@ com.ai/
     ├── AiSettingsComponents.kt       # Reusable AI settings UI components (721 lines)
     ├── AiServiceSettingsScreens.kt   # Per-service config screens (644 lines)
     ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (814 lines)
-    ├── AiSettingsExport.kt           # Configuration export/import v4 (525 lines)
+    ├── AiSettingsExport.kt           # Configuration export/import v5 (590 lines)
     ├── SettingsScreen.kt             # Settings hub navigation (301 lines)
     ├── GeneralSettingsScreen.kt      # General settings: pagination, dev mode (99 lines)
     ├── DeveloperSettingsScreen.kt    # Developer settings: API tracing (118 lines)
@@ -429,6 +429,60 @@ Edit `convertGenericAiReportsToHtml()` in `AiScreens.kt`:
 - HTML structure with agent divs
 - JavaScript for toggle buttons
 - Developer mode sections (usage, headers)
+
+## External App Integration
+
+The AI app can be launched from other Android apps to generate reports. See `CALL_AI.md` for complete integration documentation.
+
+### Intent Configuration
+
+**AndroidManifest.xml:**
+```xml
+<intent-filter>
+    <action android:name="com.ai.ACTION_NEW_REPORT" />
+    <category android:name="android.intent.category.DEFAULT" />
+</intent-filter>
+```
+
+### Intent Extras
+
+| Extra | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | String | No | Report title |
+| `prompt` | String | Yes | Prompt text to send to AI agents |
+
+### How It Works
+
+1. **MainActivity.kt** extracts `title` and `prompt` from incoming intent
+2. **AiNavHost** receives these as `externalTitle` and `externalPrompt` parameters
+3. If `externalPrompt` is provided, navigation starts at `AI_NEW_REPORT_WITH_PARAMS` route
+4. User sees pre-filled New Report screen, selects agents, generates report
+
+### Calling from Another App
+
+```kotlin
+val intent = Intent().apply {
+    action = "com.ai.ACTION_NEW_REPORT"
+    setPackage("com.ai")
+    putExtra("title", "Analysis Report")
+    putExtra("prompt", "Analyze this: ...")
+}
+
+// Check if AI app is installed
+if (intent.resolveActivity(packageManager) != null) {
+    startActivity(intent)
+} else {
+    // Handle AI app not installed
+}
+```
+
+### Testing via ADB
+
+```bash
+adb shell am start -a com.ai.ACTION_NEW_REPORT \
+    --es title "Test Report" \
+    --es prompt "What is 2+2?"
+```
 
 ## File Provider Configuration
 

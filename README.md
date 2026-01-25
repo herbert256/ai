@@ -169,6 +169,47 @@ Generated reports include:
 - **Export Config**: Share your agent setup as JSON (version 4 format)
 - **Import Config**: Import agents from JSON file
 
+## Integration with Other Apps
+
+The AI app can be launched from other Android applications to generate reports. This allows apps like chess analyzers, note-taking apps, or any other app to leverage AI analysis without implementing their own AI integrations.
+
+### How to Call the AI App
+
+From your Android app, send an intent:
+
+```kotlin
+val intent = Intent().apply {
+    action = "com.ai.ACTION_NEW_REPORT"
+    setPackage("com.ai")
+    putExtra("title", "My Analysis")      // Optional: report title
+    putExtra("prompt", "Analyze this...") // Required: the prompt
+}
+startActivity(intent)
+```
+
+### What Happens
+
+1. AI app opens with the New Report screen
+2. Title and prompt are pre-filled from the intent
+3. User selects which AI agents to use
+4. Report is generated and displayed in the AI app
+5. User can view, export, or share the results
+
+### Check if AI App is Installed
+
+```kotlin
+val intent = Intent("com.ai.ACTION_NEW_REPORT")
+intent.setPackage("com.ai")
+
+if (intent.resolveActivity(packageManager) != null) {
+    startActivity(intent)
+} else {
+    // Show message that AI app needs to be installed
+}
+```
+
+For detailed integration documentation, see `CALL_AI.md`.
+
 ## App Structure
 
 ```
