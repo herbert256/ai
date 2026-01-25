@@ -64,6 +64,11 @@ fun AiHubScreen(
                 uiState.aiSettings.togetherApiKey.isNotBlank() ||
                 uiState.aiSettings.openRouterApiKey.isNotBlank()
 
+        // Check if setup is complete (no warnings)
+        val isSetupComplete = hasAnyApiKey &&
+                uiState.aiSettings.agents.isNotEmpty() &&
+                uiState.aiSettings.swarms.isNotEmpty()
+
         // Warning if no API keys configured
         if (!hasAnyApiKey) {
             Card(
@@ -138,13 +143,15 @@ fun AiHubScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // Cards
-        HubCard(icon = "\uD83D\uDCDD", title = "New AI Report", onClick = onNavigateToNewReport)
-        Spacer(modifier = Modifier.height(8.dp))
-        HubCard(icon = "\uD83D\uDD52", title = "Prompt History", onClick = onNavigateToPromptHistory)
-        Spacer(modifier = Modifier.height(8.dp))
-        HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
-        Spacer(modifier = Modifier.height(8.dp))
+        // Cards - only show AI features when setup is complete
+        if (isSetupComplete) {
+            HubCard(icon = "\uD83D\uDCDD", title = "New AI Report", onClick = onNavigateToNewReport)
+            Spacer(modifier = Modifier.height(8.dp))
+            HubCard(icon = "\uD83D\uDD52", title = "Prompt History", onClick = onNavigateToPromptHistory)
+            Spacer(modifier = Modifier.height(8.dp))
+            HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
         Spacer(modifier = Modifier.height(8.dp))
         HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
