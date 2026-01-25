@@ -276,6 +276,16 @@ fun AiSetupScreen(
             onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }
         )
 
+        // AI Swarms card
+        val configuredSwarms = aiSettings.swarms.size
+        AiSetupNavigationCard(
+            title = "AI Swarms",
+            description = "Group agents into swarms for report generation",
+            icon = "🐝",
+            count = "$configuredSwarms configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // Search model button

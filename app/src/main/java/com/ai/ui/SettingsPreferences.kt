@@ -38,12 +38,13 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     // ============================================================================
 
     /**
-     * Load AI settings with agents.
+     * Load AI settings with agents and swarms.
      */
     fun loadAiSettingsWithMigration(): AiSettings {
         val baseSettings = loadAiSettings()
         val agents = loadAgents()
-        return baseSettings.copy(agents = agents)
+        val swarms = loadSwarms()
+        return baseSettings.copy(agents = agents, swarms = swarms)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -190,6 +191,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_DUMMY_MANUAL_MODELS, gson.toJson(settings.dummyManualModels))
             // Save agents
             .putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
+            // Save swarms
+            .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             .apply()
     }
 
@@ -220,6 +223,20 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
                     agent
                 }
             } ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // ============================================================================
+    // AI Swarms
+    // ============================================================================
+
+    private fun loadSwarms(): List<AiSwarm> {
+        val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<AiSwarm>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -331,6 +348,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // AI agents
         private const val KEY_AI_AGENTS = "ai_agents"
+
+        // AI swarms
+        private const val KEY_AI_SWARMS = "ai_swarms"
 
         // Prompt history for New AI Report
         private const val KEY_PROMPT_HISTORY = "prompt_history"

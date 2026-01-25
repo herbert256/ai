@@ -238,6 +238,15 @@ data class AiAgent(
 )
 
 /**
+ * AI Swarm - a named group of AI Agents that work together.
+ */
+data class AiSwarm(
+    val id: String,                    // UUID
+    val name: String,                  // User-defined name
+    val agentIds: List<String> = emptyList()  // List of agent IDs in this swarm
+)
+
+/**
  * AI Settings data class for storing API keys for various AI services.
  */
 data class AiSettings(
@@ -294,7 +303,9 @@ data class AiSettings(
     val dummyModelSource: ModelSource = ModelSource.API,
     val dummyManualModels: List<String> = listOf("abc", "klm", "xyz"),
     // AI Agents
-    val agents: List<AiAgent> = emptyList()
+    val agents: List<AiAgent> = emptyList(),
+    // AI Swarms
+    val swarms: List<AiSwarm> = emptyList()
 ) {
     fun getApiKey(service: AiService): String {
         return when (service) {
@@ -408,4 +419,15 @@ data class AiSettings(
     fun getAgentById(id: String): AiAgent? = agents.find { it.id == id }
 
     fun getConfiguredAgents(): List<AiAgent> = agents.filter { it.apiKey.isNotBlank() }
+
+    // Helper methods for swarms
+    fun getSwarmById(id: String): AiSwarm? = swarms.find { it.id == id }
+
+    fun getAgentsForSwarm(swarm: AiSwarm): List<AiAgent> =
+        swarm.agentIds.mapNotNull { agentId -> getAgentById(agentId) }
+
+    fun getAgentsForSwarms(swarmIds: Set<String>): List<AiAgent> =
+        swarmIds.flatMap { swarmId ->
+            getSwarmById(swarmId)?.let { getAgentsForSwarm(it) } ?: emptyList()
+        }.distinctBy { it.id }
 }

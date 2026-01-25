@@ -42,6 +42,9 @@ enum class SettingsSubScreen {
     AI_PROVIDERS,   // Provider model configuration
     AI_AGENTS,      // Agents CRUD
     AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
+    AI_SWARMS,      // Swarms CRUD
+    AI_ADD_SWARM,   // Add new swarm
+    AI_EDIT_SWARM,  // Edit existing swarm
     MODEL_SEARCH    // Search models across providers
 }
 
@@ -99,6 +102,9 @@ fun SettingsScreen(
     var prefillAgentApiKey by remember { mutableStateOf("") }
     var prefillAgentModel by remember { mutableStateOf("") }
 
+    // State for swarm editing
+    var editingSwarmId by remember { mutableStateOf<String?>(null) }
+
     // Helper to generate unique agent name
     fun generateUniqueAgentName(baseName: String): String {
         val existingNames = aiSettings.agents.map { it.name }.toSet()
@@ -138,9 +144,13 @@ fun SettingsScreen(
             // AI screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
+            SettingsSubScreen.AI_SWARMS,
             SettingsSubScreen.MODEL_SEARCH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             // Add agent goes back to AI_PROVIDERS
             SettingsSubScreen.AI_ADD_AGENT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            // Swarm screens go back to AI_SWARMS
+            SettingsSubScreen.AI_ADD_SWARM,
+            SettingsSubScreen.AI_EDIT_SWARM -> currentSubScreen = SettingsSubScreen.AI_SWARMS
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -438,6 +448,48 @@ fun SettingsScreen(
                     prefillAgentApiKey = ""
                     prefillAgentModel = ""
                     currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_SWARMS -> AiSwarmsScreen(
+            aiSettings = aiSettings,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddSwarm = { currentSubScreen = SettingsSubScreen.AI_ADD_SWARM },
+            onEditSwarm = { swarmId ->
+                editingSwarmId = swarmId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_SWARM
+            }
+        )
+        SettingsSubScreen.AI_ADD_SWARM -> SwarmEditScreen(
+            swarm = null,
+            aiSettings = aiSettings,
+            existingNames = aiSettings.swarms.map { it.name }.toSet(),
+            onSave = { newSwarm ->
+                val newSwarms = aiSettings.swarms + newSwarm
+                onSaveAi(aiSettings.copy(swarms = newSwarms))
+                currentSubScreen = SettingsSubScreen.AI_SWARMS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_SWARMS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_SWARM -> {
+            val swarm = editingSwarmId?.let { aiSettings.getSwarmById(it) }
+            SwarmEditScreen(
+                swarm = swarm,
+                aiSettings = aiSettings,
+                existingNames = aiSettings.swarms.filter { it.id != editingSwarmId }.map { it.name }.toSet(),
+                onSave = { updatedSwarm ->
+                    val newSwarms = aiSettings.swarms.map { if (it.id == updatedSwarm.id) updatedSwarm else it }
+                    onSaveAi(aiSettings.copy(swarms = newSwarms))
+                    editingSwarmId = null
+                    currentSubScreen = SettingsSubScreen.AI_SWARMS
+                },
+                onBack = {
+                    editingSwarmId = null
+                    currentSubScreen = SettingsSubScreen.AI_SWARMS
                 },
                 onNavigateHome = onNavigateHome
             )
