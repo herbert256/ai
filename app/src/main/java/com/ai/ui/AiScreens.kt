@@ -910,6 +910,22 @@ private fun convertMarkdownToHtmlForExport(markdown: String): String {
         "<ul>${match.value}</ul>"
     }
 
+    // Clean up excessive whitespace in HTML
+    html = html
+        // Remove multiple consecutive <br> tags (2 or more become 1)
+        .replace(Regex("(<br>){2,}"), "<br>")
+        // Remove <br> before block elements (headings, lists, pre)
+        .replace(Regex("<br>(<h[234]>)"), "$1")
+        .replace(Regex("<br>(<ul>)"), "$1")
+        .replace(Regex("<br>(<pre>)"), "$1")
+        // Remove <br> after block elements
+        .replace(Regex("(</h[234]>)<br>"), "$1")
+        .replace(Regex("(</ul>)<br>"), "$1")
+        .replace(Regex("(</pre>)<br>"), "$1")
+        // Clean up empty paragraphs
+        .replace(Regex("<p></p>"), "")
+        .replace(Regex("</p><p><br></p><p>"), "</p><p>")
+
     // Wrap in paragraph if not empty
     if (html.isNotBlank()) {
         html = "<p>$html</p>"
