@@ -49,9 +49,7 @@ fun AiHubScreen(
         Image(
             painter = painterResource(id = R.drawable.ic_launcher_foreground),
             contentDescription = "AI App Logo",
-            modifier = Modifier
-                .size(140.dp)
-                .padding(vertical = 8.dp)
+            modifier = Modifier.size(200.dp)
         )
 
         // Cards
