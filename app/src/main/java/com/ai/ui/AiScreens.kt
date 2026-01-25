@@ -1712,18 +1712,8 @@ fun AiReportsScreen(
     val validSavedSwarms = savedSwarmIds.filter { it in validSwarmIds }.toSet()
     var selectedSwarmIds by remember {
         mutableStateOf(
-            // First priority: use saved swarm IDs (filter to only valid ones)
-            if (validSavedSwarms.isNotEmpty()) {
-                validSavedSwarms
-            } else if (savedAgentIds.isNotEmpty()) {
-                // Second priority: find swarms that contain any of the saved agents
-                swarms.filter { swarm ->
-                    swarm.agentIds.any { it in savedAgentIds }
-                }.map { it.id }.toSet()
-            } else {
-                // Default to all swarms selected
-                swarms.map { it.id }.toSet()
-            }
+            // Use saved swarm IDs if available, otherwise default to none selected
+            validSavedSwarms
         )
     }
 
