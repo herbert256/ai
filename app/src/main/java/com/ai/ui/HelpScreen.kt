@@ -47,8 +47,9 @@ fun HelpScreen(
             // Welcome section
             HelpSection(
                 title = "Welcome to AI",
-                content = "Create AI-powered reports using 10 different AI services simultaneously. " +
-                    "Configure multiple agents with custom parameters and compare responses side-by-side."
+                content = "Create AI-powered reports using 13 different AI services simultaneously. " +
+                    "Configure multiple agents with custom parameters, organize them into swarms, " +
+                    "and compare responses side-by-side."
             )
 
             // Getting Started
@@ -79,24 +80,26 @@ fun HelpScreen(
             HelpSection(
                 title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
-                content = "The app supports 10 AI services:\n\n" +
+                content = "The app supports 13 AI services:\n\n" +
                     "• ChatGPT (OpenAI) - GPT-4o, GPT-5.x, o3, o4\n" +
                     "• Claude (Anthropic) - Claude 4, Claude 3.5\n" +
                     "• Gemini (Google) - Gemini 2.0 Flash\n" +
                     "• Grok (xAI) - With optional web search\n" +
                     "• Groq - Ultra-fast inference\n" +
-                    "• DeepSeek - Reasoning models\n" +
+                    "• DeepSeek - Reasoning models with think sections\n" +
                     "• Mistral - European AI\n" +
                     "• Perplexity - Web search with citations\n" +
                     "• Together AI - Open-source models\n" +
-                    "• OpenRouter - Access multiple providers\n\n" +
+                    "• OpenRouter - Access multiple providers\n" +
+                    "• SiliconFlow - Chinese AI models\n" +
+                    "• Z.AI - Latest AI models\n\n" +
                     "Each service requires an API key from the provider's website."
             )
 
             // AI Agents
             HelpSection(
                 title = "AI Agents",
-                icon = "⚙",
+                icon = "\u2699",
                 content = "Agents are your configured AI assistants:\n\n" +
                     "Each agent combines:\n" +
                     "• Name - For easy identification\n" +
@@ -105,6 +108,22 @@ fun HelpScreen(
                     "• API Key - Your credentials for that service\n" +
                     "• Parameters - Optional advanced settings\n\n" +
                     "Create multiple agents to compare different services or configurations."
+            )
+
+            // AI Swarms
+            HelpSection(
+                title = "AI Swarms",
+                icon = "\uD83D\uDC1D",
+                content = "Swarms let you group agents for quick selection:\n\n" +
+                    "Creating a swarm:\n" +
+                    "1. Go to Settings > AI Setup > AI Swarms\n" +
+                    "2. Tap 'Add Swarm'\n" +
+                    "3. Enter a name and select agents to include\n" +
+                    "4. Save the swarm\n\n" +
+                    "Using swarms:\n" +
+                    "• When generating a report, select a swarm to include all its agents\n" +
+                    "• Your swarm selections are remembered for next time\n" +
+                    "• Combine swarms with individual agent selection"
             )
 
             // Agent Parameters
@@ -133,7 +152,7 @@ fun HelpScreen(
                     "1. Tap 'New AI Report' from AI Hub\n" +
                     "2. Enter a title (optional) and your prompt\n" +
                     "3. Tap the 'Generate' button at the top\n" +
-                    "4. Select one or more agents in the dialog\n" +
+                    "4. Select agents individually or by swarm\n" +
                     "5. Watch real-time progress as agents respond\n" +
                     "6. Tap STOP to end early if needed\n\n" +
                     "Multiple agents run in parallel for fast comparison.\n\n" +
@@ -147,12 +166,25 @@ fun HelpScreen(
                 content = "After generation, the results dialog shows:\n\n" +
                     "• Agent buttons - Toggle visibility of each response\n" +
                     "• Markdown rendering - Formatted AI responses\n" +
+                    "• Think sections - Expandable AI reasoning (when available)\n" +
                     "• Citations & sources - When provided by Perplexity/Grok\n" +
                     "• Token usage - Input/output counts (developer mode)\n\n" +
                     "Actions:\n" +
                     "• View in Chrome - Open as interactive HTML\n" +
                     "• Share via Email - Send as attachment\n" +
                     "• Close - Return to report screen"
+            )
+
+            // Think Sections
+            HelpSection(
+                title = "Think Sections",
+                icon = "\uD83D\uDCA1",
+                content = "Some AI models show their reasoning process:\n\n" +
+                    "• DeepSeek reasoning models include <think>...</think> sections\n" +
+                    "• These show how the AI arrives at its answer\n" +
+                    "• Click the 'Think' button to expand/collapse\n" +
+                    "• Available in both in-app viewer and HTML reports\n\n" +
+                    "This helps understand AI decision-making while keeping responses clean."
             )
 
             // Prompt History
@@ -183,7 +215,7 @@ fun HelpScreen(
             // Special AI Features
             HelpSection(
                 title = "Special AI Features",
-                icon = "✨",
+                icon = "\u2728",
                 content = "Some AI services provide enhanced responses:\n\n" +
                     "• Perplexity - Citations with source URLs, search results, related questions\n" +
                     "• Grok - Web search results when enabled\n" +
@@ -199,13 +231,13 @@ fun HelpScreen(
                 content = "Backup and restore your AI configuration:\n\n" +
                     "Export:\n" +
                     "• Settings > AI Setup > Export Configuration\n" +
-                    "• Saves providers, agents, and API keys as JSON (v5)\n" +
+                    "• Saves providers, agents, swarms, and API keys as JSON (v6)\n" +
                     "• Share via email or other apps\n\n" +
                     "Import:\n" +
                     "• Settings > AI Setup > Import from File\n" +
                     "• Or paste JSON and tap Import from Clipboard\n" +
-                    "• Supports versions 3, 4, and 5\n\n" +
-                    "All agent parameters are preserved in exports."
+                    "• Supports versions 3, 4, 5, and 6\n\n" +
+                    "All agent parameters and swarms are preserved in exports."
             )
 
             // External App Integration
@@ -216,7 +248,7 @@ fun HelpScreen(
                     "When launched from another app:\n" +
                     "• AI opens directly to New Report screen\n" +
                     "• Title and prompt are pre-filled\n" +
-                    "• Select agents and generate as usual\n" +
+                    "• Select agents or swarms and generate as usual\n" +
                     "• Results stay in AI app's history\n\n" +
                     "See CALL_AI.md for integration details."
             )
@@ -224,17 +256,17 @@ fun HelpScreen(
             // Settings Overview
             HelpSection(
                 title = "Settings Overview",
-                icon = "⚙",
+                icon = "\u2699",
                 content = "Customize the app:\n\n" +
                     "General:\n" +
                     "• Pagination size (5-50 items per page)\n" +
-                    "• Developer mode toggle\n\n" +
+                    "• Developer mode toggle\n" +
+                    "• API call tracing (when developer mode enabled)\n\n" +
                     "AI Setup:\n" +
                     "• Configure providers and models\n" +
                     "• Create and manage agents\n" +
-                    "• Export/import configuration\n\n" +
-                    "Developer (when enabled):\n" +
-                    "• API call tracing toggle"
+                    "• Create and manage swarms\n" +
+                    "• Export/import configuration"
             )
 
             // Developer Mode
@@ -244,7 +276,7 @@ fun HelpScreen(
                 content = "Enable in Settings > General > Developer Mode:\n\n" +
                     "Features unlocked:\n" +
                     "• DUMMY provider for testing (no API needed)\n" +
-                    "• API tracing option in Developer settings\n" +
+                    "• API tracing option (same settings card)\n" +
                     "• Token usage shown in reports\n" +
                     "• HTTP headers visible in reports\n\n" +
                     "API Tracing (when enabled):\n" +
@@ -273,14 +305,14 @@ fun HelpScreen(
                 icon = "\uD83D\uDEE0",
                 content = "Common issues:\n\n" +
                     "\"API key not configured\"\n" +
-                    "→ Add your API key when creating the agent\n\n" +
+                    "\u2192 Add your API key when creating the agent\n\n" +
                     "\"Network error\"\n" +
-                    "→ Check internet connection (retries automatically once)\n\n" +
+                    "\u2192 Check internet connection (retries automatically once)\n\n" +
                     "\"Model not found\"\n" +
-                    "→ Model may be deprecated, try fetching fresh models\n\n" +
+                    "\u2192 Model may be deprecated, try fetching fresh models\n\n" +
                     "Slow responses?\n" +
-                    "→ AI APIs can take minutes for complex prompts. Timeout is 7 min.\n\n" +
-                    "For API debugging, enable Developer Mode and API tracing."
+                    "\u2192 AI APIs can take minutes for complex prompts. Timeout is 7 min.\n\n" +
+                    "For API debugging, enable Developer Mode and API tracing in Settings > General."
             )
 
             Spacer(modifier = Modifier.height(32.dp))

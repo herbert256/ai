@@ -1,12 +1,13 @@
 # AI - Multi-Provider AI Report Generator
 
-An Android app that generates AI-powered reports using multiple AI services simultaneously. Compare responses from ChatGPT, Claude, Gemini, and 7 other AI providers in a single report.
+An Android app that generates AI-powered reports using multiple AI services simultaneously. Compare responses from ChatGPT, Claude, Gemini, and 10 other AI providers in a single report.
 
 ## Features
 
 ### Core Features
-- **10 AI Services**: ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter
+- **13 AI Services**: ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, plus DUMMY for testing
 - **Multi-Agent Reports**: Query multiple AI providers in parallel, compare responses side-by-side
+- **AI Swarms**: Group agents together for quick selection during report generation
 - **Advanced Parameters**: Configure temperature, max tokens, system prompts, and more per agent
 - **Real-time Progress**: Watch as each agent completes, with option to stop early
 
@@ -14,12 +15,14 @@ An Android app that generates AI-powered reports using multiple AI services simu
 - **Prompt History**: Automatically saves prompts (up to 100), one-tap reuse
 - **Report History**: Browse, view, and share previously generated HTML reports
 - **Paginated Lists**: Configurable page size (5-50 items)
+- **Swarm Selection Memory**: Remembers your last selected swarms for convenience
 
 ### Export & Sharing
 - **HTML Reports**: View in browser or share via email
 - **Markdown Rendering**: AI responses rendered with formatting
+- **Collapsible Think Sections**: AI reasoning hidden behind expandable buttons
 - **Citations & Sources**: Perplexity citations, Grok/Perplexity search results displayed
-- **Configuration Export**: Backup/restore your agents as JSON
+- **Configuration Export**: Backup/restore your agents and swarms as JSON (v6 format)
 
 ### Developer Features
 - **API Tracing**: Log all API requests and responses
@@ -65,12 +68,19 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
    - System Prompt for custom instructions
 5. Save (tests API automatically)
 
-### 2. Generate a Report
+### 2. Create a Swarm (Optional)
+
+1. Go to Settings → AI Setup → AI Swarms
+2. Tap "Add Swarm"
+3. Enter a name and select agents to include
+4. Save - now you can select this swarm for quick agent selection
+
+### 3. Generate a Report
 
 1. From AI Hub, tap "New AI Report"
 2. Enter a title and your prompt
 3. Tap "Generate" button at top
-4. Select your agent(s) in the dialog
+4. Select individual agents or swarms in the dialog
 5. Watch progress as agents respond
 6. View results, toggle between agents, export or share
 
@@ -88,6 +98,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | **Perplexity** | Perplexity | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
 | **Together** | Together AI | [api.together.xyz](https://api.together.xyz/settings/api-keys) |
 | **OpenRouter** | OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| **SiliconFlow** | SiliconFlow | [siliconflow.cn](https://siliconflow.cn/) |
+| **Z.AI** | Z.AI | [z.ai](https://z.ai/) |
 
 ### Default Models
 
@@ -103,6 +115,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | Perplexity | sonar |
 | Together | meta-llama/Llama-3.3-70B-Instruct-Turbo |
 | OpenRouter | anthropic/claude-3.5-sonnet |
+| SiliconFlow | Qwen/Qwen2.5-7B-Instruct |
+| Z.AI | z1-preview |
 
 ### Service-Specific Features
 
@@ -113,7 +127,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | **Gemini** | System instruction, generation config |
 | **Grok** | Web search toggle, returns search results |
 | **Perplexity** | Citations, search results, related questions, recency filter |
-| **DeepSeek** | Reasoning content support |
+| **DeepSeek** | Reasoning content support (think sections) |
+| **SiliconFlow** | OpenAI-compatible, Chinese AI models |
+| **Z.AI** | OpenAI-compatible, latest models |
 
 ## Agent Parameters
 
@@ -124,9 +140,9 @@ Each agent can be configured with advanced parameters (availability varies by pr
 | **Temperature** | Randomness (0.0-2.0). Lower = focused, higher = creative | All |
 | **Max Tokens** | Maximum response length | All |
 | **Top P** | Nucleus sampling threshold (0.0-1.0) | All |
-| **Top K** | Limits vocabulary choices per token | Claude, Gemini, Together, OpenRouter |
-| **Frequency Penalty** | Reduces repetition of frequent tokens (-2.0 to 2.0) | ChatGPT, Grok, Groq, DeepSeek, Perplexity, Together, OpenRouter |
-| **Presence Penalty** | Encourages discussing new topics (-2.0 to 2.0) | ChatGPT, Grok, Groq, DeepSeek, Perplexity, Together, OpenRouter |
+| **Top K** | Limits vocabulary choices per token | Claude, Gemini, Together, OpenRouter, SiliconFlow, Z.AI |
+| **Frequency Penalty** | Reduces repetition of frequent tokens (-2.0 to 2.0) | ChatGPT, Grok, Groq, DeepSeek, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI |
+| **Presence Penalty** | Encourages discussing new topics (-2.0 to 2.0) | ChatGPT, Grok, Groq, DeepSeek, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI |
 | **System Prompt** | Instructions for AI behavior | All |
 | **Stop Sequences** | Strings that stop generation | Most |
 | **Seed** | For reproducible outputs | ChatGPT, Groq, Mistral, OpenRouter |
@@ -137,14 +153,29 @@ Each agent can be configured with advanced parameters (availability varies by pr
 
 ## Features in Detail
 
+### AI Swarms
+
+Group your agents for convenient selection:
+1. Create swarms in Settings → AI Setup → AI Swarms
+2. Add any configured agents to a swarm
+3. When generating a report, select a swarm to include all its agents
+4. Your swarm selections are remembered for next time
+
 ### Multi-Agent Reports
 
 Query multiple AI providers simultaneously:
 1. Create agents for different services (or same service with different parameters)
-2. Select multiple agents when generating a report
+2. Select multiple agents or swarms when generating a report
 3. Compare responses side-by-side
 4. Toggle visibility of individual responses
 5. Stop generation early if needed (incomplete agents show "Not ready")
+
+### Think Sections
+
+Some AI models (like DeepSeek reasoning models) include `<think>...</think>` sections showing their reasoning process:
+- In-app viewer: Click the "Think" button to expand/collapse reasoning
+- HTML reports: JavaScript-powered collapsible sections
+- Helps understand AI decision-making while keeping responses clean
 
 ### Prompt Templates
 
@@ -156,6 +187,7 @@ Use placeholders in your prompts:
 Generated reports include:
 - Report title and timestamp
 - Clickable buttons to toggle each agent's response
+- Collapsible think sections for AI reasoning
 - Markdown-rendered AI responses
 - Citations and sources (when provided)
 - Search results and related questions (when provided)
@@ -166,8 +198,8 @@ Generated reports include:
 
 - **View in Chrome**: Opens HTML report in browser
 - **Share via Email**: Attaches report as HTML file
-- **Export Config**: Share your agent setup as JSON (version 4 format)
-- **Import Config**: Import agents from JSON file
+- **Export Config**: Share your agent and swarm setup as JSON (version 6 format)
+- **Import Config**: Import agents and swarms from JSON file
 
 ## Integration with Other Apps
 
@@ -191,7 +223,7 @@ startActivity(intent)
 
 1. AI app opens with the New Report screen
 2. Title and prompt are pre-filled from the intent
-3. User selects which AI agents to use
+3. User selects which AI agents or swarms to use
 4. Report is generated and displayed in the AI app
 5. User can view, export, or share the results
 
@@ -216,7 +248,7 @@ For detailed integration documentation, see `CALL_AI.md`.
 AI Hub (Home)
 ├── New AI Report
 │   ├── Enter title + prompt
-│   ├── Generate → Select agents
+│   ├── Generate → Select agents/swarms
 │   ├── Progress with real-time updates
 │   └── Results → View/Export/Share
 ├── Prompt History
@@ -226,13 +258,13 @@ AI Hub (Home)
 └── Settings
     ├── General
     │   ├── Pagination size (5-50)
-    │   └── Developer mode toggle
+    │   ├── Developer mode toggle
+    │   └── API tracing toggle (when dev mode enabled)
     ├── AI Setup
     │   ├── Service configs (API keys, models)
     │   ├── AI Agents (with parameters)
+    │   ├── AI Swarms (agent groups)
     │   └── Export/Import
-    ├── Developer
-    │   └── API tracing toggle
     └── Help
 ```
 
@@ -269,7 +301,7 @@ Add your API key in Settings → AI Setup → AI Agents
 
 ### Debug API issues
 1. Enable Developer Mode (Settings → General)
-2. Enable "Track API calls" (Settings → Developer)
+2. Enable "Track API calls" in the same card
 3. Reproduce the issue
 4. Check trace viewer (bug icon in title bar)
 5. Inspect request/response details
@@ -283,7 +315,7 @@ Add your API key in Settings → AI Setup → AI Agents
 - **Networking**: Retrofit 2 with OkHttp
 - **Min SDK**: 26 (Android 8.0)
 - **Target SDK**: 34 (Android 14)
-- **Codebase**: ~9,300 lines across 23 files
+- **Codebase**: ~10,500 lines across 24 files
 
 ## Building
 
@@ -313,10 +345,10 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 
 ## Configuration Export Format
 
-Version 5 JSON format (supports importing versions 3, 4, and 5):
+Version 6 JSON format (supports importing versions 3, 4, 5, and 6):
 ```json
 {
-  "version": 5,
+  "version": 6,
   "providers": {
     "CHATGPT": {
       "modelSource": "API",
@@ -347,6 +379,13 @@ Version 5 JSON format (supports importing versions 3, 4, and 5):
         "searchRecency": null
       }
     }
+  ],
+  "swarms": [
+    {
+      "id": "uuid",
+      "name": "My Swarm",
+      "agentIds": ["agent-uuid-1", "agent-uuid-2"]
+    }
   ]
 }
 ```
@@ -357,7 +396,7 @@ Private use only. Not for redistribution.
 
 ## Acknowledgments
 
-- **AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter
+- **AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI
 - **UI Framework**: Jetpack Compose, Material 3
 - **Networking**: Retrofit, OkHttp, Gson
 
