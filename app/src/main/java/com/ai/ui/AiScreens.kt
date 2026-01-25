@@ -112,6 +112,30 @@ fun AiHubScreen(
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
+        } else if (uiState.aiSettings.swarms.isEmpty()) {
+            // Warning if no swarms configured (only show if agents exist)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF3A3A4A)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "\uD83D\uDC1D", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "No AI swarms configured. Go to Settings → AI Setup → AI Swarms to create your first swarm.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFB0B0FF)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
 
         // Cards
