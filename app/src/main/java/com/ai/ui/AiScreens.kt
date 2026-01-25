@@ -1231,6 +1231,17 @@ fun AiReportsScreenNav(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    // Reset state when leaving the screen
+    val handleDismiss = {
+        viewModel.dismissGenericAiReportsDialog()
+        onNavigateBack()
+    }
+
+    val handleNavigateHome = {
+        viewModel.dismissGenericAiReportsDialog()
+        onNavigateHome()
+    }
+
     AiReportsScreen(
         uiState = uiState,
         savedAgentIds = viewModel.loadAiReportAgents(),
@@ -1240,8 +1251,8 @@ fun AiReportsScreenNav(
         },
         onShare = { shareGenericAiReports(context, uiState) },
         onOpenInBrowser = { openGenericAiReportsInChrome(context, uiState) },
-        onDismiss = onNavigateBack,
-        onNavigateHome = onNavigateHome
+        onDismiss = handleDismiss,
+        onNavigateHome = handleNavigateHome
     )
 }
 
