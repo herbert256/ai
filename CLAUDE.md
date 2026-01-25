@@ -24,21 +24,22 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer)"
 
 ## Project Overview
 
-**AI** is an Android app for creating AI-powered reports using 10 different AI services. Users can configure multiple AI agents, submit custom prompts, and generate comparative reports from multiple AI providers simultaneously.
+**AI** is an Android app for creating AI-powered reports using 10 different AI services. Users can configure multiple AI agents with advanced parameters, submit custom prompts, and generate comparative reports from multiple AI providers simultaneously.
 
 **Key Features:**
-- Support for 10 AI services (ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter)
-- Three-tier architecture: Providers → Prompts → Agents
-- Parallel multi-agent report generation
-- Prompt history and report history
-- Developer mode with API tracing
-- HTML report export with share functionality
+- Support for 10 AI services (ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter) + DUMMY for testing
+- AI Agents with configurable parameters (temperature, max_tokens, system prompt, etc.)
+- Parallel multi-agent report generation with real-time progress
+- Prompt history (up to 100 entries) and HTML report history
+- Developer mode with comprehensive API tracing
+- HTML report export with markdown rendering, citations, and search results
+- Configuration export/import (JSON format, version 4)
 
 **Technical Stack:**
 - **Language:** Kotlin
-- **UI:** Jetpack Compose with Material 3
+- **UI:** Jetpack Compose with Material 3 (dark theme)
 - **Architecture:** MVVM with StateFlow
-- **Networking:** Retrofit 2 with OkHttp
+- **Networking:** Retrofit 2 with OkHttp, Gson serialization
 - **Android SDK:** minSdk 26, targetSdk 34, compileSdk 34
 - **Namespace:** `com.ai`
 
@@ -48,35 +49,35 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer)"
 
 ```
 com.ai/
-├── MainActivity.kt                    # Entry point (33 lines)
+├── MainActivity.kt                    # Entry point, sets up Compose theme (33 lines)
 ├── data/                              # Data layer
-│   ├── AiAnalysisApi.kt              # Retrofit interfaces for 10 AI services (485 lines)
-│   ├── AiAnalysisRepository.kt       # API logic, retry handling, model fetching (1,043 lines)
+│   ├── AiAnalysisApi.kt              # Retrofit interfaces, request/response models (540 lines)
+│   ├── AiAnalysisRepository.kt       # API logic, retry handling, parameter passing (1,150 lines)
 │   ├── AiHistoryManager.kt           # HTML report storage (156 lines)
 │   └── ApiTracer.kt                  # Debug API request/response logging (308 lines)
 └── ui/                                # UI layer
-    ├── AiViewModel.kt                # Central state management (316 lines)
-    ├── AiModels.kt                   # Core domain models (55 lines)
-    ├── AiScreens.kt                  # Main screens: Hub, NewReport, History (1,833 lines)
+    ├── AiViewModel.kt                # Central state management (342 lines)
+    ├── AiModels.kt                   # Core UI state model (55 lines)
+    ├── AiScreens.kt                  # Main screens: Hub, NewReport, History, Results (2,036 lines)
     ├── AiSettingsScreen.kt           # AI settings navigation (443 lines)
-    ├── AiSettingsModels.kt           # AI settings data structures (192 lines)
-    ├── AiSettingsComponents.kt       # Reusable AI settings UI (721 lines)
-    ├── AiServiceSettingsScreens.kt   # Individual service config screens (644 lines)
-    ├── AiPromptsAgentsScreens.kt     # Prompts and agents CRUD (557 lines)
-    ├── AiSettingsExport.kt           # Configuration export/import (463 lines)
-    ├── SettingsScreen.kt             # Settings hub (301 lines)
-    ├── GeneralSettingsScreen.kt      # General app settings (99 lines)
-    ├── DeveloperSettingsScreen.kt    # Developer debugging settings (118 lines)
-    ├── HelpScreen.kt                 # In-app documentation (224 lines)
-    ├── TraceScreen.kt                # API trace viewer (566 lines)
-    ├── ColorPickerDialog.kt          # HSV color picker (254 lines)
-    ├── SettingsPreferences.kt        # SharedPreferences persistence (294 lines)
-    ├── SharedComponents.kt           # Reusable components: AiTitleBar (106 lines)
+    ├── AiSettingsModels.kt           # AI settings data: agents, parameters, providers (343 lines)
+    ├── AiSettingsComponents.kt       # Reusable AI settings UI components (721 lines)
+    ├── AiServiceSettingsScreens.kt   # Per-service config screens (644 lines)
+    ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (814 lines)
+    ├── AiSettingsExport.kt           # Configuration export/import v4 (525 lines)
+    ├── SettingsScreen.kt             # Settings hub navigation (301 lines)
+    ├── GeneralSettingsScreen.kt      # General settings: pagination, dev mode (99 lines)
+    ├── DeveloperSettingsScreen.kt    # Developer settings: API tracing (118 lines)
+    ├── HelpScreen.kt                 # In-app documentation (260 lines)
+    ├── TraceScreen.kt                # API trace list and detail viewer (560 lines)
+    ├── ColorPickerDialog.kt          # HSV color picker dialog (254 lines)
+    ├── SettingsPreferences.kt        # SharedPreferences persistence (298 lines)
+    ├── SharedComponents.kt           # AiTitleBar, common widgets (106 lines)
     ├── Navigation.kt                 # Jetpack Navigation routes (203 lines)
     └── theme/Theme.kt                # Material3 dark theme (32 lines)
 ```
 
-**Total:** 23 Kotlin files, ~8,500 lines of code
+**Total:** 23 Kotlin files, ~9,300 lines of code
 
 ### Key Data Classes
 
@@ -96,13 +97,44 @@ enum class AiService(val displayName: String, val baseUrl: String) {
     DUMMY("Dummy", "")
 }
 
-// AI Agent configuration
+// AI Agent configuration with advanced parameters
 data class AiAgent(
-    val id: String,           // UUID
-    val name: String,         // User-defined name
-    val provider: AiService,  // Service to use
-    val model: String,        // Model name
-    val apiKey: String        // API key for this agent
+    val id: String,                    // UUID
+    val name: String,                  // User-defined name
+    val provider: AiService,           // Service to use
+    val model: String,                 // Model name
+    val apiKey: String,                // API key for this agent
+    val parameters: AiAgentParameters = AiAgentParameters()  // Advanced parameters
+)
+
+// Agent parameters (all optional - null means use provider default)
+data class AiAgentParameters(
+    val temperature: Float? = null,           // Randomness (0.0-2.0)
+    val maxTokens: Int? = null,               // Maximum response length
+    val topP: Float? = null,                  // Nucleus sampling (0.0-1.0)
+    val topK: Int? = null,                    // Vocabulary limit
+    val frequencyPenalty: Float? = null,      // Reduces repetition (-2.0 to 2.0)
+    val presencePenalty: Float? = null,       // Encourages new topics (-2.0 to 2.0)
+    val systemPrompt: String? = null,         // System instruction
+    val stopSequences: List<String>? = null,  // Stop generation sequences
+    val seed: Int? = null,                    // For reproducibility
+    val responseFormatJson: Boolean = false,  // JSON mode (OpenAI)
+    val searchEnabled: Boolean = false,       // Web search (Grok)
+    val returnCitations: Boolean = true,      // Return citations (Perplexity)
+    val searchRecency: String? = null         // Search recency: "day", "week", "month", "year"
+)
+
+// Provider-supported parameters map (determines which UI options to show)
+val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
+    AiService.CHATGPT to setOf(TEMPERATURE, MAX_TOKENS, TOP_P, FREQUENCY_PENALTY,
+        PRESENCE_PENALTY, SYSTEM_PROMPT, STOP_SEQUENCES, SEED, RESPONSE_FORMAT),
+    AiService.CLAUDE to setOf(TEMPERATURE, MAX_TOKENS, TOP_P, TOP_K, SYSTEM_PROMPT, STOP_SEQUENCES),
+    AiService.GEMINI to setOf(TEMPERATURE, MAX_TOKENS, TOP_P, TOP_K, SYSTEM_PROMPT, STOP_SEQUENCES),
+    AiService.GROK to setOf(TEMPERATURE, MAX_TOKENS, TOP_P, FREQUENCY_PENALTY,
+        PRESENCE_PENALTY, SYSTEM_PROMPT, STOP_SEQUENCES, SEARCH_ENABLED),
+    AiService.PERPLEXITY to setOf(TEMPERATURE, MAX_TOKENS, TOP_P, FREQUENCY_PENALTY,
+        PRESENCE_PENALTY, SYSTEM_PROMPT, RETURN_CITATIONS, SEARCH_RECENCY),
+    // ... etc for other providers
 )
 
 // AI Analysis response (unified format for all services)
@@ -111,7 +143,7 @@ data class AiAnalysisResponse(
     val analysis: String?,              // AI-generated text
     val error: String?,                 // Error message if failed
     val tokenUsage: TokenUsage?,        // Input/output token counts
-    val agentName: String?,             // Agent name
+    val agentName: String?,             // Agent name (for display)
     val promptUsed: String?,            // Actual prompt sent
     val citations: List<String>?,       // URLs (Perplexity)
     val searchResults: List<SearchResult>?,  // Search results (Grok, Perplexity)
@@ -139,7 +171,7 @@ data class PromptHistoryEntry(
 
 1. **MVVM with StateFlow**: `AiViewModel` exposes `StateFlow<AiUiState>`, UI recomposes reactively via `collectAsState()`
 
-2. **Repository Pattern**: `AiAnalysisRepository` handles all API interactions, retry logic, and response normalization
+2. **Repository Pattern**: `AiAnalysisRepository` handles all API interactions, retry logic, parameter passing, and response normalization
 
 3. **Singleton Helpers**: `AiHistoryManager` and `ApiTracer` are singletons initialized in ViewModel
 
@@ -149,6 +181,7 @@ data class PromptHistoryEntry(
    - `ConcurrentHashMap` for Retrofit cache
    - Synchronized access to `isTracingEnabled` flag
    - Coroutines with `Dispatchers.IO` for network calls
+   - StateFlow for thread-safe state updates
 
 ## AI Services
 
@@ -165,17 +198,35 @@ data class PromptHistoryEntry(
 | Mistral | mistral-small-latest | OpenAI-compatible | Bearer token |
 | Perplexity | sonar | OpenAI-compatible | Bearer token |
 | Together | Llama-3.3-70B-Instruct-Turbo | OpenAI-compatible | Bearer token |
-| OpenRouter | claude-3.5-sonnet | OpenAI-compatible | Bearer token |
-| DUMMY | dummy-model | N/A | For testing |
+| OpenRouter | anthropic/claude-3.5-sonnet | OpenAI-compatible | Bearer token |
+| DUMMY | dummy-model | N/A | For testing (dev mode only) |
 
 ### Service-Specific Features
 
-- **ChatGPT**: Supports Chat Completions API (gpt-4o, etc.) and Responses API (gpt-5.x, o3, o4)
-- **Claude**: Hardcoded model list (8 models), Anthropic-specific format
+- **ChatGPT**: Supports Chat Completions API (gpt-4o, etc.) and Responses API (gpt-5.x, o3, o4). JSON response format option.
+- **Claude**: Hardcoded model list (8 models - no list API), Anthropic-specific format with content blocks
+- **Gemini**: Uses generationConfig object for parameters, systemInstruction for system prompt
 - **DeepSeek**: Handles `reasoning_content` field for reasoning models
-- **Perplexity**: Returns `citations`, `search_results`, `related_questions`
-- **Grok**: May return `search_results`
-- **Together AI**: Custom response parsing (raw array format)
+- **Perplexity**: Returns `citations`, `search_results`, `related_questions`. Supports search recency filter.
+- **Grok**: Optional web search via `search` parameter. May return `search_results`.
+- **Together AI**: Custom response parsing (raw array format for models endpoint)
+
+### Hardcoded Models
+
+```kotlin
+// Claude (no list API)
+val CLAUDE_MODELS = listOf(
+    "claude-sonnet-4-20250514", "claude-opus-4-20250514",
+    "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022", "claude-3-opus-20240229",
+    "claude-3-sonnet-20240229", "claude-3-haiku-20240307"
+)
+
+// Perplexity (no list API)
+val PERPLEXITY_MODELS = listOf(
+    "sonar", "sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"
+)
+```
 
 ### API Configuration
 
@@ -193,6 +244,45 @@ companion object {
     private const val RETRY_DELAY_MS = 500L
     private const val TEST_PROMPT = "Reply with exactly: OK"
 }
+```
+
+### Request Data Classes with Parameters
+
+All request classes support optional parameters:
+
+```kotlin
+// OpenAI-compatible format (ChatGPT, Grok, Groq, DeepSeek, Mistral, Perplexity, Together, OpenRouter)
+data class OpenAiRequest(
+    val model: String,
+    val messages: List<OpenAiMessage>,
+    val max_tokens: Int? = null,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null,
+    val seed: Int? = null,
+    val response_format: OpenAiResponseFormat? = null
+)
+
+// Claude-specific format
+data class ClaudeRequest(
+    val model: String,
+    val max_tokens: Int? = 1024,
+    val messages: List<ClaudeMessage>,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val top_k: Int? = null,
+    val system: String? = null,
+    val stop_sequences: List<String>? = null
+)
+
+// Gemini-specific format
+data class GeminiRequest(
+    val contents: List<GeminiContent>,
+    val generationConfig: GeminiGenerationConfig? = null,
+    val systemInstruction: GeminiContent? = null
+)
 ```
 
 ## Navigation
@@ -218,10 +308,11 @@ object NavRoutes {
 ```
 AI Hub (Home)
 ├── New AI Report → Agent Selection → Progress → Results Dialog
+│   └── Results: View, Export HTML, Share, toggle agent visibility
 ├── Prompt History → Click to reuse → New AI Report (pre-filled)
-├── AI History → View/Share/Delete reports
+├── AI History → View/Share/Delete HTML reports
 ├── Settings → General / AI Setup / Developer
-│   └── AI Setup → Service configs / Agents / Prompts / Export
+│   └── AI Setup → Service configs / Agents (with parameters) / Export
 └── Help
 ```
 
@@ -241,17 +332,11 @@ AI Hub (Home)
 "ai_{service}_model_source"   // Enum: API or MANUAL
 "ai_{service}_manual_models"  // JSON List<String>
 
-// Agents and prompts
+// Agents (JSON with all parameters)
 "ai_agents"               // JSON List<AiAgent>
-"ai_prompts"              // JSON List<AiPrompt>
 
 // History
 "prompt_history"          // JSON List<PromptHistoryEntry>
-"ai_report_email"         // String (remembered email)
-
-// Last report (for restoration)
-"last_ai_report_title"    // String
-"last_ai_report_prompt"   // String
 ```
 
 ### Constants (SettingsPreferences)
@@ -263,46 +348,46 @@ const val DEFAULT_PAGINATION_PAGE_SIZE = 25
 const val MAX_PROMPT_HISTORY = 100
 ```
 
-## API Tracing (Developer Feature)
+## File Storage
 
-### Enable Tracing
-Settings → Developer → Track API calls (toggle)
+### Directories
 
-### Storage
-- Directory: `/files/trace/`
-- Filename: `{hostname}_{yyyyMMdd_HHmmss_SSS}.json`
-- Format:
+```
+/files/ai-history/           # HTML reports
+  └── ai_{yyyyMMdd_HHmmss}.html
+
+/files/trace/                # API traces (when enabled)
+  └── {hostname}_{yyyyMMdd_HHmmss_SSS}.json
+
+/cache/ai_analysis/          # Temp files for sharing
+/cache/shared_traces/        # Exported traces
+```
+
+### API Trace Format
+
 ```json
 {
   "timestamp": 1672531200000,
   "hostname": "api.openai.com",
-  "request": { "url": "...", "method": "POST", "headers": {...}, "body": "..." },
-  "response": { "statusCode": 200, "headers": {...}, "body": "..." }
+  "request": {
+    "url": "https://api.openai.com/v1/chat/completions",
+    "method": "POST",
+    "headers": { "Authorization": "Bear****xyz" },
+    "body": "{...}"
+  },
+  "response": {
+    "statusCode": 200,
+    "headers": {...},
+    "body": "{...}"
+  }
 }
 ```
 
 ### Header Masking (Security)
+
 Sensitive headers are masked (first 4 + last 4 chars shown):
 - Authorization, x-api-key, x-goog-api-key, api-key, api_key, apikey
 - bearer, token, secret, password, anthropic-api-key
-
-## HTML Report Generation
-
-### File Storage
-- Directory: `/files/ai-history/`
-- Filename: `ai_{yyyyMMdd_HHmmss}.html`
-
-### Report Contents
-- Title and timestamp
-- Agent buttons (toggle visibility)
-- AI responses with markdown rendering
-- Citations, search results, related questions (if available)
-- API usage and HTTP headers (developer mode only)
-- Prompt text at bottom
-
-### Sharing
-- View in Chrome (via Intent)
-- Share via email (FileProvider)
 
 ## Common Tasks
 
@@ -312,21 +397,22 @@ Sensitive headers are masked (first 4 + last 4 chars shown):
 2. Create request/response data classes if format differs
 3. Create Retrofit interface in `AiAnalysisApi.kt`
 4. Add factory method in `AiApiFactory`
-5. Add analysis method in `AiAnalysisRepository.kt`
-6. Add settings fields to `AiSettings` in `AiSettingsModels.kt`
-7. Add UI in `AiServiceSettingsScreens.kt`
-8. Add SharedPreferences keys in `SettingsPreferences.kt`
-9. Update load/save methods
-10. Update export/import in `AiSettingsExport.kt`
+5. Add analysis method in `AiAnalysisRepository.kt` (with parameter support)
+6. Add to `PROVIDER_SUPPORTED_PARAMETERS` map in `AiSettingsModels.kt`
+7. Add settings fields to `AiSettings` in `AiSettingsModels.kt`
+8. Add UI in `AiServiceSettingsScreens.kt`
+9. Add SharedPreferences keys in `SettingsPreferences.kt`
+10. Update load/save methods
+11. Update export/import in `AiSettingsExport.kt`
 
-### Adding a New Setting
+### Adding a New Agent Parameter
 
-1. Add field to data class in `AiModels.kt` or `AiSettingsModels.kt`
-2. Add key constant in `SettingsPreferences.kt` companion object
-3. Update load function in `SettingsPreferences.kt`
-4. Update save function in `SettingsPreferences.kt`
-5. Add UI control in appropriate settings screen
-6. Connect to ViewModel state
+1. Add to `AiParameter` enum in `AiSettingsModels.kt`
+2. Add field to `AiAgentParameters` data class
+3. Update `PROVIDER_SUPPORTED_PARAMETERS` for each provider that supports it
+4. Add UI control in `AgentEditDialog` in `AiPromptsAgentsScreens.kt`
+5. Update request data class in `AiAnalysisApi.kt`
+6. Pass parameter in `analyzeWith*` method in `AiAnalysisRepository.kt`
 
 ### Adding a New Screen
 
@@ -366,6 +452,7 @@ For sharing files (HTML reports, trace exports):
 <paths>
     <cache-path name="ai_analysis" path="ai_analysis/" />
     <cache-path name="shared_traces" path="shared_traces/" />
+    <files-path name="ai_history" path="ai-history/" />
 </paths>
 ```
 
@@ -376,6 +463,7 @@ After making changes:
 - [ ] App launches without crash
 - [ ] AI Hub displays correctly as home page
 - [ ] New AI Report flow works (prompt → agents → results)
+- [ ] Agent parameters save and apply correctly
 - [ ] Prompt History shows entries and allows reuse
 - [ ] AI History lists reports, view/share/delete work
 - [ ] Settings navigation works (General, AI Setup, Developer)
@@ -383,23 +471,34 @@ After making changes:
 - [ ] API tracing captures requests when enabled
 - [ ] HTML reports render correctly in browser
 - [ ] Export/import configuration works
+- [ ] DUMMY provider hidden when not in developer mode
 
 ## Code Quality Notes
 
 ### Error Handling
-- All API calls use try-catch with retry logic
+- All API calls use try-catch with retry logic (500ms delay, 2 attempts)
 - Errors logged via `android.util.Log` (not `printStackTrace()`)
-- Empty catch blocks include warning logs
+- User-friendly error messages in `AiAnalysisResponse.error`
 
 ### Thread Safety
-- `ConcurrentHashMap` for Retrofit cache
-- Synchronized `isTracingEnabled` flag
-- Coroutines with appropriate dispatchers
+- `ConcurrentHashMap` for Retrofit instance cache
+- Synchronized `isTracingEnabled` flag access
+- Coroutines with `Dispatchers.IO` for network calls
+- StateFlow for thread-safe UI state
 
 ### Null Safety
 - Avoid `!!` operator - use `?.let`, `?:`, or safe calls
 - Capture nullable values before lambdas
+- All API parameters are nullable with sensible defaults
 
 ### Constants
 - Magic numbers extracted to companion object constants
 - Timeout values, retry delays, limits all named
+- Page sizes: MIN=5, MAX=50, DEFAULT=25
+
+### Logging Tags
+```kotlin
+android.util.Log.d("GeminiAPI", "Response code: ${response.code()}")
+android.util.Log.w("AiAnalysis", "First attempt failed, retrying...")
+android.util.Log.e("AiHistoryManager", "Failed to save: ${e.message}")
+```
