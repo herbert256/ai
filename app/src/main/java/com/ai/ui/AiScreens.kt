@@ -855,6 +855,19 @@ fun AiNewReportScreen(
                 cursorColor = Color.White
             )
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Clear button
+        OutlinedButton(
+            onClick = {
+                title = ""
+                prompt = ""
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Clear")
+        }
     }
 }
 
