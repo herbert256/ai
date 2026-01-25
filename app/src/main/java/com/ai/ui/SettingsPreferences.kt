@@ -359,5 +359,28 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         // Last AI report title and prompt (for New AI Report screen)
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"
         const val KEY_LAST_AI_REPORT_PROMPT = "last_ai_report_prompt"
+
+        // Selected swarm IDs for report generation
+        private const val KEY_SELECTED_SWARM_IDS = "selected_swarm_ids"
+    }
+
+    // ============================================================================
+    // Selected Swarm IDs (for report generation)
+    // ============================================================================
+
+    fun loadSelectedSwarmIds(): Set<String> {
+        val json = prefs.getString(KEY_SELECTED_SWARM_IDS, null) ?: return emptySet()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            val list: List<String>? = gson.fromJson(json, type)
+            list?.toSet() ?: emptySet()
+        } catch (e: Exception) {
+            emptySet()
+        }
+    }
+
+    fun saveSelectedSwarmIds(swarmIds: Set<String>) {
+        val json = gson.toJson(swarmIds.toList())
+        prefs.edit().putString(KEY_SELECTED_SWARM_IDS, json).apply()
     }
 }

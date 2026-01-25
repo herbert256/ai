@@ -105,6 +105,17 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putStringSet(AI_REPORT_AGENTS_KEY, agentIds).apply()
     }
 
+    // ========== AI Reports Swarm Selection ==========
+
+    fun loadAiReportSwarms(): Set<String> {
+        val stored = prefs.getStringSet(AI_REPORT_SWARMS_KEY, emptySet()) ?: emptySet()
+        return stored.toSet()
+    }
+
+    fun saveAiReportSwarms(swarmIds: Set<String>) {
+        prefs.edit().putStringSet(AI_REPORT_SWARMS_KEY, swarmIds).apply()
+    }
+
     // ========== Generic AI Reports ==========
 
     fun showGenericAiAgentSelection(title: String, prompt: String) {
@@ -419,5 +430,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val AI_REPORT_AGENTS_KEY = "ai_report_agents"
+        private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms"
     }
 }

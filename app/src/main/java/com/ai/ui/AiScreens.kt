@@ -1448,8 +1448,10 @@ fun AiReportsScreenNav(
     AiReportsScreen(
         uiState = uiState,
         savedAgentIds = viewModel.loadAiReportAgents(),
-        onGenerate = { selectedAgentIds ->
+        savedSwarmIds = viewModel.loadAiReportSwarms(),
+        onGenerate = { selectedAgentIds, selectedSwarmIds ->
             viewModel.saveAiReportAgents(selectedAgentIds)
+            viewModel.saveAiReportSwarms(selectedSwarmIds)
             viewModel.generateGenericAiReports(selectedAgentIds)
         },
         onStop = { viewModel.stopGenericAiReports() },
@@ -1468,7 +1470,8 @@ fun AiReportsScreenNav(
 fun AiReportsScreen(
     uiState: AiUiState,
     savedAgentIds: Set<String>,
-    onGenerate: (Set<String>) -> Unit,
+    savedSwarmIds: Set<String>,
+    onGenerate: (Set<String>, Set<String>) -> Unit,
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -1514,10 +1517,15 @@ fun AiReportsScreen(
 
     // Swarm selection state
     val swarms = uiState.aiSettings.swarms
+    val validSwarmIds = swarms.map { it.id }.toSet()
+    val validSavedSwarms = savedSwarmIds.filter { it in validSwarmIds }.toSet()
     var selectedSwarmIds by remember {
         mutableStateOf(
-            if (savedAgentIds.isNotEmpty()) {
-                // Try to find swarms that contain any of the saved agents
+            // First priority: use saved swarm IDs (filter to only valid ones)
+            if (validSavedSwarms.isNotEmpty()) {
+                validSavedSwarms
+            } else if (savedAgentIds.isNotEmpty()) {
+                // Second priority: find swarms that contain any of the saved agents
                 swarms.filter { swarm ->
                     swarm.agentIds.any { it in savedAgentIds }
                 }.map { it.id }.toSet()
@@ -1560,7 +1568,7 @@ fun AiReportsScreen(
         if (!isGenerating) {
             // Generate button at top
             Button(
-                onClick = { onGenerate(selectedAgentIds) },
+                onClick = { onGenerate(selectedAgentIds, selectedSwarmIds) },
                 enabled = selectedSwarmIds.isNotEmpty() && selectedAgentIds.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
