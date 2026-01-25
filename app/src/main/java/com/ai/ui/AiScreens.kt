@@ -1907,14 +1907,17 @@ fun AiReportsScreen(
                         } else {
                             filteredSwarms.forEach { swarm ->
                                 val swarmAgentsList = uiState.aiSettings.getAgentsForSwarm(swarm)
+                                val swarmAgentIdsList = swarmAgentsList.map { it.id }.toSet()
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            selectedSwarmIds = if (swarm.id in selectedSwarmIds) {
-                                                selectedSwarmIds - swarm.id
+                                            if (swarm.id in selectedSwarmIds) {
+                                                // Deselecting: remove swarm and its agents from direct selection
+                                                selectedSwarmIds = selectedSwarmIds - swarm.id
+                                                directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
                                             } else {
-                                                selectedSwarmIds + swarm.id
+                                                selectedSwarmIds = selectedSwarmIds + swarm.id
                                             }
                                         }
                                         .padding(vertical = 8.dp),
@@ -1923,10 +1926,12 @@ fun AiReportsScreen(
                                     Checkbox(
                                         checked = swarm.id in selectedSwarmIds,
                                         onCheckedChange = { checked ->
-                                            selectedSwarmIds = if (checked) {
-                                                selectedSwarmIds + swarm.id
+                                            if (checked) {
+                                                selectedSwarmIds = selectedSwarmIds + swarm.id
                                             } else {
-                                                selectedSwarmIds - swarm.id
+                                                // Deselecting: remove swarm and its agents from direct selection
+                                                selectedSwarmIds = selectedSwarmIds - swarm.id
+                                                directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
                                             }
                                         }
                                     )
