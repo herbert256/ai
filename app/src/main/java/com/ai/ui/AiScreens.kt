@@ -40,87 +40,44 @@ fun AiHubScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AiTitleBar(
-            title = null,
-            onBackClick = null,
-            onAiClick = {},
-            centered = true
+        // Large AI logo
+        Text(
+            text = "AI",
+            fontSize = 72.sp,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(vertical = 24.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // New AI Report card
-        HubCard(
-            icon = "\uD83D\uDCDD",
-            title = "New AI Report",
-            description = "Create a new AI report with custom prompt",
-            onClick = onNavigateToNewReport
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Prompt History card
-        HubCard(
-            icon = "\uD83D\uDD52",
-            title = "Prompt History",
-            description = "View and reuse previously used prompts",
-            onClick = onNavigateToPromptHistory
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // AI History card
-        HubCard(
-            icon = "\uD83D\uDCDA",
-            title = "AI History",
-            description = "View previously generated AI reports",
-            onClick = onNavigateToHistory
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Settings card
-        HubCard(
-            icon = "\u2699\uFE0F",
-            title = "Settings",
-            description = "Configure AI providers, agents, and app settings",
-            onClick = onNavigateToSettings
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Help card
-        HubCard(
-            icon = "\u2753",
-            title = "Help",
-            description = "Learn how to use the app",
-            onClick = onNavigateToHelp
-        )
+        // Cards
+        HubCard(icon = "\uD83D\uDCDD", title = "New AI Report", onClick = onNavigateToNewReport)
+        Spacer(modifier = Modifier.height(8.dp))
+        HubCard(icon = "\uD83D\uDD52", title = "Prompt History", onClick = onNavigateToPromptHistory)
+        Spacer(modifier = Modifier.height(8.dp))
+        HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
+        Spacer(modifier = Modifier.height(8.dp))
+        HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
+        Spacer(modifier = Modifier.height(8.dp))
+        HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
 
         // API Traces card (developer mode only)
         if (uiState.generalSettings.developerMode) {
-            Spacer(modifier = Modifier.height(12.dp))
-
-            HubCard(
-                icon = "\uD83D\uDC1E",
-                title = "API Traces",
-                description = "View logged API requests and responses",
-                onClick = onNavigateToTrace
-            )
+            Spacer(modifier = Modifier.height(8.dp))
+            HubCard(icon = "\uD83D\uDC1E", title = "API Traces", onClick = onNavigateToTrace)
         }
     }
 }
 
 /**
- * Reusable card component for the AI Hub screen.
+ * Compact card component for the AI Hub screen.
  */
 @Composable
 private fun HubCard(
     icon: String,
     title: String,
-    description: String,
     onClick: () -> Unit
 ) {
     Card(
@@ -134,27 +91,20 @@ private fun HubCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = icon,
-                fontSize = 24.sp
+                fontSize = 22.sp
             )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
-                )
-            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
         }
     }
 }
