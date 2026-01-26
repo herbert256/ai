@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import java.io.File
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -48,34 +49,48 @@ fun TraceListScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack,
     onSelectTrace: (String) -> Unit,
-    onClearTraces: () -> Unit,
-    pageSize: Int = 25
+    onClearTraces: () -> Unit
 ) {
     var traceFiles by remember { mutableStateOf(ApiTracer.getTraceFiles()) }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val totalPages = (traceFiles.size + pageSize - 1) / pageSize
-    val startIndex = currentPage * pageSize
-    val endIndex = minOf(startIndex + pageSize, traceFiles.size)
-    val currentPageItems = if (traceFiles.isNotEmpty() && startIndex < traceFiles.size) {
-        traceFiles.subList(startIndex, endIndex)
-    } else {
-        emptyList()
-    }
-
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        AiTitleBar(
-            title = "API Trace Log",
-            onBackClick = onBack,
-            onAiClick = onNavigateHome
-        )
+        // Calculate page size based on available height
+        // Title bar ~48dp, pagination ~48dp, header ~40dp, clear button ~48dp, spacing ~40dp = ~224dp overhead
+        // Each row is approximately 48dp
+        val availableHeight = maxHeight - 224.dp
+        val rowHeight = 48.dp
+        val pageSize = maxOf(1, (availableHeight / rowHeight).toInt())
 
-        Spacer(modifier = Modifier.height(8.dp))
+        val totalPages = (traceFiles.size + pageSize - 1) / pageSize
+        val startIndex = currentPage * pageSize
+        val endIndex = minOf(startIndex + pageSize, traceFiles.size)
+        val currentPageItems = if (traceFiles.isNotEmpty() && startIndex < traceFiles.size) {
+            traceFiles.subList(startIndex, endIndex)
+        } else {
+            emptyList()
+        }
+
+        // Reset to valid page if needed
+        LaunchedEffect(pageSize, traceFiles.size) {
+            if (currentPage >= totalPages && totalPages > 0) {
+                currentPage = totalPages - 1
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            AiTitleBar(
+                title = "API Trace Log",
+                onBackClick = onBack,
+                onAiClick = onNavigateHome
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
         // Pagination controls
         if (totalPages > 1) {
@@ -201,6 +216,7 @@ fun TraceListScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Clear trace container")
+        }
         }
     }
 }

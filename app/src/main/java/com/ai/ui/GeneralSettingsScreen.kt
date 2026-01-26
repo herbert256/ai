@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
 
 /**
  * General settings screen for app-wide settings.
@@ -24,13 +23,11 @@ fun GeneralSettingsScreen(
     onSave: (GeneralSettings) -> Unit,
     onTrackApiCallsChanged: (Boolean) -> Unit = {}
 ) {
-    var paginationPageSize by remember { mutableFloatStateOf(generalSettings.paginationPageSize.toFloat()) }
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
     var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
 
     fun saveSettings() {
         onSave(generalSettings.copy(
-            paginationPageSize = paginationPageSize.roundToInt(),
             developerMode = developerMode,
             trackApiCalls = trackApiCalls
         ))
@@ -51,55 +48,6 @@ fun GeneralSettingsScreen(
         )
 
         Spacer(modifier = Modifier.height(8.dp))
-
-        // General settings card
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Display",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-
-                // Pagination page size
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Rows per page when pagination", color = Color.White)
-                        Text(
-                            text = "${paginationPageSize.roundToInt()}",
-                            color = Color(0xFF6B9BFF),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Text(
-                        text = "Number of items shown per page (5-50)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFAAAAAA)
-                    )
-                    Slider(
-                        value = paginationPageSize,
-                        onValueChange = { paginationPageSize = it },
-                        onValueChangeFinished = { saveSettings() },
-                        valueRange = 5f..50f,
-                        steps = 8,  // 5, 10, 15, 20, 25, 30, 35, 40, 45, 50
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
 
         // Developer settings card
         Card(

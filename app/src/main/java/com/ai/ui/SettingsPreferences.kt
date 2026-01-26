@@ -18,8 +18,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     fun loadGeneralSettings(): GeneralSettings {
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
-            paginationPageSize = prefs.getInt(KEY_PAGINATION_PAGE_SIZE, DEFAULT_PAGINATION_PAGE_SIZE)
-                .coerceIn(MIN_PAGINATION_PAGE_SIZE, MAX_PAGINATION_PAGE_SIZE),
             developerMode = prefs.getBoolean(KEY_DEVELOPER_MODE, false),
             trackApiCalls = prefs.getBoolean(KEY_TRACK_API_CALLS, false)
         )
@@ -28,8 +26,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     fun saveGeneralSettings(settings: GeneralSettings) {
         prefs.edit()
             .putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
-            .putInt(KEY_PAGINATION_PAGE_SIZE, settings.paginationPageSize
-                .coerceIn(MIN_PAGINATION_PAGE_SIZE, MAX_PAGINATION_PAGE_SIZE))
             .putBoolean(KEY_DEVELOPER_MODE, settings.developerMode)
             .putBoolean(KEY_TRACK_API_CALLS, settings.trackApiCalls)
             .apply()
@@ -280,14 +276,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     companion object {
         const val PREFS_NAME = "eval_prefs"
 
-        // Pagination limits
-        const val MIN_PAGINATION_PAGE_SIZE = 5
-        const val MAX_PAGINATION_PAGE_SIZE = 50
-        const val DEFAULT_PAGINATION_PAGE_SIZE = 25
-
         // General settings
         private const val KEY_USER_NAME = "user_name"
-        private const val KEY_PAGINATION_PAGE_SIZE = "pagination_page_size"
         private const val KEY_DEVELOPER_MODE = "developer_mode"
         private const val KEY_TRACK_API_CALLS = "track_api_calls"
 

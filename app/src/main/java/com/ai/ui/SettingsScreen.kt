@@ -534,14 +534,12 @@ private fun SettingsMainScreen(
     onTrackApiCallsChanged: (Boolean) -> Unit = {}
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
-    var paginationPageSize by remember { mutableFloatStateOf(generalSettings.paginationPageSize.toFloat()) }
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
     var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
 
     fun saveSettings() {
         onSave(generalSettings.copy(
             userName = userName.ifBlank { "user" },
-            paginationPageSize = paginationPageSize.toInt(),
             developerMode = developerMode,
             trackApiCalls = trackApiCalls
         ))
@@ -597,55 +595,6 @@ private fun SettingsMainScreen(
                         unfocusedBorderColor = Color(0xFF444444)
                     )
                 )
-            }
-        }
-
-        // Display settings card
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Display",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-
-                // Pagination page size
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Rows per page when pagination", color = Color.White)
-                        Text(
-                            text = "${paginationPageSize.toInt()}",
-                            color = Color(0xFF6B9BFF),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Text(
-                        text = "Number of items shown per page (5-50)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFAAAAAA)
-                    )
-                    Slider(
-                        value = paginationPageSize,
-                        onValueChange = { paginationPageSize = it },
-                        onValueChangeFinished = { saveSettings() },
-                        valueRange = 5f..50f,
-                        steps = 8,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
             }
         }
 

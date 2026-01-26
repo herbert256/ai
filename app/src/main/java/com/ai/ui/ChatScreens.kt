@@ -158,13 +158,23 @@ fun ChatSelectModelScreen(
         }
     }
 
+    // Search state
+    var searchQuery by remember { mutableStateOf("") }
+
     // Determine which models to show
-    val models = if (modelSource == ModelSource.API && availableModels.isNotEmpty()) {
+    val allModels = if (modelSource == ModelSource.API && availableModels.isNotEmpty()) {
         availableModels
     } else if (modelSource == ModelSource.MANUAL || availableModels.isEmpty()) {
         manualModels.ifEmpty { listOf(defaultModel) }
     } else {
         listOf(defaultModel)
+    }
+
+    // Filter models based on search query
+    val models = if (searchQuery.isBlank()) {
+        allModels
+    } else {
+        allModels.filter { it.contains(searchQuery, ignoreCase = true) }
     }
 
     // Fetch models if API source and not loaded yet
@@ -194,7 +204,22 @@ fun ChatSelectModelScreen(
             fontSize = 14.sp
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Search field
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search models...") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         if (isLoadingModels) {
             Box(
@@ -750,38 +775,52 @@ private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
 fun ChatHistoryScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSelectSession: (String) -> Unit,
-    pageSize: Int = 25
+    onSelectSession: (String) -> Unit
 ) {
     BackHandler { onNavigateBack() }
 
     var allSessions by remember { mutableStateOf(ChatHistoryManager.getAllSessions()) }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val totalPages = (allSessions.size + pageSize - 1) / pageSize
-    val startIndex = currentPage * pageSize
-    val endIndex = minOf(startIndex + pageSize, allSessions.size)
-    val currentPageSessions = if (allSessions.isNotEmpty() && startIndex < allSessions.size) {
-        allSessions.subList(startIndex, endIndex)
-    } else {
-        emptyList()
-    }
-
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
 
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        AiTitleBar(
-            title = "Chat History",
-            onBackClick = onNavigateBack,
-            onAiClick = onNavigateHome
-        )
+        // Calculate page size based on available height
+        // Title bar ~48dp, pagination controls ~48dp, bottom pagination ~48dp, spacing ~32dp = ~176dp overhead
+        // Each row is approximately 80dp (with provider, model, date info)
+        val availableHeight = maxHeight - 176.dp
+        val rowHeight = 80.dp
+        val pageSize = maxOf(1, (availableHeight / rowHeight).toInt())
 
-        Spacer(modifier = Modifier.height(16.dp))
+        val totalPages = (allSessions.size + pageSize - 1) / pageSize
+        val startIndex = currentPage * pageSize
+        val endIndex = minOf(startIndex + pageSize, allSessions.size)
+        val currentPageSessions = if (allSessions.isNotEmpty() && startIndex < allSessions.size) {
+            allSessions.subList(startIndex, endIndex)
+        } else {
+            emptyList()
+        }
+
+        // Reset to valid page if needed
+        LaunchedEffect(pageSize, allSessions.size) {
+            if (currentPage >= totalPages && totalPages > 0) {
+                currentPage = totalPages - 1
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            AiTitleBar(
+                title = "Chat History",
+                onBackClick = onNavigateBack,
+                onAiClick = onNavigateHome
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
         if (allSessions.isEmpty()) {
             Card(
@@ -909,6 +948,7 @@ fun ChatHistoryScreen(
                     }
                 }
             }
+        }
         }
     }
 }

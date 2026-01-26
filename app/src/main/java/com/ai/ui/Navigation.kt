@@ -130,15 +130,13 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.TRACE_LIST) {
-            val uiState by viewModel.uiState.collectAsState()
             TraceListScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectTrace = { filename ->
                     navController.navigate(NavRoutes.traceDetail(filename))
                 },
-                onClearTraces = { viewModel.clearTraces() },
-                pageSize = uiState.generalSettings.paginationPageSize
+                onClearTraces = { viewModel.clearTraces() }
             )
         }
 
@@ -152,11 +150,9 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_HISTORY) {
-            val uiState by viewModel.uiState.collectAsState()
             AiHistoryScreenNav(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome,
-                pageSize = uiState.generalSettings.paginationPageSize
+                onNavigateHome = navigateHome
             )
         }
 
@@ -187,14 +183,12 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_PROMPT_HISTORY) {
-            val uiState by viewModel.uiState.collectAsState()
             PromptHistoryScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectEntry = { entry ->
                     navController.navigate(NavRoutes.aiNewReportWithParams(entry.title, entry.prompt))
-                },
-                pageSize = uiState.generalSettings.paginationPageSize
+                }
             )
         }
 
@@ -348,14 +342,12 @@ fun AiNavHost(
 
         // Chat history screen
         composable(NavRoutes.AI_CHAT_HISTORY) {
-            val uiState by viewModel.uiState.collectAsState()
             ChatHistoryScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectSession = { sessionId ->
                     navController.navigate(NavRoutes.aiChatContinue(sessionId))
-                },
-                pageSize = uiState.generalSettings.paginationPageSize
+                }
             )
         }
 

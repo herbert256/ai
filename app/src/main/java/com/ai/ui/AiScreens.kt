@@ -314,8 +314,7 @@ private fun searchInHtmlFile(
 @Composable
 fun AiHistoryScreenNav(
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit = onNavigateBack,
-    pageSize: Int = 25
+    onNavigateHome: () -> Unit = onNavigateBack
 ) {
     val context = LocalContext.current
     var allHistoryFiles by remember { mutableStateOf(AiHistoryManager.getHistoryFiles()) }
@@ -329,28 +328,43 @@ fun AiHistoryScreenNav(
     var searchReport by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
-    val totalPages = (filteredFiles.size + pageSize - 1) / pageSize
-    val startIndex = currentPage * pageSize
-    val endIndex = minOf(startIndex + pageSize, filteredFiles.size)
-    val currentPageFiles = if (filteredFiles.isNotEmpty() && startIndex < filteredFiles.size) {
-        filteredFiles.subList(startIndex, endIndex)
-    } else {
-        emptyList()
-    }
-
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        AiTitleBar(
-            title = "AI History",
-            onBackClick = onNavigateBack,
-            onAiClick = onNavigateHome
-        )
+        // Calculate page size based on available height
+        // Title bar ~48dp, search button ~48dp, pagination ~48dp, header ~40dp, clear button ~48dp, spacing ~48dp = ~280dp overhead
+        // Each row is approximately 56dp
+        val availableHeight = maxHeight - 280.dp
+        val rowHeight = 56.dp
+        val pageSize = maxOf(1, (availableHeight / rowHeight).toInt())
 
-        Spacer(modifier = Modifier.height(8.dp))
+        val totalPages = (filteredFiles.size + pageSize - 1) / pageSize
+        val startIndex = currentPage * pageSize
+        val endIndex = minOf(startIndex + pageSize, filteredFiles.size)
+        val currentPageFiles = if (filteredFiles.isNotEmpty() && startIndex < filteredFiles.size) {
+            filteredFiles.subList(startIndex, endIndex)
+        } else {
+            emptyList()
+        }
+
+        // Reset to valid page if needed
+        LaunchedEffect(pageSize, filteredFiles.size) {
+            if (currentPage >= totalPages && totalPages > 0) {
+                currentPage = totalPages - 1
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            AiTitleBar(
+                title = "AI History",
+                onBackClick = onNavigateBack,
+                onAiClick = onNavigateHome
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
         // Search section - collapsed or expanded
         if (!searchExpanded) {
@@ -576,6 +590,7 @@ fun AiHistoryScreenNav(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Clear history")
+        }
         }
     }
 }
@@ -1448,8 +1463,7 @@ internal fun openGenericAiReportsInChrome(context: android.content.Context, uiSt
 fun PromptHistoryScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
-    onSelectEntry: (PromptHistoryEntry) -> Unit,
-    pageSize: Int = 25
+    onSelectEntry: (PromptHistoryEntry) -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
@@ -1471,33 +1485,48 @@ fun PromptHistoryScreen(
         }
     }
 
-    val totalPages = (filteredEntries.size + pageSize - 1) / pageSize
-    val startIndex = currentPage * pageSize
-    val endIndex = minOf(startIndex + pageSize, filteredEntries.size)
-    val currentPageEntries = if (filteredEntries.isNotEmpty() && startIndex < filteredEntries.size) {
-        filteredEntries.subList(startIndex, endIndex)
-    } else {
-        emptyList()
-    }
-
     // Reset to first page when search changes
     LaunchedEffect(searchText) {
         currentPage = 0
     }
 
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        AiTitleBar(
-            title = "Prompt History",
-            onBackClick = onNavigateBack,
-            onAiClick = onNavigateHome
-        )
+        // Calculate page size based on available height
+        // Title bar ~48dp, search ~56dp, pagination ~48dp, header ~40dp, clear button ~48dp, spacing ~40dp = ~280dp overhead
+        // Each row is approximately 56dp
+        val availableHeight = maxHeight - 280.dp
+        val rowHeight = 56.dp
+        val pageSize = maxOf(1, (availableHeight / rowHeight).toInt())
 
-        Spacer(modifier = Modifier.height(8.dp))
+        val totalPages = (filteredEntries.size + pageSize - 1) / pageSize
+        val startIndex = currentPage * pageSize
+        val endIndex = minOf(startIndex + pageSize, filteredEntries.size)
+        val currentPageEntries = if (filteredEntries.isNotEmpty() && startIndex < filteredEntries.size) {
+            filteredEntries.subList(startIndex, endIndex)
+        } else {
+            emptyList()
+        }
+
+        // Reset to valid page if needed
+        LaunchedEffect(pageSize, filteredEntries.size) {
+            if (currentPage >= totalPages && totalPages > 0) {
+                currentPage = totalPages - 1
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            AiTitleBar(
+                title = "Prompt History",
+                onBackClick = onNavigateBack,
+                onAiClick = onNavigateHome
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
         // Search field
         OutlinedTextField(
@@ -1641,6 +1670,7 @@ fun PromptHistoryScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Clear history")
+        }
         }
     }
 }
