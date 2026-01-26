@@ -32,12 +32,17 @@ fun ChatGptSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.chatGptModel) }
     var modelSource by remember { mutableStateOf(aiSettings.chatGptModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.chatGptManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.chatGptAdminUrl) }
+
+    // Effective model list for dropdown
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     // Track if there are unsaved changes
     val hasChanges = apiKey != aiSettings.chatGptApiKey ||
             defaultModel != aiSettings.chatGptModel ||
             modelSource != aiSettings.chatGptModelSource ||
-            manualModels != aiSettings.chatGptManualModels
+            manualModels != aiSettings.chatGptManualModels ||
+            adminUrl != aiSettings.chatGptAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "OpenAI",
@@ -50,13 +55,17 @@ fun ChatGptSettingsScreen(
                 chatGptApiKey = apiKey,
                 chatGptModel = defaultModel,
                 chatGptModelSource = modelSource,
-                chatGptManualModels = manualModels
+                chatGptManualModels = manualModels,
+                chatGptAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.OPENAI.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -65,10 +74,6 @@ fun ChatGptSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -98,11 +103,15 @@ fun ClaudeSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.claudeModel) }
     var modelSource by remember { mutableStateOf(aiSettings.claudeModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.claudeManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.claudeAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
     val hasChanges = apiKey != aiSettings.claudeApiKey ||
             defaultModel != aiSettings.claudeModel ||
             modelSource != aiSettings.claudeModelSource ||
-            manualModels != aiSettings.claudeManualModels
+            manualModels != aiSettings.claudeManualModels ||
+            adminUrl != aiSettings.claudeAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Anthropic",
@@ -115,13 +124,17 @@ fun ClaudeSettingsScreen(
                 claudeApiKey = apiKey,
                 claudeModel = defaultModel,
                 claudeModelSource = modelSource,
-                claudeManualModels = manualModels
+                claudeManualModels = manualModels,
+                claudeAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.ANTHROPIC.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -130,10 +143,6 @@ fun ClaudeSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -166,11 +175,15 @@ fun GeminiSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.geminiModel) }
     var modelSource by remember { mutableStateOf(aiSettings.geminiModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.geminiManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.geminiAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.geminiApiKey ||
             defaultModel != aiSettings.geminiModel ||
             modelSource != aiSettings.geminiModelSource ||
-            manualModels != aiSettings.geminiManualModels
+            manualModels != aiSettings.geminiManualModels ||
+            adminUrl != aiSettings.geminiAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Google",
@@ -183,13 +196,17 @@ fun GeminiSettingsScreen(
                 geminiApiKey = apiKey,
                 geminiModel = defaultModel,
                 geminiModelSource = modelSource,
-                geminiManualModels = manualModels
+                geminiManualModels = manualModels,
+                geminiAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.GOOGLE.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -198,10 +215,6 @@ fun GeminiSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -234,11 +247,15 @@ fun GrokSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.grokModel) }
     var modelSource by remember { mutableStateOf(aiSettings.grokModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.grokManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.grokAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.grokApiKey ||
             defaultModel != aiSettings.grokModel ||
             modelSource != aiSettings.grokModelSource ||
-            manualModels != aiSettings.grokManualModels
+            manualModels != aiSettings.grokManualModels ||
+            adminUrl != aiSettings.grokAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "xAI",
@@ -251,13 +268,17 @@ fun GrokSettingsScreen(
                 grokApiKey = apiKey,
                 grokModel = defaultModel,
                 grokModelSource = modelSource,
-                grokManualModels = manualModels
+                grokManualModels = manualModels,
+                grokAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.XAI.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -266,10 +287,6 @@ fun GrokSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -302,11 +319,15 @@ fun GroqSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.groqModel) }
     var modelSource by remember { mutableStateOf(aiSettings.groqModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.groqManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.groqAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.groqApiKey ||
             defaultModel != aiSettings.groqModel ||
             modelSource != aiSettings.groqModelSource ||
-            manualModels != aiSettings.groqManualModels
+            manualModels != aiSettings.groqManualModels ||
+            adminUrl != aiSettings.groqAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Groq",
@@ -319,13 +340,17 @@ fun GroqSettingsScreen(
                 groqApiKey = apiKey,
                 groqModel = defaultModel,
                 groqModelSource = modelSource,
-                groqManualModels = manualModels
+                groqManualModels = manualModels,
+                groqAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.GROQ.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -334,10 +359,6 @@ fun GroqSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -370,11 +391,15 @@ fun DeepSeekSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.deepSeekModel) }
     var modelSource by remember { mutableStateOf(aiSettings.deepSeekModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.deepSeekManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.deepSeekAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.deepSeekApiKey ||
             defaultModel != aiSettings.deepSeekModel ||
             modelSource != aiSettings.deepSeekModelSource ||
-            manualModels != aiSettings.deepSeekManualModels
+            manualModels != aiSettings.deepSeekManualModels ||
+            adminUrl != aiSettings.deepSeekAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "DeepSeek",
@@ -387,13 +412,17 @@ fun DeepSeekSettingsScreen(
                 deepSeekApiKey = apiKey,
                 deepSeekModel = defaultModel,
                 deepSeekModelSource = modelSource,
-                deepSeekManualModels = manualModels
+                deepSeekManualModels = manualModels,
+                deepSeekAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.DEEPSEEK.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -402,10 +431,6 @@ fun DeepSeekSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -438,11 +463,15 @@ fun MistralSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.mistralModel) }
     var modelSource by remember { mutableStateOf(aiSettings.mistralModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.mistralManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.mistralAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.mistralApiKey ||
             defaultModel != aiSettings.mistralModel ||
             modelSource != aiSettings.mistralModelSource ||
-            manualModels != aiSettings.mistralManualModels
+            manualModels != aiSettings.mistralManualModels ||
+            adminUrl != aiSettings.mistralAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Mistral",
@@ -455,13 +484,17 @@ fun MistralSettingsScreen(
                 mistralApiKey = apiKey,
                 mistralModel = defaultModel,
                 mistralModelSource = modelSource,
-                mistralManualModels = manualModels
+                mistralManualModels = manualModels,
+                mistralAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.MISTRAL.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -470,10 +503,6 @@ fun MistralSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -503,11 +532,15 @@ fun PerplexitySettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.perplexityModel) }
     var modelSource by remember { mutableStateOf(aiSettings.perplexityModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.perplexityManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.perplexityAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
     val hasChanges = apiKey != aiSettings.perplexityApiKey ||
             defaultModel != aiSettings.perplexityModel ||
             modelSource != aiSettings.perplexityModelSource ||
-            manualModels != aiSettings.perplexityManualModels
+            manualModels != aiSettings.perplexityManualModels ||
+            adminUrl != aiSettings.perplexityAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Perplexity",
@@ -520,13 +553,17 @@ fun PerplexitySettingsScreen(
                 perplexityApiKey = apiKey,
                 perplexityModel = defaultModel,
                 perplexityModelSource = modelSource,
-                perplexityManualModels = manualModels
+                perplexityManualModels = manualModels,
+                perplexityAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.PERPLEXITY.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -535,10 +572,6 @@ fun PerplexitySettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -571,11 +604,15 @@ fun TogetherSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.togetherModel) }
     var modelSource by remember { mutableStateOf(aiSettings.togetherModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.togetherManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.togetherAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.togetherApiKey ||
             defaultModel != aiSettings.togetherModel ||
             modelSource != aiSettings.togetherModelSource ||
-            manualModels != aiSettings.togetherManualModels
+            manualModels != aiSettings.togetherManualModels ||
+            adminUrl != aiSettings.togetherAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Together",
@@ -588,13 +625,17 @@ fun TogetherSettingsScreen(
                 togetherApiKey = apiKey,
                 togetherModel = defaultModel,
                 togetherModelSource = modelSource,
-                togetherManualModels = manualModels
+                togetherManualModels = manualModels,
+                togetherAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.TOGETHER.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -603,10 +644,6 @@ fun TogetherSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -639,11 +676,15 @@ fun OpenRouterSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.openRouterModel) }
     var modelSource by remember { mutableStateOf(aiSettings.openRouterModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.openRouterManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.openRouterAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.openRouterApiKey ||
             defaultModel != aiSettings.openRouterModel ||
             modelSource != aiSettings.openRouterModelSource ||
-            manualModels != aiSettings.openRouterManualModels
+            manualModels != aiSettings.openRouterManualModels ||
+            adminUrl != aiSettings.openRouterAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "OpenRouter",
@@ -656,13 +697,17 @@ fun OpenRouterSettingsScreen(
                 openRouterApiKey = apiKey,
                 openRouterModel = defaultModel,
                 openRouterModelSource = modelSource,
-                openRouterManualModels = manualModels
+                openRouterManualModels = manualModels,
+                openRouterAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.OPENROUTER.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -671,10 +716,6 @@ fun OpenRouterSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -704,11 +745,15 @@ fun SiliconFlowSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.siliconFlowModel) }
     var modelSource by remember { mutableStateOf(aiSettings.siliconFlowModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.siliconFlowManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.siliconFlowAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
     val hasChanges = apiKey != aiSettings.siliconFlowApiKey ||
             defaultModel != aiSettings.siliconFlowModel ||
             modelSource != aiSettings.siliconFlowModelSource ||
-            manualModels != aiSettings.siliconFlowManualModels
+            manualModels != aiSettings.siliconFlowManualModels ||
+            adminUrl != aiSettings.siliconFlowAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "SiliconFlow",
@@ -721,13 +766,17 @@ fun SiliconFlowSettingsScreen(
                 siliconFlowApiKey = apiKey,
                 siliconFlowModel = defaultModel,
                 siliconFlowModelSource = modelSource,
-                siliconFlowManualModels = manualModels
+                siliconFlowManualModels = manualModels,
+                siliconFlowAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.SILICONFLOW.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -736,10 +785,6 @@ fun SiliconFlowSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -769,11 +814,15 @@ fun ZaiSettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.zaiModel) }
     var modelSource by remember { mutableStateOf(aiSettings.zaiModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.zaiManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.zaiAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
     val hasChanges = apiKey != aiSettings.zaiApiKey ||
             defaultModel != aiSettings.zaiModel ||
             modelSource != aiSettings.zaiModelSource ||
-            manualModels != aiSettings.zaiManualModels
+            manualModels != aiSettings.zaiManualModels ||
+            adminUrl != aiSettings.zaiAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Z.AI",
@@ -786,13 +835,17 @@ fun ZaiSettingsScreen(
                 zaiApiKey = apiKey,
                 zaiModel = defaultModel,
                 zaiModelSource = modelSource,
-                zaiManualModels = manualModels
+                zaiManualModels = manualModels,
+                zaiAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.ZAI.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.ZAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -801,10 +854,6 @@ fun ZaiSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.ZAI, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
@@ -837,11 +886,15 @@ fun DummySettingsScreen(
     var defaultModel by remember { mutableStateOf(aiSettings.dummyModel) }
     var modelSource by remember { mutableStateOf(aiSettings.dummyModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.dummyManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.dummyAdminUrl) }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     val hasChanges = apiKey != aiSettings.dummyApiKey ||
             defaultModel != aiSettings.dummyModel ||
             modelSource != aiSettings.dummyModelSource ||
-            manualModels != aiSettings.dummyManualModels
+            manualModels != aiSettings.dummyManualModels ||
+            adminUrl != aiSettings.dummyAdminUrl
 
     AiServiceSettingsScreenTemplate(
         title = "Dummy",
@@ -854,13 +907,17 @@ fun DummySettingsScreen(
                 dummyApiKey = apiKey,
                 dummyModel = defaultModel,
                 dummyModelSource = modelSource,
-                dummyManualModels = manualModels
+                dummyManualModels = manualModels,
+                dummyAdminUrl = adminUrl
             ))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        adminUrl = AiService.DUMMY.adminUrl,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -901,10 +958,6 @@ fun DummySettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, defaultModel) }
-        )
-        DefaultModelInputSection(
-            defaultModel = defaultModel,
-            onDefaultModelChange = { defaultModel = it }
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,

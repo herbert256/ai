@@ -78,83 +78,83 @@ fun AiSettingsScreen(
 
         AiServiceNavigationCard(
             title = "OpenAI",
-            subtitle = "GPT models",
             accentColor = Color(0xFF10A37F),
-            onClick = { onNavigate(SettingsSubScreen.AI_OPENAI) }
+            adminUrl = AiService.OPENAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
         )
         AiServiceNavigationCard(
             title = "Anthropic",
-            subtitle = "Claude models",
             accentColor = Color(0xFFD97706),
-            onClick = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
+            adminUrl = AiService.ANTHROPIC.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
             title = "Google",
-            subtitle = "Gemini models",
             accentColor = Color(0xFF4285F4),
-            onClick = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
+            adminUrl = AiService.GOOGLE.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
         )
         AiServiceNavigationCard(
             title = "xAI",
-            subtitle = "Grok models",
             accentColor = Color(0xFFFFFFFF),
-            onClick = { onNavigate(SettingsSubScreen.AI_XAI) }
+            adminUrl = AiService.XAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
             title = "Groq",
-            subtitle = "Groq",
             accentColor = Color(0xFFF55036),
-            onClick = { onNavigate(SettingsSubScreen.AI_GROQ) }
+            adminUrl = AiService.GROQ.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
         )
         AiServiceNavigationCard(
             title = "DeepSeek",
-            subtitle = "DeepSeek AI",
             accentColor = Color(0xFF4D6BFE),
-            onClick = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
+            adminUrl = AiService.DEEPSEEK.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
         )
         AiServiceNavigationCard(
             title = "Mistral",
-            subtitle = "Mistral AI",
             accentColor = Color(0xFFFF7000),
-            onClick = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
+            adminUrl = AiService.MISTRAL.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
         )
         AiServiceNavigationCard(
             title = "Perplexity",
-            subtitle = "Perplexity AI",
             accentColor = Color(0xFF20B2AA),
-            onClick = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
+            adminUrl = AiService.PERPLEXITY.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
         )
         AiServiceNavigationCard(
             title = "Together",
-            subtitle = "Together AI",
             accentColor = Color(0xFF6366F1),
-            onClick = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
+            adminUrl = AiService.TOGETHER.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
         )
         AiServiceNavigationCard(
             title = "OpenRouter",
-            subtitle = "OpenRouter AI",
             accentColor = Color(0xFF6B5AED),
-            onClick = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
+            adminUrl = AiService.OPENROUTER.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
         )
         AiServiceNavigationCard(
             title = "SiliconFlow",
-            subtitle = "SiliconFlow AI",
             accentColor = Color(0xFF00B4D8),
-            onClick = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
+            adminUrl = AiService.SILICONFLOW.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
         )
         AiServiceNavigationCard(
             title = "Z.AI",
-            subtitle = "ZhipuAI GLM Models",
             accentColor = Color(0xFF6366F1),
-            onClick = { onNavigate(SettingsSubScreen.AI_ZAI) }
+            adminUrl = AiService.ZAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
         )
         // Dummy provider only visible in developer mode
         if (developerMode) {
             AiServiceNavigationCard(
                 title = "Dummy",
-                subtitle = "For testing",
                 accentColor = Color(0xFF888888),
-                onClick = { onNavigate(SettingsSubScreen.AI_DUMMY) }
+                adminUrl = AiService.DUMMY.adminUrl,
+                onEdit = { onNavigate(SettingsSubScreen.AI_DUMMY) }
             )
         }
 
@@ -622,96 +622,96 @@ fun AiProvidersScreen(
         // Provider cards - navigate to individual provider screens for model config
         AiServiceNavigationCard(
             title = "OpenAI",
-            subtitle = "GPT models",
             accentColor = Color(0xFF10A37F),
             hasApiKey = aiSettings.chatGptApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_OPENAI) }
+            adminUrl = AiService.OPENAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
         )
         AiServiceNavigationCard(
             title = "Anthropic",
-            subtitle = "Claude models",
             accentColor = Color(0xFFD97706),
             hasApiKey = aiSettings.claudeApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
+            adminUrl = AiService.ANTHROPIC.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
             title = "Google",
-            subtitle = "Gemini models",
             accentColor = Color(0xFF4285F4),
             hasApiKey = aiSettings.geminiApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
+            adminUrl = AiService.GOOGLE.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
         )
         AiServiceNavigationCard(
             title = "xAI",
-            subtitle = "Grok models",
             accentColor = Color(0xFFFFFFFF),
             hasApiKey = aiSettings.grokApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_XAI) }
+            adminUrl = AiService.XAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
             title = "Groq",
-            subtitle = "Groq",
             accentColor = Color(0xFFF55036),
             hasApiKey = aiSettings.groqApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_GROQ) }
+            adminUrl = AiService.GROQ.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
         )
         AiServiceNavigationCard(
             title = "DeepSeek",
-            subtitle = "DeepSeek AI",
             accentColor = Color(0xFF4D6BFE),
             hasApiKey = aiSettings.deepSeekApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
+            adminUrl = AiService.DEEPSEEK.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
         )
         AiServiceNavigationCard(
             title = "Mistral",
-            subtitle = "Mistral AI",
             accentColor = Color(0xFFFF7000),
             hasApiKey = aiSettings.mistralApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
+            adminUrl = AiService.MISTRAL.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
         )
         AiServiceNavigationCard(
             title = "Perplexity",
-            subtitle = "Perplexity AI",
             accentColor = Color(0xFF20B2AA),
             hasApiKey = aiSettings.perplexityApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
+            adminUrl = AiService.PERPLEXITY.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
         )
         AiServiceNavigationCard(
             title = "Together",
-            subtitle = "Together AI",
             accentColor = Color(0xFF6366F1),
             hasApiKey = aiSettings.togetherApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
+            adminUrl = AiService.TOGETHER.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
         )
         AiServiceNavigationCard(
             title = "OpenRouter",
-            subtitle = "OpenRouter AI",
             accentColor = Color(0xFF6B5AED),
             hasApiKey = aiSettings.openRouterApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
+            adminUrl = AiService.OPENROUTER.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
         )
         AiServiceNavigationCard(
             title = "SiliconFlow",
-            subtitle = "SiliconFlow AI",
             accentColor = Color(0xFF00B4D8),
             hasApiKey = aiSettings.siliconFlowApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
+            adminUrl = AiService.SILICONFLOW.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
         )
         AiServiceNavigationCard(
             title = "Z.AI",
-            subtitle = "ZhipuAI GLM Models",
             accentColor = Color(0xFF6366F1),
             hasApiKey = aiSettings.zaiApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_ZAI) }
+            adminUrl = AiService.ZAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
         )
         // Dummy provider only visible in developer mode
         if (developerMode) {
             AiServiceNavigationCard(
                 title = "Dummy",
-                subtitle = "For testing",
                 accentColor = Color(0xFF888888),
                 hasApiKey = true,  // Dummy always has a "key"
-                onClick = { onNavigate(SettingsSubScreen.AI_DUMMY) }
+                adminUrl = AiService.DUMMY.adminUrl,
+                onEdit = { onNavigate(SettingsSubScreen.AI_DUMMY) }
             )
         }
 

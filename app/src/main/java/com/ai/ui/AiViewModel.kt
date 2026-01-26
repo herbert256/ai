@@ -80,6 +80,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         if (generalSettings.developerMode) {
             DummyApiServer.start()
         }
+
+        // Refresh model lists in background for providers with API source and configured API key
+        viewModelScope.launch {
+            refreshAllModelLists(aiSettings)
+        }
     }
 
     // ========== Settings Management ==========

@@ -54,54 +54,67 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             chatGptModel = prefs.getString(KEY_AI_OPENAI_MODEL, AiService.OPENAI.defaultModel) ?: AiService.OPENAI.defaultModel,
             chatGptModelSource = loadModelSource(KEY_AI_OPENAI_MODEL_SOURCE, ModelSource.API),
             chatGptManualModels = loadManualModels(KEY_AI_OPENAI_MANUAL_MODELS),
+            chatGptAdminUrl = prefs.getString(KEY_AI_OPENAI_ADMIN_URL, AiService.OPENAI.adminUrl) ?: AiService.OPENAI.adminUrl,
             claudeApiKey = prefs.getString(KEY_AI_ANTHROPIC_API_KEY, "") ?: "",
             claudeModel = prefs.getString(KEY_AI_ANTHROPIC_MODEL, AiService.ANTHROPIC.defaultModel) ?: AiService.ANTHROPIC.defaultModel,
             claudeModelSource = loadModelSource(KEY_AI_ANTHROPIC_MODEL_SOURCE, ModelSource.MANUAL),
             claudeManualModels = loadManualModelsWithDefault(KEY_AI_ANTHROPIC_MANUAL_MODELS, CLAUDE_MODELS),
+            claudeAdminUrl = prefs.getString(KEY_AI_ANTHROPIC_ADMIN_URL, AiService.ANTHROPIC.adminUrl) ?: AiService.ANTHROPIC.adminUrl,
             geminiApiKey = prefs.getString(KEY_AI_GOOGLE_API_KEY, "") ?: "",
             geminiModel = prefs.getString(KEY_AI_GOOGLE_MODEL, AiService.GOOGLE.defaultModel) ?: AiService.GOOGLE.defaultModel,
             geminiModelSource = loadModelSource(KEY_AI_GOOGLE_MODEL_SOURCE, ModelSource.API),
             geminiManualModels = loadManualModels(KEY_AI_GOOGLE_MANUAL_MODELS),
+            geminiAdminUrl = prefs.getString(KEY_AI_GOOGLE_ADMIN_URL, AiService.GOOGLE.adminUrl) ?: AiService.GOOGLE.adminUrl,
             grokApiKey = prefs.getString(KEY_AI_XAI_API_KEY, "") ?: "",
             grokModel = prefs.getString(KEY_AI_XAI_MODEL, AiService.XAI.defaultModel) ?: AiService.XAI.defaultModel,
             grokModelSource = loadModelSource(KEY_AI_XAI_MODEL_SOURCE, ModelSource.API),
             grokManualModels = loadManualModels(KEY_AI_XAI_MANUAL_MODELS),
+            grokAdminUrl = prefs.getString(KEY_AI_XAI_ADMIN_URL, AiService.XAI.adminUrl) ?: AiService.XAI.adminUrl,
             groqApiKey = prefs.getString(KEY_AI_GROQ_API_KEY, "") ?: "",
             groqModel = prefs.getString(KEY_AI_GROQ_MODEL, AiService.GROQ.defaultModel) ?: AiService.GROQ.defaultModel,
             groqModelSource = loadModelSource(KEY_AI_GROQ_MODEL_SOURCE, ModelSource.API),
             groqManualModels = loadManualModels(KEY_AI_GROQ_MANUAL_MODELS),
+            groqAdminUrl = prefs.getString(KEY_AI_GROQ_ADMIN_URL, AiService.GROQ.adminUrl) ?: AiService.GROQ.adminUrl,
             deepSeekApiKey = prefs.getString(KEY_AI_DEEPSEEK_API_KEY, "") ?: "",
             deepSeekModel = prefs.getString(KEY_AI_DEEPSEEK_MODEL, AiService.DEEPSEEK.defaultModel) ?: AiService.DEEPSEEK.defaultModel,
             deepSeekModelSource = loadModelSource(KEY_AI_DEEPSEEK_MODEL_SOURCE, ModelSource.API),
             deepSeekManualModels = loadManualModels(KEY_AI_DEEPSEEK_MANUAL_MODELS),
+            deepSeekAdminUrl = prefs.getString(KEY_AI_DEEPSEEK_ADMIN_URL, AiService.DEEPSEEK.adminUrl) ?: AiService.DEEPSEEK.adminUrl,
             mistralApiKey = prefs.getString(KEY_AI_MISTRAL_API_KEY, "") ?: "",
             mistralModel = prefs.getString(KEY_AI_MISTRAL_MODEL, AiService.MISTRAL.defaultModel) ?: AiService.MISTRAL.defaultModel,
             mistralModelSource = loadModelSource(KEY_AI_MISTRAL_MODEL_SOURCE, ModelSource.API),
             mistralManualModels = loadManualModels(KEY_AI_MISTRAL_MANUAL_MODELS),
+            mistralAdminUrl = prefs.getString(KEY_AI_MISTRAL_ADMIN_URL, AiService.MISTRAL.adminUrl) ?: AiService.MISTRAL.adminUrl,
             perplexityApiKey = prefs.getString(KEY_AI_PERPLEXITY_API_KEY, "") ?: "",
             perplexityModel = prefs.getString(KEY_AI_PERPLEXITY_MODEL, AiService.PERPLEXITY.defaultModel) ?: AiService.PERPLEXITY.defaultModel,
             perplexityModelSource = loadModelSource(KEY_AI_PERPLEXITY_MODEL_SOURCE, ModelSource.MANUAL),
             perplexityManualModels = loadManualModelsWithDefault(KEY_AI_PERPLEXITY_MANUAL_MODELS, PERPLEXITY_MODELS),
+            perplexityAdminUrl = prefs.getString(KEY_AI_PERPLEXITY_ADMIN_URL, AiService.PERPLEXITY.adminUrl) ?: AiService.PERPLEXITY.adminUrl,
             togetherApiKey = prefs.getString(KEY_AI_TOGETHER_API_KEY, "") ?: "",
             togetherModel = prefs.getString(KEY_AI_TOGETHER_MODEL, AiService.TOGETHER.defaultModel) ?: AiService.TOGETHER.defaultModel,
             togetherModelSource = loadModelSource(KEY_AI_TOGETHER_MODEL_SOURCE, ModelSource.API),
             togetherManualModels = loadManualModels(KEY_AI_TOGETHER_MANUAL_MODELS),
+            togetherAdminUrl = prefs.getString(KEY_AI_TOGETHER_ADMIN_URL, AiService.TOGETHER.adminUrl) ?: AiService.TOGETHER.adminUrl,
             openRouterApiKey = prefs.getString(KEY_AI_OPENROUTER_API_KEY, "") ?: "",
             openRouterModel = prefs.getString(KEY_AI_OPENROUTER_MODEL, AiService.OPENROUTER.defaultModel) ?: AiService.OPENROUTER.defaultModel,
             openRouterModelSource = loadModelSource(KEY_AI_OPENROUTER_MODEL_SOURCE, ModelSource.API),
             openRouterManualModels = loadManualModels(KEY_AI_OPENROUTER_MANUAL_MODELS),
+            openRouterAdminUrl = prefs.getString(KEY_AI_OPENROUTER_ADMIN_URL, AiService.OPENROUTER.adminUrl) ?: AiService.OPENROUTER.adminUrl,
             siliconFlowApiKey = prefs.getString(KEY_AI_SILICONFLOW_API_KEY, "") ?: "",
             siliconFlowModel = prefs.getString(KEY_AI_SILICONFLOW_MODEL, AiService.SILICONFLOW.defaultModel) ?: AiService.SILICONFLOW.defaultModel,
             siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.MANUAL),
             siliconFlowManualModels = loadManualModelsWithDefault(KEY_AI_SILICONFLOW_MANUAL_MODELS, SILICONFLOW_MODELS),
+            siliconFlowAdminUrl = prefs.getString(KEY_AI_SILICONFLOW_ADMIN_URL, AiService.SILICONFLOW.adminUrl) ?: AiService.SILICONFLOW.adminUrl,
             zaiApiKey = prefs.getString(KEY_AI_ZAI_API_KEY, "") ?: "",
             zaiModel = prefs.getString(KEY_AI_ZAI_MODEL, AiService.ZAI.defaultModel) ?: AiService.ZAI.defaultModel,
             zaiModelSource = loadModelSource(KEY_AI_ZAI_MODEL_SOURCE, ModelSource.MANUAL),
             zaiManualModels = loadManualModelsWithDefault(KEY_AI_ZAI_MANUAL_MODELS, ZAI_MODELS),
+            zaiAdminUrl = prefs.getString(KEY_AI_ZAI_ADMIN_URL, AiService.ZAI.adminUrl) ?: AiService.ZAI.adminUrl,
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
             dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, AiService.DUMMY.defaultModel) ?: AiService.DUMMY.defaultModel,
             dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
-            dummyManualModels = loadManualModelsWithDefault(KEY_AI_DUMMY_MANUAL_MODELS, listOf(AiService.DUMMY.defaultModel))
+            dummyManualModels = loadManualModelsWithDefault(KEY_AI_DUMMY_MANUAL_MODELS, listOf(AiService.DUMMY.defaultModel)),
+            dummyAdminUrl = prefs.getString(KEY_AI_DUMMY_ADMIN_URL, AiService.DUMMY.adminUrl) ?: AiService.DUMMY.adminUrl
         )
     }
 
@@ -142,54 +155,67 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_OPENAI_MODEL, settings.chatGptModel)
             .putString(KEY_AI_OPENAI_MODEL_SOURCE, settings.chatGptModelSource.name)
             .putString(KEY_AI_OPENAI_MANUAL_MODELS, gson.toJson(settings.chatGptManualModels))
+            .putString(KEY_AI_OPENAI_ADMIN_URL, settings.chatGptAdminUrl)
             .putString(KEY_AI_ANTHROPIC_API_KEY, settings.claudeApiKey)
             .putString(KEY_AI_ANTHROPIC_MODEL, settings.claudeModel)
             .putString(KEY_AI_ANTHROPIC_MODEL_SOURCE, settings.claudeModelSource.name)
             .putString(KEY_AI_ANTHROPIC_MANUAL_MODELS, gson.toJson(settings.claudeManualModels))
+            .putString(KEY_AI_ANTHROPIC_ADMIN_URL, settings.claudeAdminUrl)
             .putString(KEY_AI_GOOGLE_API_KEY, settings.geminiApiKey)
             .putString(KEY_AI_GOOGLE_MODEL, settings.geminiModel)
             .putString(KEY_AI_GOOGLE_MODEL_SOURCE, settings.geminiModelSource.name)
             .putString(KEY_AI_GOOGLE_MANUAL_MODELS, gson.toJson(settings.geminiManualModels))
+            .putString(KEY_AI_GOOGLE_ADMIN_URL, settings.geminiAdminUrl)
             .putString(KEY_AI_XAI_API_KEY, settings.grokApiKey)
             .putString(KEY_AI_XAI_MODEL, settings.grokModel)
             .putString(KEY_AI_XAI_MODEL_SOURCE, settings.grokModelSource.name)
             .putString(KEY_AI_XAI_MANUAL_MODELS, gson.toJson(settings.grokManualModels))
+            .putString(KEY_AI_XAI_ADMIN_URL, settings.grokAdminUrl)
             .putString(KEY_AI_GROQ_API_KEY, settings.groqApiKey)
             .putString(KEY_AI_GROQ_MODEL, settings.groqModel)
             .putString(KEY_AI_GROQ_MODEL_SOURCE, settings.groqModelSource.name)
             .putString(KEY_AI_GROQ_MANUAL_MODELS, gson.toJson(settings.groqManualModels))
+            .putString(KEY_AI_GROQ_ADMIN_URL, settings.groqAdminUrl)
             .putString(KEY_AI_DEEPSEEK_API_KEY, settings.deepSeekApiKey)
             .putString(KEY_AI_DEEPSEEK_MODEL, settings.deepSeekModel)
             .putString(KEY_AI_DEEPSEEK_MODEL_SOURCE, settings.deepSeekModelSource.name)
             .putString(KEY_AI_DEEPSEEK_MANUAL_MODELS, gson.toJson(settings.deepSeekManualModels))
+            .putString(KEY_AI_DEEPSEEK_ADMIN_URL, settings.deepSeekAdminUrl)
             .putString(KEY_AI_MISTRAL_API_KEY, settings.mistralApiKey)
             .putString(KEY_AI_MISTRAL_MODEL, settings.mistralModel)
             .putString(KEY_AI_MISTRAL_MODEL_SOURCE, settings.mistralModelSource.name)
             .putString(KEY_AI_MISTRAL_MANUAL_MODELS, gson.toJson(settings.mistralManualModels))
+            .putString(KEY_AI_MISTRAL_ADMIN_URL, settings.mistralAdminUrl)
             .putString(KEY_AI_PERPLEXITY_API_KEY, settings.perplexityApiKey)
             .putString(KEY_AI_PERPLEXITY_MODEL, settings.perplexityModel)
             .putString(KEY_AI_PERPLEXITY_MODEL_SOURCE, settings.perplexityModelSource.name)
             .putString(KEY_AI_PERPLEXITY_MANUAL_MODELS, gson.toJson(settings.perplexityManualModels))
+            .putString(KEY_AI_PERPLEXITY_ADMIN_URL, settings.perplexityAdminUrl)
             .putString(KEY_AI_TOGETHER_API_KEY, settings.togetherApiKey)
             .putString(KEY_AI_TOGETHER_MODEL, settings.togetherModel)
             .putString(KEY_AI_TOGETHER_MODEL_SOURCE, settings.togetherModelSource.name)
             .putString(KEY_AI_TOGETHER_MANUAL_MODELS, gson.toJson(settings.togetherManualModels))
+            .putString(KEY_AI_TOGETHER_ADMIN_URL, settings.togetherAdminUrl)
             .putString(KEY_AI_OPENROUTER_API_KEY, settings.openRouterApiKey)
             .putString(KEY_AI_OPENROUTER_MODEL, settings.openRouterModel)
             .putString(KEY_AI_OPENROUTER_MODEL_SOURCE, settings.openRouterModelSource.name)
             .putString(KEY_AI_OPENROUTER_MANUAL_MODELS, gson.toJson(settings.openRouterManualModels))
+            .putString(KEY_AI_OPENROUTER_ADMIN_URL, settings.openRouterAdminUrl)
             .putString(KEY_AI_SILICONFLOW_API_KEY, settings.siliconFlowApiKey)
             .putString(KEY_AI_SILICONFLOW_MODEL, settings.siliconFlowModel)
             .putString(KEY_AI_SILICONFLOW_MODEL_SOURCE, settings.siliconFlowModelSource.name)
             .putString(KEY_AI_SILICONFLOW_MANUAL_MODELS, gson.toJson(settings.siliconFlowManualModels))
+            .putString(KEY_AI_SILICONFLOW_ADMIN_URL, settings.siliconFlowAdminUrl)
             .putString(KEY_AI_ZAI_API_KEY, settings.zaiApiKey)
             .putString(KEY_AI_ZAI_MODEL, settings.zaiModel)
             .putString(KEY_AI_ZAI_MODEL_SOURCE, settings.zaiModelSource.name)
             .putString(KEY_AI_ZAI_MANUAL_MODELS, gson.toJson(settings.zaiManualModels))
+            .putString(KEY_AI_ZAI_ADMIN_URL, settings.zaiAdminUrl)
             .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
             .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
             .putString(KEY_AI_DUMMY_MODEL_SOURCE, settings.dummyModelSource.name)
             .putString(KEY_AI_DUMMY_MANUAL_MODELS, gson.toJson(settings.dummyManualModels))
+            .putString(KEY_AI_DUMMY_ADMIN_URL, settings.dummyAdminUrl)
             // Save agents
             .putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
             // Save swarms
@@ -342,6 +368,21 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_OPENROUTER_MANUAL_MODELS = "ai_openrouter_manual_models"
         private const val KEY_AI_SILICONFLOW_MANUAL_MODELS = "ai_siliconflow_manual_models"
         private const val KEY_AI_ZAI_MANUAL_MODELS = "ai_zai_manual_models"
+
+        // AI admin URLs
+        private const val KEY_AI_OPENAI_ADMIN_URL = "ai_openai_admin_url"
+        private const val KEY_AI_ANTHROPIC_ADMIN_URL = "ai_anthropic_admin_url"
+        private const val KEY_AI_GOOGLE_ADMIN_URL = "ai_google_admin_url"
+        private const val KEY_AI_XAI_ADMIN_URL = "ai_xai_admin_url"
+        private const val KEY_AI_GROQ_ADMIN_URL = "ai_groq_admin_url"
+        private const val KEY_AI_DEEPSEEK_ADMIN_URL = "ai_deepseek_admin_url"
+        private const val KEY_AI_MISTRAL_ADMIN_URL = "ai_mistral_admin_url"
+        private const val KEY_AI_PERPLEXITY_ADMIN_URL = "ai_perplexity_admin_url"
+        private const val KEY_AI_TOGETHER_ADMIN_URL = "ai_together_admin_url"
+        private const val KEY_AI_OPENROUTER_ADMIN_URL = "ai_openrouter_admin_url"
+        private const val KEY_AI_SILICONFLOW_ADMIN_URL = "ai_siliconflow_admin_url"
+        private const val KEY_AI_ZAI_ADMIN_URL = "ai_zai_admin_url"
+        private const val KEY_AI_DUMMY_ADMIN_URL = "ai_dummy_admin_url"
 
         // AI agents
         private const val KEY_AI_AGENTS = "ai_agents"

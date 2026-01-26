@@ -27,18 +27,18 @@ import kotlinx.coroutines.launch
 @Composable
 fun AiServiceNavigationCard(
     title: String,
-    subtitle: String,
     accentColor: Color,
     hasApiKey: Boolean = false,
-    onClick: () -> Unit
+    adminUrl: String = "",
+    onEdit: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
@@ -55,7 +55,7 @@ fun AiServiceNavigationCard(
             )
 
             Text(
-                text = "$title / $subtitle",
+                text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White,
                 modifier = Modifier.weight(1f)
@@ -67,11 +67,28 @@ fun AiServiceNavigationCard(
                 fontSize = 14.sp
             )
 
+            // Edit link
             Text(
-                text = ">",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF888888)
+                text = "edit",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF6B9BFF),
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable { onEdit() }
             )
+
+            // External link (Admin URL)
+            if (adminUrl.isNotBlank()) {
+                Text(
+                    text = "extern",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF6B9BFF),
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(adminUrl))
+                        context.startActivity(intent)
+                    }
+                )
+            }
         }
     }
 }
@@ -90,7 +107,10 @@ fun AiServiceSettingsScreenTemplate(
     hasChanges: Boolean = false,
     apiKey: String = "",
     defaultModel: String = "",
+    availableModels: List<String> = emptyList(),
+    onDefaultModelChange: (String) -> Unit = {},
     adminUrl: String = "",
+    onAdminUrlChange: (String) -> Unit = {},
     onTestApiKey: (suspend () -> String?)? = null,
     onClearApiKey: (() -> Unit)? = null,
     onCreateAgent: (() -> Unit)? = null,
@@ -100,6 +120,7 @@ fun AiServiceSettingsScreenTemplate(
     val coroutineScope = rememberCoroutineScope()
     var isValidating by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+    var showModelDropdown by remember { mutableStateOf(false) }
 
     // Handle save with API key validation
     val handleSave: () -> Unit = {
@@ -196,27 +217,130 @@ fun AiServiceSettingsScreenTemplate(
                 )
             }
 
-            // Admin URL (clickable link to open in browser)
-            if (adminUrl.isNotBlank()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Admin URL (editable with open button)
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "Admin URL:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF888888)
+                        text = "Admin URL",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = adminUrl,
+                            onValueChange = onAdminUrlChange,
+                            label = { Text("URL") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                        if (adminUrl.isNotBlank()) {
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(adminUrl))
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        // Invalid URL
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF6B9BFF)
+                                )
+                            ) {
+                                Text("Open")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Default Model (selectable from available models)
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Default Model",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
                     )
                     Text(
-                        text = adminUrl,
+                        text = "Model used for API key testing and new agents",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF6B9BFF),
-                        textDecoration = TextDecoration.Underline,
-                        modifier = Modifier.clickable {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(adminUrl))
-                            context.startActivity(intent)
-                        }
+                        color = Color(0xFFAAAAAA)
                     )
+
+                    Box {
+                        OutlinedTextField(
+                            value = defaultModel,
+                            onValueChange = onDefaultModelChange,
+                            label = { Text("Model name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            readOnly = availableModels.isNotEmpty(),
+                            trailingIcon = if (availableModels.isNotEmpty()) {
+                                {
+                                    Text(
+                                        text = "▼",
+                                        color = Color(0xFF6B9BFF),
+                                        modifier = Modifier.clickable { showModelDropdown = true }
+                                    )
+                                }
+                            } else null,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+
+                        DropdownMenu(
+                            expanded = showModelDropdown,
+                            onDismissRequest = { showModelDropdown = false },
+                            modifier = Modifier.heightIn(max = 300.dp)
+                        ) {
+                            availableModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model) },
+                                    onClick = {
+                                        onDefaultModelChange(model)
+                                        showModelDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (availableModels.isEmpty()) {
+                        Text(
+                            text = "Enter model name manually or configure model list below",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888)
+                        )
+                    }
                 }
             }
 
