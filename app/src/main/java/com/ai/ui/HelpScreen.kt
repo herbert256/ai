@@ -49,7 +49,7 @@ fun HelpScreen(
                 title = "Welcome to AI",
                 content = "Create AI-powered reports and have conversations using 13 different AI services. " +
                     "Configure multiple agents with custom parameters, organize them into swarms, " +
-                    "compare responses side-by-side, and chat with any AI model."
+                    "compare responses side-by-side, track costs, and chat with any AI model using real-time streaming."
             )
 
             // Getting Started
@@ -72,15 +72,56 @@ fun HelpScreen(
                 title = "AI Hub (Home)",
                 icon = "\uD83C\uDFE0",
                 content = "The central hub showing all features:\n\n" +
-                    "• AI Report - Generate reports with multiple agents\n" +
-                    "• AI Chat - Start or continue conversations\n" +
+                    "• AI Reports - Generate multi-agent reports\n" +
+                    "• AI Chat - Start or continue conversations with streaming\n" +
                     "• AI Models - Search and explore all available models\n" +
-                    "• AI History - View generated reports\n" +
-                    "• AI Statistics - Track usage metrics\n" +
+                    "• AI Statistics - Track API calls and token usage\n" +
+                    "• AI Costs - View estimated costs per model\n" +
                     "• AI Setup - Configure providers, agents, swarms\n" +
-                    "• Settings - App preferences\n" +
-                    "• Help - This documentation\n\n" +
+                    "• Settings - App preferences and cost configuration\n" +
+                    "• Help - This documentation\n" +
+                    "• API Traces - Debug API calls (developer mode)\n\n" +
                     "Cards appear based on your setup status. Warnings guide you through initial configuration."
+            )
+
+            // AI Reports
+            HelpSection(
+                title = "AI Reports",
+                icon = "\uD83D\uDCDD",
+                content = "Generate reports using multiple AI agents:\n\n" +
+                    "Reports Hub:\n" +
+                    "• New Report - Create a new AI report\n" +
+                    "• Prompt History - Reuse previous prompts\n" +
+                    "• AI History - View past reports\n\n" +
+                    "Creating a report:\n" +
+                    "1. Enter a title (optional) and your prompt\n" +
+                    "2. Use @DATE@ to insert current date automatically\n" +
+                    "3. Tap 'Generate' and select agents/swarms\n" +
+                    "4. Watch real-time progress with token counts\n" +
+                    "5. View results, share, or open in browser\n\n" +
+                    "Reports are stored persistently and can be exported as JSON or HTML."
+            )
+
+            // Report Results
+            HelpSection(
+                title = "Report Results",
+                icon = "\uD83D\uDCC4",
+                content = "View and share your results:\n\n" +
+                    "Progress screen shows:\n" +
+                    "• Agent name, provider, model\n" +
+                    "• Status (pending, running, success, error)\n" +
+                    "• Input/Output token counts\n" +
+                    "• Cost in cents per agent\n\n" +
+                    "Actions when complete:\n" +
+                    "• View - See formatted responses in-app\n" +
+                    "• Share - Export as JSON or HTML\n" +
+                    "• Browser - Open interactive HTML report\n" +
+                    "• Close - Return to reports hub\n\n" +
+                    "Features:\n" +
+                    "• Markdown rendering with formatting\n" +
+                    "• Collapsible 'Think' sections for reasoning\n" +
+                    "• Citations and search results (Perplexity, xAI)\n" +
+                    "• Token usage details (developer mode)"
             )
 
             // AI Chat
@@ -90,11 +131,13 @@ fun HelpScreen(
                 content = "Have multi-turn conversations with any AI:\n\n" +
                     "Starting a chat:\n" +
                     "1. Tap 'AI Chat' on the home screen\n" +
-                    "2. Select a provider (shows only configured ones)\n" +
-                    "3. Select a model\n" +
-                    "4. Optionally configure parameters\n" +
-                    "5. Start chatting!\n\n" +
+                    "2. Choose 'New chat' or 'Continue previous'\n" +
+                    "3. Select a provider (shows only configured ones)\n" +
+                    "4. Select a model (search to filter)\n" +
+                    "5. Optionally configure parameters\n" +
+                    "6. Start chatting!\n\n" +
                     "Chat features:\n" +
+                    "• Streaming responses (real-time word-by-word)\n" +
                     "• System prompt for AI behavior instructions\n" +
                     "• Temperature, max tokens, and other parameters\n" +
                     "• Web search (xAI) and citations (Perplexity)\n" +
@@ -118,7 +161,7 @@ fun HelpScreen(
             // AI Models / Model Search
             HelpSection(
                 title = "AI Models",
-                icon = "\uD83D\uDD0D",
+                icon = "\uD83E\uDDE0",
                 content = "Search and explore models across all providers:\n\n" +
                     "• Unified search across all configured providers\n" +
                     "• Filter by model name\n" +
@@ -146,23 +189,79 @@ fun HelpScreen(
                     "• Create an agent named 'model_info' to auto-generate introductions"
             )
 
+            // AI Statistics
+            HelpSection(
+                title = "AI Statistics",
+                icon = "\uD83D\uDCCA",
+                content = "Track your AI usage:\n\n" +
+                    "Summary shows:\n" +
+                    "• Total API calls made\n" +
+                    "• Input token count (prompts sent)\n" +
+                    "• Output token count (responses received)\n" +
+                    "• Total tokens processed\n\n" +
+                    "Per-model breakdown:\n" +
+                    "• Provider and model name\n" +
+                    "• Number of calls\n" +
+                    "• Token usage details\n\n" +
+                    "• Clear Statistics button to reset all data"
+            )
+
+            // AI Costs
+            HelpSection(
+                title = "AI Costs",
+                icon = "\uD83D\uDCB0",
+                content = "Track estimated costs for your AI usage:\n\n" +
+                    "Pricing sources (in order of priority):\n" +
+                    "1. Manual overrides (set in Cost Configuration)\n" +
+                    "2. OpenRouter API pricing (weekly cached)\n" +
+                    "3. LiteLLM community pricing (built-in)\n" +
+                    "4. Fallback estimates\n\n" +
+                    "Features:\n" +
+                    "• Total estimated cost across all models\n" +
+                    "• Input/output cost breakdown\n" +
+                    "• Expandable provider groups\n" +
+                    "• Per-model cost details\n" +
+                    "• Refresh button to update pricing\n" +
+                    "• Color-coded pricing sources\n\n" +
+                    "Cost Configuration (Settings):\n" +
+                    "• Set manual price overrides per model\n" +
+                    "• Prices in dollars per million tokens"
+            )
+
+            // AI History
+            HelpSection(
+                title = "AI History",
+                icon = "\uD83D\uDCC2",
+                content = "Browse and manage generated reports:\n\n" +
+                    "• Search by title, prompt, or content\n" +
+                    "• Paginated list view\n" +
+                    "• Tap a report to see options\n\n" +
+                    "Actions per report:\n" +
+                    "• View - See formatted responses in-app\n" +
+                    "• Share - Export as JSON or HTML\n" +
+                    "• Browser - Open interactive HTML report\n" +
+                    "• Delete - Remove report (with confirmation)\n\n" +
+                    "Reports are stored persistently until deleted."
+            )
+
             // AI Services
             HelpSection(
                 title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
                 content = "13 AI services supported:\n\n" +
-                    "• OpenAI - GPT-4o, GPT-5.x, o3, o4\n" +
-                    "• Anthropic - Claude 4, Claude 3.5\n" +
-                    "• Google - Gemini 2.0 Flash\n" +
+                    "• OpenAI - GPT-4o, GPT-5.x, o3, o4 (Chat + Responses API)\n" +
+                    "• Anthropic - Claude 4, Claude 3.5 (hardcoded list)\n" +
+                    "• Google - Gemini 2.0 Flash and more\n" +
                     "• xAI - Grok with optional web search\n" +
                     "• Groq - Ultra-fast inference\n" +
                     "• DeepSeek - Reasoning with think sections\n" +
-                    "• Mistral - European AI\n" +
+                    "• Mistral - European AI models\n" +
                     "• Perplexity - Web search with citations\n" +
                     "• Together AI - Open-source models\n" +
-                    "• OpenRouter - Multiple providers\n" +
+                    "• OpenRouter - Multiple providers, unified API\n" +
                     "• SiliconFlow - Qwen, DeepSeek models\n" +
-                    "• Z.AI - GLM models\n\n" +
+                    "• Z.AI - GLM models (ZhipuAI)\n" +
+                    "• DUMMY - Testing (developer mode only)\n\n" +
                     "Each requires an API key from the provider's website."
             )
 
@@ -220,63 +319,16 @@ fun HelpScreen(
                     "Leave empty to use provider defaults."
             )
 
-            // Creating Reports
+            // Think Sections
             HelpSection(
-                title = "Creating AI Reports",
-                icon = "\uD83D\uDCCA",
-                content = "Generate reports with multiple agents:\n\n" +
-                    "1. Tap 'AI Report' from AI Hub\n" +
-                    "2. Enter a title (optional) and your prompt\n" +
-                    "3. Tap 'Generate' button\n" +
-                    "4. Select agents and/or swarms\n" +
-                    "5. Watch real-time progress\n" +
-                    "6. Tap STOP to end early if needed\n\n" +
-                    "Special features:\n" +
-                    "• Use @DATE@ to insert current date\n" +
-                    "• Multiple agents run in parallel\n" +
-                    "• Reports auto-saved to AI History"
-            )
-
-            // Report Results
-            HelpSection(
-                title = "Report Results",
-                icon = "\uD83D\uDCC4",
-                content = "View and share your results:\n\n" +
-                    "Result features:\n" +
-                    "• Agent buttons - Toggle visibility\n" +
-                    "• Markdown rendering - Formatted responses\n" +
-                    "• Think sections - Expandable AI reasoning\n" +
-                    "• Citations - Source URLs (Perplexity/xAI)\n" +
-                    "• Token usage - In developer mode\n\n" +
-                    "Actions:\n" +
-                    "• View in Chrome - Interactive HTML\n" +
-                    "• Share via Email - Send as attachment\n" +
-                    "• Close - Return to report screen"
-            )
-
-            // AI History
-            HelpSection(
-                title = "AI History",
-                icon = "\uD83D\uDCC2",
-                content = "Browse and manage generated reports:\n\n" +
-                    "• Search by title, prompt, or content\n" +
-                    "• Paginated list view\n" +
-                    "• View reports in Chrome\n" +
-                    "• Share via email\n" +
-                    "• Delete unwanted reports\n\n" +
-                    "Reports are stored locally as HTML files and persist until deleted."
-            )
-
-            // AI Statistics
-            HelpSection(
-                title = "AI Statistics",
-                icon = "\uD83D\uDCCA",
-                content = "Track your AI usage:\n\n" +
-                    "• Total API calls made\n" +
-                    "• Input and output token counts\n" +
-                    "• Usage per provider and model\n" +
-                    "• Clear statistics button\n\n" +
-                    "Useful for monitoring costs and usage patterns."
+                title = "Think Sections",
+                icon = "\uD83D\uDCA1",
+                content = "View AI reasoning process:\n\n" +
+                    "• DeepSeek and other reasoning models show thinking\n" +
+                    "• Displayed as collapsible 'Think' buttons\n" +
+                    "• Click to expand/collapse\n" +
+                    "• Available in-app and in HTML reports\n\n" +
+                    "Helps understand how the AI reaches its conclusions."
             )
 
             // Prompt History
@@ -289,18 +341,6 @@ fun HelpScreen(
                     "• Shows title, prompt, and timestamp\n" +
                     "• Tap to reuse in New Report\n" +
                     "• Most recent prompts first"
-            )
-
-            // Think Sections
-            HelpSection(
-                title = "Think Sections",
-                icon = "\uD83D\uDCA1",
-                content = "View AI reasoning process:\n\n" +
-                    "• DeepSeek reasoning models show thinking\n" +
-                    "• Displayed as collapsible 'Think' buttons\n" +
-                    "• Click to expand/collapse\n" +
-                    "• Available in-app and in HTML reports\n\n" +
-                    "Helps understand how the AI reaches its conclusions."
             )
 
             // Export/Import Configuration
@@ -327,10 +367,14 @@ fun HelpScreen(
                 content = "Customize the app:\n\n" +
                     "General:\n" +
                     "• Username for chat display\n" +
+                    "• Full screen mode toggle\n" +
                     "• Developer mode toggle\n" +
                     "• API call tracing (dev mode)\n\n" +
                     "External Services:\n" +
                     "• Hugging Face API Key - For model info\n\n" +
+                    "Cost Configuration:\n" +
+                    "• Set manual price overrides per model\n" +
+                    "• View and edit pricing sources\n\n" +
                     "AI Setup:\n" +
                     "• Provider configuration\n" +
                     "• Agent management\n" +
@@ -348,11 +392,12 @@ fun HelpScreen(
                     "• DUMMY provider for testing\n" +
                     "• API call tracing option\n" +
                     "• Token usage in reports\n" +
-                    "• HTTP headers in reports\n\n" +
+                    "• HTTP headers in reports\n" +
+                    "• API Traces card on home screen\n\n" +
                     "API Tracing:\n" +
                     "• Logs all API requests/responses\n" +
-                    "• Access via bug icon in title bar\n" +
-                    "• Color-coded status codes\n" +
+                    "• Access via API Traces on home screen\n" +
+                    "• Color-coded HTTP status codes\n" +
                     "• API keys are masked for security"
             )
 
@@ -361,9 +406,10 @@ fun HelpScreen(
                 title = "External App Integration",
                 icon = "\uD83D\uDD17",
                 content = "Other apps can launch AI:\n\n" +
-                    "• Opens directly to New Report\n" +
-                    "• Title and prompt pre-filled\n" +
-                    "• Select agents and generate\n" +
+                    "Intent action: com.ai.ACTION_NEW_REPORT\n\n" +
+                    "• Opens directly to New Report screen\n" +
+                    "• Title and prompt can be pre-filled\n" +
+                    "• Select agents and generate report\n" +
                     "• Results saved to AI History\n\n" +
                     "See CALL_AI.md for integration details."
             )
@@ -376,8 +422,8 @@ fun HelpScreen(
                     "• All reports stored locally\n" +
                     "• No analytics or telemetry\n" +
                     "• API keys in private storage\n" +
-                    "• Keys masked in traces\n" +
-                    "• Direct API calls only\n" +
+                    "• Keys masked in API traces\n" +
+                    "• Direct API calls only to providers\n" +
                     "• HTTPS encryption in transit"
             )
 
@@ -392,8 +438,12 @@ fun HelpScreen(
                     "→ Check internet, retries once automatically\n\n" +
                     "\"Model not found\"\n" +
                     "→ Use 'Refresh model lists' in AI Setup\n\n" +
+                    "\"No pricing data\"\n" +
+                    "→ Add OpenRouter API key or use Cost Configuration\n\n" +
                     "Slow responses?\n" +
                     "→ Complex prompts can take minutes (7 min timeout)\n\n" +
+                    "Streaming not working?\n" +
+                    "→ Not all providers support streaming; falls back automatically\n\n" +
                     "For debugging, enable Developer Mode and API tracing."
             )
 
