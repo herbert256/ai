@@ -142,18 +142,18 @@ class AiAnalysisRepository {
         server: String?,
         apiKey: String,
         prompt: String,
-        chatGptModel: String = "gpt-4o-mini",
-        claudeModel: String = "claude-sonnet-4-20250514",
-        geminiModel: String = "gemini-2.0-flash",
-        grokModel: String = "grok-3-mini",
-        groqModel: String = "llama-3.3-70b-versatile",
-        deepSeekModel: String = "deepseek-chat",
-        mistralModel: String = "mistral-small-latest",
-        perplexityModel: String = "sonar",
-        togetherModel: String = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        openRouterModel: String = "anthropic/claude-3.5-sonnet",
-        siliconFlowModel: String = "Qwen/Qwen2.5-7B-Instruct",
-        zaiModel: String = "glm-4.7-flash"
+        chatGptModel: String = AiService.OPENAI.defaultModel,
+        claudeModel: String = AiService.ANTHROPIC.defaultModel,
+        geminiModel: String = AiService.GOOGLE.defaultModel,
+        grokModel: String = AiService.XAI.defaultModel,
+        groqModel: String = AiService.GROQ.defaultModel,
+        deepSeekModel: String = AiService.DEEPSEEK.defaultModel,
+        mistralModel: String = AiService.MISTRAL.defaultModel,
+        perplexityModel: String = AiService.PERPLEXITY.defaultModel,
+        togetherModel: String = AiService.TOGETHER.defaultModel,
+        openRouterModel: String = AiService.OPENROUTER.defaultModel,
+        siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
+        zaiModel: String = AiService.ZAI.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -228,18 +228,18 @@ class AiAnalysisRepository {
         fen: String,
         apiKey: String,
         prompt: String,
-        chatGptModel: String = "gpt-4o-mini",
-        claudeModel: String = "claude-sonnet-4-20250514",
-        geminiModel: String = "gemini-2.0-flash",
-        grokModel: String = "grok-3-mini",
-        groqModel: String = "llama-3.3-70b-versatile",
-        deepSeekModel: String = "deepseek-chat",
-        mistralModel: String = "mistral-small-latest",
-        perplexityModel: String = "sonar",
-        togetherModel: String = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        openRouterModel: String = "anthropic/claude-3.5-sonnet",
-        siliconFlowModel: String = "Qwen/Qwen2.5-7B-Instruct",
-        zaiModel: String = "glm-4.7-flash"
+        chatGptModel: String = AiService.OPENAI.defaultModel,
+        claudeModel: String = AiService.ANTHROPIC.defaultModel,
+        geminiModel: String = AiService.GOOGLE.defaultModel,
+        grokModel: String = AiService.XAI.defaultModel,
+        groqModel: String = AiService.GROQ.defaultModel,
+        deepSeekModel: String = AiService.DEEPSEEK.defaultModel,
+        mistralModel: String = AiService.MISTRAL.defaultModel,
+        perplexityModel: String = AiService.PERPLEXITY.defaultModel,
+        togetherModel: String = AiService.TOGETHER.defaultModel,
+        openRouterModel: String = AiService.OPENROUTER.defaultModel,
+        siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
+        zaiModel: String = AiService.ZAI.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(

@@ -998,19 +998,5 @@ internal fun AgentEditScreen(
  * Get default model for a provider.
  */
 fun getDefaultModelForProvider(provider: AiService): String {
-    return when (provider) {
-        AiService.OPENAI -> "gpt-4o-mini"
-        AiService.ANTHROPIC -> "claude-sonnet-4-20250514"
-        AiService.GOOGLE -> "gemini-2.0-flash"
-        AiService.XAI -> "grok-3-mini"
-        AiService.GROQ -> "llama-3.3-70b-versatile"
-        AiService.DEEPSEEK -> "deepseek-chat"
-        AiService.MISTRAL -> "mistral-small-latest"
-        AiService.PERPLEXITY -> "sonar"
-        AiService.TOGETHER -> "meta-llama/Llama-3.3-70B-Instruct-Turbo"
-        AiService.OPENROUTER -> "anthropic/claude-3.5-sonnet"
-        AiService.SILICONFLOW -> "Qwen/Qwen2.5-7B-Instruct"
-        AiService.ZAI -> "glm-4.7-flash"
-        AiService.DUMMY -> "dummy"
-    }
+    return provider.defaultModel
 }

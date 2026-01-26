@@ -16,20 +16,20 @@ import java.util.concurrent.TimeUnit
 /**
  * Enum representing the supported AI services for chess position analysis.
  */
-enum class AiService(val displayName: String, val baseUrl: String, val adminUrl: String) {
-    OPENAI("OpenAI", "https://api.openai.com/", "https://platform.openai.com/settings/organization/api-keys"),
-    ANTHROPIC("Anthropic", "https://api.anthropic.com/", "https://console.anthropic.com/settings/keys"),
-    GOOGLE("Google", "https://generativelanguage.googleapis.com/", "https://aistudio.google.com/app/apikey"),
-    XAI("xAI", "https://api.x.ai/", "https://console.x.ai/"),
-    GROQ("Groq", "https://api.groq.com/openai/", "https://console.groq.com/keys"),
-    DEEPSEEK("DeepSeek", "https://api.deepseek.com/", "https://platform.deepseek.com/api_keys"),
-    MISTRAL("Mistral", "https://api.mistral.ai/", "https://console.mistral.ai/api-keys/"),
-    PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api"),
-    TOGETHER("Together", "https://api.together.xyz/", "https://api.together.xyz/settings/api-keys"),
-    OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys"),
-    SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/", "https://cloud.siliconflow.cn/account/ak"),
-    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys"),
-    DUMMY("Dummy", "http://localhost:54321/", "")
+enum class AiService(val displayName: String, val baseUrl: String, val adminUrl: String, val defaultModel: String) {
+    OPENAI("OpenAI", "https://api.openai.com/", "https://platform.openai.com/settings/organization/api-keys", "gpt-4o-mini"),
+    ANTHROPIC("Anthropic", "https://api.anthropic.com/", "https://console.anthropic.com/settings/keys", "claude-sonnet-4-20250514"),
+    GOOGLE("Google", "https://generativelanguage.googleapis.com/", "https://aistudio.google.com/app/apikey", "gemini-2.0-flash"),
+    XAI("xAI", "https://api.x.ai/", "https://console.x.ai/", "grok-3-mini"),
+    GROQ("Groq", "https://api.groq.com/openai/", "https://console.groq.com/keys", "llama-3.3-70b-versatile"),
+    DEEPSEEK("DeepSeek", "https://api.deepseek.com/", "https://platform.deepseek.com/api_keys", "deepseek-chat"),
+    MISTRAL("Mistral", "https://api.mistral.ai/", "https://console.mistral.ai/api-keys/", "mistral-small-latest"),
+    PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api", "sonar"),
+    TOGETHER("Together", "https://api.together.xyz/", "https://api.together.xyz/settings/api-keys", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
+    OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys", "anthropic/claude-3.5-sonnet"),
+    SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
+    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash"),
+    DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
 }
 
 // OpenAI models
@@ -41,7 +41,7 @@ data class OpenAiMessage(
 )
 
 data class OpenAiRequest(
-    val model: String = "gpt-4o-mini",
+    val model: String = AiService.OPENAI.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -136,7 +136,7 @@ data class ClaudeMessage(
 )
 
 data class ClaudeRequest(
-    val model: String = "claude-sonnet-4-20250514",
+    val model: String = AiService.ANTHROPIC.defaultModel,
     val max_tokens: Int? = 1024,
     val messages: List<ClaudeMessage>,
     val temperature: Float? = null,
@@ -216,7 +216,7 @@ data class GeminiError(
 
 // xAI Grok models (uses OpenAI-compatible format)
 data class GrokRequest(
-    val model: String = "grok-3-mini",
+    val model: String = AiService.XAI.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -229,7 +229,7 @@ data class GrokRequest(
 
 // DeepSeek models (uses OpenAI-compatible format)
 data class DeepSeekRequest(
-    val model: String = "deepseek-chat",
+    val model: String = AiService.DEEPSEEK.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -241,7 +241,7 @@ data class DeepSeekRequest(
 
 // Mistral models (uses OpenAI-compatible format)
 data class MistralRequest(
-    val model: String = "mistral-small-latest",
+    val model: String = AiService.MISTRAL.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -252,7 +252,7 @@ data class MistralRequest(
 
 // Perplexity models (uses OpenAI-compatible format)
 data class PerplexityRequest(
-    val model: String = "sonar",
+    val model: String = AiService.PERPLEXITY.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -265,7 +265,7 @@ data class PerplexityRequest(
 
 // Together AI models (uses OpenAI-compatible format)
 data class TogetherRequest(
-    val model: String = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    val model: String = AiService.TOGETHER.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -278,7 +278,7 @@ data class TogetherRequest(
 
 // OpenRouter models (uses OpenAI-compatible format)
 data class OpenRouterRequest(
-    val model: String = "anthropic/claude-3.5-sonnet",
+    val model: String = AiService.OPENROUTER.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -292,7 +292,7 @@ data class OpenRouterRequest(
 
 // SiliconFlow models (uses OpenAI-compatible format)
 data class SiliconFlowRequest(
-    val model: String = "Qwen/Qwen2.5-7B-Instruct",
+    val model: String = AiService.SILICONFLOW.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
@@ -305,7 +305,7 @@ data class SiliconFlowRequest(
 
 // Groq models (uses OpenAI-compatible format)
 data class GroqRequest(
-    val model: String = "llama-3.3-70b-versatile",
+    val model: String = AiService.GROQ.defaultModel,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,

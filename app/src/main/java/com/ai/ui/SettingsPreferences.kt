@@ -1,6 +1,7 @@
 package com.ai.ui
 
 import android.content.SharedPreferences
+import com.ai.data.AiService
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -50,57 +51,57 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     fun loadAiSettings(): AiSettings {
         return AiSettings(
             chatGptApiKey = prefs.getString(KEY_AI_OPENAI_API_KEY, "") ?: "",
-            chatGptModel = prefs.getString(KEY_AI_OPENAI_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini",
+            chatGptModel = prefs.getString(KEY_AI_OPENAI_MODEL, AiService.OPENAI.defaultModel) ?: AiService.OPENAI.defaultModel,
             chatGptModelSource = loadModelSource(KEY_AI_OPENAI_MODEL_SOURCE, ModelSource.API),
             chatGptManualModels = loadManualModels(KEY_AI_OPENAI_MANUAL_MODELS),
             claudeApiKey = prefs.getString(KEY_AI_ANTHROPIC_API_KEY, "") ?: "",
-            claudeModel = prefs.getString(KEY_AI_ANTHROPIC_MODEL, "claude-sonnet-4-20250514") ?: "claude-sonnet-4-20250514",
+            claudeModel = prefs.getString(KEY_AI_ANTHROPIC_MODEL, AiService.ANTHROPIC.defaultModel) ?: AiService.ANTHROPIC.defaultModel,
             claudeModelSource = loadModelSource(KEY_AI_ANTHROPIC_MODEL_SOURCE, ModelSource.MANUAL),
             claudeManualModels = loadManualModelsWithDefault(KEY_AI_ANTHROPIC_MANUAL_MODELS, CLAUDE_MODELS),
             geminiApiKey = prefs.getString(KEY_AI_GOOGLE_API_KEY, "") ?: "",
-            geminiModel = prefs.getString(KEY_AI_GOOGLE_MODEL, "gemini-2.0-flash") ?: "gemini-2.0-flash",
+            geminiModel = prefs.getString(KEY_AI_GOOGLE_MODEL, AiService.GOOGLE.defaultModel) ?: AiService.GOOGLE.defaultModel,
             geminiModelSource = loadModelSource(KEY_AI_GOOGLE_MODEL_SOURCE, ModelSource.API),
             geminiManualModels = loadManualModels(KEY_AI_GOOGLE_MANUAL_MODELS),
             grokApiKey = prefs.getString(KEY_AI_XAI_API_KEY, "") ?: "",
-            grokModel = prefs.getString(KEY_AI_XAI_MODEL, "grok-3-mini") ?: "grok-3-mini",
+            grokModel = prefs.getString(KEY_AI_XAI_MODEL, AiService.XAI.defaultModel) ?: AiService.XAI.defaultModel,
             grokModelSource = loadModelSource(KEY_AI_XAI_MODEL_SOURCE, ModelSource.API),
             grokManualModels = loadManualModels(KEY_AI_XAI_MANUAL_MODELS),
             groqApiKey = prefs.getString(KEY_AI_GROQ_API_KEY, "") ?: "",
-            groqModel = prefs.getString(KEY_AI_GROQ_MODEL, "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile",
+            groqModel = prefs.getString(KEY_AI_GROQ_MODEL, AiService.GROQ.defaultModel) ?: AiService.GROQ.defaultModel,
             groqModelSource = loadModelSource(KEY_AI_GROQ_MODEL_SOURCE, ModelSource.API),
             groqManualModels = loadManualModels(KEY_AI_GROQ_MANUAL_MODELS),
             deepSeekApiKey = prefs.getString(KEY_AI_DEEPSEEK_API_KEY, "") ?: "",
-            deepSeekModel = prefs.getString(KEY_AI_DEEPSEEK_MODEL, "deepseek-chat") ?: "deepseek-chat",
+            deepSeekModel = prefs.getString(KEY_AI_DEEPSEEK_MODEL, AiService.DEEPSEEK.defaultModel) ?: AiService.DEEPSEEK.defaultModel,
             deepSeekModelSource = loadModelSource(KEY_AI_DEEPSEEK_MODEL_SOURCE, ModelSource.API),
             deepSeekManualModels = loadManualModels(KEY_AI_DEEPSEEK_MANUAL_MODELS),
             mistralApiKey = prefs.getString(KEY_AI_MISTRAL_API_KEY, "") ?: "",
-            mistralModel = prefs.getString(KEY_AI_MISTRAL_MODEL, "mistral-small-latest") ?: "mistral-small-latest",
+            mistralModel = prefs.getString(KEY_AI_MISTRAL_MODEL, AiService.MISTRAL.defaultModel) ?: AiService.MISTRAL.defaultModel,
             mistralModelSource = loadModelSource(KEY_AI_MISTRAL_MODEL_SOURCE, ModelSource.API),
             mistralManualModels = loadManualModels(KEY_AI_MISTRAL_MANUAL_MODELS),
             perplexityApiKey = prefs.getString(KEY_AI_PERPLEXITY_API_KEY, "") ?: "",
-            perplexityModel = prefs.getString(KEY_AI_PERPLEXITY_MODEL, "sonar") ?: "sonar",
+            perplexityModel = prefs.getString(KEY_AI_PERPLEXITY_MODEL, AiService.PERPLEXITY.defaultModel) ?: AiService.PERPLEXITY.defaultModel,
             perplexityModelSource = loadModelSource(KEY_AI_PERPLEXITY_MODEL_SOURCE, ModelSource.MANUAL),
             perplexityManualModels = loadManualModelsWithDefault(KEY_AI_PERPLEXITY_MANUAL_MODELS, PERPLEXITY_MODELS),
             togetherApiKey = prefs.getString(KEY_AI_TOGETHER_API_KEY, "") ?: "",
-            togetherModel = prefs.getString(KEY_AI_TOGETHER_MODEL, "meta-llama/Llama-3.3-70B-Instruct-Turbo") ?: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+            togetherModel = prefs.getString(KEY_AI_TOGETHER_MODEL, AiService.TOGETHER.defaultModel) ?: AiService.TOGETHER.defaultModel,
             togetherModelSource = loadModelSource(KEY_AI_TOGETHER_MODEL_SOURCE, ModelSource.API),
             togetherManualModels = loadManualModels(KEY_AI_TOGETHER_MANUAL_MODELS),
             openRouterApiKey = prefs.getString(KEY_AI_OPENROUTER_API_KEY, "") ?: "",
-            openRouterModel = prefs.getString(KEY_AI_OPENROUTER_MODEL, "anthropic/claude-3.5-sonnet") ?: "anthropic/claude-3.5-sonnet",
+            openRouterModel = prefs.getString(KEY_AI_OPENROUTER_MODEL, AiService.OPENROUTER.defaultModel) ?: AiService.OPENROUTER.defaultModel,
             openRouterModelSource = loadModelSource(KEY_AI_OPENROUTER_MODEL_SOURCE, ModelSource.API),
             openRouterManualModels = loadManualModels(KEY_AI_OPENROUTER_MANUAL_MODELS),
             siliconFlowApiKey = prefs.getString(KEY_AI_SILICONFLOW_API_KEY, "") ?: "",
-            siliconFlowModel = prefs.getString(KEY_AI_SILICONFLOW_MODEL, "Qwen/Qwen2.5-7B-Instruct") ?: "Qwen/Qwen2.5-7B-Instruct",
+            siliconFlowModel = prefs.getString(KEY_AI_SILICONFLOW_MODEL, AiService.SILICONFLOW.defaultModel) ?: AiService.SILICONFLOW.defaultModel,
             siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.MANUAL),
             siliconFlowManualModels = loadManualModelsWithDefault(KEY_AI_SILICONFLOW_MANUAL_MODELS, SILICONFLOW_MODELS),
             zaiApiKey = prefs.getString(KEY_AI_ZAI_API_KEY, "") ?: "",
-            zaiModel = prefs.getString(KEY_AI_ZAI_MODEL, "glm-4.7-flash") ?: "glm-4.7-flash",
+            zaiModel = prefs.getString(KEY_AI_ZAI_MODEL, AiService.ZAI.defaultModel) ?: AiService.ZAI.defaultModel,
             zaiModelSource = loadModelSource(KEY_AI_ZAI_MODEL_SOURCE, ModelSource.MANUAL),
             zaiManualModels = loadManualModelsWithDefault(KEY_AI_ZAI_MANUAL_MODELS, ZAI_MODELS),
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
-            dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, "abc") ?: "abc",
+            dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, AiService.DUMMY.defaultModel) ?: AiService.DUMMY.defaultModel,
             dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
-            dummyManualModels = loadManualModelsWithDefault(KEY_AI_DUMMY_MANUAL_MODELS, listOf("dummy-model"))
+            dummyManualModels = loadManualModelsWithDefault(KEY_AI_DUMMY_MANUAL_MODELS, listOf(AiService.DUMMY.defaultModel))
         )
     }
 
