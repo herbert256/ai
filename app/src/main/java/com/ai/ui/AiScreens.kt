@@ -351,11 +351,12 @@ private fun searchInHtmlFile(
 @Composable
 fun AiHistoryScreenNav(
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit = onNavigateBack
+    onNavigateHome: () -> Unit = onNavigateBack,
+    developerMode: Boolean = false
 ) {
     val context = LocalContext.current
-    var allHistoryFiles by remember { mutableStateOf(AiHistoryManager.getHistoryFiles()) }
-    var filteredFiles by remember { mutableStateOf(allHistoryFiles) }
+    var allReports by remember { mutableStateOf(com.ai.data.AiReportStorage.getAllReports(context)) }
+    var filteredReports by remember { mutableStateOf(allReports) }
     var currentPage by remember { mutableIntStateOf(0) }
 
     // Search state
@@ -364,6 +365,19 @@ fun AiHistoryScreenNav(
     var searchPrompt by remember { mutableStateOf("") }
     var searchReport by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+
+    // Selected report for viewing
+    var selectedReportId by remember { mutableStateOf<String?>(null) }
+
+    // Show viewer screen when a report is selected
+    if (selectedReportId != null) {
+        AiReportsViewerScreen(
+            reportId = selectedReportId!!,
+            onDismiss = { selectedReportId = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -378,17 +392,17 @@ fun AiHistoryScreenNav(
         val rowHeight = 56.dp
         val pageSize = maxOf(1, (availableHeight / rowHeight).toInt())
 
-        val totalPages = (filteredFiles.size + pageSize - 1) / pageSize
+        val totalPages = (filteredReports.size + pageSize - 1) / pageSize
         val startIndex = currentPage * pageSize
-        val endIndex = minOf(startIndex + pageSize, filteredFiles.size)
-        val currentPageFiles = if (filteredFiles.isNotEmpty() && startIndex < filteredFiles.size) {
-            filteredFiles.subList(startIndex, endIndex)
+        val endIndex = minOf(startIndex + pageSize, filteredReports.size)
+        val currentPageReports = if (filteredReports.isNotEmpty() && startIndex < filteredReports.size) {
+            filteredReports.subList(startIndex, endIndex)
         } else {
             emptyList()
         }
 
         // Reset to valid page if needed
-        LaunchedEffect(pageSize, filteredFiles.size) {
+        LaunchedEffect(pageSize, filteredReports.size) {
             if (currentPage >= totalPages && totalPages > 0) {
                 currentPage = totalPages - 1
             }
@@ -475,8 +489,8 @@ fun AiHistoryScreenNav(
                     ) {
                         Button(
                             onClick = {
-                                filteredFiles = allHistoryFiles.filter { fileInfo ->
-                                    searchInHtmlFile(fileInfo.file, searchTitle, searchPrompt, searchReport)
+                                filteredReports = allReports.filter { report ->
+                                    searchInAiReport(report, searchTitle, searchPrompt, searchReport)
                                 }
                                 currentPage = 0
                                 isSearchActive = searchTitle.isNotBlank() || searchPrompt.isNotBlank() || searchReport.isNotBlank()
@@ -494,7 +508,7 @@ fun AiHistoryScreenNav(
                                 searchTitle = ""
                                 searchPrompt = ""
                                 searchReport = ""
-                                filteredFiles = allHistoryFiles
+                                filteredReports = allReports
                                 currentPage = 0
                                 isSearchActive = false
                                 searchExpanded = false
@@ -582,7 +596,7 @@ fun AiHistoryScreenNav(
         Spacer(modifier = Modifier.height(4.dp))
 
         // History list
-        if (filteredFiles.isEmpty()) {
+        if (filteredReports.isEmpty()) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -590,7 +604,7 @@ fun AiHistoryScreenNav(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (allHistoryFiles.isEmpty()) "No AI reports yet" else "No matching reports",
+                    text = if (allReports.isEmpty()) "No AI reports yet" else "No matching reports",
                     color = Color(0xFFAAAAAA),
                     fontSize = 16.sp
                 )
@@ -600,10 +614,21 @@ fun AiHistoryScreenNav(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(currentPageFiles) { fileInfo ->
-                    AiHistoryRowNav(
-                        fileInfo = fileInfo,
-                        context = context
+                items(currentPageReports) { report ->
+                    AiHistoryReportRow(
+                        report = report,
+                        context = context,
+                        developerMode = developerMode,
+                        onViewReport = { selectedReportId = report.id },
+                        onDeleteReport = {
+                            com.ai.data.AiReportStorage.deleteReport(context, report.id)
+                            allReports = com.ai.data.AiReportStorage.getAllReports(context)
+                            filteredReports = if (isSearchActive) {
+                                allReports.filter { r -> searchInAiReport(r, searchTitle, searchPrompt, searchReport) }
+                            } else {
+                                allReports
+                            }
+                        }
                     )
                 }
             }
@@ -614,12 +639,12 @@ fun AiHistoryScreenNav(
         // Clear button
         Button(
             onClick = {
-                AiHistoryManager.clearHistory()
-                allHistoryFiles = emptyList()
-                filteredFiles = emptyList()
+                com.ai.data.AiReportStorage.deleteAllReports(context)
+                allReports = emptyList()
+                filteredReports = emptyList()
                 currentPage = 0
             },
-            enabled = allHistoryFiles.isNotEmpty(),
+            enabled = allReports.isNotEmpty(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFCC3333),
                 disabledContainerColor = Color(0xFF444444)
@@ -633,20 +658,135 @@ fun AiHistoryScreenNav(
 }
 
 /**
+ * Search in an AI Report object for matching title, prompt, or response content.
+ */
+private fun searchInAiReport(
+    report: com.ai.data.AiReport,
+    searchTitle: String,
+    searchPrompt: String,
+    searchReport: String
+): Boolean {
+    val titleLower = searchTitle.lowercase()
+    val promptLower = searchPrompt.lowercase()
+    val reportLower = searchReport.lowercase()
+
+    // Check title
+    if (titleLower.isNotBlank() && !report.title.lowercase().contains(titleLower)) {
+        return false
+    }
+
+    // Check prompt
+    if (promptLower.isNotBlank() && !report.prompt.lowercase().contains(promptLower)) {
+        return false
+    }
+
+    // Check report content (search in all agent responses)
+    if (reportLower.isNotBlank()) {
+        val hasMatchingContent = report.agents.any { agent ->
+            agent.responseBody?.lowercase()?.contains(reportLower) == true
+        }
+        if (!hasMatchingContent) {
+            return false
+        }
+    }
+
+    return true
+}
+
+/**
  * Single row in AI History showing title with date/time.
- * Clicking opens actions menu.
+ * Clicking opens actions menu with View, Share, and Browser buttons.
  */
 @Composable
-private fun AiHistoryRowNav(
-    fileInfo: AiHistoryFileInfo,
-    context: android.content.Context
+private fun AiHistoryReportRow(
+    report: com.ai.data.AiReport,
+    context: android.content.Context,
+    developerMode: Boolean,
+    onViewReport: () -> Unit,
+    onDeleteReport: () -> Unit
 ) {
-    // Extract title from HTML file (cached)
-    val reportTitle = remember(fileInfo.file) {
-        extractTitleFromHtmlFile(fileInfo.file)
-    }
     val dateFormat = remember { java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.US) }
     var showActions by remember { mutableStateOf(false) }
+    var showShareDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    // Share dialog
+    if (showShareDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showShareDialog = false },
+            title = {
+                Text("Share Report", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Choose format to share:", color = Color(0xFFAAAAAA))
+                }
+            },
+            confirmButton = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            showShareDialog = false
+                            shareAiReportAsJson(context, report.id)
+                        }
+                    ) {
+                        Text("JSON", color = Color(0xFF6B9BFF))
+                    }
+                    TextButton(
+                        onClick = {
+                            showShareDialog = false
+                            shareAiReportAsHtml(context, report.id, developerMode)
+                        }
+                    ) {
+                        Text("HTML", color = Color(0xFF4CAF50))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showShareDialog = false }) {
+                    Text("Cancel", color = Color(0xFF888888))
+                }
+            },
+            containerColor = Color(0xFF2A2A2A),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
+
+    // Delete confirmation dialog
+    if (showDeleteConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = {
+                Text("Delete Report", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Are you sure you want to delete \"${report.title}\"?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDeleteReport()
+                    }
+                ) {
+                    Text("Delete", color = Color(0xFFFF6B6B))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel", color = Color(0xFF888888))
+                }
+            },
+            containerColor = Color(0xFF2A2A2A),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(
@@ -667,7 +807,7 @@ private fun AiHistoryRowNav(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = reportTitle,
+                    text = report.title,
                     color = Color.White,
                     fontSize = 13.sp,
                     maxLines = 1,
@@ -675,7 +815,7 @@ private fun AiHistoryRowNav(
                     modifier = Modifier.weight(1.5f)
                 )
                 Text(
-                    text = dateFormat.format(java.util.Date(fileInfo.file.lastModified())),
+                    text = dateFormat.format(java.util.Date(report.timestamp)),
                     color = Color.White,
                     fontSize = 12.sp,
                     modifier = Modifier.weight(1f),
@@ -683,7 +823,7 @@ private fun AiHistoryRowNav(
                 )
             }
 
-            // Action buttons (shown when clicked)
+            // Action buttons (shown when clicked) - same as Report Ready page
             if (showActions) {
                 Row(
                     modifier = Modifier
@@ -693,17 +833,17 @@ private fun AiHistoryRowNav(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { openHistoryFileInChromeNav(context, fileInfo.file) },
+                        onClick = onViewReport,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF3366BB)
+                            containerColor = Color(0xFF2196F3)
                         ),
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("Browser", fontSize = 12.sp)
+                        Text("View", fontSize = 12.sp)
                     }
                     Button(
-                        onClick = { shareHistoryFileNav(context, fileInfo.file) },
+                        onClick = { showShareDialog = true },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF4CAF50)
                         ),
@@ -711,6 +851,26 @@ private fun AiHistoryRowNav(
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text("Share", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { openAiReportInChrome(context, report.id, developerMode) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8B5CF6)
+                        ),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("Browser", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { showDeleteConfirm = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFCC3333)
+                        ),
+                        modifier = Modifier.weight(0.6f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                    ) {
+                        Text("✕", fontSize = 14.sp)
                     }
                 }
             }
@@ -1501,6 +1661,103 @@ internal fun shareGenericAiReports(context: android.content.Context, uiState: Ai
     }
 }
 
+/**
+ * Shares the AI-REPORT as JSON using the standard Android share mechanism.
+ */
+internal fun shareAiReportAsJson(context: android.content.Context, reportId: String) {
+    try {
+        val report = com.ai.data.AiReportStorage.getReport(context, reportId)
+        if (report == null) {
+            android.widget.Toast.makeText(context, "Report not found", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+        val json = gson.toJson(report)
+
+        val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+        }
+
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val jsonFile = java.io.File(cacheDir, "ai_report_$timestamp.json")
+        jsonFile.writeText(json)
+
+        val contentUri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            jsonFile
+        )
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
+            putExtra(Intent.EXTRA_TEXT, "AI Report: ${report.title}\n\nAttached as JSON file.")
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(Intent.createChooser(intent, "Share AI Report (JSON)"))
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(
+            context,
+            "Failed to share: ${e.message}",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+}
+
+/**
+ * Shares the AI-REPORT as HTML using the standard Android share mechanism.
+ */
+internal fun shareAiReportAsHtml(context: android.content.Context, reportId: String, developerMode: Boolean = false) {
+    try {
+        val report = com.ai.data.AiReportStorage.getReport(context, reportId)
+        if (report == null) {
+            android.widget.Toast.makeText(context, "Report not found", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val appVersion = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+        } catch (e: Exception) { "unknown" }
+
+        val html = convertAiReportToHtml(report, appVersion, developerMode)
+
+        val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+        }
+
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val htmlFile = java.io.File(cacheDir, "ai_report_$timestamp.html")
+        htmlFile.writeText(html)
+
+        val contentUri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            htmlFile
+        )
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/html"
+            putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
+            putExtra(Intent.EXTRA_TEXT, "AI analysis report: ${report.title}.\n\nOpen the attached HTML file in a browser to view the report.")
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(Intent.createChooser(intent, "Share AI Report (HTML)"))
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(
+            context,
+            "Failed to share: ${e.message}",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+}
+
 internal fun openGenericAiReportsInChrome(context: android.content.Context, uiState: AiUiState) {
     try {
         val appVersion = try {
@@ -1536,6 +1793,367 @@ internal fun openGenericAiReportsInChrome(context: android.content.Context, uiSt
             android.widget.Toast.LENGTH_SHORT
         ).show()
     }
+}
+
+/**
+ * Opens the AI Report in Chrome browser, generating HTML on demand from the stored AI-REPORT object.
+ */
+internal fun openAiReportInChrome(context: android.content.Context, reportId: String, developerMode: Boolean = false) {
+    try {
+        val report = com.ai.data.AiReportStorage.getReport(context, reportId)
+        if (report == null) {
+            android.widget.Toast.makeText(context, "Report not found", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val appVersion = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+        } catch (e: Exception) { "unknown" }
+
+        val html = convertAiReportToHtml(report, appVersion, developerMode)
+
+        val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+        }
+
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val htmlFile = java.io.File(cacheDir, "ai_$timestamp.html")
+        htmlFile.writeText(html)
+
+        val contentUri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            htmlFile
+        )
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(contentUri, "text/html")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(
+            context,
+            "Failed to open in Chrome: ${e.message}",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+}
+
+/**
+ * Converts a stored AI-REPORT object to HTML format.
+ */
+internal fun convertAiReportToHtml(report: com.ai.data.AiReport, appVersion: String, developerMode: Boolean = false): String {
+    val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+        .format(java.util.Date(report.timestamp))
+
+    val title = report.title
+    val prompt = report.prompt
+
+    // Get sorted list of agents with results
+    val agentList = report.agents.sortedBy { it.agentName.lowercase() }
+
+    val htmlBuilder = StringBuilder()
+    htmlBuilder.append("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>AI Report - $title</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: #1a1a1a;
+                    color: #e0e0e0;
+                    margin: 0;
+                    padding: 20px;
+                    line-height: 1.6;
+                }
+                .container { max-width: 800px; margin: 0 auto; }
+                h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                h2 { color: #6B9BFF; font-size: 1.1em; margin-top: 30px; margin-bottom: 10px; }
+                .prompt-section { margin: 30px 0; }
+                .prompt-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
+                .prompt-text {
+                    white-space: pre-wrap;
+                    margin: 0;
+                    font-family: monospace;
+                    font-size: 0.9em;
+                    color: #ccc;
+                }
+                .agent-buttons {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin: 20px 0;
+                }
+                .agent-btn {
+                    padding: 8px 16px;
+                    border: 1px solid #444;
+                    background: transparent;
+                    color: #e0e0e0;
+                    cursor: pointer;
+                    font-size: 14px;
+                }
+                .agent-btn:hover {
+                    border-color: #6B9BFF;
+                }
+                .agent-btn.active {
+                    border-color: #6B9BFF;
+                    color: #6B9BFF;
+                }
+                .agent-result {
+                    display: none;
+                    margin: 20px 0;
+                }
+                .agent-result.active {
+                    display: block;
+                }
+                .agent-header { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
+                .agent-response { }
+                .agent-response p { margin: 0 0 1em 0; }
+                .agent-response h2 { color: #6B9BFF; font-size: 1.3em; margin: 1.2em 0 0.5em 0; }
+                .agent-response h3 { color: #6B9BFF; font-size: 1.15em; margin: 1em 0 0.4em 0; }
+                .agent-response h4 { color: #6B9BFF; font-size: 1.05em; margin: 0.8em 0 0.3em 0; }
+                .agent-response ul { margin: 0.5em 0; padding-left: 1.5em; }
+                .agent-response li { margin: 0.3em 0; }
+                .agent-response code { background: #333; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+                .agent-response pre { background: #2a2a2a; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 1em 0; }
+                .agent-response pre code { background: none; padding: 0; }
+                .agent-response strong { color: #fff; }
+                .agent-response em { font-style: italic; }
+                .error { color: #ff6b6b; }
+                .usage-section { margin: 30px 0; }
+                .sources-section { margin-top: 20px; }
+                .sources-label { color: #8B5CF6; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+                .source-link { color: #64B5F6; text-decoration: underline; margin-left: 5px; }
+                .source-item { margin: 4px 0; }
+                .search-results-section { margin-top: 20px; }
+                .search-results-label { color: #FF9800; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+                .search-result { margin: 8px 0; }
+                .search-result-title { color: #64B5F6; text-decoration: underline; font-weight: 500; }
+                .search-result-snippet { color: #aaa; font-size: 0.9em; margin-top: 2px; }
+                .related-questions-section { margin-top: 20px; }
+                .related-questions-label { color: #4CAF50; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+                .related-question { margin: 4px 0; color: #e0e0e0; }
+                .usage-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; }
+                .usage-json {
+                    white-space: pre-wrap;
+                    margin: 0 0 15px 0;
+                    font-family: monospace;
+                    font-size: 0.85em;
+                    color: #aaa;
+                }
+                .headers-text {
+                    white-space: pre-wrap;
+                    margin: 0 0 15px 0;
+                    font-family: monospace;
+                    font-size: 0.8em;
+                    color: #777;
+                }
+                .usage-agent { color: #888; font-size: 0.9em; margin-top: 15px; margin-bottom: 5px; }
+                .footer {
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #333;
+                    color: #666;
+                    font-size: 0.9em;
+                    text-align: center;
+                }
+                .think-btn {
+                    padding: 4px 12px;
+                    border: 1px solid #666;
+                    background: #2a2a2a;
+                    color: #aaa;
+                    cursor: pointer;
+                    font-size: 13px;
+                    margin: 8px 0;
+                    border-radius: 4px;
+                }
+                .think-btn:hover {
+                    border-color: #888;
+                    color: #ccc;
+                }
+                .think-content {
+                    display: none;
+                    background: #252525;
+                    border-left: 3px solid #555;
+                    padding: 12px;
+                    margin: 8px 0;
+                    color: #999;
+                    font-size: 0.9em;
+                    white-space: pre-wrap;
+                }
+                .think-content.visible {
+                    display: block;
+                }
+            </style>
+            <script>
+                function toggleThink(id) {
+                    var content = document.getElementById('think-' + id);
+                    var btn = document.getElementById('think-btn-' + id);
+                    if (content.classList.contains('visible')) {
+                        content.classList.remove('visible');
+                        btn.textContent = 'Think';
+                    } else {
+                        content.classList.add('visible');
+                        btn.textContent = 'Hide Think';
+                    }
+                }
+            </script>
+        </head>
+        <body>
+            <div class="container">
+                <div id="Title"><h1>$title</h1></div>
+
+                <div class="agent-buttons">
+    """.trimIndent())
+
+    // Add agent buttons
+    agentList.forEachIndexed { index, agent ->
+        val activeClass = if (index == 0) "active" else ""
+        htmlBuilder.append("""
+                    <button class="agent-btn $activeClass" onclick="showAgent('${agent.agentId}')">${agent.agentName}</button>
+        """)
+    }
+
+    htmlBuilder.append("""
+                </div>
+    """)
+
+    // Add each agent's response section
+    agentList.forEachIndexed { index, agent ->
+        val activeClass = if (index == 0) "active" else ""
+        // Get display name for provider
+        val providerDisplayName = try {
+            com.ai.data.AiService.valueOf(agent.provider).displayName
+        } catch (e: Exception) {
+            agent.provider
+        }
+
+        htmlBuilder.append("""
+                <div id="agent-${agent.agentId}" class="agent-result $activeClass">
+                    <div class="agent-header">$providerDisplayName - ${agent.model}</div>
+                    <div id="Report-${agent.agentId}" class="report-content">
+        """)
+
+        if (agent.reportStatus == com.ai.data.ReportStatus.ERROR || agent.errorMessage != null) {
+            val errorMsg = agent.errorMessage ?: "Unknown error"
+            htmlBuilder.append("""
+                    <div class="error">Error: $errorMsg</div>
+            """)
+        } else {
+            val rawAnalysis = agent.responseBody ?: "No response"
+            // Process <think>...</think> sections before escaping HTML
+            val processedAnalysis = processThinkSectionsForHtml(rawAnalysis, agent.agentId)
+            htmlBuilder.append("""
+                    <div class="agent-response">$processedAnalysis</div>
+            """)
+        }
+
+        // Add citations if available
+        agent.citations?.takeIf { it.isNotEmpty() }?.let { citations ->
+            htmlBuilder.append("""
+                    <div class="sources-section">
+                        <div class="sources-label">Sources</div>
+            """)
+            citations.forEachIndexed { idx, url ->
+                val escapedUrl = url.replace("\"", "&quot;")
+                htmlBuilder.append("""
+                        <div class="source-item">${idx + 1}.<a href="$escapedUrl" class="source-link" target="_blank">$escapedUrl</a></div>
+                """)
+            }
+            htmlBuilder.append("</div>")
+        }
+
+        // Add search results if available
+        agent.searchResults?.takeIf { it.isNotEmpty() }?.let { searchResults ->
+            htmlBuilder.append("""
+                    <div class="search-results-section">
+                        <div class="search-results-label">Search Results</div>
+            """)
+            searchResults.forEachIndexed { idx, result ->
+                val resultTitle = (result.name ?: result.url ?: "Link").replace("<", "&lt;").replace(">", "&gt;")
+                val url = result.url?.replace("\"", "&quot;") ?: ""
+                val snippet = result.snippet?.replace("<", "&lt;")?.replace(">", "&gt;") ?: ""
+                htmlBuilder.append("""
+                        <div class="search-result">
+                            ${idx + 1}. <a href="$url" class="search-result-title" target="_blank">$resultTitle</a>
+                """)
+                if (snippet.isNotEmpty()) {
+                    htmlBuilder.append("""
+                            <div class="search-result-snippet">$snippet</div>
+                    """)
+                }
+                htmlBuilder.append("</div>")
+            }
+            htmlBuilder.append("</div>")
+        }
+
+        // Add related questions if available
+        agent.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { relatedQuestions ->
+            htmlBuilder.append("""
+                    <div class="related-questions-section">
+                        <div class="related-questions-label">Related Questions</div>
+            """)
+            relatedQuestions.forEachIndexed { idx, question ->
+                val escapedQuestion = question.replace("<", "&lt;").replace(">", "&gt;")
+                htmlBuilder.append("""
+                        <div class="related-question">${idx + 1}. $escapedQuestion</div>
+                """)
+            }
+            htmlBuilder.append("</div>")
+        }
+
+        // Add HTTP headers for this agent when developer mode is on
+        if (developerMode && agent.provider != "DUMMY" && agent.responseHeaders != null) {
+            val escapedHeaders = agent.responseHeaders!!.replace("<", "&lt;").replace(">", "&gt;")
+            htmlBuilder.append("""
+                    <div class="usage-label">HTTP Headers:</div>
+                    <pre class="headers-text">$escapedHeaders</pre>
+            """)
+        }
+
+        htmlBuilder.append("</div></div>")  // Close report-content and agent-result divs
+    }
+
+    htmlBuilder.append("""
+                <div id="Prompt" class="prompt-section">
+                    <div class="prompt-label">Prompt:</div>
+                    <pre class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</pre>
+                </div>
+    """)
+
+    htmlBuilder.append("""
+                <div class="footer">
+                    Generated by AI v$appVersion on $timestamp
+                </div>
+            </div>
+
+            <script>
+                function showAgent(agentId) {
+                    // Hide all agent results
+                    document.querySelectorAll('.agent-result').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    // Deactivate all buttons
+                    document.querySelectorAll('.agent-btn').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    // Show selected agent result
+                    document.getElementById('agent-' + agentId).classList.add('active');
+                    // Activate clicked button
+                    event.target.classList.add('active');
+                }
+            </script>
+        </body>
+        </html>
+    """.trimIndent())
+
+    return htmlBuilder.toString()
 }
 
 /**
@@ -1838,7 +2456,13 @@ fun AiReportsScreenNav(
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
-        onOpenInBrowser = { openGenericAiReportsInChrome(context, uiState) },
+        onOpenInBrowser = {
+            // Use the stored AI-REPORT object to generate HTML on demand
+            val reportId = uiState.currentReportId
+            if (reportId != null) {
+                openAiReportInChrome(context, reportId, uiState.generalSettings.developerMode)
+            }
+        },
         onDismiss = handleDismiss,
         onNavigateHome = handleNavigateHome
     )
@@ -1868,28 +2492,67 @@ fun AiReportsScreen(
     val isGenerating = reportsTotal > 0
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
 
-    // Save to AI history when report completes
     val context = LocalContext.current
-    LaunchedEffect(isComplete) {
-        if (isComplete) {
-            val appVersion = try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
-            } catch (e: Exception) { "unknown" }
-            val html = convertGenericAiReportsToHtml(uiState, appVersion)
-            com.ai.data.AiHistoryManager.saveReport(html, com.ai.data.AiReportType.GENERAL)
-        }
-    }
 
     // Viewer state
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
 
-    // Show viewer screen when activated
-    if (showViewer) {
+    // Share dialog state
+    var showShareDialog by remember { mutableStateOf(false) }
+
+    // Share dialog
+    val currentReportId = uiState.currentReportId
+    if (showShareDialog && currentReportId != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showShareDialog = false },
+            title = {
+                Text("Share Report", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Choose format to share:", color = Color(0xFFAAAAAA))
+                }
+            },
+            confirmButton = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            showShareDialog = false
+                            shareAiReportAsJson(context, currentReportId)
+                        }
+                    ) {
+                        Text("JSON", color = Color(0xFF6B9BFF))
+                    }
+                    TextButton(
+                        onClick = {
+                            showShareDialog = false
+                            shareAiReportAsHtml(context, currentReportId, uiState.generalSettings.developerMode)
+                        }
+                    ) {
+                        Text("HTML", color = Color(0xFF4CAF50))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showShareDialog = false }) {
+                    Text("Cancel", color = Color(0xFF888888))
+                }
+            },
+            containerColor = Color(0xFF2A2A2A),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
+
+    // Show viewer screen when activated (uses stored AI-REPORT from persistent storage)
+    if (showViewer && currentReportId != null) {
         AiReportsViewerScreen(
-            agentResults = reportsAgentResults,
-            aiSettings = uiState.aiSettings,
-            promptText = uiState.genericAiPromptText,
+            reportId = currentReportId,
             initialSelectedAgentId = selectedAgentForViewer,
             onDismiss = { showViewer = false },
             onNavigateHome = onNavigateHome
@@ -2221,7 +2884,7 @@ fun AiReportsScreen(
                         Text("View")
                     }
                     Button(
-                        onClick = onShare,
+                        onClick = { showShareDialog = true },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF4CAF50)
@@ -2474,33 +3137,62 @@ fun AiReportsScreen(
 /**
  * Full-screen viewer for AI agent responses.
  * Shows buttons for each agent at the top, displays HTML-converted markdown content.
+ * Uses the stored AI-REPORT object from persistent storage as the data source.
  */
 @Composable
 fun AiReportsViewerScreen(
-    agentResults: Map<String, com.ai.data.AiAnalysisResponse>,
-    aiSettings: AiSettings,
-    promptText: String = "",
+    reportId: String,
     initialSelectedAgentId: String? = null,
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss
 ) {
-    // Get agents with successful results
-    val agentsWithResults = agentResults.entries
-        .filter { it.value.isSuccess }
-        .mapNotNull { (agentId, result) ->
-            val agent = aiSettings.getAgentById(agentId)
-            if (agent != null) Triple(agentId, agent, result) else null
+    val context = LocalContext.current
+
+    // Load the report from storage
+    val report = remember(reportId) {
+        com.ai.data.AiReportStorage.getReport(context, reportId)
+    }
+
+    if (report == null) {
+        // Report not found
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            AiTitleBar(
+                title = "View Reports",
+                onBackClick = onDismiss,
+                onAiClick = onNavigateHome
+            )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Report not found",
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 16.sp
+                )
+            }
         }
-        .sortedBy { it.second.name.lowercase() }
+        return
+    }
+
+    // Get agents with successful results from the stored report
+    val agentsWithResults = report.agents
+        .filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS }
+        .sortedBy { it.agentName.lowercase() }
 
     // Selected agent state
     var selectedAgentId by remember {
-        mutableStateOf(initialSelectedAgentId ?: agentsWithResults.firstOrNull()?.first)
+        mutableStateOf(initialSelectedAgentId ?: agentsWithResults.firstOrNull()?.agentId)
     }
 
-    // Get the selected agent's result
-    val selectedResult = selectedAgentId?.let { agentResults[it] }
-    val selectedAgent = selectedAgentId?.let { aiSettings.getAgentById(it) }
+    // Get the selected agent's data from the stored report
+    val selectedReportAgent = selectedAgentId?.let { id ->
+        report.agents.find { it.agentId == id }
+    }
 
     // Scroll state that resets when agent changes
     val scrollState = rememberScrollState()
@@ -2514,7 +3206,7 @@ fun AiReportsViewerScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         // Header - show agent name in title bar
-        val titleText = selectedAgent?.name ?: "View Reports"
+        val titleText = selectedReportAgent?.agentName ?: "View Reports"
         AiTitleBar(
             title = titleText,
             onBackClick = onDismiss,
@@ -2531,10 +3223,10 @@ fun AiReportsViewerScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                agentsWithResults.forEach { (agentId, agent, _) ->
-                    val isSelected = agentId == selectedAgentId
+                agentsWithResults.forEach { agent ->
+                    val isSelected = agent.agentId == selectedAgentId
                     Button(
-                        onClick = { selectedAgentId = agentId },
+                        onClick = { selectedAgentId = agent.agentId },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF3A3A4A)
                         ),
@@ -2542,7 +3234,7 @@ fun AiReportsViewerScreen(
                         modifier = Modifier.height(32.dp)
                     ) {
                         Text(
-                            text = agent.name,
+                            text = agent.agentName,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
@@ -2551,9 +3243,15 @@ fun AiReportsViewerScreen(
             }
 
             // Provider - Model subtitle below buttons
-            if (selectedAgent != null) {
+            if (selectedReportAgent != null) {
+                // Get display name for provider
+                val providerDisplayName = try {
+                    com.ai.data.AiService.valueOf(selectedReportAgent.provider).displayName
+                } catch (e: Exception) {
+                    selectedReportAgent.provider
+                }
                 Text(
-                    text = "${selectedAgent.provider.displayName} - ${selectedAgent.model}",
+                    text = "$providerDisplayName - ${selectedReportAgent.model}",
                     fontSize = 18.sp,
                     color = Color(0xFF6B9BFF),
                     fontWeight = FontWeight.SemiBold,
@@ -2581,7 +3279,7 @@ fun AiReportsViewerScreen(
                         fontSize = 16.sp
                     )
                 }
-            } else if (selectedResult?.analysis != null) {
+            } else if (selectedReportAgent?.responseBody != null) {
                 // Show the content with collapsible think sections
                 Column(
                     modifier = Modifier
@@ -2589,28 +3287,28 @@ fun AiReportsViewerScreen(
                         .verticalScroll(scrollState)
                 ) {
                     // Content rendered with think sections as collapsible blocks
-                    ContentWithThinkSections(analysis = selectedResult.analysis)
+                    ContentWithThinkSections(analysis = selectedReportAgent.responseBody!!)
 
                     // Citations section (if available)
-                    selectedResult.citations?.takeIf { it.isNotEmpty() }?.let { citations ->
+                    selectedReportAgent.citations?.takeIf { it.isNotEmpty() }?.let { citations ->
                         Spacer(modifier = Modifier.height(16.dp))
                         CitationsSection(citations = citations)
                     }
 
                     // Search results section (if available)
-                    selectedResult.searchResults?.takeIf { it.isNotEmpty() }?.let { searchResults ->
+                    selectedReportAgent.searchResults?.takeIf { it.isNotEmpty() }?.let { searchResults ->
                         Spacer(modifier = Modifier.height(16.dp))
                         SearchResultsSection(searchResults = searchResults)
                     }
 
                     // Related questions section (if available)
-                    selectedResult.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { relatedQuestions ->
+                    selectedReportAgent.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { relatedQuestions ->
                         Spacer(modifier = Modifier.height(16.dp))
                         RelatedQuestionsSection(relatedQuestions = relatedQuestions)
                     }
 
-                    // Prompt section
-                    if (promptText.isNotBlank()) {
+                    // Prompt section (from stored report)
+                    if (report.prompt.isNotBlank()) {
                         Spacer(modifier = Modifier.height(24.dp))
                         Text(
                             text = "Prompt",
@@ -2620,7 +3318,7 @@ fun AiReportsViewerScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = promptText,
+                            text = report.prompt,
                             fontSize = 14.sp,
                             color = Color.White,
                             lineHeight = 20.sp

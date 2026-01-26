@@ -24,7 +24,10 @@ data class AiReportAgent(
     var responseBody: String? = null,
     var errorMessage: String? = null,
     var tokenUsage: TokenUsage? = null,
-    var cost: Double? = null
+    var cost: Double? = null,
+    var citations: List<String>? = null,
+    var searchResults: List<SearchResult>? = null,
+    var relatedQuestions: List<String>? = null
 )
 
 /**
@@ -115,7 +118,10 @@ object AiReportStorage {
         responseBody: String? = null,
         errorMessage: String? = null,
         tokenUsage: TokenUsage? = null,
-        cost: Double? = null
+        cost: Double? = null,
+        citations: List<String>? = null,
+        searchResults: List<SearchResult>? = null,
+        relatedQuestions: List<String>? = null
     ) {
         init(context)
 
@@ -138,6 +144,9 @@ object AiReportStorage {
                 // Recalculate total cost
                 report.totalCost = report.agents.mapNotNull { it.cost }.sum()
             }
+            if (citations != null) agent.citations = citations
+            if (searchResults != null) agent.searchResults = searchResults
+            if (relatedQuestions != null) agent.relatedQuestions = relatedQuestions
 
             // Check if all agents are done
             if (report.agents.all { it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR }) {
@@ -180,7 +189,10 @@ object AiReportStorage {
         responseHeaders: String?,
         responseBody: String?,
         tokenUsage: TokenUsage?,
-        cost: Double?
+        cost: Double?,
+        citations: List<String>? = null,
+        searchResults: List<SearchResult>? = null,
+        relatedQuestions: List<String>? = null
     ) {
         updateAgentStatus(
             context = context,
@@ -191,7 +203,10 @@ object AiReportStorage {
             responseHeaders = responseHeaders,
             responseBody = responseBody,
             tokenUsage = tokenUsage,
-            cost = cost
+            cost = cost,
+            citations = citations,
+            searchResults = searchResults,
+            relatedQuestions = relatedQuestions
         )
     }
 

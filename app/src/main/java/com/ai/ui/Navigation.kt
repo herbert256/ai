@@ -162,9 +162,11 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_HISTORY) {
+            val uiState by viewModel.uiState.collectAsState()
             AiHistoryScreenNav(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                developerMode = uiState.generalSettings.developerMode
             )
         }
 

@@ -270,7 +270,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             responseHeaders = response.httpHeaders,
                             responseBody = response.analysis,
                             tokenUsage = response.tokenUsage,
-                            cost = cost
+                            cost = cost,
+                            citations = response.citations,
+                            searchResults = response.searchResults,
+                            relatedQuestions = response.relatedQuestions
                         )
                     } else {
                         AiReportStorage.markAgentError(
