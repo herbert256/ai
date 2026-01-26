@@ -42,7 +42,10 @@ enum class SettingsSubScreen {
     AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
     AI_SWARMS,      // Swarms CRUD
     AI_ADD_SWARM,   // Add new swarm
-    AI_EDIT_SWARM   // Edit existing swarm
+    AI_EDIT_SWARM,  // Edit existing swarm
+    AI_PROMPTS,     // AI Prompts CRUD
+    AI_ADD_PROMPT,  // Add new prompt
+    AI_EDIT_PROMPT  // Edit existing prompt
 }
 
 /**
@@ -103,6 +106,9 @@ fun SettingsScreen(
     // State for swarm editing
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
 
+    // State for prompt editing
+    var editingPromptId by remember { mutableStateOf<String?>(null) }
+
     // Helper to generate unique agent name
     fun generateUniqueAgentName(baseName: String): String {
         val existingNames = aiSettings.agents.map { it.name }.toSet()
@@ -142,7 +148,8 @@ fun SettingsScreen(
             // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
-            SettingsSubScreen.AI_SWARMS -> {
+            SettingsSubScreen.AI_SWARMS,
+            SettingsSubScreen.AI_PROMPTS -> {
                 if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
                     currentSubScreen = SettingsSubScreen.AI_SETUP
                 } else {
@@ -162,6 +169,9 @@ fun SettingsScreen(
             // Swarm screens go back to AI_SWARMS
             SettingsSubScreen.AI_ADD_SWARM,
             SettingsSubScreen.AI_EDIT_SWARM -> currentSubScreen = SettingsSubScreen.AI_SWARMS
+            // Prompt screens go back to AI_PROMPTS
+            SettingsSubScreen.AI_ADD_PROMPT,
+            SettingsSubScreen.AI_EDIT_PROMPT -> currentSubScreen = SettingsSubScreen.AI_PROMPTS
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -476,6 +486,51 @@ fun SettingsScreen(
                 onBack = {
                     editingSwarmId = null
                     currentSubScreen = SettingsSubScreen.AI_SWARMS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_PROMPTS -> AiPromptsScreen(
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddPrompt = { currentSubScreen = SettingsSubScreen.AI_ADD_PROMPT },
+            onEditPrompt = { promptId ->
+                editingPromptId = promptId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_PROMPT
+            }
+        )
+        SettingsSubScreen.AI_ADD_PROMPT -> PromptEditScreen(
+            prompt = null,
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            existingNames = aiSettings.prompts.map { it.name }.toSet(),
+            onSave = { newPrompt ->
+                val newPrompts = aiSettings.prompts + newPrompt
+                onSaveAi(aiSettings.copy(prompts = newPrompts))
+                currentSubScreen = SettingsSubScreen.AI_PROMPTS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_PROMPTS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_PROMPT -> {
+            val prompt = editingPromptId?.let { aiSettings.getPromptById(it) }
+            PromptEditScreen(
+                prompt = prompt,
+                aiSettings = aiSettings,
+                developerMode = generalSettings.developerMode,
+                existingNames = aiSettings.prompts.filter { it.id != editingPromptId }.map { it.name }.toSet(),
+                onSave = { updatedPrompt ->
+                    val newPrompts = aiSettings.prompts.map { if (it.id == updatedPrompt.id) updatedPrompt else it }
+                    onSaveAi(aiSettings.copy(prompts = newPrompts))
+                    editingPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_PROMPTS
+                },
+                onBack = {
+                    editingPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_PROMPTS
                 },
                 onNavigateHome = onNavigateHome
             )

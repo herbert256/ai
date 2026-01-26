@@ -453,6 +453,16 @@ fun AiSetupScreen(
             onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }
         )
 
+        // AI Prompts card
+        val configuredPrompts = aiSettings.prompts.size
+        AiSetupNavigationCard(
+            title = "AI Prompts",
+            description = "Internal prompts for AI-powered features",
+            icon = "📝",
+            count = "$configuredPrompts configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // Refresh model lists button
@@ -1348,18 +1358,26 @@ fun ModelInfoScreen(
                 }
             }
 
-            // Try AI agent named "model_info" if it exists
-            val modelInfoAgent = aiSettings.agents.find { it.name.equals("model_info", ignoreCase = true) }
-            if (modelInfoAgent != null) {
-                try {
-                    val prompt = "please give an introduction to AI model $modelName only one paragraph text no markup"
-                    val repository = com.ai.data.AiAnalysisRepository()
-                    val result = repository.analyzePlayerWithAgent(modelInfoAgent, prompt)
-                    if (result.error == null && !result.analysis.isNullOrBlank()) {
-                        aiDescription = result.analysis
+            // Try AI prompt named "model_info" if it exists
+            val modelInfoPrompt = aiSettings.getPromptByName("model_info")
+            if (modelInfoPrompt != null) {
+                val modelInfoAgent = aiSettings.getAgentForPrompt(modelInfoPrompt)
+                if (modelInfoAgent != null) {
+                    try {
+                        // Resolve prompt with variables
+                        val resolvedPrompt = modelInfoPrompt.resolvePrompt(
+                            model = modelName,
+                            provider = provider.displayName,
+                            agent = modelInfoAgent.name
+                        )
+                        val repository = com.ai.data.AiAnalysisRepository()
+                        val result = repository.analyzePlayerWithAgent(modelInfoAgent, resolvedPrompt)
+                        if (result.error == null && !result.analysis.isNullOrBlank()) {
+                            aiDescription = result.analysis
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("ModelInfo", "AI prompt error: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    android.util.Log.w("ModelInfo", "AI agent error: ${e.message}")
                 }
             }
 

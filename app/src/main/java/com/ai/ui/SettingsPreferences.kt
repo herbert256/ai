@@ -39,13 +39,14 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     // ============================================================================
 
     /**
-     * Load AI settings with agents and swarms.
+     * Load AI settings with agents, swarms, and prompts.
      */
     fun loadAiSettingsWithMigration(): AiSettings {
         val baseSettings = loadAiSettings()
         val agents = loadAgents()
         val swarms = loadSwarms()
-        return baseSettings.copy(agents = agents, swarms = swarms)
+        val prompts = loadPrompts()
+        return baseSettings.copy(agents = agents, swarms = swarms, prompts = prompts)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -220,6 +221,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
             // Save swarms
             .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
+            // Save prompts
+            .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             .apply()
     }
 
@@ -263,6 +266,20 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<AiSwarm>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // ============================================================================
+    // AI Prompts
+    // ============================================================================
+
+    private fun loadPrompts(): List<AiPrompt> {
+        val json = prefs.getString(KEY_AI_PROMPTS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<AiPrompt>>() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -389,6 +406,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // AI swarms
         private const val KEY_AI_SWARMS = "ai_swarms"
+
+        // AI prompts (internal app prompts)
+        private const val KEY_AI_PROMPTS = "ai_prompts"
 
         // Prompt history for New AI Report
         private const val KEY_PROMPT_HISTORY = "prompt_history"

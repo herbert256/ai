@@ -247,6 +247,35 @@ data class AiSwarm(
 )
 
 /**
+ * AI Prompt - internal prompts used by the app for AI-powered features.
+ * Supports variable replacement: @MODEL@, @PROVIDER@, @AGENT@, @SWARM@, @NOW@
+ */
+data class AiPrompt(
+    val id: String,                    // UUID
+    val name: String,                  // Unique name (e.g., "model_info")
+    val agentId: String,               // Reference to AiAgent ID
+    val promptText: String             // Prompt template with optional variables
+) {
+    /**
+     * Replace variables in prompt text with actual values.
+     */
+    fun resolvePrompt(
+        model: String? = null,
+        provider: String? = null,
+        agent: String? = null,
+        swarm: String? = null
+    ): String {
+        var resolved = promptText
+        if (model != null) resolved = resolved.replace("@MODEL@", model)
+        if (provider != null) resolved = resolved.replace("@PROVIDER@", provider)
+        if (agent != null) resolved = resolved.replace("@AGENT@", agent)
+        if (swarm != null) resolved = resolved.replace("@SWARM@", swarm)
+        resolved = resolved.replace("@NOW@", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date()))
+        return resolved
+    }
+}
+
+/**
  * AI Settings data class for storing API keys for various AI services.
  */
 data class AiSettings(
@@ -318,7 +347,9 @@ data class AiSettings(
     // AI Agents
     val agents: List<AiAgent> = emptyList(),
     // AI Swarms
-    val swarms: List<AiSwarm> = emptyList()
+    val swarms: List<AiSwarm> = emptyList(),
+    // AI Prompts (internal app prompts)
+    val prompts: List<AiPrompt> = emptyList()
 ) {
     fun getApiKey(service: AiService): String {
         return when (service) {
@@ -443,6 +474,13 @@ data class AiSettings(
         swarmIds.flatMap { swarmId ->
             getSwarmById(swarmId)?.let { getAgentsForSwarm(it) } ?: emptyList()
         }.distinctBy { it.id }
+
+    // Helper methods for prompts
+    fun getPromptByName(name: String): AiPrompt? = prompts.find { it.name.equals(name, ignoreCase = true) }
+
+    fun getPromptById(id: String): AiPrompt? = prompts.find { it.id == id }
+
+    fun getAgentForPrompt(prompt: AiPrompt): AiAgent? = getAgentById(prompt.agentId)
 }
 
 /**

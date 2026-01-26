@@ -76,17 +76,29 @@ data class SwarmExport(
 )
 
 /**
+ * Data class for prompt in JSON export/import (version 8+).
+ */
+data class PromptExport(
+    val id: String,
+    val name: String,
+    val agentId: String,
+    val promptText: String
+)
+
+/**
  * Data class for the complete AI configuration export.
+ * Version 8: Added AI prompts (internal app prompts).
  * Version 7: Added huggingFaceApiKey.
  * Version 6: Providers, agents with parameters, and swarms.
  * Also supports importing version 3/4/5 (legacy formats - prompts ignored, parameters/swarms default).
  */
 data class AiConfigExport(
-    val version: Int = 7,
+    val version: Int = 8,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
     val huggingFaceApiKey: String? = null,  // Version 7+
+    val aiPrompts: List<PromptExport>? = null,  // Version 8+
     // Legacy field from version 3 (ignored on import)
     val prompts: List<Any>? = null
 )
@@ -169,11 +181,22 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         )
     }
 
+    // Convert prompts
+    val aiPrompts = aiSettings.prompts.map { prompt ->
+        PromptExport(
+            id = prompt.id,
+            name = prompt.name,
+            agentId = prompt.agentId,
+            promptText = prompt.promptText
+        )
+    }
+
     val export = AiConfigExport(
         providers = providers,
         agents = agents,
         swarms = swarms,
-        huggingFaceApiKey = huggingFaceApiKey.ifBlank { null }
+        huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
+        aiPrompts = aiPrompts.ifEmpty { null }
     )
 
     val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
@@ -285,8 +308,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..7) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-7.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..8) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-8.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -334,10 +357,21 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             )
         } ?: emptyList()
 
+        // Import AI prompts (version 8+)
+        val aiPrompts = export.aiPrompts?.map { promptExport ->
+            AiPrompt(
+                id = promptExport.id,
+                name = promptExport.name,
+                agentId = promptExport.agentId,
+                promptText = promptExport.promptText
+            )
+        } ?: emptyList()
+
         // Import provider settings
         var settings = currentSettings.copy(
             agents = agents,
-            swarms = swarms
+            swarms = swarms,
+            prompts = aiPrompts
         )
 
         // Update provider model sources, manual models, and API keys
@@ -466,8 +500,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..7) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-7.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..8) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-8.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -515,10 +549,21 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             )
         } ?: emptyList()
 
+        // Import AI prompts (version 8+)
+        val aiPrompts = export.aiPrompts?.map { promptExport ->
+            AiPrompt(
+                id = promptExport.id,
+                name = promptExport.name,
+                agentId = promptExport.agentId,
+                promptText = promptExport.promptText
+            )
+        } ?: emptyList()
+
         // Import provider settings
         var settings = currentSettings.copy(
             agents = agents,
-            swarms = swarms
+            swarms = swarms,
+            prompts = aiPrompts
         )
 
         // Update provider model sources, manual models, and API keys
@@ -653,7 +698,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 3-7).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 3-8).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
