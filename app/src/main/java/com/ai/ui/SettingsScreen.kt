@@ -317,6 +317,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
             huggingFaceApiKey = generalSettings.huggingFaceApiKey,
+            developerMode = generalSettings.developerMode,
             onBackToSettings = {
                 // If AI_SETUP is the initial screen (accessed from home), go home
                 // Otherwise go back to Settings main screen
@@ -330,6 +331,7 @@ fun SettingsScreen(
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi,
             onRefreshAllModels = onRefreshAllModels,
+            onTestApiKey = onTestAiModel,
             onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
@@ -337,9 +339,7 @@ fun SettingsScreen(
             developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
-            onNavigate = { currentSubScreen = it },
-            onTestApiKey = onTestAiModel,
-            onSaveAiSettings = onSaveAi
+            onNavigate = { currentSubScreen = it }
         )
         SettingsSubScreen.AI_AGENTS -> AiAgentsScreen(
             aiSettings = aiSettings,

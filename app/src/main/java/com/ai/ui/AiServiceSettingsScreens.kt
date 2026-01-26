@@ -44,6 +44,13 @@ fun ChatGptSettingsScreen(
             manualModels != aiSettings.chatGptManualModels ||
             adminUrl != aiSettings.chatGptAdminUrl
 
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.chatGptApiKey.isNotBlank() && aiSettings.chatGptModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.chatGptApiKey)
+        }
+    }
+
     AiServiceSettingsScreenTemplate(
         title = "OpenAI",
         accentColor = Color(0xFF10A37F),
@@ -183,6 +190,13 @@ fun GeminiSettingsScreen(
             manualModels != aiSettings.geminiManualModels ||
             adminUrl != aiSettings.geminiAdminUrl
 
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.geminiApiKey.isNotBlank() && aiSettings.geminiModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.geminiApiKey)
+        }
+    }
+
     AiServiceSettingsScreenTemplate(
         title = "Google",
         accentColor = Color(0xFF4285F4),
@@ -253,6 +267,13 @@ fun GrokSettingsScreen(
             modelSource != aiSettings.grokModelSource ||
             manualModels != aiSettings.grokManualModels ||
             adminUrl != aiSettings.grokAdminUrl
+
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.grokApiKey.isNotBlank() && aiSettings.grokModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.grokApiKey)
+        }
+    }
 
     AiServiceSettingsScreenTemplate(
         title = "xAI",
@@ -325,6 +346,13 @@ fun GroqSettingsScreen(
             manualModels != aiSettings.groqManualModels ||
             adminUrl != aiSettings.groqAdminUrl
 
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.groqApiKey.isNotBlank() && aiSettings.groqModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.groqApiKey)
+        }
+    }
+
     AiServiceSettingsScreenTemplate(
         title = "Groq",
         accentColor = Color(0xFFF55036),
@@ -396,6 +424,13 @@ fun DeepSeekSettingsScreen(
             manualModels != aiSettings.deepSeekManualModels ||
             adminUrl != aiSettings.deepSeekAdminUrl
 
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.deepSeekApiKey.isNotBlank() && aiSettings.deepSeekModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.deepSeekApiKey)
+        }
+    }
+
     AiServiceSettingsScreenTemplate(
         title = "DeepSeek",
         accentColor = Color(0xFF4D6BFE),
@@ -466,6 +501,13 @@ fun MistralSettingsScreen(
             modelSource != aiSettings.mistralModelSource ||
             manualModels != aiSettings.mistralManualModels ||
             adminUrl != aiSettings.mistralAdminUrl
+
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.mistralApiKey.isNotBlank() && aiSettings.mistralModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.mistralApiKey)
+        }
+    }
 
     AiServiceSettingsScreenTemplate(
         title = "Mistral",
@@ -606,6 +648,13 @@ fun TogetherSettingsScreen(
             manualModels != aiSettings.togetherManualModels ||
             adminUrl != aiSettings.togetherAdminUrl
 
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.togetherApiKey.isNotBlank() && aiSettings.togetherModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.togetherApiKey)
+        }
+    }
+
     AiServiceSettingsScreenTemplate(
         title = "Together",
         accentColor = Color(0xFF6366F1),
@@ -676,6 +725,13 @@ fun OpenRouterSettingsScreen(
             modelSource != aiSettings.openRouterModelSource ||
             manualModels != aiSettings.openRouterManualModels ||
             adminUrl != aiSettings.openRouterAdminUrl
+
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.openRouterApiKey.isNotBlank() && aiSettings.openRouterModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.openRouterApiKey)
+        }
+    }
 
     AiServiceSettingsScreenTemplate(
         title = "OpenRouter",
@@ -883,6 +939,13 @@ fun DummySettingsScreen(
             modelSource != aiSettings.dummyModelSource ||
             manualModels != aiSettings.dummyManualModels ||
             adminUrl != aiSettings.dummyAdminUrl
+
+    // Auto-refresh model list on page load
+    LaunchedEffect(Unit) {
+        if (aiSettings.dummyApiKey.isNotBlank() && aiSettings.dummyModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.dummyApiKey)
+        }
+    }
 
     AiServiceSettingsScreenTemplate(
         title = "Dummy",

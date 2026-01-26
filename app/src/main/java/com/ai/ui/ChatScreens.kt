@@ -142,17 +142,17 @@ fun ChatSelectModelScreen(
     val (apiKey, modelSource, manualModels, defaultModel) = remember(provider) {
         when (provider) {
             AiService.OPENAI -> Quadruple(aiSettings.chatGptApiKey, aiSettings.chatGptModelSource, aiSettings.chatGptManualModels, aiSettings.chatGptModel)
-            AiService.ANTHROPIC -> Quadruple(aiSettings.claudeApiKey, ModelSource.MANUAL, CLAUDE_MODELS, aiSettings.claudeModel)
+            AiService.ANTHROPIC -> Quadruple(aiSettings.claudeApiKey, ModelSource.MANUAL, aiSettings.claudeManualModels, aiSettings.claudeModel)
             AiService.GOOGLE -> Quadruple(aiSettings.geminiApiKey, aiSettings.geminiModelSource, aiSettings.geminiManualModels, aiSettings.geminiModel)
             AiService.XAI -> Quadruple(aiSettings.grokApiKey, aiSettings.grokModelSource, aiSettings.grokManualModels, aiSettings.grokModel)
             AiService.GROQ -> Quadruple(aiSettings.groqApiKey, aiSettings.groqModelSource, aiSettings.groqManualModels, aiSettings.groqModel)
             AiService.DEEPSEEK -> Quadruple(aiSettings.deepSeekApiKey, aiSettings.deepSeekModelSource, aiSettings.deepSeekManualModels, aiSettings.deepSeekModel)
             AiService.MISTRAL -> Quadruple(aiSettings.mistralApiKey, aiSettings.mistralModelSource, aiSettings.mistralManualModels, aiSettings.mistralModel)
-            AiService.PERPLEXITY -> Quadruple(aiSettings.perplexityApiKey, ModelSource.MANUAL, PERPLEXITY_MODELS, aiSettings.perplexityModel)
+            AiService.PERPLEXITY -> Quadruple(aiSettings.perplexityApiKey, ModelSource.MANUAL, aiSettings.perplexityManualModels, aiSettings.perplexityModel)
             AiService.TOGETHER -> Quadruple(aiSettings.togetherApiKey, aiSettings.togetherModelSource, aiSettings.togetherManualModels, aiSettings.togetherModel)
             AiService.OPENROUTER -> Quadruple(aiSettings.openRouterApiKey, aiSettings.openRouterModelSource, aiSettings.openRouterManualModels, aiSettings.openRouterModel)
-            AiService.SILICONFLOW -> Quadruple(aiSettings.siliconFlowApiKey, ModelSource.MANUAL, SILICONFLOW_MODELS, aiSettings.siliconFlowModel)
-            AiService.ZAI -> Quadruple(aiSettings.zaiApiKey, ModelSource.MANUAL, ZAI_MODELS, aiSettings.zaiModel)
+            AiService.SILICONFLOW -> Quadruple(aiSettings.siliconFlowApiKey, ModelSource.MANUAL, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowModel)
+            AiService.ZAI -> Quadruple(aiSettings.zaiApiKey, ModelSource.MANUAL, aiSettings.zaiManualModels, aiSettings.zaiModel)
             AiService.DUMMY -> Quadruple(aiSettings.dummyApiKey, aiSettings.dummyModelSource, aiSettings.dummyManualModels, aiSettings.dummyModel)
         }
     }
