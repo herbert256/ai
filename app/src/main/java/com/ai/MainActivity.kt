@@ -2,6 +2,7 @@ package com.ai
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -9,9 +10,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.ui.AiNavHost
+import com.ai.ui.AiViewModel
+import com.ai.ui.SettingsPreferences
 import com.ai.ui.theme.AiTheme
 
 class MainActivity : ComponentActivity() {
@@ -26,7 +36,20 @@ class MainActivity : ComponentActivity() {
         // Handle initial intent
         handleIntent(intent)
 
+        // Read initial full screen mode setting
+        val prefs = getSharedPreferences(SettingsPreferences.PREFS_NAME, MODE_PRIVATE)
+        val initialFullScreen = prefs.getBoolean("full_screen_mode", false)
+        applyFullScreenMode(initialFullScreen)
+
         setContent {
+            val viewModel: AiViewModel = viewModel()
+            val uiState by viewModel.uiState.collectAsState()
+
+            // Apply full screen mode when setting changes
+            LaunchedEffect(uiState.generalSettings.fullScreenMode) {
+                applyFullScreenMode(uiState.generalSettings.fullScreenMode)
+            }
+
             AiTheme {
                 Scaffold(
                     modifier = Modifier
@@ -41,10 +64,21 @@ class MainActivity : ComponentActivity() {
                             // Clear after navigation so subsequent normal navigation works
                             externalTitle.value = null
                             externalPrompt.value = null
-                        }
+                        },
+                        viewModel = viewModel
                     )
                 }
             }
+        }
+    }
+
+    private fun applyFullScreenMode(fullScreen: Boolean) {
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        if (fullScreen) {
+            windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
+            windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
         }
     }
 

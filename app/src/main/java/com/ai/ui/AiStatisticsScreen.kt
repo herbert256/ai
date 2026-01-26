@@ -320,8 +320,6 @@ fun AiCostsScreen(
             onAiClick = onNavigateHome
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         when {
             isLoading -> {
                 Box(
@@ -388,7 +386,7 @@ fun AiCostsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF2A4A3A))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -396,7 +394,7 @@ fun AiCostsScreen(
                         ) {
                             Text(
                                 text = "Total Estimated Cost",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF4CAF50)
                             )
@@ -409,77 +407,59 @@ fun AiCostsScreen(
                                         isRefreshing = false
                                     }
                                 },
-                                enabled = !isRefreshing && openRouterApiKey.isNotBlank()
+                                enabled = !isRefreshing && openRouterApiKey.isNotBlank(),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
                             ) {
                                 if (isRefreshing) {
                                     CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(14.dp),
                                         color = Color(0xFF4CAF50),
                                         strokeWidth = 2.dp
                                     )
                                 } else {
-                                    Text("↻ Refresh", color = Color(0xFF64B5F6), fontSize = 12.sp)
+                                    Text("↻ Refresh", color = Color(0xFF64B5F6), fontSize = 11.sp)
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = formatCurrency(totalCost),
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                             color = Color.White
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Input", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                                Text(formatCurrency(totalInputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 11.sp)
+                                Text("Input", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text(formatCurrency(totalInputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                             Column {
-                                Text("Output", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                                Text(formatCurrency(totalOutputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 11.sp)
+                                Text("Output", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text(formatCurrency(totalOutputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                             Column {
-                                Text("Models", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                                Text("$pricedCount priced", color = Color(0xFFCCCCCC))
+                                Text("Models", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text("$pricedCount priced", color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                         }
                         if (unpricedCount > 0) {
-                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "$unpricedCount model(s) without pricing data",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFFFF9800)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // Pricing info with cache age
-                Column {
-                    Text(
-                        text = "Pricing: $pricingSource",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF888888)
-                    )
-                    if (cacheAge.isNotEmpty()) {
-                        Text(
-                            text = "OpenRouter cache: $cacheAge",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF666666)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Group stats by provider
+                // Group stats by provider, sorted by provider name
                 val groupedByProvider = statsWithCosts.groupBy { it.stat.provider }
                     .mapValues { (_, models) ->
                         ProviderCostGroup(
@@ -491,13 +471,13 @@ fun AiCostsScreen(
                         )
                     }
                     .toList()
-                    .sortedByDescending { it.second.totalCost }
+                    .sortedBy { it.first.displayName }
 
                 // Track expanded providers
                 var expandedProviders by remember { mutableStateOf(setOf<com.ai.data.AiService>()) }
 
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(groupedByProvider) { (provider, group) ->
                         ProviderCostCard(
@@ -544,16 +524,16 @@ private fun ProviderCostCard(
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF2A2A2A)
         ),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(6.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column {
-            // Header row (always visible)
+            // Header row (always visible) - only provider name and cost
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onToggle)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -564,26 +544,19 @@ private fun ProviderCostCard(
                     Text(
                         text = if (isExpanded) "▼" else "▶",
                         color = Color(0xFF888888),
-                        fontSize = 12.sp
+                        fontSize = 10.sp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = provider.displayName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6B9BFF)
-                        )
-                        Text(
-                            text = "${group.models.size} model${if (group.models.size != 1) "s" else ""} • ${group.totalCalls} calls",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF888888)
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = provider.displayName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF6B9BFF)
+                    )
                 }
                 Text(
                     text = formatCurrency(group.totalCost),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4CAF50)

@@ -553,13 +553,15 @@ private fun SettingsMainScreen(
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
     var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
     var huggingFaceApiKey by remember { mutableStateOf(generalSettings.huggingFaceApiKey) }
+    var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
 
     fun saveSettings() {
         onSave(generalSettings.copy(
             userName = userName.ifBlank { "user" },
             developerMode = developerMode,
             trackApiCalls = trackApiCalls,
-            huggingFaceApiKey = huggingFaceApiKey
+            huggingFaceApiKey = huggingFaceApiKey,
+            fullScreenMode = fullScreenMode
         ))
     }
 
@@ -654,6 +656,49 @@ private fun SettingsMainScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFAAAAAA)
                 )
+            }
+        }
+
+        // Display settings card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Display",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                // Full screen mode toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Full screen mode", color = Color.White)
+                        Text(
+                            text = "Hide the system status bar",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFAAAAAA)
+                        )
+                    }
+                    Switch(
+                        checked = fullScreenMode,
+                        onCheckedChange = {
+                            fullScreenMode = it
+                            saveSettings()
+                        }
+                    )
+                }
             }
         }
 

@@ -7,7 +7,8 @@ data class GeneralSettings(
     val userName: String = "user",
     val developerMode: Boolean = false,
     val trackApiCalls: Boolean = false,
-    val huggingFaceApiKey: String = ""
+    val huggingFaceApiKey: String = "",
+    val fullScreenMode: Boolean = false
 )
 
 // Prompt history entry

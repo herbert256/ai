@@ -71,9 +71,9 @@ fun AiHubScreen(
             uiState.aiSettings.swarms.isNotEmpty()
 
     // Calculate number of cards and required height
-    val cardHeight = 56.dp  // HubCard height (icon 40sp + padding 8dp top+bottom)
-    val cardSpacing = 8.dp
-    val largeSpacing = 32.dp
+    val cardHeight = 50.dp  // HubCard height (icon 34sp + padding)
+    val cardSpacing = 7.dp
+    val largeSpacing = 28.dp
     val warningHeight = 76.dp  // Warning card height including spacer
 
     // Count cards that will be shown
@@ -94,7 +94,7 @@ fun AiHubScreen(
     ) {
         // Calculate logo size based on available height
         val availableForLogo = maxHeight - cardsHeight - warningCardHeight
-        val logoSize = availableForLogo.coerceIn(100.dp, 300.dp)
+        val logoSize = availableForLogo.coerceIn(90.dp, 260.dp)
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -184,7 +184,7 @@ fun AiHubScreen(
             // Cards - only show AI features when setup is complete
             if (isSetupComplete) {
                 HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(7.dp))
             }
             // AI Chat - show when any agent is defined
             if (hasAnyAgent) {
@@ -195,7 +195,7 @@ fun AiHubScreen(
                         onNavigateToNewChat()
                     }
                 })
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(7.dp))
             }
 
             // Chat choice dialog
@@ -231,23 +231,23 @@ fun AiHubScreen(
             // AI Models - show when any agent is defined
             if (hasAnyAgent) {
                 HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(7.dp))
             }
             if (isSetupComplete) {
                 HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(7.dp))
                 HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(7.dp))
             }
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(7.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
 
             // API Traces card (developer mode only)
             if (uiState.generalSettings.developerMode) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(7.dp))
                 HubCard(icon = "\uD83D\uDC1E", title = "API Traces", onClick = onNavigateToTrace)
             }
         }
@@ -274,17 +274,17 @@ private fun HubCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = 14.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = icon,
-                fontSize = 40.sp
+                fontSize = 34.sp
             )
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = title,
-                fontSize = 24.sp,
+                fontSize = 21.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White
             )
