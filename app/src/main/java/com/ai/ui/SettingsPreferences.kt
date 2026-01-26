@@ -17,6 +17,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun loadGeneralSettings(): GeneralSettings {
         return GeneralSettings(
+            userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             paginationPageSize = prefs.getInt(KEY_PAGINATION_PAGE_SIZE, DEFAULT_PAGINATION_PAGE_SIZE)
                 .coerceIn(MIN_PAGINATION_PAGE_SIZE, MAX_PAGINATION_PAGE_SIZE),
             developerMode = prefs.getBoolean(KEY_DEVELOPER_MODE, false),
@@ -26,6 +27,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun saveGeneralSettings(settings: GeneralSettings) {
         prefs.edit()
+            .putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
             .putInt(KEY_PAGINATION_PAGE_SIZE, settings.paginationPageSize
                 .coerceIn(MIN_PAGINATION_PAGE_SIZE, MAX_PAGINATION_PAGE_SIZE))
             .putBoolean(KEY_DEVELOPER_MODE, settings.developerMode)
@@ -284,6 +286,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         const val DEFAULT_PAGINATION_PAGE_SIZE = 25
 
         // General settings
+        private const val KEY_USER_NAME = "user_name"
         private const val KEY_PAGINATION_PAGE_SIZE = "pagination_page_size"
         private const val KEY_DEVELOPER_MODE = "developer_mode"
         private const val KEY_TRACK_API_CALLS = "track_api_calls"
@@ -365,6 +368,17 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // AI usage statistics
         private const val KEY_AI_USAGE_STATS = "ai_usage_stats"
+
+        // API-fetched model lists (cached from API calls)
+        private const val KEY_API_MODELS_CHATGPT = "api_models_chatgpt"
+        private const val KEY_API_MODELS_GEMINI = "api_models_gemini"
+        private const val KEY_API_MODELS_GROK = "api_models_grok"
+        private const val KEY_API_MODELS_GROQ = "api_models_groq"
+        private const val KEY_API_MODELS_DEEPSEEK = "api_models_deepseek"
+        private const val KEY_API_MODELS_MISTRAL = "api_models_mistral"
+        private const val KEY_API_MODELS_TOGETHER = "api_models_together"
+        private const val KEY_API_MODELS_OPENROUTER = "api_models_openrouter"
+        private const val KEY_API_MODELS_DUMMY = "api_models_dummy"
     }
 
     // ============================================================================
@@ -429,4 +443,52 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     fun clearUsageStats() {
         prefs.edit().remove(KEY_AI_USAGE_STATS).apply()
     }
+
+    // ============================================================================
+    // API-Fetched Model Lists (Cached)
+    // ============================================================================
+
+    private fun loadApiModels(key: String): List<String> {
+        val json = prefs.getString(key, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            android.util.Log.w("SettingsPreferences", "Failed to load API models for $key: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun saveApiModels(key: String, models: List<String>) {
+        if (models.isNotEmpty()) {
+            prefs.edit().putString(key, gson.toJson(models)).apply()
+        }
+    }
+
+    fun loadChatGptApiModels(): List<String> = loadApiModels(KEY_API_MODELS_CHATGPT)
+    fun saveChatGptApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_CHATGPT, models)
+
+    fun loadGeminiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GEMINI)
+    fun saveGeminiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GEMINI, models)
+
+    fun loadGrokApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GROK)
+    fun saveGrokApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GROK, models)
+
+    fun loadGroqApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GROQ)
+    fun saveGroqApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GROQ, models)
+
+    fun loadDeepSeekApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DEEPSEEK)
+    fun saveDeepSeekApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DEEPSEEK, models)
+
+    fun loadMistralApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MISTRAL)
+    fun saveMistralApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MISTRAL, models)
+
+    fun loadTogetherApiModels(): List<String> = loadApiModels(KEY_API_MODELS_TOGETHER)
+    fun saveTogetherApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_TOGETHER, models)
+
+    fun loadOpenRouterApiModels(): List<String> = loadApiModels(KEY_API_MODELS_OPENROUTER)
+    fun saveOpenRouterApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_OPENROUTER, models)
+
+    fun loadDummyApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DUMMY)
+    fun saveDummyApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DUMMY, models)
 }

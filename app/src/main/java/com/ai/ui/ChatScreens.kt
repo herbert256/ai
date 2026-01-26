@@ -14,12 +14,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
+import com.ai.data.ChatHistoryManager
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Chat - Select Provider screen.
@@ -490,6 +496,9 @@ fun ChatSessionScreen(
     model: String,
     apiKey: String,
     parameters: ChatParameters,
+    userName: String = "user",
+    initialMessages: List<ChatMessage> = emptyList(),
+    sessionId: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSendMessage: suspend (List<ChatMessage>, String) -> ChatMessage?
@@ -498,24 +507,46 @@ fun ChatSessionScreen(
 
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val focusRequester = remember { FocusRequester() }
 
-    // Chat state
-    var messages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    // Chat state - use initial messages if provided (for continuing a session)
+    var messages by remember { mutableStateOf(initialMessages) }
     var userInput by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    // Add system prompt as first message if provided
+    // Current session ID (create new one if not continuing an existing session)
+    val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }
+
+    // Function to save the current session
+    fun saveSession(msgs: List<ChatMessage>) {
+        val session = ChatSession(
+            id = currentSessionId,
+            provider = provider,
+            model = model,
+            messages = msgs,
+            parameters = parameters,
+            updatedAt = System.currentTimeMillis()
+        )
+        ChatHistoryManager.saveSession(session)
+    }
+
+    // Add system prompt as first message if provided and no initial messages
     LaunchedEffect(parameters.systemPrompt) {
         if (parameters.systemPrompt.isNotBlank() && messages.isEmpty()) {
             messages = listOf(ChatMessage(role = "system", content = parameters.systemPrompt))
         }
     }
 
-    // Auto-scroll to bottom when new messages arrive
+    // Request focus on the input field when screen opens
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    // Auto-scroll to top when new messages arrive (newest first)
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+            listState.animateScrollToItem(0)
         }
     }
 
@@ -538,6 +569,81 @@ fun ChatSessionScreen(
             color = Color(0xFF6B9BFF),
             fontSize = 14.sp
         )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Input area at the top
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            OutlinedTextField(
+                value = userInput,
+                onValueChange = { userInput = it },
+                placeholder = { Text("Type a message...") },
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                minLines = 1,
+                maxLines = 4,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Button(
+                onClick = {
+                    if (userInput.isNotBlank() && !isLoading) {
+                        val input = userInput.trim()
+                        userInput = ""
+                        error = null
+
+                        // Add user message
+                        val userMessage = ChatMessage(role = "user", content = input)
+                        messages = messages + userMessage
+
+                        // Save session with user message
+                        saveSession(messages)
+
+                        // Send to AI
+                        scope.launch {
+                            isLoading = true
+                            try {
+                                val response = onSendMessage(messages, input)
+                                if (response != null) {
+                                    messages = messages + response
+                                    // Save session with AI response
+                                    saveSession(messages)
+                                } else {
+                                    error = "Failed to get response"
+                                }
+                            } catch (e: Exception) {
+                                error = e.message ?: "Unknown error"
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    }
+                },
+                enabled = userInput.isNotBlank() && !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            ) {
+                Text("Send")
+            }
+        }
+
+        // Error message
+        error?.let {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = it,
+                color = Color(0xFFFF6B6B),
+                fontSize = 12.sp
+            )
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -566,8 +672,8 @@ fun ChatSessionScreen(
                         .padding(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(messages.filter { it.role != "system" }) { message ->
-                        ChatMessageBubble(message = message)
+                    items(messages.filter { it.role != "system" }.reversed()) { message ->
+                        ChatMessageBubble(message = message, userName = userName)
                     }
 
                     if (isLoading) {
@@ -595,74 +701,6 @@ fun ChatSessionScreen(
                 }
             }
         }
-
-        // Error message
-        error?.let {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = it,
-                color = Color(0xFFFF6B6B),
-                fontSize = 12.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Input area
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            OutlinedTextField(
-                value = userInput,
-                onValueChange = { userInput = it },
-                placeholder = { Text("Type a message...") },
-                modifier = Modifier.weight(1f),
-                minLines = 1,
-                maxLines = 4,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
-                )
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Button(
-                onClick = {
-                    if (userInput.isNotBlank() && !isLoading) {
-                        val input = userInput.trim()
-                        userInput = ""
-                        error = null
-
-                        // Add user message
-                        val userMessage = ChatMessage(role = "user", content = input)
-                        messages = messages + userMessage
-
-                        // Send to AI
-                        scope.launch {
-                            isLoading = true
-                            try {
-                                val response = onSendMessage(messages, input)
-                                if (response != null) {
-                                    messages = messages + response
-                                } else {
-                                    error = "Failed to get response"
-                                }
-                            } catch (e: Exception) {
-                                error = e.message ?: "Unknown error"
-                            } finally {
-                                isLoading = false
-                            }
-                        }
-                    }
-                },
-                enabled = userInput.isNotBlank() && !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
-            ) {
-                Text("Send")
-            }
-        }
     }
 }
 
@@ -670,7 +708,7 @@ fun ChatSessionScreen(
  * A single chat message bubble.
  */
 @Composable
-private fun ChatMessageBubble(message: ChatMessage) {
+private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
     val isUser = message.role == "user"
     val backgroundColor = if (isUser) Color(0xFF8B5CF6) else Color(0xFF2A2A2A)
     val alignment = if (isUser) Arrangement.End else Arrangement.Start
@@ -688,7 +726,7 @@ private fun ChatMessageBubble(message: ChatMessage) {
                 modifier = Modifier.padding(12.dp)
             ) {
                 Text(
-                    text = if (isUser) "You" else "Assistant",
+                    text = if (isUser) userName else "Assistant",
                     color = if (isUser) Color.White.copy(alpha = 0.7f) else Color(0xFF6B9BFF),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
@@ -699,6 +737,177 @@ private fun ChatMessageBubble(message: ChatMessage) {
                     color = Color.White,
                     fontSize = 14.sp
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Chat History screen.
+ * Shows all saved chat sessions with pagination.
+ */
+@Composable
+fun ChatHistoryScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSelectSession: (String) -> Unit,
+    pageSize: Int = 25
+) {
+    BackHandler { onNavigateBack() }
+
+    var allSessions by remember { mutableStateOf(ChatHistoryManager.getAllSessions()) }
+    var currentPage by remember { mutableIntStateOf(0) }
+
+    val totalPages = (allSessions.size + pageSize - 1) / pageSize
+    val startIndex = currentPage * pageSize
+    val endIndex = minOf(startIndex + pageSize, allSessions.size)
+    val currentPageSessions = if (allSessions.isNotEmpty() && startIndex < allSessions.size) {
+        allSessions.subList(startIndex, endIndex)
+    } else {
+        emptyList()
+    }
+
+    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Chat History",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (allSessions.isEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "No chat history yet. Start a new chat to begin.",
+                    color = Color(0xFFAAAAAA),
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        } else {
+            // Pagination controls at top
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Page ${currentPage + 1} of $totalPages (${allSessions.size} chats)",
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 12.sp
+                )
+
+                Row {
+                    TextButton(
+                        onClick = { if (currentPage > 0) currentPage-- },
+                        enabled = currentPage > 0
+                    ) {
+                        Text("< Previous", color = if (currentPage > 0) Color(0xFF6B9BFF) else Color(0xFF555555))
+                    }
+
+                    TextButton(
+                        onClick = { if (currentPage < totalPages - 1) currentPage++ },
+                        enabled = currentPage < totalPages - 1
+                    ) {
+                        Text("Next >", color = if (currentPage < totalPages - 1) Color(0xFF6B9BFF) else Color(0xFF555555))
+                    }
+                }
+            }
+
+            // Chat sessions list
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                LazyColumn {
+                    items(currentPageSessions) { session ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectSession(session.id) }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = session.preview + if (session.preview.length >= 50) "..." else "",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row {
+                                    Text(
+                                        text = session.provider.displayName,
+                                        color = Color(0xFF6B9BFF),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = " • ${session.model}",
+                                        color = Color(0xFF888888),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                Text(
+                                    text = dateFormat.format(Date(session.updatedAt)),
+                                    color = Color(0xFF666666),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Text(
+                                text = ">",
+                                color = Color(0xFF6B9BFF),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        HorizontalDivider(color = Color(0xFF444444))
+                    }
+                }
+            }
+
+            // Bottom pagination controls
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Showing ${startIndex + 1}-$endIndex",
+                    color = Color(0xFF888888),
+                    fontSize = 12.sp
+                )
+
+                Row {
+                    TextButton(
+                        onClick = { if (currentPage > 0) currentPage-- },
+                        enabled = currentPage > 0
+                    ) {
+                        Text("< Previous", color = if (currentPage > 0) Color(0xFF6B9BFF) else Color(0xFF555555))
+                    }
+
+                    TextButton(
+                        onClick = { if (currentPage < totalPages - 1) currentPage++ },
+                        enabled = currentPage < totalPages - 1
+                    ) {
+                        Text("Next >", color = if (currentPage < totalPages - 1) Color(0xFF6B9BFF) else Color(0xFF555555))
+                    }
+                }
             }
         }
     }

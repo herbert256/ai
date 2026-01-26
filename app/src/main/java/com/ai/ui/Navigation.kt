@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -26,12 +27,16 @@ object NavRoutes {
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_REPORTS = "ai_reports"
     const val AI_STATISTICS = "ai_statistics"
+    const val AI_SETUP = "ai_setup"
     const val AI_CHAT_PROVIDER = "ai_chat_provider"
     const val AI_CHAT_MODEL = "ai_chat_model/{provider}"
     const val AI_CHAT_PARAMS = "ai_chat_params/{provider}/{model}"
     const val AI_CHAT_SESSION = "ai_chat_session/{provider}/{model}"
+    const val AI_CHAT_HISTORY = "ai_chat_history"
+    const val AI_CHAT_CONTINUE = "ai_chat_continue/{sessionId}"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
+    fun aiChatContinue(sessionId: String) = "ai_chat_continue/$sessionId"
     fun aiChatModel(provider: String) = "ai_chat_model/$provider"
     fun aiChatParams(provider: String, model: String): String {
         val encodedModel = java.net.URLEncoder.encode(model, "UTF-8")
@@ -94,13 +99,23 @@ fun AiNavHost(
                 onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
-                onNavigateToChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
+                onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
+                onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
+                onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 viewModel = viewModel
             )
         }
 
         composable(NavRoutes.SETTINGS) {
             SettingsScreenNav(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+
+        composable(NavRoutes.AI_SETUP) {
+            AiSetupScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
@@ -321,12 +336,59 @@ fun AiNavHost(
                     model = model,
                     apiKey = apiKey,
                     parameters = uiState.chatParameters,
+                    userName = uiState.generalSettings.userName,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
                         viewModel.sendChatMessage(provider, apiKey, model, messages)
                     }
                 )
+            }
+        }
+
+        // Chat history screen
+        composable(NavRoutes.AI_CHAT_HISTORY) {
+            val uiState by viewModel.uiState.collectAsState()
+            ChatHistoryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onSelectSession = { sessionId ->
+                    navController.navigate(NavRoutes.aiChatContinue(sessionId))
+                },
+                pageSize = uiState.generalSettings.paginationPageSize
+            )
+        }
+
+        // Continue chat session
+        composable(NavRoutes.AI_CHAT_CONTINUE) { backStackEntry ->
+            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: ""
+            val uiState by viewModel.uiState.collectAsState()
+            val session = remember(sessionId) {
+                com.ai.data.ChatHistoryManager.loadSession(sessionId)
+            }
+
+            if (session != null) {
+                val apiKey = uiState.aiSettings.getApiKey(session.provider)
+
+                ChatSessionScreen(
+                    provider = session.provider,
+                    model = session.model,
+                    apiKey = apiKey,
+                    parameters = session.parameters,
+                    userName = uiState.generalSettings.userName,
+                    initialMessages = session.messages,
+                    sessionId = session.id,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateHome = navigateHome,
+                    onSendMessage = { messages, _ ->
+                        viewModel.sendChatMessage(session.provider, apiKey, session.model, messages)
+                    }
+                )
+            } else {
+                // Session not found - navigate back
+                LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
             }
         }
     }
@@ -339,7 +401,8 @@ fun AiNavHost(
 fun SettingsScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -382,6 +445,24 @@ fun SettingsScreenNav(
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
-        onFetchModelsAfterImport = { viewModel.fetchModelsForApiSourceProviders(it) }
+        onFetchModelsAfterImport = { viewModel.fetchModelsForApiSourceProviders(it) },
+        initialSubScreen = initialSubScreen
+    )
+}
+
+/**
+ * Wrapper for SettingsScreen that starts at AI Setup.
+ */
+@Composable
+fun AiSetupScreenNav(
+    viewModel: AiViewModel,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    SettingsScreenNav(
+        viewModel = viewModel,
+        onNavigateBack = onNavigateBack,
+        onNavigateHome = onNavigateHome,
+        initialSubScreen = SettingsSubScreen.AI_SETUP
     )
 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiHistoryManager
 import com.ai.data.AiHistoryFileInfo
+import com.ai.data.ChatHistoryManager
 
 /**
  * AI hub screen - the home page of the app.
@@ -34,23 +35,29 @@ fun AiHubScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToNewReport: () -> Unit,
     onNavigateToStatistics: () -> Unit,
-    onNavigateToChat: () -> Unit,
+    onNavigateToNewChat: () -> Unit,
+    onNavigateToChatHistory: () -> Unit,
+    onNavigateToAiSetup: () -> Unit,
     viewModel: AiViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Chat choice dialog state
+    var showChatChoiceDialog by remember { mutableStateOf(false) }
+    val hasChatHistory = remember { ChatHistoryManager.getSessionCount() > 0 }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // App logo
         Image(
             painter = painterResource(id = R.drawable.ic_launcher_foreground),
             contentDescription = "AI App Logo",
-            modifier = Modifier.size(320.dp)
+            modifier = Modifier.size(200.dp)
         )
 
         // Check if any provider has an API key configured
@@ -87,7 +94,7 @@ fun AiHubScreen(
                     Text(text = "❌", fontSize = 20.sp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "No API keys configured. Go to Settings → AI Setup → AI Providers to add an API key.",
+                        text = "No API keys configured. Go to AI Setup → AI Providers to add an API key.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFFFF8080)
                     )
@@ -111,7 +118,7 @@ fun AiHubScreen(
                     Text(text = "⚠️", fontSize = 20.sp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "No AI agents configured. Go to Settings → AI Setup → AI Agents to add your first agent.",
+                        text = "No AI agents configured. Go to AI Setup → AI Agents to add your first agent.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFFFFCC80)
                     )
@@ -135,7 +142,7 @@ fun AiHubScreen(
                     Text(text = "\uD83D\uDC1D", fontSize = 20.sp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "No AI swarms configured. Go to Settings → AI Setup → AI Swarms to create your first swarm.",
+                        text = "No AI swarms configured. Go to AI Setup → AI Swarms to create your first swarm.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFFB0B0FF)
                     )
@@ -146,18 +153,59 @@ fun AiHubScreen(
 
         // Cards - only show AI features when setup is complete
         if (isSetupComplete) {
-            HubCard(icon = "\uD83D\uDCDD", title = "New AI Report", onClick = onNavigateToNewReport)
+            HubCard(icon = "\uD83D\uDCDD", title = "AI Report", onClick = onNavigateToNewReport)
             Spacer(modifier = Modifier.height(8.dp))
+        }
+        // AI Chat - show when any API key is configured (doesn't require agents/swarms)
+        if (hasAnyApiKey) {
+            HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = {
+                if (hasChatHistory) {
+                    showChatChoiceDialog = true
+                } else {
+                    onNavigateToNewChat()
+                }
+            })
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Chat choice dialog
+        if (showChatChoiceDialog) {
+            AlertDialog(
+                onDismissRequest = { showChatChoiceDialog = false },
+                title = { Text("AI Chat", color = Color.White) },
+                text = {
+                    Text(
+                        "Would you like to start a new chat or continue with a previous chat?",
+                        color = Color(0xFFAAAAAA)
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showChatChoiceDialog = false
+                        onNavigateToNewChat()
+                    }) {
+                        Text("Start new chat", color = Color(0xFF6B9BFF))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showChatChoiceDialog = false
+                        onNavigateToChatHistory()
+                    }) {
+                        Text("Continue with previous chat", color = Color(0xFF8B5CF6))
+                    }
+                },
+                containerColor = Color(0xFF2A2A2A)
+            )
+        }
+        if (isSetupComplete) {
             HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
             Spacer(modifier = Modifier.height(8.dp))
             HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
             Spacer(modifier = Modifier.height(8.dp))
         }
-        // AI Chat - show when any API key is configured (doesn't require agents/swarms)
-        if (hasAnyApiKey) {
-            HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChat)
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
+        Spacer(modifier = Modifier.height(32.dp))
         HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
         Spacer(modifier = Modifier.height(8.dp))
         HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)

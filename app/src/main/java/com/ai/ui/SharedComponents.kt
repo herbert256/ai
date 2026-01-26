@@ -86,16 +86,10 @@ fun AiTitleBar(
                 )
             }
 
-            // Right side: "AI" branding
-            Text(
-                text = "AI",
-                fontSize = 36.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                modifier = Modifier.clickable { onAiClick() }
-            )
+            // Right side: "AI" branding (same style as back button)
+            TextButton(onClick = onAiClick) {
+                Text("AI", color = Color.White, fontSize = 16.sp)
+            }
         }
     }
 }

@@ -458,6 +458,23 @@ data class ChatMessage(
 )
 
 /**
+ * A saved chat session with all messages.
+ */
+data class ChatSession(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val provider: com.ai.data.AiService,
+    val model: String,
+    val messages: List<ChatMessage>,
+    val parameters: ChatParameters = ChatParameters(),
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+) {
+    // Preview text from first user message
+    val preview: String
+        get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"
+}
+
+/**
  * Parameters for a chat session (subset of AiAgentParameters used for chat).
  */
 data class ChatParameters(

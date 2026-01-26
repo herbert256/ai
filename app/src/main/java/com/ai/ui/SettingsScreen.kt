@@ -91,9 +91,10 @@ fun SettingsScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onFetchModelsAfterImport: (AiSettings) -> Unit = {}
+    onFetchModelsAfterImport: (AiSettings) -> Unit = {},
+    initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
-    var currentSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
+    var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
 
     // State for pre-filling agent creation from provider screen
     var prefillAgentProvider by remember { mutableStateOf<AiService?>(null) }
@@ -139,11 +140,25 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SILICONFLOW,
             SettingsSubScreen.AI_ZAI,
             SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            // AI screens navigate back to AI_SETUP
+            // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
             SettingsSubScreen.AI_SWARMS,
-            SettingsSubScreen.MODEL_SEARCH -> currentSubScreen = SettingsSubScreen.AI_SETUP
+            SettingsSubScreen.MODEL_SEARCH -> {
+                if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
+                    currentSubScreen = SettingsSubScreen.AI_SETUP
+                } else {
+                    currentSubScreen = SettingsSubScreen.AI_SETUP
+                }
+            }
+            // AI_SETUP goes back home if it was the initial screen, otherwise to MAIN
+            SettingsSubScreen.AI_SETUP -> {
+                if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
+                    onBack()
+                } else {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                }
+            }
             // Add agent goes back to AI_PROVIDERS
             SettingsSubScreen.AI_ADD_AGENT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // Swarm screens go back to AI_SWARMS
@@ -155,9 +170,11 @@ fun SettingsScreen(
 
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> SettingsMainScreen(
+            generalSettings = generalSettings,
             onBack = onBack,
             onNavigateHome = onNavigateHome,
-            onNavigate = { currentSubScreen = it }
+            onSave = onSaveGeneral,
+            onTrackApiCallsChanged = onTrackApiCallsChanged
         )
         SettingsSubScreen.GENERAL_SETTINGS -> GeneralSettingsScreen(
             generalSettings = generalSettings,
@@ -308,7 +325,15 @@ fun SettingsScreen(
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
+            onBackToSettings = {
+                // If AI_SETUP is the initial screen (accessed from home), go home
+                // Otherwise go back to Settings main screen
+                if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
+                    onBack()
+                } else {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                }
+            },
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi,
@@ -498,14 +523,30 @@ fun SettingsScreen(
 }
 
 /**
- * Main settings menu screen with navigation cards.
+ * Main settings screen showing general settings directly.
  */
 @Composable
 private fun SettingsMainScreen(
+    generalSettings: GeneralSettings,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigate: (SettingsSubScreen) -> Unit
+    onSave: (GeneralSettings) -> Unit,
+    onTrackApiCallsChanged: (Boolean) -> Unit = {}
 ) {
+    var userName by remember { mutableStateOf(generalSettings.userName) }
+    var paginationPageSize by remember { mutableFloatStateOf(generalSettings.paginationPageSize.toFloat()) }
+    var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
+    var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
+
+    fun saveSettings() {
+        onSave(generalSettings.copy(
+            userName = userName.ifBlank { "user" },
+            paginationPageSize = paginationPageSize.toInt(),
+            developerMode = developerMode,
+            trackApiCalls = trackApiCalls
+        ))
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -523,19 +564,163 @@ private fun SettingsMainScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // General settings card
-        SettingsNavigationCard(
-            title = "General settings",
-            description = "App-wide settings",
-            onClick = { onNavigate(SettingsSubScreen.GENERAL_SETTINGS) }
-        )
+        // User name card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "User",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
 
-        // AI Setup settings card
-        SettingsNavigationCard(
-            title = "AI Setup",
-            description = "Providers, Agents and Swarms",
-            onClick = { onNavigate(SettingsSubScreen.AI_SETUP) }
-        )
+                OutlinedTextField(
+                    value = userName,
+                    onValueChange = {
+                        userName = it
+                        saveSettings()
+                    },
+                    label = { Text("Your name") },
+                    placeholder = { Text("user") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+        }
+
+        // Display settings card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Display",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                // Pagination page size
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Rows per page when pagination", color = Color.White)
+                        Text(
+                            text = "${paginationPageSize.toInt()}",
+                            color = Color(0xFF6B9BFF),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        text = "Number of items shown per page (5-50)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFAAAAAA)
+                    )
+                    Slider(
+                        value = paginationPageSize,
+                        onValueChange = { paginationPageSize = it },
+                        onValueChangeFinished = { saveSettings() },
+                        valueRange = 5f..50f,
+                        steps = 8,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        // Developer settings card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Developer",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                // Developer mode toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Developer mode", color = Color.White)
+                        Text(
+                            text = "Enable developer features",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFAAAAAA)
+                        )
+                    }
+                    Switch(
+                        checked = developerMode,
+                        onCheckedChange = {
+                            developerMode = it
+                            saveSettings()
+                        }
+                    )
+                }
+
+                HorizontalDivider(color = Color(0xFF404040))
+
+                // Track API calls toggle (disabled when developer mode is off)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Track API calls",
+                            color = if (developerMode) Color.White else Color(0xFF666666)
+                        )
+                        Text(
+                            text = "Log all API requests for debugging",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (developerMode) Color(0xFFAAAAAA) else Color(0xFF555555)
+                        )
+                    }
+                    Switch(
+                        checked = trackApiCalls,
+                        onCheckedChange = {
+                            trackApiCalls = it
+                            saveSettings()
+                            onTrackApiCallsChanged(it)
+                        },
+                        enabled = developerMode
+                    )
+                }
+            }
+        }
     }
 }
 

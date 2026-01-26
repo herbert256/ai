@@ -4,6 +4,7 @@ import com.ai.data.AiAnalysisResponse
 
 // General app settings
 data class GeneralSettings(
+    val userName: String = "user",
     val paginationPageSize: Int = 25,
     val developerMode: Boolean = false,
     val trackApiCalls: Boolean = false

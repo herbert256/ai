@@ -8,6 +8,7 @@ import com.ai.data.AiAnalysisRepository
 import com.ai.data.AiAnalysisResponse
 import com.ai.data.AiHistoryManager
 import com.ai.data.AiService
+import com.ai.data.ChatHistoryManager
 import com.ai.data.ApiTracer
 import com.ai.data.DummyApiServer
 import kotlinx.coroutines.async
@@ -40,13 +41,36 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize AiHistoryManager for AI report storage
         AiHistoryManager.init(application)
 
+        // Initialize ChatHistoryManager for chat session storage
+        ChatHistoryManager.init(application)
+
         // Load settings
         val generalSettings = loadGeneralSettings()
         val aiSettings = loadAiSettings()
 
+        // Load persisted API-fetched models
+        val chatGptApiModels = settingsPrefs.loadChatGptApiModels()
+        val geminiApiModels = settingsPrefs.loadGeminiApiModels()
+        val grokApiModels = settingsPrefs.loadGrokApiModels()
+        val groqApiModels = settingsPrefs.loadGroqApiModels()
+        val deepSeekApiModels = settingsPrefs.loadDeepSeekApiModels()
+        val mistralApiModels = settingsPrefs.loadMistralApiModels()
+        val togetherApiModels = settingsPrefs.loadTogetherApiModels()
+        val openRouterApiModels = settingsPrefs.loadOpenRouterApiModels()
+        val dummyApiModels = settingsPrefs.loadDummyApiModels()
+
         _uiState.value = _uiState.value.copy(
             generalSettings = generalSettings,
-            aiSettings = aiSettings
+            aiSettings = aiSettings,
+            availableChatGptModels = chatGptApiModels,
+            availableGeminiModels = geminiApiModels,
+            availableGrokModels = grokApiModels,
+            availableGroqModels = groqApiModels,
+            availableDeepSeekModels = deepSeekApiModels,
+            availableMistralModels = mistralApiModels,
+            availableTogetherModels = togetherApiModels,
+            availableOpenRouterModels = openRouterApiModels,
+            availableDummyModels = dummyApiModels
         )
 
         // Enable API tracing if configured
@@ -245,6 +269,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableChatGptModels = models,
                     isLoadingChatGptModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveChatGptApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingChatGptModels = false)
             }
@@ -260,6 +286,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableGeminiModels = models,
                     isLoadingGeminiModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveGeminiApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingGeminiModels = false)
             }
@@ -275,6 +303,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableGrokModels = models,
                     isLoadingGrokModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveGrokApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingGrokModels = false)
             }
@@ -290,6 +320,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableGroqModels = models,
                     isLoadingGroqModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveGroqApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingGroqModels = false)
             }
@@ -305,6 +337,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableDeepSeekModels = models,
                     isLoadingDeepSeekModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveDeepSeekApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingDeepSeekModels = false)
             }
@@ -320,6 +354,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableMistralModels = models,
                     isLoadingMistralModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveMistralApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingMistralModels = false)
             }
@@ -335,6 +371,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availablePerplexityModels = models,
                     isLoadingPerplexityModels = false
                 )
+                // Note: Perplexity uses MANUAL source, but save anyway if API call is made
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingPerplexityModels = false)
             }
@@ -350,6 +387,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableTogetherModels = models,
                     isLoadingTogetherModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveTogetherApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingTogetherModels = false)
             }
@@ -365,6 +404,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableOpenRouterModels = models,
                     isLoadingOpenRouterModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveOpenRouterApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingOpenRouterModels = false)
             }
@@ -380,6 +421,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     availableDummyModels = models,
                     isLoadingDummyModels = false
                 )
+                // Persist the fetched models
+                settingsPrefs.saveDummyApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingDummyModels = false)
             }
