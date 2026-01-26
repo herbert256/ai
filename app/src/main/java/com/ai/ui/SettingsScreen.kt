@@ -91,8 +91,7 @@ fun SettingsScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onFetchModelsAfterImport: (AiSettings) -> Unit = {},
-    onRetrieveModelLists: () -> Unit = {}
+    onFetchModelsAfterImport: (AiSettings) -> Unit = {}
 ) {
     var currentSubScreen by remember { mutableStateOf(SettingsSubScreen.MAIN) }
 
@@ -313,8 +312,7 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi,
-            onFetchModelsAfterImport = onFetchModelsAfterImport,
-            onRetrieveModelLists = onRetrieveModelLists
+            onFetchModelsAfterImport = onFetchModelsAfterImport
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,

@@ -212,8 +212,7 @@ fun AiSetupScreen(
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (AiSettings) -> Unit,
-    onFetchModelsAfterImport: (AiSettings) -> Unit = {},
-    onRetrieveModelLists: () -> Unit = {}
+    onFetchModelsAfterImport: (AiSettings) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -338,31 +337,6 @@ fun AiSetupScreen(
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
         ) {
             Text("Import AI configuration")
-        }
-
-        // Retrieve model lists button - only show if at least one provider has an API key
-        val hasAnyApiKey = aiSettings.chatGptApiKey.isNotBlank() ||
-                aiSettings.claudeApiKey.isNotBlank() ||
-                aiSettings.geminiApiKey.isNotBlank() ||
-                aiSettings.grokApiKey.isNotBlank() ||
-                aiSettings.groqApiKey.isNotBlank() ||
-                aiSettings.deepSeekApiKey.isNotBlank() ||
-                aiSettings.mistralApiKey.isNotBlank() ||
-                aiSettings.perplexityApiKey.isNotBlank() ||
-                aiSettings.togetherApiKey.isNotBlank() ||
-                aiSettings.openRouterApiKey.isNotBlank() ||
-                aiSettings.siliconFlowApiKey.isNotBlank() ||
-                aiSettings.zaiApiKey.isNotBlank() ||
-                aiSettings.dummyApiKey.isNotBlank()
-
-        if (hasAnyApiKey) {
-            Button(
-                onClick = onRetrieveModelLists,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-            ) {
-                Text("Retrieve model lists")
-            }
         }
     }
 }
