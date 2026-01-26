@@ -34,6 +34,7 @@ fun AiHubScreen(
     onNavigateToHelp: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
     onNavigateToStatistics: () -> Unit,
+    onNavigateToCosts: () -> Unit,
     onNavigateToNewChat: () -> Unit,
     onNavigateToChatHistory: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
@@ -77,7 +78,7 @@ fun AiHubScreen(
 
     // Count cards that will be shown
     var cardCount = 3  // AI Setup, Settings, Help (always shown)
-    if (isSetupComplete) cardCount += 2  // AI Reports, AI Statistics
+    if (isSetupComplete) cardCount += 3  // AI Reports, AI Statistics, AI Costs
     if (hasAnyAgent) cardCount += 2  // AI Chat, AI Models
     if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
 
@@ -234,6 +235,8 @@ fun AiHubScreen(
             }
             if (isSetupComplete) {
                 HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
+                Spacer(modifier = Modifier.height(8.dp))
+                HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts)
                 Spacer(modifier = Modifier.height(8.dp))
             }
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)

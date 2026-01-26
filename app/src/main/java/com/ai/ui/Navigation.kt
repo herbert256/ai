@@ -106,6 +106,7 @@ fun AiNavHost(
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
+                onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS) },
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
@@ -221,8 +222,7 @@ fun AiNavHost(
         composable(NavRoutes.AI_STATISTICS) {
             AiStatisticsScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome,
-                onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS) }
+                onNavigateHome = navigateHome
             )
         }
 

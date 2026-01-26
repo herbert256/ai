@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,8 +25,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AiStatisticsScreen(
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit = onBack,
-    onNavigateToCosts: () -> Unit = {}
+    onNavigateHome: () -> Unit = onBack
 ) {
     BackHandler { onBack() }
 
@@ -118,27 +118,15 @@ fun AiStatisticsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Costs and Clear buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Clear button
+            OutlinedButton(
+                onClick = {
+                    settingsPrefs.clearUsageStats()
+                    stats = emptyMap()
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = onNavigateToCosts,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-                ) {
-                    Text("💰 Costs")
-                }
-                OutlinedButton(
-                    onClick = {
-                        settingsPrefs.clearUsageStats()
-                        stats = emptyMap()
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Clear Statistics")
-                }
+                Text("Clear Statistics")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -332,7 +320,7 @@ fun AiCostsScreen(
             onAiClick = onNavigateHome
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         when {
             isLoading -> {
@@ -439,6 +427,7 @@ fun AiCostsScreen(
                             text = formatCurrency(totalCost),
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
                             color = Color.White
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -448,11 +437,11 @@ fun AiCostsScreen(
                         ) {
                             Column {
                                 Text("Input", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                                Text(formatCurrency(totalInputCost), color = Color(0xFFCCCCCC))
+                                Text(formatCurrency(totalInputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 11.sp)
                             }
                             Column {
                                 Text("Output", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                                Text(formatCurrency(totalOutputCost), color = Color(0xFFCCCCCC))
+                                Text(formatCurrency(totalOutputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 11.sp)
                             }
                             Column {
                                 Text("Models", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
@@ -564,7 +553,7 @@ private fun ProviderCostCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onToggle)
-                    .padding(16.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -594,8 +583,9 @@ private fun ProviderCostCard(
                 }
                 Text(
                     text = formatCurrency(group.totalCost),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4CAF50)
                 )
             }
@@ -604,8 +594,8 @@ private fun ProviderCostCard(
             if (isExpanded) {
                 HorizontalDivider(color = Color(0xFF404040))
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     group.models.forEach { statWithCost ->
                         CompactModelCostRow(statWithCost = statWithCost)
@@ -626,14 +616,14 @@ private fun CompactModelCostRow(statWithCost: StatWithCost) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stat.model,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = Color.White
             )
             Row(
@@ -660,8 +650,9 @@ private fun CompactModelCostRow(statWithCost: StatWithCost) {
             if (statWithCost.hasPricing) {
                 Text(
                     text = formatCurrency(statWithCost.totalCost ?: 0.0),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4CAF50)
                 )
                 val sourceColor = when (statWithCost.pricingSource) {
@@ -732,8 +723,9 @@ private fun CostCard(statWithCost: StatWithCost) {
                     if (statWithCost.hasPricing) {
                         Text(
                             text = formatCurrency(statWithCost.totalCost ?: 0.0),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
                             color = Color(0xFF4CAF50)
                         )
                         // Show pricing source with color coding
@@ -807,6 +799,7 @@ private fun CostTokenStat(label: String, tokens: Long, cost: Double?) {
             Text(
                 text = formatCurrency(cost),
                 style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
                 color = Color(0xFF4CAF50)
             )
         }
@@ -814,11 +807,5 @@ private fun CostTokenStat(label: String, tokens: Long, cost: Double?) {
 }
 
 private fun formatCurrency(value: Double): String {
-    return when {
-        value >= 1.0 -> String.format("$%.2f", value)
-        value >= 0.01 -> String.format("$%.4f", value)
-        value >= 0.0001 -> String.format("$%.6f", value)
-        value > 0 -> String.format("$%.8f", value)
-        else -> "$0.00"
-    }
+    return String.format("$%.11f", value)
 }
