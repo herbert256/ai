@@ -2240,19 +2240,19 @@ fun AiReportsScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+            }
 
-                // Report title
-                if (uiState.genericAiPromptTitle.isNotBlank()) {
-                    Text(
-                        text = uiState.genericAiPromptTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
+            // Report title (shown both during generation and when complete)
+            if (uiState.genericAiPromptTitle.isNotBlank()) {
+                Text(
+                    text = uiState.genericAiPromptTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Calculate costs for each agent
@@ -2287,12 +2287,56 @@ fun AiReportsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Table header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.width(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Agent",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF888888),
+                            fontSize = 11.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Input",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF888888),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(50.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Output",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF888888),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(50.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Cents",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF888888),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(70.dp)
+                        )
+                    }
+                    HorizontalDivider(color = Color(0xFF404040))
+
                     // Show all selected agents with their status
                     reportsSelectedAgents.mapNotNull { agentId ->
                         uiState.aiSettings.getAgentById(agentId)
                     }.sortedBy { it.name.lowercase() }.forEach { agent ->
                         val result = reportsAgentResults[agent.id]
                         val cost = agentCosts[agent.id]
+                        val tokenUsage = result?.tokenUsage
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -2323,15 +2367,41 @@ fun AiReportsScreen(
                                 color = Color.White,
                                 modifier = Modifier.weight(1f)
                             )
-                            // Cost (right-aligned, only show if available)
+                            // Input tokens
                             Text(
-                                text = if (cost != null) String.format("$%.8f", cost) else "",
+                                text = tokenUsage?.inputTokens?.toString() ?: "",
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFAAAAAA),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.width(50.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            // Output tokens
+                            Text(
+                                text = tokenUsage?.outputTokens?.toString() ?: "",
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFAAAAAA),
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.width(50.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            // Cost in cents (right-aligned, only show if available)
+                            Text(
+                                text = if (cost != null) String.format("%.4f", cost * 100) else "",
                                 fontFamily = FontFamily.Monospace,
                                 color = Color(0xFF4CAF50),
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.width(70.dp)
                             )
                         }
                     }
+
+                    // Calculate total tokens
+                    val totalInputTokens = reportsAgentResults.values.sumOf { it.tokenUsage?.inputTokens ?: 0 }
+                    val totalOutputTokens = reportsAgentResults.values.sumOf { it.tokenUsage?.outputTokens ?: 0 }
 
                     // Total cost row - always show, accumulates as agents complete
                     HorizontalDivider(color = Color(0xFF404040))
@@ -2347,12 +2417,36 @@ fun AiReportsScreen(
                             color = Color.White,
                             modifier = Modifier.weight(1f)
                         )
+                        // Total input tokens
                         Text(
-                            text = String.format("$%.8f", totalCost),
+                            text = if (totalInputTokens > 0) totalInputTokens.toString() else "",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFAAAAAA),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(50.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // Total output tokens
+                        Text(
+                            text = if (totalOutputTokens > 0) totalOutputTokens.toString() else "",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFAAAAAA),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(50.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = String.format("%.4f", totalCost * 100),
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF4CAF50),
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(70.dp)
                         )
                     }
                 }

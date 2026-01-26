@@ -56,6 +56,7 @@ data class AiUiState(
     val genericAiReportsTotal: Int = 0,
     val genericAiReportsSelectedAgents: Set<String> = emptySet(),
     val genericAiReportsAgentResults: Map<String, AiAnalysisResponse> = emptyMap(),
+    val currentReportId: String? = null,  // ID of the current AI report being generated
     // Chat
     val chatParameters: ChatParameters = ChatParameters()
 )

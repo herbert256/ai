@@ -7,10 +7,14 @@ import androidx.lifecycle.viewModelScope
 import com.ai.data.AiAnalysisRepository
 import com.ai.data.AiAnalysisResponse
 import com.ai.data.AiHistoryManager
+import com.ai.data.AiReportStorage
+import com.ai.data.AiReportAgent
+import com.ai.data.ReportStatus
 import com.ai.data.AiService
 import com.ai.data.ChatHistoryManager
 import com.ai.data.ApiTracer
 import com.ai.data.DummyApiServer
+import com.ai.data.PricingCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -46,6 +50,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
         // Initialize ChatHistoryManager for chat session storage
         ChatHistoryManager.init(application)
+
+        // Initialize AiReportStorage for tracking report generation
+        AiReportStorage.init(application)
 
         // Load settings
         val generalSettings = loadGeneralSettings()
@@ -160,7 +167,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             genericAiReportsProgress = 0,
             genericAiReportsTotal = 0,
             genericAiReportsSelectedAgents = emptySet(),
-            genericAiReportsAgentResults = emptyMap()
+            genericAiReportsAgentResults = emptyMap(),
+            currentReportId = null
         )
     }
 
@@ -172,8 +180,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun generateGenericAiReports(selectedAgentIds: Set<String>) {
         viewModelScope.launch {
+            val context = getApplication<Application>()
             val aiSettings = _uiState.value.aiSettings
             val prompt = _uiState.value.genericAiPromptText
+            val title = _uiState.value.genericAiPromptTitle
 
             _uiState.value = _uiState.value.copy(
                 showGenericAiAgentSelection = false,
@@ -181,7 +191,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 genericAiReportsProgress = 0,
                 genericAiReportsTotal = selectedAgentIds.size,
                 genericAiReportsSelectedAgents = selectedAgentIds,
-                genericAiReportsAgentResults = emptyMap()
+                genericAiReportsAgentResults = emptyMap(),
+                currentReportId = null  // Will be set after report creation
             )
 
             // Get the actual agents from settings
@@ -189,9 +200,38 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 aiSettings.getAgentById(agentId)
             }
 
+            // Create AI Report object with all agents in PENDING state
+            val reportAgents = agents.map { agent ->
+                AiReportAgent(
+                    agentId = agent.id,
+                    agentName = agent.name,
+                    provider = agent.provider.name,
+                    model = agent.model,
+                    reportStatus = ReportStatus.PENDING
+                )
+            }
+            val report = AiReportStorage.createReport(
+                context = context,
+                title = title.ifBlank { "AI Report" },
+                prompt = prompt,
+                agents = reportAgents
+            )
+            val reportId = report.id
+
+            // Store reportId in state for tracking
+            _uiState.value = _uiState.value.copy(currentReportId = reportId)
+
             // Make all API calls in parallel, but update state as each completes
             agents.map { agent ->
                 async {
+                    // Mark agent as running
+                    AiReportStorage.markAgentRunning(
+                        context = context,
+                        reportId = reportId,
+                        agentId = agent.id,
+                        requestBody = prompt
+                    )
+
                     val response = try {
                         aiAnalysisRepository.analyzePositionWithAgent(
                             agent = agent,
@@ -203,6 +243,44 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             service = agent.provider,
                             analysis = null,
                             error = e.message ?: "Unknown error"
+                        )
+                    }
+
+                    // Calculate cost for this agent
+                    val cost: Double? = if (response.tokenUsage != null) {
+                        if (agent.provider == AiService.DUMMY) {
+                            0.0
+                        } else {
+                            val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                            if (pricing != null) {
+                                val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
+                                val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
+                                inputCost + outputCost
+                            } else null
+                        }
+                    } else null
+
+                    // Update report storage with result
+                    if (response.isSuccess) {
+                        AiReportStorage.markAgentSuccess(
+                            context = context,
+                            reportId = reportId,
+                            agentId = agent.id,
+                            httpStatus = 200,
+                            responseHeaders = response.httpHeaders,
+                            responseBody = response.analysis,
+                            tokenUsage = response.tokenUsage,
+                            cost = cost
+                        )
+                    } else {
+                        AiReportStorage.markAgentError(
+                            context = context,
+                            reportId = reportId,
+                            agentId = agent.id,
+                            httpStatus = null,
+                            errorMessage = response.error,
+                            responseHeaders = response.httpHeaders,
+                            responseBody = response.analysis
                         )
                     }
 
@@ -229,9 +307,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stopGenericAiReports() {
+        val context = getApplication<Application>()
         val currentState = _uiState.value
         val selectedAgents = currentState.genericAiReportsSelectedAgents
         val currentResults = currentState.genericAiReportsAgentResults
+        val reportId = currentState.currentReportId
 
         // Fill in "Not ready" for agents that haven't responded yet
         val updatedResults = selectedAgents.associate { agentId ->
@@ -240,6 +320,18 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 agentId to existingResult
             } else {
                 val agent = currentState.aiSettings.getAgentById(agentId)
+
+                // Mark as error in storage if we have a reportId
+                if (reportId != null) {
+                    AiReportStorage.markAgentError(
+                        context = context,
+                        reportId = reportId,
+                        agentId = agentId,
+                        httpStatus = null,
+                        errorMessage = "Stopped by user"
+                    )
+                }
+
                 agentId to AiAnalysisResponse(
                     service = agent?.provider ?: com.ai.data.AiService.DUMMY,
                     analysis = "Not ready",
@@ -262,7 +354,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             genericAiReportsProgress = 0,
             genericAiReportsTotal = 0,
             genericAiReportsSelectedAgents = emptySet(),
-            genericAiReportsAgentResults = emptyMap()
+            genericAiReportsAgentResults = emptyMap(),
+            currentReportId = null
         )
     }
 
