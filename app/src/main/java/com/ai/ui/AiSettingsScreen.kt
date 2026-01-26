@@ -464,8 +464,8 @@ fun AiSetupScreen(
             onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
         )
 
-        // AI Costs card
-        val manualPricingCount = remember {
+        // AI Costs card - use aiSettings as key to refresh after import
+        val manualPricingCount = remember(aiSettings) {
             com.ai.data.PricingCache.getAllManualPricing(context).size
         }
         AiSetupNavigationCard(
