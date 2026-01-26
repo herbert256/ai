@@ -1,6 +1,8 @@
 package com.ai.ui
 
+import android.app.Activity
 import android.content.Intent
+import android.view.WindowManager
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -823,7 +825,7 @@ private fun AiHistoryReportRow(
                 )
             }
 
-            // Action buttons (shown when clicked) - same as Report Ready page
+            // Action buttons (shown when clicked) - same as Reports Ready page
             if (showActions) {
                 Row(
                     modifier = Modifier
@@ -2494,6 +2496,17 @@ fun AiReportsScreen(
 
     val context = LocalContext.current
 
+    // Keep screen on while generating reports
+    val activity = context as? Activity
+    DisposableEffect(isGenerating, isComplete) {
+        if (isGenerating && !isComplete) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     // Viewer state
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
@@ -2607,8 +2620,8 @@ fun AiReportsScreen(
     ) {
         AiTitleBar(
             title = when {
-                isComplete -> "Report Ready"
-                isGenerating -> "Generating Report"
+                isComplete -> "Reports Ready"
+                isGenerating -> "Generating Reports"
                 isSwarmMode -> "Select Swarm(s)"
                 else -> "Select Agent(s)"
             },
@@ -2944,10 +2957,12 @@ fun AiReportsScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().weight(1f)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Table header
@@ -3114,8 +3129,6 @@ fun AiReportsScreen(
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.weight(1f))
 
             // STOP button while generating
             if (isGenerating && !isComplete) {

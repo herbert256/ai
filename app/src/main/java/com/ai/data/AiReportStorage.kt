@@ -37,7 +37,8 @@ enum class ReportStatus {
     PENDING,    // Waiting to start
     RUNNING,    // API request in progress
     SUCCESS,    // Completed successfully
-    ERROR       // Failed with error
+    ERROR,      // Failed with error
+    STOPPED     // Stopped by user
 }
 
 /**
@@ -149,7 +150,7 @@ object AiReportStorage {
             if (relatedQuestions != null) agent.relatedQuestions = relatedQuestions
 
             // Check if all agents are done
-            if (report.agents.all { it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR }) {
+            if (report.agents.all { it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR || it.reportStatus == ReportStatus.STOPPED }) {
                 report.completedAt = System.currentTimeMillis()
             }
 
@@ -231,6 +232,23 @@ object AiReportStorage {
             errorMessage = errorMessage,
             responseHeaders = responseHeaders,
             responseBody = responseBody
+        )
+    }
+
+    /**
+     * Mark an agent as stopped by user
+     */
+    fun markAgentStopped(
+        context: Context,
+        reportId: String,
+        agentId: String
+    ) {
+        updateAgentStatus(
+            context = context,
+            reportId = reportId,
+            agentId = agentId,
+            status = ReportStatus.STOPPED,
+            errorMessage = "Stopped by user"
         )
     }
 

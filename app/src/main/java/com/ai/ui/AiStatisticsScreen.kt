@@ -459,7 +459,7 @@ fun AiCostsScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Group stats by provider, sorted by provider name
+                // Group stats by provider, sorted by total cost descending
                 val groupedByProvider = statsWithCosts.groupBy { it.stat.provider }
                     .mapValues { (_, models) ->
                         ProviderCostGroup(
@@ -471,7 +471,7 @@ fun AiCostsScreen(
                         )
                     }
                     .toList()
-                    .sortedBy { it.first.displayName }
+                    .sortedByDescending { it.second.totalCost }
 
                 // Track expanded providers
                 var expandedProviders by remember { mutableStateOf(setOf<com.ai.data.AiService>()) }

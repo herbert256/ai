@@ -245,8 +245,101 @@ fun AiSetupScreen(
         uri?.let {
             val result = importAiConfigFromFile(context, it, aiSettings)
             if (result != null) {
-                onSave(result.aiSettings)
+                val importedSettings = result.aiSettings
+                onSave(importedSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+
+                // Automatically refresh model lists and generate default agents after import
+                if (importedSettings.hasAnyApiKey()) {
+                    scope.launch {
+                        // 1. Refresh model lists
+                        isRefreshing = true
+                        onRefreshAllModels(importedSettings)
+                        isRefreshing = false
+
+                        // 2. Generate default agents
+                        isGenerating = true
+                        val results = mutableListOf<Pair<String, Boolean>>()
+
+                        val providersToTest = AiService.entries.filter { provider ->
+                            val apiKey = importedSettings.getApiKey(provider)
+                            apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
+                        }
+
+                        var updatedAgents = importedSettings.agents.toMutableList()
+
+                        for (provider in providersToTest) {
+                            val apiKey = importedSettings.getApiKey(provider)
+                            val model = provider.defaultModel
+
+                            val testResult = onTestApiKey(provider, apiKey, model)
+                            val isWorking = testResult == null
+
+                            if (isWorking) {
+                                val existingAgentIndex = updatedAgents.indexOfFirst {
+                                    it.name == provider.displayName
+                                }
+
+                                if (existingAgentIndex >= 0) {
+                                    val existingAgent = updatedAgents[existingAgentIndex]
+                                    updatedAgents[existingAgentIndex] = existingAgent.copy(
+                                        model = model,
+                                        apiKey = apiKey,
+                                        provider = provider
+                                    )
+                                } else {
+                                    val newAgent = AiAgent(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = provider.displayName,
+                                        provider = provider,
+                                        model = model,
+                                        apiKey = apiKey,
+                                        parameters = AiAgentParameters()
+                                    )
+                                    updatedAgents.add(newAgent)
+                                }
+                            }
+
+                            results.add(provider.displayName to isWorking)
+                        }
+
+                        val successCount = results.count { it.second }
+                        if (successCount > 0) {
+                            val defaultAgentIds = updatedAgents
+                                .filter { agent ->
+                                    AiService.entries.any { it.displayName == agent.name }
+                                }
+                                .map { it.id }
+
+                            val updatedSwarms = importedSettings.swarms.toMutableList()
+                            val existingSwarmIndex = updatedSwarms.indexOfFirst {
+                                it.name == "default agents"
+                            }
+
+                            if (existingSwarmIndex >= 0) {
+                                updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
+                                    agentIds = defaultAgentIds
+                                )
+                            } else {
+                                val newSwarm = AiSwarm(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = "default agents",
+                                    agentIds = defaultAgentIds
+                                )
+                                updatedSwarms.add(newSwarm)
+                            }
+
+                            onSave(importedSettings.copy(
+                                agents = updatedAgents,
+                                swarms = updatedSwarms
+                            ))
+                        }
+
+                        generationResults = results
+                        isGenerating = false
+                        showGenerationResultsDialog = true
+                    }
+                }
             }
         }
     }
@@ -436,12 +529,14 @@ fun AiSetupScreen(
         )
 
         // AI Agents card
+        val hasApiKey = aiSettings.hasAnyApiKey()
         AiSetupNavigationCard(
             title = "AI Agents",
             description = "Configure agents with provider, model, and API key",
             icon = "🤖",
             count = "$configuredAgents configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }
+            onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) },
+            enabled = hasApiKey
         )
 
         // AI Swarms card
@@ -451,7 +546,8 @@ fun AiSetupScreen(
             description = "Group agents into swarms for report generation",
             icon = "🐝",
             count = "$configuredSwarms configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }
+            onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) },
+            enabled = hasApiKey
         )
 
         // AI Prompts card
@@ -461,7 +557,8 @@ fun AiSetupScreen(
             description = "Internal prompts for AI-powered features",
             icon = "📝",
             count = "$configuredPrompts configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
+            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) },
+            enabled = hasApiKey
         )
 
         // AI Costs card - use aiSettings as key to refresh after import
@@ -473,7 +570,8 @@ fun AiSetupScreen(
             description = "Configure manual price overrides per model",
             icon = "💰",
             count = "$manualPricingCount configured",
-            onClick = onNavigateToCostConfig
+            onClick = onNavigateToCostConfig,
+            enabled = hasApiKey
         )
 
         // Refresh model lists button - only show when at least one provider has an API key
@@ -676,15 +774,16 @@ private fun AiSetupNavigationCard(
     description: String,
     icon: String,
     count: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (enabled) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF1A1A1A)
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
     ) {
         Row(
             modifier = Modifier
@@ -695,19 +794,20 @@ private fun AiSetupNavigationCard(
         ) {
             Text(
                 text = icon,
-                style = MaterialTheme.typography.headlineMedium
+                style = MaterialTheme.typography.headlineMedium,
+                color = if (enabled) Color.Unspecified else Color(0xFF555555)
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White
+                    color = if (enabled) Color.White else Color(0xFF555555)
                 )
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
+                    color = if (enabled) Color(0xFFAAAAAA) else Color(0xFF444444)
                 )
             }
             Column(
@@ -716,12 +816,12 @@ private fun AiSetupNavigationCard(
                 Text(
                     text = count,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF00E676)
+                    color = if (enabled) Color(0xFF00E676) else Color(0xFF444444)
                 )
                 Text(
                     text = ">",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF888888)
+                    color = if (enabled) Color(0xFF888888) else Color(0xFF333333)
                 )
             }
         }

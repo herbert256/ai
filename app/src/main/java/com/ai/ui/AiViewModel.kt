@@ -324,14 +324,12 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 val agent = currentState.aiSettings.getAgentById(agentId)
 
-                // Mark as error in storage if we have a reportId
+                // Mark as stopped in storage if we have a reportId
                 if (reportId != null) {
-                    AiReportStorage.markAgentError(
+                    AiReportStorage.markAgentStopped(
                         context = context,
                         reportId = reportId,
-                        agentId = agentId,
-                        httpStatus = null,
-                        errorMessage = "Stopped by user"
+                        agentId = agentId
                     )
                 }
 
