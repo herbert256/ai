@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.AiService
 import java.util.UUID
 
 /**
@@ -21,6 +22,7 @@ import java.util.UUID
 @Composable
 fun AiSwarmsScreen(
     aiSettings: AiSettings,
+    developerMode: Boolean,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -73,9 +75,13 @@ fun AiSwarmsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
+                    // Filter DUMMY agents when not in developer mode
+                    val swarmAgents = aiSettings.getAgentsForSwarm(swarm).filter { agent ->
+                        developerMode || agent.provider != AiService.DUMMY
+                    }
                     SwarmListItem(
                         swarm = swarm,
-                        agents = aiSettings.getAgentsForSwarm(swarm),
+                        agents = swarmAgents,
                         onClick = { onEditSwarm(swarm.id) },
                         onDelete = { showDeleteDialog = swarm }
                     )
@@ -167,6 +173,7 @@ private fun SwarmListItem(
 fun SwarmEditScreen(
     swarm: AiSwarm?,
     aiSettings: AiSettings,
+    developerMode: Boolean,
     existingNames: Set<String>,
     onSave: (AiSwarm) -> Unit,
     onBack: () -> Unit,
@@ -179,8 +186,10 @@ fun SwarmEditScreen(
     var nameError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Get all configured agents
-    val configuredAgents = aiSettings.getConfiguredAgents()
+    // Get all configured agents (filter DUMMY when not in developer mode)
+    val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
+        developerMode || agent.provider != AiService.DUMMY
+    }
 
     // Filter agents based on search query
     val filteredAgents = if (searchQuery.isBlank()) {

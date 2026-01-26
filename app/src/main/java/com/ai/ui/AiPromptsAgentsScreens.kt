@@ -183,8 +183,13 @@ fun AiAgentsScreen(
                     Text("+ Add Agent")
                 }
 
-                // Agent list
-                if (aiSettings.agents.isEmpty()) {
+                // Agent list - filter out DUMMY agents when not in developer mode
+                val visibleAgents = if (developerMode) {
+                    aiSettings.agents
+                } else {
+                    aiSettings.agents.filter { it.provider != AiService.DUMMY }
+                }
+                if (visibleAgents.isEmpty()) {
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -208,12 +213,6 @@ fun AiAgentsScreen(
                         }
                     }
                 } else {
-                    // Filter out DUMMY agents when not in developer mode
-                    val visibleAgents = if (developerMode) {
-                        aiSettings.agents
-                    } else {
-                        aiSettings.agents.filter { it.provider != AiService.DUMMY }
-                    }
                     visibleAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
                         AgentListItem(
                             agent = agent,

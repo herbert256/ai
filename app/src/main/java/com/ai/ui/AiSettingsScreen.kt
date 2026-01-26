@@ -292,7 +292,7 @@ fun AiSetupScreen(
             if (aiSettings.openRouterModelSource == ModelSource.MANUAL && aiSettings.openRouterApiKey.isNotBlank()) {
                 add("OpenRouter" to aiSettings.openRouterManualModels.size)
             }
-            if (aiSettings.dummyModelSource == ModelSource.MANUAL && aiSettings.dummyApiKey.isNotBlank()) {
+            if (developerMode && aiSettings.dummyModelSource == ModelSource.MANUAL && aiSettings.dummyApiKey.isNotBlank()) {
                 add("Dummy" to aiSettings.dummyManualModels.size)
             }
         }
@@ -419,15 +419,18 @@ fun AiSetupScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Summary info
-        val configuredAgents = aiSettings.agents.count { it.apiKey.isNotBlank() }
+        // Summary info (exclude DUMMY agents when not in developer mode)
+        val configuredAgents = aiSettings.agents.count { agent ->
+            agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+        }
 
-        // AI Providers card
+        // AI Providers card (exclude DUMMY when not in developer mode)
+        val providerCount = if (developerMode) AiService.entries.size else AiService.entries.size - 1
         AiSetupNavigationCard(
             title = "AI Providers",
             description = "Configure model sources for each AI service",
             icon = "⚙",
-            count = "${AiService.entries.size} providers",
+            count = "$providerCount providers",
             onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) }
         )
 
@@ -608,8 +611,10 @@ fun AiSetupScreen(
                 aiSettings.openRouterApiKey.isNotBlank() ||
                 aiSettings.siliconFlowApiKey.isNotBlank() ||
                 aiSettings.zaiApiKey.isNotBlank()
+        // Filter DUMMY agents when not in developer mode for export availability check
+        val visibleAgentsForExport = if (developerMode) aiSettings.agents else aiSettings.agents.filter { it.provider != AiService.DUMMY }
         val canExport = hasApiKeyForExport &&
-                aiSettings.agents.isNotEmpty() &&
+                visibleAgentsForExport.isNotEmpty() &&
                 aiSettings.swarms.isNotEmpty()
 
         if (canExport) {

@@ -59,8 +59,11 @@ fun AiHubScreen(
             uiState.aiSettings.togetherApiKey.isNotBlank() ||
             uiState.aiSettings.openRouterApiKey.isNotBlank()
 
-    // Check if any agents are defined
-    val hasAnyAgent = uiState.aiSettings.agents.isNotEmpty()
+    // Check if any agents are defined (excluding DUMMY agents when not in developer mode)
+    val hasAnyAgent = uiState.aiSettings.agents.any { agent ->
+        if (uiState.generalSettings.developerMode) true
+        else agent.provider != com.ai.data.AiService.DUMMY
+    }
 
     // Check if setup is complete (no warnings)
     val isSetupComplete = hasAnyApiKey &&
@@ -128,8 +131,8 @@ fun AiHubScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-            } else if (uiState.aiSettings.agents.isEmpty()) {
-                // Warning if no agents configured (only show if API keys exist)
+            } else if (!hasAnyAgent) {
+                // Warning if no agents configured (only show if API keys exist, excludes DUMMY when not in dev mode)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(

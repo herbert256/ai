@@ -437,6 +437,7 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_SWARMS -> AiSwarmsScreen(
             aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
@@ -449,6 +450,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_ADD_SWARM -> SwarmEditScreen(
             swarm = null,
             aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
             existingNames = aiSettings.swarms.map { it.name }.toSet(),
             onSave = { newSwarm ->
                 val newSwarms = aiSettings.swarms + newSwarm
@@ -463,6 +465,7 @@ fun SettingsScreen(
             SwarmEditScreen(
                 swarm = swarm,
                 aiSettings = aiSettings,
+                developerMode = generalSettings.developerMode,
                 existingNames = aiSettings.swarms.filter { it.id != editingSwarmId }.map { it.name }.toSet(),
                 onSave = { updatedSwarm ->
                     val newSwarms = aiSettings.swarms.map { if (it.id == updatedSwarm.id) updatedSwarm else it }
