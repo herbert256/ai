@@ -542,8 +542,69 @@ fun AiProvidersScreen(
     developerMode: Boolean,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
-    onNavigate: (SettingsSubScreen) -> Unit
+    onNavigate: (SettingsSubScreen) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
+    onSaveAiSettings: (AiSettings) -> Unit = {}
 ) {
+    val scope = rememberCoroutineScope()
+    var isGenerating by remember { mutableStateOf(false) }
+    var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
+    var showResultsDialog by remember { mutableStateOf(false) }
+
+    // Results dialog
+    if (showResultsDialog && generationResults != null) {
+        AlertDialog(
+            onDismissRequest = { showResultsDialog = false },
+            title = { Text("Default Agents Generated") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    val successful = generationResults!!.filter { it.second }
+                    val failed = generationResults!!.filter { !it.second }
+
+                    if (successful.isNotEmpty()) {
+                        Text(
+                            "Created/Updated:",
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        successful.forEach { (name, _) ->
+                            Text("  • $name", color = Color.White)
+                        }
+                    }
+
+                    if (failed.isNotEmpty()) {
+                        if (successful.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                        Text(
+                            "Failed (invalid API key):",
+                            color = Color(0xFFFF6B6B),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        failed.forEach { (name, _) ->
+                            Text("  • $name", color = Color(0xFFAAAAAA))
+                        }
+                    }
+
+                    if (successful.isEmpty() && failed.isEmpty()) {
+                        Text(
+                            "No providers with API keys configured.",
+                            color = Color(0xFFAAAAAA)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showResultsDialog = false }) {
+                    Text("OK")
+                }
+            },
+            containerColor = Color(0xFF2A2A2A)
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -654,6 +715,92 @@ fun AiProvidersScreen(
             )
         }
 
+        // Generate default agents button - only show when at least one provider has an API key
+        if (aiSettings.hasAnyApiKey()) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        isGenerating = true
+                        val results = mutableListOf<Pair<String, Boolean>>()
+
+                        // Get all providers with configured API keys (excluding DUMMY unless in developer mode)
+                        val providersToTest = AiService.entries.filter { provider ->
+                            val apiKey = aiSettings.getApiKey(provider)
+                            apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
+                        }
+
+                        // Test each provider's API key and create/update agents
+                        var updatedAgents = aiSettings.agents.toMutableList()
+
+                        for (provider in providersToTest) {
+                            val apiKey = aiSettings.getApiKey(provider)
+                            val model = provider.defaultModel
+
+                            // Test the API key
+                            val testResult = onTestApiKey(provider, apiKey, model)
+                            val isWorking = testResult == null  // null means success
+
+                            if (isWorking) {
+                                // Check if agent with this provider name already exists
+                                val existingAgentIndex = updatedAgents.indexOfFirst {
+                                    it.name == provider.displayName
+                                }
+
+                                if (existingAgentIndex >= 0) {
+                                    // Update existing agent
+                                    val existingAgent = updatedAgents[existingAgentIndex]
+                                    updatedAgents[existingAgentIndex] = existingAgent.copy(
+                                        model = model,
+                                        apiKey = apiKey,
+                                        provider = provider
+                                    )
+                                } else {
+                                    // Create new agent
+                                    val newAgent = AiAgent(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = provider.displayName,
+                                        provider = provider,
+                                        model = model,
+                                        apiKey = apiKey,
+                                        parameters = AiAgentParameters()
+                                    )
+                                    updatedAgents.add(newAgent)
+                                }
+                            }
+
+                            results.add(provider.displayName to isWorking)
+                        }
+
+                        // Save updated settings if any agents were created/updated
+                        val successCount = results.count { it.second }
+                        if (successCount > 0) {
+                            onSaveAiSettings(aiSettings.copy(agents = updatedAgents))
+                        }
+
+                        generationResults = results
+                        isGenerating = false
+                        showResultsDialog = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isGenerating,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+            ) {
+                if (isGenerating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Testing API keys...")
+                } else {
+                    Text("Generate default agents")
+                }
+            }
+        }
     }
 }
 

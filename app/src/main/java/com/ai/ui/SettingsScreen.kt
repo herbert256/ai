@@ -337,7 +337,9 @@ fun SettingsScreen(
             developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
-            onNavigate = { currentSubScreen = it }
+            onNavigate = { currentSubScreen = it },
+            onTestApiKey = onTestAiModel,
+            onSaveAiSettings = onSaveAi
         )
         SettingsSubScreen.AI_AGENTS -> AiAgentsScreen(
             aiSettings = aiSettings,
