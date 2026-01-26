@@ -24,7 +24,7 @@ import com.ai.data.ChatHistoryManager
 
 /**
  * AI hub screen - the home page of the app.
- * Shows links to New AI Report, AI History, and AI Statistics.
+ * Shows links to AI Reports, AI Statistics, AI Chat, and AI Models.
  * Also has navigation icons for Settings, Trace, and Help.
  */
 @Composable
@@ -32,8 +32,7 @@ fun AiHubScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToTrace: () -> Unit,
     onNavigateToHelp: () -> Unit,
-    onNavigateToHistory: () -> Unit,
-    onNavigateToNewReport: () -> Unit,
+    onNavigateToReportsHub: () -> Unit,
     onNavigateToStatistics: () -> Unit,
     onNavigateToNewChat: () -> Unit,
     onNavigateToChatHistory: () -> Unit,
@@ -78,7 +77,7 @@ fun AiHubScreen(
 
     // Count cards that will be shown
     var cardCount = 3  // AI Setup, Settings, Help (always shown)
-    if (isSetupComplete) cardCount += 4  // AI Report, AI History, AI Statistics + extra cards
+    if (isSetupComplete) cardCount += 2  // AI Reports, AI Statistics
     if (hasAnyAgent) cardCount += 2  // AI Chat, AI Models
     if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
 
@@ -183,7 +182,7 @@ fun AiHubScreen(
 
             // Cards - only show AI features when setup is complete
             if (isSetupComplete) {
-                HubCard(icon = "\uD83D\uDCDD", title = "AI Report", onClick = onNavigateToNewReport)
+                HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
                 Spacer(modifier = Modifier.height(8.dp))
             }
             // AI Chat - show when any agent is defined
@@ -234,8 +233,6 @@ fun AiHubScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
             if (isSetupComplete) {
-                HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
-                Spacer(modifier = Modifier.height(8.dp))
                 HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -847,6 +844,59 @@ private fun openHistoryFileInChromeNav(context: android.content.Context, file: j
 }
 
 /**
+ * AI Reports hub screen.
+ * Shows links to New AI Report, Prompt History, and AI History.
+ */
+@Composable
+fun AiReportsHubScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToNewReport: () -> Unit,
+    onNavigateToPromptHistory: () -> Unit,
+    onNavigateToHistory: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "AI Reports",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // New AI Report card
+        HubCard(
+            icon = "\uD83D\uDCDD",
+            title = "New AI Report",
+            onClick = onNavigateToNewReport
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Start with a previous prompt card
+        HubCard(
+            icon = "\uD83D\uDD04",
+            title = "Start with a previous prompt",
+            onClick = onNavigateToPromptHistory
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // View previous reports card
+        HubCard(
+            icon = "\uD83D\uDCDA",
+            title = "View previous reports",
+            onClick = onNavigateToHistory
+        )
+    }
+}
+
+/**
  * New AI Report screen for entering a custom prompt.
  * Used as a navigation destination.
  */
@@ -856,23 +906,26 @@ fun AiNewReportScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToAiReports: () -> Unit = {},
-    onNavigateToPromptHistory: () -> Unit = {},
     initialTitle: String = "",
-    initialPrompt: String = ""
+    initialPrompt: String = "",
+    useLastSavedValues: Boolean = true
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
-    // Load last used title and prompt from SharedPreferences
-    // Don't use remember for prefs values - read fresh each time to avoid stale data
+    // Load last used title and prompt from SharedPreferences (only if useLastSavedValues is true)
     val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    val lastTitle = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: ""
-    val lastPrompt = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: ""
+    val lastTitle = if (useLastSavedValues) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" else ""
+    val lastPrompt = if (useLastSavedValues) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" else ""
 
-    // Use initialTitle/initialPrompt if provided (from external app or prompt history), otherwise use last saved values
-    // Key on initial values so state resets when navigating with new parameters
-    var title by remember(initialTitle, initialPrompt) { mutableStateOf(initialTitle.ifEmpty { lastTitle }) }
-    var prompt by remember(initialTitle, initialPrompt) { mutableStateOf(initialPrompt.ifEmpty { lastPrompt }) }
+    // Use initialTitle/initialPrompt if provided (from prompt history or external app),
+    // otherwise use last saved values (if enabled), otherwise start empty
+    var title by remember(initialTitle, initialPrompt, useLastSavedValues) {
+        mutableStateOf(initialTitle.ifEmpty { lastTitle })
+    }
+    var prompt by remember(initialTitle, initialPrompt, useLastSavedValues) {
+        mutableStateOf(initialPrompt.ifEmpty { lastPrompt })
+    }
 
     // Navigate to AI Reports screen when agent selection is triggered
     LaunchedEffect(uiState.showGenericAiAgentSelection) {
@@ -963,16 +1016,6 @@ fun AiNewReportScreen(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Select previous prompt button
-        OutlinedButton(
-            onClick = onNavigateToPromptHistory,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Select previous prompt")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Clear button
         OutlinedButton(

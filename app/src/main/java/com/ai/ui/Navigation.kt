@@ -22,6 +22,7 @@ object NavRoutes {
     const val TRACE_LIST = "trace_list"
     const val TRACE_DETAIL = "trace_detail/{filename}"
     const val AI_HISTORY = "ai_history"
+    const val AI_REPORTS_HUB = "ai_reports_hub"
     const val AI_NEW_REPORT = "ai_new_report"
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
@@ -102,8 +103,7 @@ fun AiNavHost(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
-                onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
-                onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
+                onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
@@ -163,13 +163,23 @@ fun AiNavHost(
             )
         }
 
+        composable(NavRoutes.AI_REPORTS_HUB) {
+            AiReportsHubScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
+                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
+                onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) }
+            )
+        }
+
         composable(NavRoutes.AI_NEW_REPORT) {
             AiNewReportScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
-                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) }
+                useLastSavedValues = false  // Start with empty fields from hub
             )
         }
 
@@ -183,9 +193,9 @@ fun AiNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
-                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
                 initialTitle = title,
-                initialPrompt = prompt
+                initialPrompt = prompt,
+                useLastSavedValues = false  // Use provided params, not last saved
             )
         }
 
