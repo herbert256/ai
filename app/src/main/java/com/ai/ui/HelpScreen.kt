@@ -97,7 +97,7 @@ fun HelpScreen(
                     "Chat features:\n" +
                     "• System prompt for AI behavior instructions\n" +
                     "• Temperature, max tokens, and other parameters\n" +
-                    "• Web search (Grok) and citations (Perplexity)\n" +
+                    "• Web search (xAI) and citations (Perplexity)\n" +
                     "• Auto-saved conversations\n" +
                     "• Continue previous chats from Chat History"
             )
@@ -151,10 +151,10 @@ fun HelpScreen(
                 title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
                 content = "13 AI services supported:\n\n" +
-                    "• ChatGPT (OpenAI) - GPT-4o, GPT-5.x, o3, o4\n" +
-                    "• Claude (Anthropic) - Claude 4, Claude 3.5\n" +
-                    "• Gemini (Google) - Gemini 2.0 Flash\n" +
-                    "• Grok (xAI) - With optional web search\n" +
+                    "• OpenAI - GPT-4o, GPT-5.x, o3, o4\n" +
+                    "• Anthropic - Claude 4, Claude 3.5\n" +
+                    "• Google - Gemini 2.0 Flash\n" +
+                    "• xAI - Grok with optional web search\n" +
                     "• Groq - Ultra-fast inference\n" +
                     "• DeepSeek - Reasoning with think sections\n" +
                     "• Mistral - European AI\n" +
@@ -214,8 +214,8 @@ fun HelpScreen(
                     "• Frequency/Presence Penalty - Reduce repetition\n" +
                     "• Seed - Reproducible outputs\n\n" +
                     "Provider-specific:\n" +
-                    "• ChatGPT: JSON response format\n" +
-                    "• Grok: Web search toggle\n" +
+                    "• OpenAI: JSON response format\n" +
+                    "• xAI: Web search toggle\n" +
                     "• Perplexity: Citations, search recency\n\n" +
                     "Leave empty to use provider defaults."
             )
@@ -246,7 +246,7 @@ fun HelpScreen(
                     "• Agent buttons - Toggle visibility\n" +
                     "• Markdown rendering - Formatted responses\n" +
                     "• Think sections - Expandable AI reasoning\n" +
-                    "• Citations - Source URLs (Perplexity/Grok)\n" +
+                    "• Citations - Source URLs (Perplexity/xAI)\n" +
                     "• Token usage - In developer mode\n\n" +
                     "Actions:\n" +
                     "• View in Chrome - Interactive HTML\n" +

@@ -438,39 +438,39 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun refreshAllModelLists(settings: AiSettings): Map<String, Int> {
         val results = mutableMapOf<String, Int>()
 
-        // ChatGPT
+        // OpenAI
         if (settings.chatGptModelSource == ModelSource.API && settings.chatGptApiKey.isNotBlank()) {
             try {
                 val models = aiAnalysisRepository.fetchChatGptModels(settings.chatGptApiKey)
                 _uiState.value = _uiState.value.copy(availableChatGptModels = models)
                 settingsPrefs.saveChatGptApiModels(models)
-                results["ChatGPT"] = models.size
+                results["OpenAI"] = models.size
             } catch (e: Exception) {
-                results["ChatGPT"] = -1  // -1 indicates error
+                results["OpenAI"] = -1  // -1 indicates error
             }
         }
 
-        // Gemini
+        // Google
         if (settings.geminiModelSource == ModelSource.API && settings.geminiApiKey.isNotBlank()) {
             try {
                 val models = aiAnalysisRepository.fetchGeminiModels(settings.geminiApiKey)
                 _uiState.value = _uiState.value.copy(availableGeminiModels = models)
                 settingsPrefs.saveGeminiApiModels(models)
-                results["Gemini"] = models.size
+                results["Google"] = models.size
             } catch (e: Exception) {
-                results["Gemini"] = -1
+                results["Google"] = -1
             }
         }
 
-        // Grok
+        // xAI
         if (settings.grokModelSource == ModelSource.API && settings.grokApiKey.isNotBlank()) {
             try {
                 val models = aiAnalysisRepository.fetchGrokModels(settings.grokApiKey)
                 _uiState.value = _uiState.value.copy(availableGrokModels = models)
                 settingsPrefs.saveGrokApiModels(models)
-                results["Grok"] = models.size
+                results["xAI"] = models.size
             } catch (e: Exception) {
-                results["Grok"] = -1
+                results["xAI"] = -1
             }
         }
 

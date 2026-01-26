@@ -1,11 +1,11 @@
 # AI - Multi-Provider AI Report Generator & Chat
 
-An Android app that generates AI-powered reports and enables conversations using 13 different AI services. Compare responses from ChatGPT, Claude, Gemini, and 10 other AI providers, chat with any model, and explore models across all providers.
+An Android app that generates AI-powered reports and enables conversations using 13 different AI services. Compare responses from OpenAI, Anthropic, Google, and 10 other AI providers, chat with any model, and explore models across all providers.
 
 ## Features
 
 ### Core Features
-- **13 AI Services**: ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, plus DUMMY for testing
+- **13 AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, plus DUMMY for testing
 - **AI Chat**: Multi-turn conversations with any AI model, auto-saved history
 - **Multi-Agent Reports**: Query multiple AI providers in parallel, compare responses side-by-side
 - **AI Swarms**: Group agents together for quick selection during report generation
@@ -29,7 +29,7 @@ An Android app that generates AI-powered reports and enables conversations using
 - **HTML Reports**: View in browser or share via email
 - **Markdown Rendering**: AI responses rendered with formatting
 - **Collapsible Think Sections**: AI reasoning hidden behind expandable buttons
-- **Citations & Sources**: Perplexity citations, Grok/Perplexity search results displayed
+- **Citations & Sources**: Perplexity citations, xAI/Perplexity search results displayed
 - **Configuration Export**: Backup/restore your agents, swarms, and Hugging Face API key as JSON (v7 format)
 
 ### Developer Features
@@ -66,7 +66,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 1. Open app → Settings (gear icon) → AI Setup
 2. Tap "AI Providers"
-3. Select a provider (e.g., ChatGPT)
+3. Select a provider (e.g., OpenAI)
 4. Enter your API key
 5. Save
 
@@ -76,7 +76,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 2. Tap "+ Add Agent"
 3. Enter:
    - **Name**: e.g., "My GPT-4"
-   - **Provider**: Select ChatGPT
+   - **Provider**: Select OpenAI
    - **Model**: Select gpt-4o-mini
    - **API Key**: Your OpenAI API key
 4. Optionally expand "Advanced Parameters" to configure:
@@ -116,10 +116,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 | Service | Website | Get API Key |
 |---------|---------|-------------|
-| **ChatGPT** | OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) |
-| **Claude** | Anthropic | [console.anthropic.com](https://console.anthropic.com/) |
-| **Gemini** | Google | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
-| **Grok** | xAI | [console.x.ai](https://console.x.ai/) |
+| **OpenAI** | OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) |
+| **Anthropic** | Anthropic | [console.anthropic.com](https://console.anthropic.com/) |
+| **Google** | Google | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| **xAI** | xAI | [console.x.ai](https://console.x.ai/) |
 | **Groq** | Groq | [console.groq.com](https://console.groq.com/) |
 | **DeepSeek** | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com/) |
 | **Mistral** | Mistral AI | [console.mistral.ai](https://console.mistral.ai/) |
@@ -133,10 +133,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 | Service | Default Model |
 |---------|---------------|
-| ChatGPT | gpt-4o-mini |
-| Claude | claude-sonnet-4-20250514 |
-| Gemini | gemini-2.0-flash |
-| Grok | grok-3-mini |
+| OpenAI | gpt-4o-mini |
+| Anthropic | claude-sonnet-4-20250514 |
+| Google | gemini-2.0-flash |
+| xAI | grok-3-mini |
 | Groq | llama-3.3-70b-versatile |
 | DeepSeek | deepseek-chat |
 | Mistral | mistral-small-latest |
@@ -150,10 +150,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 | Service | Special Features |
 |---------|-----------------|
-| **ChatGPT** | JSON response format, Responses API for GPT-5.x/o3/o4 |
-| **Claude** | Top-K parameter, content blocks |
-| **Gemini** | System instruction, generation config |
-| **Grok** | Web search toggle, returns search results |
+| **OpenAI** | JSON response format, Responses API for GPT-5.x/o3/o4 |
+| **Anthropic** | Top-K parameter, content blocks |
+| **Google** | System instruction, generation config |
+| **xAI** | Web search toggle, returns search results |
 | **Perplexity** | Citations, search results, related questions, recency filter |
 | **DeepSeek** | Reasoning content support (think sections) |
 | **SiliconFlow** | OpenAI-compatible, Chinese AI models |
@@ -168,14 +168,14 @@ Each agent can be configured with advanced parameters (availability varies by pr
 | **Temperature** | Randomness (0.0-2.0). Lower = focused, higher = creative | All |
 | **Max Tokens** | Maximum response length | All |
 | **Top P** | Nucleus sampling threshold (0.0-1.0) | All |
-| **Top K** | Limits vocabulary choices per token | Claude, Gemini, Together, OpenRouter, SiliconFlow, Z.AI |
-| **Frequency Penalty** | Reduces repetition of frequent tokens (-2.0 to 2.0) | ChatGPT, Grok, Groq, DeepSeek, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI |
-| **Presence Penalty** | Encourages discussing new topics (-2.0 to 2.0) | ChatGPT, Grok, Groq, DeepSeek, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI |
+| **Top K** | Limits vocabulary choices per token | Anthropic, Google, Together, OpenRouter, SiliconFlow, Z.AI |
+| **Frequency Penalty** | Reduces repetition of frequent tokens (-2.0 to 2.0) | OpenAI, xAI, Groq, DeepSeek, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI |
+| **Presence Penalty** | Encourages discussing new topics (-2.0 to 2.0) | OpenAI, xAI, Groq, DeepSeek, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI |
 | **System Prompt** | Instructions for AI behavior | All |
 | **Stop Sequences** | Strings that stop generation | Most |
-| **Seed** | For reproducible outputs | ChatGPT, Groq, Mistral, OpenRouter |
-| **JSON Format** | Force JSON response | ChatGPT |
-| **Web Search** | Enable web search | Grok |
+| **Seed** | For reproducible outputs | OpenAI, Groq, Mistral, OpenRouter |
+| **JSON Format** | Force JSON response | OpenAI |
+| **Web Search** | Enable web search | xAI |
 | **Return Citations** | Include source URLs | Perplexity |
 | **Search Recency** | Filter by time (day/week/month/year) | Perplexity |
 

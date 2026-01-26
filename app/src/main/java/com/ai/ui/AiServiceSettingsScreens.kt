@@ -40,7 +40,7 @@ fun ChatGptSettingsScreen(
             manualModels != aiSettings.chatGptManualModels
 
     AiServiceSettingsScreenTemplate(
-        title = "ChatGPT",
+        title = "OpenAI",
         subtitle = "OpenAI",
         accentColor = Color(0xFF10A37F),
         onBackToAiSettings = onBackToAiSettings,
@@ -56,14 +56,14 @@ fun ChatGptSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        onTestApiKey = { onTestApiKey(AiService.CHATGPT, apiKey, defaultModel) },
+        onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
-            onTestApiKey = { onTestApiKey(AiService.CHATGPT, apiKey, defaultModel) }
+            onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) }
         )
         DefaultModelInputSection(
             defaultModel = defaultModel,
@@ -104,7 +104,7 @@ fun ClaudeSettingsScreen(
             manualModels != aiSettings.claudeManualModels
 
     AiServiceSettingsScreenTemplate(
-        title = "Claude",
+        title = "Anthropic",
         subtitle = "Anthropic",
         accentColor = Color(0xFFD97706),
         onBackToAiSettings = onBackToAiSettings,
@@ -120,14 +120,14 @@ fun ClaudeSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        onTestApiKey = { onTestApiKey(AiService.CLAUDE, apiKey, defaultModel) },
+        onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
-            onTestApiKey = { onTestApiKey(AiService.CLAUDE, apiKey, defaultModel) }
+            onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) }
         )
         DefaultModelInputSection(
             defaultModel = defaultModel,
@@ -171,7 +171,7 @@ fun GeminiSettingsScreen(
             manualModels != aiSettings.geminiManualModels
 
     AiServiceSettingsScreenTemplate(
-        title = "Gemini",
+        title = "Google",
         subtitle = "Google",
         accentColor = Color(0xFF4285F4),
         onBackToAiSettings = onBackToAiSettings,
@@ -187,14 +187,14 @@ fun GeminiSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        onTestApiKey = { onTestApiKey(AiService.GEMINI, apiKey, defaultModel) },
+        onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
-            onTestApiKey = { onTestApiKey(AiService.GEMINI, apiKey, defaultModel) }
+            onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) }
         )
         DefaultModelInputSection(
             defaultModel = defaultModel,
@@ -238,7 +238,7 @@ fun GrokSettingsScreen(
             manualModels != aiSettings.grokManualModels
 
     AiServiceSettingsScreenTemplate(
-        title = "Grok",
+        title = "xAI",
         subtitle = "xAI",
         accentColor = Color(0xFFFFFFFF),
         onBackToAiSettings = onBackToAiSettings,
@@ -254,14 +254,14 @@ fun GrokSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        onTestApiKey = { onTestApiKey(AiService.GROK, apiKey, defaultModel) },
+        onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
-            onTestApiKey = { onTestApiKey(AiService.GROK, apiKey, defaultModel) }
+            onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) }
         )
         DefaultModelInputSection(
             defaultModel = defaultModel,

@@ -33,7 +33,7 @@ enum class AiParameter {
  * Parameters supported by each AI provider.
  */
 val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
-    AiService.CHATGPT to setOf(
+    AiService.OPENAI to setOf(
         AiParameter.TEMPERATURE,
         AiParameter.MAX_TOKENS,
         AiParameter.TOP_P,
@@ -44,7 +44,7 @@ val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
         AiParameter.SEED,
         AiParameter.RESPONSE_FORMAT
     ),
-    AiService.CLAUDE to setOf(
+    AiService.ANTHROPIC to setOf(
         AiParameter.TEMPERATURE,
         AiParameter.MAX_TOKENS,
         AiParameter.TOP_P,
@@ -52,7 +52,7 @@ val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
         AiParameter.SYSTEM_PROMPT,
         AiParameter.STOP_SEQUENCES
     ),
-    AiService.GEMINI to setOf(
+    AiService.GOOGLE to setOf(
         AiParameter.TEMPERATURE,
         AiParameter.MAX_TOKENS,
         AiParameter.TOP_P,
@@ -60,7 +60,7 @@ val PROVIDER_SUPPORTED_PARAMETERS: Map<AiService, Set<AiParameter>> = mapOf(
         AiParameter.SYSTEM_PROMPT,
         AiParameter.STOP_SEQUENCES
     ),
-    AiService.GROK to setOf(
+    AiService.XAI to setOf(
         AiParameter.TEMPERATURE,
         AiParameter.MAX_TOKENS,
         AiParameter.TOP_P,
@@ -309,10 +309,10 @@ data class AiSettings(
 ) {
     fun getApiKey(service: AiService): String {
         return when (service) {
-            AiService.CHATGPT -> chatGptApiKey
-            AiService.CLAUDE -> claudeApiKey
-            AiService.GEMINI -> geminiApiKey
-            AiService.GROK -> grokApiKey
+            AiService.OPENAI -> chatGptApiKey
+            AiService.ANTHROPIC -> claudeApiKey
+            AiService.GOOGLE -> geminiApiKey
+            AiService.XAI -> grokApiKey
             AiService.GROQ -> groqApiKey
             AiService.DEEPSEEK -> deepSeekApiKey
             AiService.MISTRAL -> mistralApiKey
@@ -327,10 +327,10 @@ data class AiSettings(
 
     fun getModel(service: AiService): String {
         return when (service) {
-            AiService.CHATGPT -> chatGptModel
-            AiService.CLAUDE -> claudeModel
-            AiService.GEMINI -> geminiModel
-            AiService.GROK -> grokModel
+            AiService.OPENAI -> chatGptModel
+            AiService.ANTHROPIC -> claudeModel
+            AiService.GOOGLE -> geminiModel
+            AiService.XAI -> grokModel
             AiService.GROQ -> groqModel
             AiService.DEEPSEEK -> deepSeekModel
             AiService.MISTRAL -> mistralModel
@@ -345,10 +345,10 @@ data class AiSettings(
 
     fun withModel(service: AiService, model: String): AiSettings {
         return when (service) {
-            AiService.CHATGPT -> copy(chatGptModel = model)
-            AiService.CLAUDE -> copy(claudeModel = model)
-            AiService.GEMINI -> copy(geminiModel = model)
-            AiService.GROK -> copy(grokModel = model)
+            AiService.OPENAI -> copy(chatGptModel = model)
+            AiService.ANTHROPIC -> copy(claudeModel = model)
+            AiService.GOOGLE -> copy(geminiModel = model)
+            AiService.XAI -> copy(grokModel = model)
             AiService.GROQ -> copy(groqModel = model)
             AiService.DEEPSEEK -> copy(deepSeekModel = model)
             AiService.MISTRAL -> copy(mistralModel = model)
@@ -363,10 +363,10 @@ data class AiSettings(
 
     fun getModelSource(service: AiService): ModelSource {
         return when (service) {
-            AiService.CHATGPT -> chatGptModelSource
-            AiService.CLAUDE -> claudeModelSource
-            AiService.GEMINI -> geminiModelSource
-            AiService.GROK -> grokModelSource
+            AiService.OPENAI -> chatGptModelSource
+            AiService.ANTHROPIC -> claudeModelSource
+            AiService.GOOGLE -> geminiModelSource
+            AiService.XAI -> grokModelSource
             AiService.GROQ -> groqModelSource
             AiService.DEEPSEEK -> deepSeekModelSource
             AiService.MISTRAL -> mistralModelSource
@@ -381,10 +381,10 @@ data class AiSettings(
 
     fun getManualModels(service: AiService): List<String> {
         return when (service) {
-            AiService.CHATGPT -> chatGptManualModels
-            AiService.CLAUDE -> claudeManualModels
-            AiService.GEMINI -> geminiManualModels
-            AiService.GROK -> grokManualModels
+            AiService.OPENAI -> chatGptManualModels
+            AiService.ANTHROPIC -> claudeManualModels
+            AiService.GOOGLE -> geminiManualModels
+            AiService.XAI -> grokManualModels
             AiService.GROQ -> groqManualModels
             AiService.DEEPSEEK -> deepSeekManualModels
             AiService.MISTRAL -> mistralManualModels

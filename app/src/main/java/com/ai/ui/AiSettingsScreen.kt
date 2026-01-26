@@ -77,28 +77,28 @@ fun AiSettingsScreen(
         )
 
         AiServiceNavigationCard(
-            title = "ChatGPT",
-            subtitle = "OpenAI",
+            title = "OpenAI",
+            subtitle = "GPT models",
             accentColor = Color(0xFF10A37F),
-            onClick = { onNavigate(SettingsSubScreen.AI_CHATGPT) }
+            onClick = { onNavigate(SettingsSubScreen.AI_OPENAI) }
         )
         AiServiceNavigationCard(
-            title = "Claude",
-            subtitle = "Anthropic",
+            title = "Anthropic",
+            subtitle = "Claude models",
             accentColor = Color(0xFFD97706),
-            onClick = { onNavigate(SettingsSubScreen.AI_CLAUDE) }
+            onClick = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
-            title = "Gemini",
-            subtitle = "Google",
+            title = "Google",
+            subtitle = "Gemini models",
             accentColor = Color(0xFF4285F4),
-            onClick = { onNavigate(SettingsSubScreen.AI_GEMINI) }
+            onClick = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
         )
         AiServiceNavigationCard(
-            title = "Grok",
-            subtitle = "xAI",
+            title = "xAI",
+            subtitle = "Grok models",
             accentColor = Color(0xFFFFFFFF),
-            onClick = { onNavigate(SettingsSubScreen.AI_GROK) }
+            onClick = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
             title = "Groq",
@@ -247,9 +247,9 @@ fun AiSetupScreen(
     if (showResultsDialog && refreshResults != null) {
         // Calculate manual providers with their model counts
         val manualProviders = buildList {
-            // Claude and Perplexity are always manual
+            // Anthropic and Perplexity are always manual
             if (aiSettings.claudeApiKey.isNotBlank()) {
-                add("Claude" to CLAUDE_MODELS.size)
+                add("Anthropic" to CLAUDE_MODELS.size)
             }
             if (aiSettings.perplexityApiKey.isNotBlank()) {
                 add("Perplexity" to PERPLEXITY_MODELS.size)
@@ -262,13 +262,13 @@ fun AiSetupScreen(
             }
             // Check providers that can be API or manual
             if (aiSettings.chatGptModelSource == ModelSource.MANUAL && aiSettings.chatGptApiKey.isNotBlank()) {
-                add("ChatGPT" to aiSettings.chatGptManualModels.size)
+                add("OpenAI" to aiSettings.chatGptManualModels.size)
             }
             if (aiSettings.geminiModelSource == ModelSource.MANUAL && aiSettings.geminiApiKey.isNotBlank()) {
-                add("Gemini" to aiSettings.geminiManualModels.size)
+                add("Google" to aiSettings.geminiManualModels.size)
             }
             if (aiSettings.grokModelSource == ModelSource.MANUAL && aiSettings.grokApiKey.isNotBlank()) {
-                add("Grok" to aiSettings.grokManualModels.size)
+                add("xAI" to aiSettings.grokManualModels.size)
             }
             if (aiSettings.groqModelSource == ModelSource.MANUAL && aiSettings.groqApiKey.isNotBlank()) {
                 add("Groq" to aiSettings.groqManualModels.size)
@@ -560,32 +560,32 @@ fun AiProvidersScreen(
 
         // Provider cards - navigate to individual provider screens for model config
         AiServiceNavigationCard(
-            title = "ChatGPT",
-            subtitle = "OpenAI",
+            title = "OpenAI",
+            subtitle = "GPT models",
             accentColor = Color(0xFF10A37F),
             hasApiKey = aiSettings.chatGptApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_CHATGPT) }
+            onClick = { onNavigate(SettingsSubScreen.AI_OPENAI) }
         )
         AiServiceNavigationCard(
-            title = "Claude",
-            subtitle = "Anthropic",
+            title = "Anthropic",
+            subtitle = "Claude models",
             accentColor = Color(0xFFD97706),
             hasApiKey = aiSettings.claudeApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_CLAUDE) }
+            onClick = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
-            title = "Gemini",
-            subtitle = "Google",
+            title = "Google",
+            subtitle = "Gemini models",
             accentColor = Color(0xFF4285F4),
             hasApiKey = aiSettings.geminiApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_GEMINI) }
+            onClick = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
         )
         AiServiceNavigationCard(
-            title = "Grok",
-            subtitle = "xAI",
+            title = "xAI",
+            subtitle = "Grok models",
             accentColor = Color(0xFFFFFFFF),
             hasApiKey = aiSettings.grokApiKey.isNotBlank(),
-            onClick = { onNavigate(SettingsSubScreen.AI_GROK) }
+            onClick = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
             title = "Groq",
@@ -710,9 +710,9 @@ fun ModelSearchScreen(
     // Helper to fetch models for a provider (used by manual refresh button)
     val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
         when (provider) {
-            AiService.CHATGPT -> onFetchChatGptModels(apiKey)
-            AiService.GEMINI -> onFetchGeminiModels(apiKey)
-            AiService.GROK -> onFetchGrokModels(apiKey)
+            AiService.OPENAI -> onFetchChatGptModels(apiKey)
+            AiService.GOOGLE -> onFetchGeminiModels(apiKey)
+            AiService.XAI -> onFetchGrokModels(apiKey)
             AiService.GROQ -> onFetchGroqModels(apiKey)
             AiService.DEEPSEEK -> onFetchDeepSeekModels(apiKey)
             AiService.MISTRAL -> onFetchMistralModels(apiKey)
@@ -720,7 +720,7 @@ fun ModelSearchScreen(
             AiService.TOGETHER -> onFetchTogetherModels(apiKey)
             AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
-            AiService.CLAUDE -> {} // Claude has hardcoded models
+            AiService.ANTHROPIC -> {} // Claude has hardcoded models
             AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
             AiService.ZAI -> {} // Z.AI has hardcoded models
         }
@@ -872,14 +872,14 @@ fun ModelSearchScreen(
         availableDummyModels, aiSettings
     ) {
         buildList {
-            // ChatGPT models
-            availableChatGptModels.forEach { add(ModelSearchItem(AiService.CHATGPT, "ChatGPT", it, Color(0xFF10A37F))) }
-            // Claude models (hardcoded)
-            aiSettings.claudeManualModels.forEach { add(ModelSearchItem(AiService.CLAUDE, "Claude", it, Color(0xFFD97706))) }
-            // Gemini models
-            availableGeminiModels.forEach { add(ModelSearchItem(AiService.GEMINI, "Gemini", it, Color(0xFF4285F4))) }
-            // Grok models
-            availableGrokModels.forEach { add(ModelSearchItem(AiService.GROK, "Grok", it, Color(0xFFFFFFFF))) }
+            // OpenAI models
+            availableChatGptModels.forEach { add(ModelSearchItem(AiService.OPENAI, "OpenAI", it, Color(0xFF10A37F))) }
+            // Anthropic models (hardcoded)
+            aiSettings.claudeManualModels.forEach { add(ModelSearchItem(AiService.ANTHROPIC, "Anthropic", it, Color(0xFFD97706))) }
+            // Google models
+            availableGeminiModels.forEach { add(ModelSearchItem(AiService.GOOGLE, "Google", it, Color(0xFF4285F4))) }
+            // xAI models
+            availableGrokModels.forEach { add(ModelSearchItem(AiService.XAI, "xAI", it, Color(0xFFFFFFFF))) }
             // Groq models
             availableGroqModels.forEach { add(ModelSearchItem(AiService.GROQ, "Groq", it, Color(0xFFF55036))) }
             // DeepSeek models
@@ -995,10 +995,10 @@ fun ModelSearchScreen(
  */
 private fun providerFromName(name: String): AiService {
     return when (name) {
-        "ChatGPT" -> AiService.CHATGPT
-        "Claude" -> AiService.CLAUDE
-        "Gemini" -> AiService.GEMINI
-        "Grok" -> AiService.GROK
+        "OpenAI" -> AiService.OPENAI
+        "Anthropic" -> AiService.ANTHROPIC
+        "Google" -> AiService.GOOGLE
+        "xAI" -> AiService.XAI
         "Groq" -> AiService.GROQ
         "DeepSeek" -> AiService.DEEPSEEK
         "Mistral" -> AiService.MISTRAL
@@ -1008,7 +1008,7 @@ private fun providerFromName(name: String): AiService {
         "SiliconFlow" -> AiService.SILICONFLOW
         "Z.AI" -> AiService.ZAI
         "Dummy" -> AiService.DUMMY
-        else -> AiService.CHATGPT
+        else -> AiService.OPENAI
     }
 }
 

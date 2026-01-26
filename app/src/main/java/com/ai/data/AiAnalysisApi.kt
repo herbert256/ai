@@ -17,10 +17,10 @@ import java.util.concurrent.TimeUnit
  * Enum representing the supported AI services for chess position analysis.
  */
 enum class AiService(val displayName: String, val baseUrl: String) {
-    CHATGPT("ChatGPT", "https://api.openai.com/"),
-    CLAUDE("Claude", "https://api.anthropic.com/"),
-    GEMINI("Gemini", "https://generativelanguage.googleapis.com/"),
-    GROK("Grok", "https://api.x.ai/"),
+    OPENAI("OpenAI", "https://api.openai.com/"),
+    ANTHROPIC("Anthropic", "https://api.anthropic.com/"),
+    GOOGLE("Google", "https://generativelanguage.googleapis.com/"),
+    XAI("xAI", "https://api.x.ai/"),
     GROQ("Groq", "https://api.groq.com/openai/"),
     DEEPSEEK("DeepSeek", "https://api.deepseek.com/"),
     MISTRAL("Mistral", "https://api.mistral.ai/"),
@@ -32,7 +32,7 @@ enum class AiService(val displayName: String, val baseUrl: String) {
     DUMMY("Dummy", "http://localhost:54321/")
 }
 
-// OpenAI / ChatGPT models
+// OpenAI models
 data class OpenAiMessage(
     val role: String,
     val content: String?,
@@ -129,7 +129,7 @@ data class OpenAiResponsesError(
     val code: String?
 )
 
-// Anthropic / Claude models
+// Anthropic models
 data class ClaudeMessage(
     val role: String,
     val content: String
@@ -168,7 +168,7 @@ data class ClaudeError(
     val message: String?
 )
 
-// Google / Gemini models
+// Google Gemini models
 data class GeminiPart(
     val text: String
 )
@@ -214,7 +214,7 @@ data class GeminiError(
     val status: String?
 )
 
-// xAI / Grok models (uses OpenAI-compatible format)
+// xAI Grok models (uses OpenAI-compatible format)
 data class GrokRequest(
     val model: String = "grok-3-mini",
     val messages: List<OpenAiMessage>,
@@ -317,7 +317,7 @@ data class GroqRequest(
 )
 
 /**
- * Retrofit interface for OpenAI / ChatGPT API.
+ * Retrofit interface for OpenAI API.
  * Uses Chat Completions API for older models (gpt-4o, etc.)
  * and Responses API for newer models (gpt-5.x, etc.)
  */
@@ -341,7 +341,7 @@ interface OpenAiApi {
 }
 
 /**
- * Retrofit interface for Anthropic / Claude API.
+ * Retrofit interface for Anthropic API.
  */
 interface ClaudeApi {
     @POST("v1/messages")
@@ -364,7 +364,7 @@ data class GeminiModel(
 )
 
 /**
- * Retrofit interface for Google / Gemini API.
+ * Retrofit interface for Google Gemini API.
  */
 interface GeminiApi {
     @POST("v1beta/models/{model}:generateContent")
@@ -391,7 +391,7 @@ data class OpenAiModel(
 )
 
 /**
- * Retrofit interface for xAI / Grok API (OpenAI-compatible).
+ * Retrofit interface for xAI Grok API (OpenAI-compatible).
  */
 interface GrokApi {
     @POST("v1/chat/completions")
@@ -551,19 +551,19 @@ object AiApiFactory {
     }
 
     fun createOpenAiApi(): OpenAiApi {
-        return getRetrofit(AiService.CHATGPT.baseUrl).create(OpenAiApi::class.java)
+        return getRetrofit(AiService.OPENAI.baseUrl).create(OpenAiApi::class.java)
     }
 
     fun createClaudeApi(): ClaudeApi {
-        return getRetrofit(AiService.CLAUDE.baseUrl).create(ClaudeApi::class.java)
+        return getRetrofit(AiService.ANTHROPIC.baseUrl).create(ClaudeApi::class.java)
     }
 
     fun createGeminiApi(): GeminiApi {
-        return getRetrofit(AiService.GEMINI.baseUrl).create(GeminiApi::class.java)
+        return getRetrofit(AiService.GOOGLE.baseUrl).create(GeminiApi::class.java)
     }
 
     fun createGrokApi(): GrokApi {
-        return getRetrofit(AiService.GROK.baseUrl).create(GrokApi::class.java)
+        return getRetrofit(AiService.XAI.baseUrl).create(GrokApi::class.java)
     }
 
     fun createGroqApi(): GroqApi {

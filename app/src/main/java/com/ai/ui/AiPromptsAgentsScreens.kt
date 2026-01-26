@@ -57,9 +57,9 @@ fun AiAgentsScreen(
     // Helper to fetch models for a provider
     val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
         when (provider) {
-            AiService.CHATGPT -> onFetchChatGptModels(apiKey)
-            AiService.GEMINI -> onFetchGeminiModels(apiKey)
-            AiService.GROK -> onFetchGrokModels(apiKey)
+            AiService.OPENAI -> onFetchChatGptModels(apiKey)
+            AiService.GOOGLE -> onFetchGeminiModels(apiKey)
+            AiService.XAI -> onFetchGrokModels(apiKey)
             AiService.GROQ -> onFetchGroqModels(apiKey)
             AiService.DEEPSEEK -> onFetchDeepSeekModels(apiKey)
             AiService.MISTRAL -> onFetchMistralModels(apiKey)
@@ -67,7 +67,7 @@ fun AiAgentsScreen(
             AiService.TOGETHER -> onFetchTogetherModels(apiKey)
             AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
-            AiService.CLAUDE -> {} // Claude has hardcoded models
+            AiService.ANTHROPIC -> {} // Claude has hardcoded models
             AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
             AiService.ZAI -> {} // Z.AI has hardcoded models
         }
@@ -372,7 +372,7 @@ internal fun AgentEditScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // State - default to first available provider when creating new agent, or prefill values
-    val defaultProvider = agent?.provider ?: prefillProvider ?: availableProviders.firstOrNull() ?: AiService.CHATGPT
+    val defaultProvider = agent?.provider ?: prefillProvider ?: availableProviders.firstOrNull() ?: AiService.OPENAI
     var name by remember { mutableStateOf(agent?.name ?: prefillName) }
     var selectedProvider by remember { mutableStateOf(defaultProvider) }
     var model by remember { mutableStateOf(agent?.model ?: prefillModel.ifBlank { getDefaultModelForProvider(defaultProvider) }) }
@@ -406,18 +406,18 @@ internal fun AgentEditScreen(
 
     // Get models for selected provider
     val modelsForProvider = when (selectedProvider) {
-        AiService.CHATGPT -> {
+        AiService.OPENAI -> {
             val apiModels = if (aiSettings.chatGptModelSource == ModelSource.API) availableChatGptModels else emptyList()
             val manualModels = if (aiSettings.chatGptModelSource == ModelSource.MANUAL) aiSettings.chatGptManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { listOf(model) }
         }
-        AiService.CLAUDE -> aiSettings.claudeManualModels.ifEmpty { CLAUDE_MODELS }
-        AiService.GEMINI -> {
+        AiService.ANTHROPIC -> aiSettings.claudeManualModels.ifEmpty { CLAUDE_MODELS }
+        AiService.GOOGLE -> {
             val apiModels = if (aiSettings.geminiModelSource == ModelSource.API) availableGeminiModels else emptyList()
             val manualModels = if (aiSettings.geminiModelSource == ModelSource.MANUAL) aiSettings.geminiManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { listOf(model) }
         }
-        AiService.GROK -> {
+        AiService.XAI -> {
             val apiModels = if (aiSettings.grokModelSource == ModelSource.API) availableGrokModels else emptyList()
             val manualModels = if (aiSettings.grokModelSource == ModelSource.MANUAL) aiSettings.grokManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { listOf(model) }
@@ -470,9 +470,9 @@ internal fun AgentEditScreen(
     // Helper to check if provider uses API model source
     fun getModelSourceForProvider(provider: AiService): ModelSource {
         return when (provider) {
-            AiService.CHATGPT -> aiSettings.chatGptModelSource
-            AiService.GEMINI -> aiSettings.geminiModelSource
-            AiService.GROK -> aiSettings.grokModelSource
+            AiService.OPENAI -> aiSettings.chatGptModelSource
+            AiService.GOOGLE -> aiSettings.geminiModelSource
+            AiService.XAI -> aiSettings.grokModelSource
             AiService.GROQ -> aiSettings.groqModelSource
             AiService.DEEPSEEK -> aiSettings.deepSeekModelSource
             AiService.MISTRAL -> aiSettings.mistralModelSource
@@ -480,7 +480,7 @@ internal fun AgentEditScreen(
             AiService.TOGETHER -> aiSettings.togetherModelSource
             AiService.OPENROUTER -> aiSettings.openRouterModelSource
             AiService.DUMMY -> aiSettings.dummyModelSource
-            AiService.CLAUDE -> ModelSource.MANUAL // Claude has hardcoded models
+            AiService.ANTHROPIC -> ModelSource.MANUAL // Claude has hardcoded models
             AiService.SILICONFLOW -> ModelSource.MANUAL // SiliconFlow has hardcoded models
             AiService.ZAI -> ModelSource.MANUAL // Z.AI has hardcoded models
         }
@@ -999,10 +999,10 @@ internal fun AgentEditScreen(
  */
 fun getDefaultModelForProvider(provider: AiService): String {
     return when (provider) {
-        AiService.CHATGPT -> "gpt-4o-mini"
-        AiService.CLAUDE -> "claude-sonnet-4-20250514"
-        AiService.GEMINI -> "gemini-2.0-flash"
-        AiService.GROK -> "grok-3-mini"
+        AiService.OPENAI -> "gpt-4o-mini"
+        AiService.ANTHROPIC -> "claude-sonnet-4-20250514"
+        AiService.GOOGLE -> "gemini-2.0-flash"
+        AiService.XAI -> "grok-3-mini"
         AiService.GROQ -> "llama-3.3-70b-versatile"
         AiService.DEEPSEEK -> "deepseek-chat"
         AiService.MISTRAL -> "mistral-small-latest"

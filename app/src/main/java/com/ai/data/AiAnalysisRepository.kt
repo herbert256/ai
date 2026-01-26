@@ -167,10 +167,10 @@ class AiAnalysisRepository {
 
         suspend fun makeApiCall(): AiAnalysisResponse {
             return when (service) {
-                AiService.CHATGPT -> analyzeWithChatGpt(apiKey, finalPrompt, chatGptModel)
-                AiService.CLAUDE -> analyzeWithClaude(apiKey, finalPrompt, claudeModel)
-                AiService.GEMINI -> analyzeWithGemini(apiKey, finalPrompt, geminiModel)
-                AiService.GROK -> analyzeWithGrok(apiKey, finalPrompt, grokModel)
+                AiService.OPENAI -> analyzeWithChatGpt(apiKey, finalPrompt, chatGptModel)
+                AiService.ANTHROPIC -> analyzeWithClaude(apiKey, finalPrompt, claudeModel)
+                AiService.GOOGLE -> analyzeWithGemini(apiKey, finalPrompt, geminiModel)
+                AiService.XAI -> analyzeWithGrok(apiKey, finalPrompt, grokModel)
                 AiService.GROQ -> analyzeWithGroq(apiKey, finalPrompt, groqModel)
                 AiService.DEEPSEEK -> analyzeWithDeepSeek(apiKey, finalPrompt, deepSeekModel)
                 AiService.MISTRAL -> analyzeWithMistral(apiKey, finalPrompt, mistralModel)
@@ -253,10 +253,10 @@ class AiAnalysisRepository {
 
         suspend fun makeApiCall(): AiAnalysisResponse {
             return when (service) {
-                AiService.CHATGPT -> analyzeWithChatGpt(apiKey, finalPrompt, chatGptModel)
-                AiService.CLAUDE -> analyzeWithClaude(apiKey, finalPrompt, claudeModel)
-                AiService.GEMINI -> analyzeWithGemini(apiKey, finalPrompt, geminiModel)
-                AiService.GROK -> analyzeWithGrok(apiKey, finalPrompt, grokModel)
+                AiService.OPENAI -> analyzeWithChatGpt(apiKey, finalPrompt, chatGptModel)
+                AiService.ANTHROPIC -> analyzeWithClaude(apiKey, finalPrompt, claudeModel)
+                AiService.GOOGLE -> analyzeWithGemini(apiKey, finalPrompt, geminiModel)
+                AiService.XAI -> analyzeWithGrok(apiKey, finalPrompt, grokModel)
                 AiService.GROQ -> analyzeWithGroq(apiKey, finalPrompt, groqModel)
                 AiService.DEEPSEEK -> analyzeWithDeepSeek(apiKey, finalPrompt, deepSeekModel)
                 AiService.MISTRAL -> analyzeWithMistral(apiKey, finalPrompt, mistralModel)
@@ -318,10 +318,10 @@ class AiAnalysisRepository {
         suspend fun makeApiCall(): AiAnalysisResponse {
             val params = agent.parameters
             val result = when (agent.provider) {
-                AiService.CHATGPT -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.CLAUDE -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.GEMINI -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.GROK -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.OPENAI -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.ANTHROPIC -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GOOGLE -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.XAI -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.GROQ -> analyzeWithGroq(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DEEPSEEK -> analyzeWithDeepSeek(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.MISTRAL -> analyzeWithMistral(agent.apiKey, finalPrompt, agent.model, params)
@@ -383,10 +383,10 @@ class AiAnalysisRepository {
         suspend fun makeApiCall(): AiAnalysisResponse {
             val params = agent.parameters
             val result = when (agent.provider) {
-                AiService.CHATGPT -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.CLAUDE -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.GEMINI -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.GROK -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.OPENAI -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.ANTHROPIC -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.GOOGLE -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.XAI -> analyzeWithGrok(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.GROQ -> analyzeWithGroq(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DEEPSEEK -> analyzeWithDeepSeek(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.MISTRAL -> analyzeWithMistral(agent.apiKey, finalPrompt, agent.model, params)
@@ -486,13 +486,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.CHATGPT, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.CHATGPT, null, errorMsg, httpHeaders = headers)
+                AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers)
             }
         } else {
-            AiAnalysisResponse(AiService.CHATGPT, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
         }
     }
 
@@ -525,13 +525,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.CHATGPT, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.CHATGPT, null, errorMsg, httpHeaders = headers)
+                AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers)
             }
         } else {
-            AiAnalysisResponse(AiService.CHATGPT, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
         }
     }
 
@@ -560,13 +560,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.CLAUDE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.ANTHROPIC, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.CLAUDE, null, errorMsg, httpHeaders = headers)
+                AiAnalysisResponse(AiService.ANTHROPIC, null, errorMsg, httpHeaders = headers)
             }
         } else {
-            AiAnalysisResponse(AiService.CLAUDE, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.ANTHROPIC, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
         }
     }
 
@@ -612,15 +612,15 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.GEMINI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.GOOGLE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.GEMINI, null, errorMsg, httpHeaders = headers)
+                AiAnalysisResponse(AiService.GOOGLE, null, errorMsg, httpHeaders = headers)
             }
         } else {
             val errorBody = response.errorBody()?.string()
             android.util.Log.e("GeminiAPI", "Error body: $errorBody")
-            AiAnalysisResponse(AiService.GEMINI, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers)
+            AiAnalysisResponse(AiService.GOOGLE, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers)
         }
     }
 
@@ -664,13 +664,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.GROK, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.XAI, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.GROK, null, errorMsg, httpHeaders = headers)
+                AiAnalysisResponse(AiService.XAI, null, errorMsg, httpHeaders = headers)
             }
         } else {
-            AiAnalysisResponse(AiService.GROK, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.XAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
         }
     }
 
@@ -1172,10 +1172,10 @@ class AiAnalysisRepository {
     ): String? = withContext(Dispatchers.IO) {
         try {
             val response = when (service) {
-                AiService.CHATGPT -> analyzeWithChatGpt(apiKey, TEST_PROMPT, model)
-                AiService.CLAUDE -> analyzeWithClaude(apiKey, TEST_PROMPT, model)
-                AiService.GEMINI -> analyzeWithGemini(apiKey, TEST_PROMPT, model)
-                AiService.GROK -> analyzeWithGrok(apiKey, TEST_PROMPT, model)
+                AiService.OPENAI -> analyzeWithChatGpt(apiKey, TEST_PROMPT, model)
+                AiService.ANTHROPIC -> analyzeWithClaude(apiKey, TEST_PROMPT, model)
+                AiService.GOOGLE -> analyzeWithGemini(apiKey, TEST_PROMPT, model)
+                AiService.XAI -> analyzeWithGrok(apiKey, TEST_PROMPT, model)
                 AiService.GROQ -> analyzeWithGroq(apiKey, TEST_PROMPT, model)
                 AiService.DEEPSEEK -> analyzeWithDeepSeek(apiKey, TEST_PROMPT, model)
                 AiService.MISTRAL -> analyzeWithMistral(apiKey, TEST_PROMPT, model)
@@ -1411,10 +1411,10 @@ class AiAnalysisRepository {
         params: com.ai.ui.ChatParameters
     ): String = withContext(Dispatchers.IO) {
         when (service) {
-            AiService.CHATGPT -> sendChatMessageChatGpt(apiKey, model, messages, params)
-            AiService.CLAUDE -> sendChatMessageClaude(apiKey, model, messages, params)
-            AiService.GEMINI -> sendChatMessageGemini(apiKey, model, messages, params)
-            AiService.GROK -> sendChatMessageGrok(apiKey, model, messages, params)
+            AiService.OPENAI -> sendChatMessageChatGpt(apiKey, model, messages, params)
+            AiService.ANTHROPIC -> sendChatMessageClaude(apiKey, model, messages, params)
+            AiService.GOOGLE -> sendChatMessageGemini(apiKey, model, messages, params)
+            AiService.XAI -> sendChatMessageGrok(apiKey, model, messages, params)
             AiService.GROQ -> sendChatMessageGroq(apiKey, model, messages, params)
             AiService.DEEPSEEK -> sendChatMessageDeepSeek(apiKey, model, messages, params)
             AiService.MISTRAL -> sendChatMessageMistral(apiKey, model, messages, params)

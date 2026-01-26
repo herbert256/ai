@@ -55,7 +55,7 @@ data class AgentParametersExport(
 data class AgentExport(
     val id: String,
     val name: String,
-    val provider: String,  // Provider enum name (CHATGPT, CLAUDE, etc.)
+    val provider: String,  // Provider enum name (OPENAI, ANTHROPIC, GOOGLE, XAI, etc.)
     val model: String,
     val apiKey: String,
     // Parameters (version 5+)
@@ -114,10 +114,10 @@ data class AiConfigImportResult(
 fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "") {
     // Build providers map (model source, manual models, and API key per provider)
     val providers = mapOf(
-        "CHATGPT" to ProviderConfigExport(aiSettings.chatGptModelSource.name, aiSettings.chatGptManualModels, aiSettings.chatGptApiKey),
-        "CLAUDE" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.claudeManualModels, aiSettings.claudeApiKey),
-        "GEMINI" to ProviderConfigExport(aiSettings.geminiModelSource.name, aiSettings.geminiManualModels, aiSettings.geminiApiKey),
-        "GROK" to ProviderConfigExport(aiSettings.grokModelSource.name, aiSettings.grokManualModels, aiSettings.grokApiKey),
+        "OPENAI" to ProviderConfigExport(aiSettings.chatGptModelSource.name, aiSettings.chatGptManualModels, aiSettings.chatGptApiKey),
+        "ANTHROPIC" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.claudeManualModels, aiSettings.claudeApiKey),
+        "GOOGLE" to ProviderConfigExport(aiSettings.geminiModelSource.name, aiSettings.geminiManualModels, aiSettings.geminiApiKey),
+        "XAI" to ProviderConfigExport(aiSettings.grokModelSource.name, aiSettings.grokManualModels, aiSettings.grokApiKey),
         "GROQ" to ProviderConfigExport(aiSettings.groqModelSource.name, aiSettings.groqManualModels, aiSettings.groqApiKey),
         "DEEPSEEK" to ProviderConfigExport(aiSettings.deepSeekModelSource.name, aiSettings.deepSeekManualModels, aiSettings.deepSeekApiKey),
         "MISTRAL" to ProviderConfigExport(aiSettings.mistralModelSource.name, aiSettings.mistralManualModels, aiSettings.mistralApiKey),
@@ -215,16 +215,16 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
     val keys = mutableListOf<ApiKeyEntry>()
 
     if (aiSettings.chatGptApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("ChatGPT", aiSettings.chatGptApiKey))
+        keys.add(ApiKeyEntry("OpenAI", aiSettings.chatGptApiKey))
     }
     if (aiSettings.claudeApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Claude", aiSettings.claudeApiKey))
+        keys.add(ApiKeyEntry("Anthropic", aiSettings.claudeApiKey))
     }
     if (aiSettings.geminiApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Gemini", aiSettings.geminiApiKey))
+        keys.add(ApiKeyEntry("Google", aiSettings.geminiApiKey))
     }
     if (aiSettings.grokApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Grok", aiSettings.grokApiKey))
+        keys.add(ApiKeyEntry("xAI", aiSettings.grokApiKey))
     }
     if (aiSettings.groqApiKey.isNotBlank()) {
         keys.add(ApiKeyEntry("Groq", aiSettings.groqApiKey))
@@ -341,27 +341,27 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         )
 
         // Update provider model sources, manual models, and API keys
-        export.providers["CHATGPT"]?.let { p ->
+        export.providers["OPENAI"]?.let { p ->
             settings = settings.copy(
                 chatGptModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 chatGptManualModels = p.manualModels,
                 chatGptApiKey = p.apiKey
             )
         }
-        export.providers["CLAUDE"]?.let { p ->
+        export.providers["ANTHROPIC"]?.let { p ->
             settings = settings.copy(
                 claudeManualModels = p.manualModels,
                 claudeApiKey = p.apiKey
             )
         }
-        export.providers["GEMINI"]?.let { p ->
+        export.providers["GOOGLE"]?.let { p ->
             settings = settings.copy(
                 geminiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 geminiManualModels = p.manualModels,
                 geminiApiKey = p.apiKey
             )
         }
-        export.providers["GROK"]?.let { p ->
+        export.providers["XAI"]?.let { p ->
             settings = settings.copy(
                 grokModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 grokManualModels = p.manualModels,
@@ -522,27 +522,27 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         )
 
         // Update provider model sources, manual models, and API keys
-        export.providers["CHATGPT"]?.let { p ->
+        export.providers["OPENAI"]?.let { p ->
             settings = settings.copy(
                 chatGptModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 chatGptManualModels = p.manualModels,
                 chatGptApiKey = p.apiKey
             )
         }
-        export.providers["CLAUDE"]?.let { p ->
+        export.providers["ANTHROPIC"]?.let { p ->
             settings = settings.copy(
                 claudeManualModels = p.manualModels,
                 claudeApiKey = p.apiKey
             )
         }
-        export.providers["GEMINI"]?.let { p ->
+        export.providers["GOOGLE"]?.let { p ->
             settings = settings.copy(
                 geminiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 geminiManualModels = p.manualModels,
                 geminiApiKey = p.apiKey
             )
         }
-        export.providers["GROK"]?.let { p ->
+        export.providers["XAI"]?.let { p ->
             settings = settings.copy(
                 grokModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 grokManualModels = p.manualModels,

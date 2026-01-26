@@ -305,9 +305,9 @@ fun AiNavHost(
 
             if (provider != null) {
                 val availableModels = when (provider) {
-                    com.ai.data.AiService.CHATGPT -> uiState.availableChatGptModels
-                    com.ai.data.AiService.GEMINI -> uiState.availableGeminiModels
-                    com.ai.data.AiService.GROK -> uiState.availableGrokModels
+                    com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
+                    com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
+                    com.ai.data.AiService.XAI -> uiState.availableGrokModels
                     com.ai.data.AiService.GROQ -> uiState.availableGroqModels
                     com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
                     com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
@@ -317,9 +317,9 @@ fun AiNavHost(
                     else -> emptyList()
                 }
                 val isLoadingModels = when (provider) {
-                    com.ai.data.AiService.CHATGPT -> uiState.isLoadingChatGptModels
-                    com.ai.data.AiService.GEMINI -> uiState.isLoadingGeminiModels
-                    com.ai.data.AiService.GROK -> uiState.isLoadingGrokModels
+                    com.ai.data.AiService.OPENAI -> uiState.isLoadingChatGptModels
+                    com.ai.data.AiService.GOOGLE -> uiState.isLoadingGeminiModels
+                    com.ai.data.AiService.XAI -> uiState.isLoadingGrokModels
                     com.ai.data.AiService.GROQ -> uiState.isLoadingGroqModels
                     com.ai.data.AiService.DEEPSEEK -> uiState.isLoadingDeepSeekModels
                     com.ai.data.AiService.MISTRAL -> uiState.isLoadingMistralModels
@@ -373,10 +373,10 @@ fun AiNavHost(
 
             if (provider != null) {
                 val apiKey = when (provider) {
-                    com.ai.data.AiService.CHATGPT -> uiState.aiSettings.chatGptApiKey
-                    com.ai.data.AiService.CLAUDE -> uiState.aiSettings.claudeApiKey
-                    com.ai.data.AiService.GEMINI -> uiState.aiSettings.geminiApiKey
-                    com.ai.data.AiService.GROK -> uiState.aiSettings.grokApiKey
+                    com.ai.data.AiService.OPENAI -> uiState.aiSettings.chatGptApiKey
+                    com.ai.data.AiService.ANTHROPIC -> uiState.aiSettings.claudeApiKey
+                    com.ai.data.AiService.GOOGLE -> uiState.aiSettings.geminiApiKey
+                    com.ai.data.AiService.XAI -> uiState.aiSettings.grokApiKey
                     com.ai.data.AiService.GROQ -> uiState.aiSettings.groqApiKey
                     com.ai.data.AiService.DEEPSEEK -> uiState.aiSettings.deepSeekApiKey
                     com.ai.data.AiService.MISTRAL -> uiState.aiSettings.mistralApiKey

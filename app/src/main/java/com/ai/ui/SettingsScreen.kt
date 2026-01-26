@@ -22,10 +22,10 @@ enum class SettingsSubScreen {
     MAIN,
     // AI settings structure
     AI_SETTINGS,
-    AI_CHATGPT,
-    AI_CLAUDE,
-    AI_GEMINI,
-    AI_GROK,
+    AI_OPENAI,
+    AI_ANTHROPIC,
+    AI_GOOGLE,
+    AI_XAI,
     AI_GROQ,
     AI_DEEPSEEK,
     AI_MISTRAL,
@@ -126,10 +126,10 @@ fun SettingsScreen(
     BackHandler {
         when (currentSubScreen) {
             SettingsSubScreen.MAIN -> onBack()
-            SettingsSubScreen.AI_CHATGPT,
-            SettingsSubScreen.AI_CLAUDE,
-            SettingsSubScreen.AI_GEMINI,
-            SettingsSubScreen.AI_GROK,
+            SettingsSubScreen.AI_OPENAI,
+            SettingsSubScreen.AI_ANTHROPIC,
+            SettingsSubScreen.AI_GOOGLE,
+            SettingsSubScreen.AI_XAI,
             SettingsSubScreen.AI_GROQ,
             SettingsSubScreen.AI_DEEPSEEK,
             SettingsSubScreen.AI_MISTRAL,
@@ -182,7 +182,7 @@ fun SettingsScreen(
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi
         )
-        SettingsSubScreen.AI_CHATGPT -> ChatGptSettingsScreen(
+        SettingsSubScreen.AI_OPENAI -> ChatGptSettingsScreen(
             aiSettings = aiSettings,
             availableModels = availableChatGptModels,
             isLoadingModels = isLoadingChatGptModels,
@@ -191,17 +191,17 @@ fun SettingsScreen(
             onSave = onSaveAi,
             onFetchModels = onFetchChatGptModels,
             onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.CHATGPT, aiSettings.chatGptApiKey, aiSettings.chatGptModel) }
+            onCreateAgent = { navigateToAddAgent(AiService.OPENAI, aiSettings.chatGptApiKey, aiSettings.chatGptModel) }
         )
-        SettingsSubScreen.AI_CLAUDE -> ClaudeSettingsScreen(
+        SettingsSubScreen.AI_ANTHROPIC -> ClaudeSettingsScreen(
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.CLAUDE, aiSettings.claudeApiKey, aiSettings.claudeModel) }
+            onCreateAgent = { navigateToAddAgent(AiService.ANTHROPIC, aiSettings.claudeApiKey, aiSettings.claudeModel) }
         )
-        SettingsSubScreen.AI_GEMINI -> GeminiSettingsScreen(
+        SettingsSubScreen.AI_GOOGLE -> GeminiSettingsScreen(
             aiSettings = aiSettings,
             availableModels = availableGeminiModels,
             isLoadingModels = isLoadingGeminiModels,
@@ -210,9 +210,9 @@ fun SettingsScreen(
             onSave = onSaveAi,
             onFetchModels = onFetchGeminiModels,
             onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.GEMINI, aiSettings.geminiApiKey, aiSettings.geminiModel) }
+            onCreateAgent = { navigateToAddAgent(AiService.GOOGLE, aiSettings.geminiApiKey, aiSettings.geminiModel) }
         )
-        SettingsSubScreen.AI_GROK -> GrokSettingsScreen(
+        SettingsSubScreen.AI_XAI -> GrokSettingsScreen(
             aiSettings = aiSettings,
             availableModels = availableGrokModels,
             isLoadingModels = isLoadingGrokModels,
@@ -221,7 +221,7 @@ fun SettingsScreen(
             onSave = onSaveAi,
             onFetchModels = onFetchGrokModels,
             onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.GROK, aiSettings.grokApiKey, aiSettings.grokModel) }
+            onCreateAgent = { navigateToAddAgent(AiService.XAI, aiSettings.grokApiKey, aiSettings.grokModel) }
         )
         SettingsSubScreen.AI_GROQ -> GroqSettingsScreen(
             aiSettings = aiSettings,
@@ -371,9 +371,9 @@ fun SettingsScreen(
             // Helper to fetch models for a provider
             val fetchModelsForProvider: (com.ai.data.AiService, String) -> Unit = { provider, apiKey ->
                 when (provider) {
-                    com.ai.data.AiService.CHATGPT -> onFetchChatGptModels(apiKey)
-                    com.ai.data.AiService.GEMINI -> onFetchGeminiModels(apiKey)
-                    com.ai.data.AiService.GROK -> onFetchGrokModels(apiKey)
+                    com.ai.data.AiService.OPENAI -> onFetchChatGptModels(apiKey)
+                    com.ai.data.AiService.GOOGLE -> onFetchGeminiModels(apiKey)
+                    com.ai.data.AiService.XAI -> onFetchGrokModels(apiKey)
                     com.ai.data.AiService.GROQ -> onFetchGroqModels(apiKey)
                     com.ai.data.AiService.DEEPSEEK -> onFetchDeepSeekModels(apiKey)
                     com.ai.data.AiService.MISTRAL -> onFetchMistralModels(apiKey)
@@ -381,7 +381,7 @@ fun SettingsScreen(
                     com.ai.data.AiService.TOGETHER -> onFetchTogetherModels(apiKey)
                     com.ai.data.AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
                     com.ai.data.AiService.DUMMY -> onFetchDummyModels(apiKey)
-                    com.ai.data.AiService.CLAUDE -> {} // Claude has hardcoded models
+                    com.ai.data.AiService.ANTHROPIC -> {} // Claude has hardcoded models
                     com.ai.data.AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
                     com.ai.data.AiService.ZAI -> {} // Z.AI has hardcoded models
                 }

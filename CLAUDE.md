@@ -31,7 +31,7 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer)"
 **AI** is an Android app for creating AI-powered reports and having conversations using 13 different AI services. Users can configure multiple AI agents with advanced parameters, organize them into swarms, submit custom prompts, generate comparative reports, search and explore models across all providers, and chat with any AI model.
 
 **Key Features:**
-- Support for 13 AI services (ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI) + DUMMY for testing
+- Support for 13 AI services (OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI) + DUMMY for testing
 - AI Chat with multi-turn conversations and auto-save
 - AI Agents with configurable parameters (temperature, max_tokens, system prompt, etc.)
 - AI Swarms for organizing agents into named groups
@@ -100,10 +100,10 @@ com.ai/
 ```kotlin
 // AI Services enum (13 services + DUMMY for testing)
 enum class AiService(val displayName: String, val baseUrl: String) {
-    CHATGPT("ChatGPT", "https://api.openai.com/"),
-    CLAUDE("Claude", "https://api.anthropic.com/"),
-    GEMINI("Gemini", "https://generativelanguage.googleapis.com/"),
-    GROK("Grok", "https://api.x.ai/"),
+    OPENAI("OpenAI", "https://api.openai.com/"),
+    ANTHROPIC("Anthropic", "https://api.anthropic.com/"),
+    GOOGLE("Google", "https://generativelanguage.googleapis.com/"),
+    XAI("xAI", "https://api.x.ai/"),
     GROQ("Groq", "https://api.groq.com/openai/"),
     DEEPSEEK("DeepSeek", "https://api.deepseek.com/"),
     MISTRAL("Mistral", "https://api.mistral.ai/"),
@@ -144,7 +144,7 @@ data class AiAgentParameters(
     val stopSequences: List<String>? = null,  // Stop generation sequences
     val seed: Int? = null,                    // For reproducibility
     val responseFormatJson: Boolean = false,  // JSON mode (OpenAI)
-    val searchEnabled: Boolean = false,       // Web search (Grok)
+    val searchEnabled: Boolean = false,       // Web search (xAI)
     val returnCitations: Boolean = true,      // Return citations (Perplexity)
     val searchRecency: String? = null         // Search recency: "day", "week", "month", "year"
 )
@@ -158,7 +158,7 @@ data class AiAnalysisResponse(
     val agentName: String?,             // Agent name (for display)
     val promptUsed: String?,            // Actual prompt sent
     val citations: List<String>?,       // URLs (Perplexity)
-    val searchResults: List<SearchResult>?,  // Search results (Grok, Perplexity)
+    val searchResults: List<SearchResult>?,  // Search results (xAI, Perplexity)
     val relatedQuestions: List<String>?,     // Follow-up questions (Perplexity)
     val rawUsageJson: String?,          // Raw usage JSON (developer mode)
     val httpHeaders: String?            // HTTP headers (developer mode)
@@ -206,10 +206,10 @@ data class GeneralSettings(
 
 | Service | Default Model | API Format | Auth Method | Model Source |
 |---------|--------------|------------|-------------|--------------|
-| ChatGPT | gpt-4o-mini | OpenAI Chat/Responses | Bearer token | API |
-| Claude | claude-sonnet-4-20250514 | Anthropic Messages | x-api-key header | Manual (8 models) |
-| Gemini | gemini-2.0-flash | Google GenerativeAI | Query parameter | API |
-| Grok | grok-3-mini | OpenAI-compatible | Bearer token | API |
+| OpenAI | gpt-4o-mini | OpenAI Chat/Responses | Bearer token | API |
+| Anthropic | claude-sonnet-4-20250514 | Anthropic Messages | x-api-key header | Manual (8 models) |
+| Google | gemini-2.0-flash | Google GenerativeAI | Query parameter | API |
+| xAI | grok-3-mini | OpenAI-compatible | Bearer token | API |
 | Groq | llama-3.3-70b-versatile | OpenAI-compatible | Bearer token | API |
 | DeepSeek | deepseek-chat | OpenAI-compatible | Bearer token | API |
 | Mistral | mistral-small-latest | OpenAI-compatible | Bearer token | API |
@@ -222,12 +222,12 @@ data class GeneralSettings(
 
 ### Service-Specific Features
 
-- **ChatGPT**: Supports Chat Completions API (gpt-4o, etc.) and Responses API (gpt-5.x, o3, o4). JSON response format option.
-- **Claude**: Hardcoded model list (8 models - no list API), Anthropic-specific format with content blocks
-- **Gemini**: Uses generationConfig object for parameters, systemInstruction for system prompt
+- **OpenAI**: Supports Chat Completions API (gpt-4o, etc.) and Responses API (gpt-5.x, o3, o4). JSON response format option.
+- **Anthropic**: Hardcoded model list (8 models - no list API), Anthropic-specific format with content blocks
+- **Google**: Uses generationConfig object for parameters, systemInstruction for system prompt
 - **DeepSeek**: Handles `reasoning_content` field for reasoning models
 - **Perplexity**: Returns `citations`, `search_results`, `related_questions`. Supports search recency filter.
-- **Grok**: Optional web search via `search` parameter. May return `search_results`.
+- **xAI**: Optional web search via `search` parameter. May return `search_results`.
 - **SiliconFlow**: Cost-effective Chinese AI provider with Qwen and DeepSeek models
 - **Z.AI**: ZhipuAI GLM models (Chinese provider)
 - **DUMMY**: Local test server on port 54321, auto-starts in developer mode

@@ -44,10 +44,10 @@ fun ChatSelectProviderScreen(
     // Get providers with API keys configured
     val configuredProviders = AiService.entries.filter { service ->
         val hasApiKey = when (service) {
-            AiService.CHATGPT -> aiSettings.chatGptApiKey.isNotBlank()
-            AiService.CLAUDE -> aiSettings.claudeApiKey.isNotBlank()
-            AiService.GEMINI -> aiSettings.geminiApiKey.isNotBlank()
-            AiService.GROK -> aiSettings.grokApiKey.isNotBlank()
+            AiService.OPENAI -> aiSettings.chatGptApiKey.isNotBlank()
+            AiService.ANTHROPIC -> aiSettings.claudeApiKey.isNotBlank()
+            AiService.GOOGLE -> aiSettings.geminiApiKey.isNotBlank()
+            AiService.XAI -> aiSettings.grokApiKey.isNotBlank()
             AiService.GROQ -> aiSettings.groqApiKey.isNotBlank()
             AiService.DEEPSEEK -> aiSettings.deepSeekApiKey.isNotBlank()
             AiService.MISTRAL -> aiSettings.mistralApiKey.isNotBlank()
@@ -141,10 +141,10 @@ fun ChatSelectModelScreen(
     // Get API key and model source for this provider
     val (apiKey, modelSource, manualModels, defaultModel) = remember(provider) {
         when (provider) {
-            AiService.CHATGPT -> Quadruple(aiSettings.chatGptApiKey, aiSettings.chatGptModelSource, aiSettings.chatGptManualModels, aiSettings.chatGptModel)
-            AiService.CLAUDE -> Quadruple(aiSettings.claudeApiKey, ModelSource.MANUAL, CLAUDE_MODELS, aiSettings.claudeModel)
-            AiService.GEMINI -> Quadruple(aiSettings.geminiApiKey, aiSettings.geminiModelSource, aiSettings.geminiManualModels, aiSettings.geminiModel)
-            AiService.GROK -> Quadruple(aiSettings.grokApiKey, aiSettings.grokModelSource, aiSettings.grokManualModels, aiSettings.grokModel)
+            AiService.OPENAI -> Quadruple(aiSettings.chatGptApiKey, aiSettings.chatGptModelSource, aiSettings.chatGptManualModels, aiSettings.chatGptModel)
+            AiService.ANTHROPIC -> Quadruple(aiSettings.claudeApiKey, ModelSource.MANUAL, CLAUDE_MODELS, aiSettings.claudeModel)
+            AiService.GOOGLE -> Quadruple(aiSettings.geminiApiKey, aiSettings.geminiModelSource, aiSettings.geminiManualModels, aiSettings.geminiModel)
+            AiService.XAI -> Quadruple(aiSettings.grokApiKey, aiSettings.grokModelSource, aiSettings.grokManualModels, aiSettings.grokModel)
             AiService.GROQ -> Quadruple(aiSettings.groqApiKey, aiSettings.groqModelSource, aiSettings.groqManualModels, aiSettings.groqModel)
             AiService.DEEPSEEK -> Quadruple(aiSettings.deepSeekApiKey, aiSettings.deepSeekModelSource, aiSettings.deepSeekManualModels, aiSettings.deepSeekModel)
             AiService.MISTRAL -> Quadruple(aiSettings.mistralApiKey, aiSettings.mistralModelSource, aiSettings.mistralManualModels, aiSettings.mistralModel)

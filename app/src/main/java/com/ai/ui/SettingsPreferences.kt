@@ -49,22 +49,22 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun loadAiSettings(): AiSettings {
         return AiSettings(
-            chatGptApiKey = prefs.getString(KEY_AI_CHATGPT_API_KEY, "") ?: "",
-            chatGptModel = prefs.getString(KEY_AI_CHATGPT_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini",
-            chatGptModelSource = loadModelSource(KEY_AI_CHATGPT_MODEL_SOURCE, ModelSource.API),
-            chatGptManualModels = loadManualModels(KEY_AI_CHATGPT_MANUAL_MODELS),
-            claudeApiKey = prefs.getString(KEY_AI_CLAUDE_API_KEY, "") ?: "",
-            claudeModel = prefs.getString(KEY_AI_CLAUDE_MODEL, "claude-sonnet-4-20250514") ?: "claude-sonnet-4-20250514",
-            claudeModelSource = loadModelSource(KEY_AI_CLAUDE_MODEL_SOURCE, ModelSource.MANUAL),
-            claudeManualModels = loadManualModelsWithDefault(KEY_AI_CLAUDE_MANUAL_MODELS, CLAUDE_MODELS),
-            geminiApiKey = prefs.getString(KEY_AI_GEMINI_API_KEY, "") ?: "",
-            geminiModel = prefs.getString(KEY_AI_GEMINI_MODEL, "gemini-2.0-flash") ?: "gemini-2.0-flash",
-            geminiModelSource = loadModelSource(KEY_AI_GEMINI_MODEL_SOURCE, ModelSource.API),
-            geminiManualModels = loadManualModels(KEY_AI_GEMINI_MANUAL_MODELS),
-            grokApiKey = prefs.getString(KEY_AI_GROK_API_KEY, "") ?: "",
-            grokModel = prefs.getString(KEY_AI_GROK_MODEL, "grok-3-mini") ?: "grok-3-mini",
-            grokModelSource = loadModelSource(KEY_AI_GROK_MODEL_SOURCE, ModelSource.API),
-            grokManualModels = loadManualModels(KEY_AI_GROK_MANUAL_MODELS),
+            chatGptApiKey = prefs.getString(KEY_AI_OPENAI_API_KEY, "") ?: "",
+            chatGptModel = prefs.getString(KEY_AI_OPENAI_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini",
+            chatGptModelSource = loadModelSource(KEY_AI_OPENAI_MODEL_SOURCE, ModelSource.API),
+            chatGptManualModels = loadManualModels(KEY_AI_OPENAI_MANUAL_MODELS),
+            claudeApiKey = prefs.getString(KEY_AI_ANTHROPIC_API_KEY, "") ?: "",
+            claudeModel = prefs.getString(KEY_AI_ANTHROPIC_MODEL, "claude-sonnet-4-20250514") ?: "claude-sonnet-4-20250514",
+            claudeModelSource = loadModelSource(KEY_AI_ANTHROPIC_MODEL_SOURCE, ModelSource.MANUAL),
+            claudeManualModels = loadManualModelsWithDefault(KEY_AI_ANTHROPIC_MANUAL_MODELS, CLAUDE_MODELS),
+            geminiApiKey = prefs.getString(KEY_AI_GOOGLE_API_KEY, "") ?: "",
+            geminiModel = prefs.getString(KEY_AI_GOOGLE_MODEL, "gemini-2.0-flash") ?: "gemini-2.0-flash",
+            geminiModelSource = loadModelSource(KEY_AI_GOOGLE_MODEL_SOURCE, ModelSource.API),
+            geminiManualModels = loadManualModels(KEY_AI_GOOGLE_MANUAL_MODELS),
+            grokApiKey = prefs.getString(KEY_AI_XAI_API_KEY, "") ?: "",
+            grokModel = prefs.getString(KEY_AI_XAI_MODEL, "grok-3-mini") ?: "grok-3-mini",
+            grokModelSource = loadModelSource(KEY_AI_XAI_MODEL_SOURCE, ModelSource.API),
+            grokManualModels = loadManualModels(KEY_AI_XAI_MANUAL_MODELS),
             groqApiKey = prefs.getString(KEY_AI_GROQ_API_KEY, "") ?: "",
             groqModel = prefs.getString(KEY_AI_GROQ_MODEL, "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile",
             groqModelSource = loadModelSource(KEY_AI_GROQ_MODEL_SOURCE, ModelSource.API),
@@ -137,22 +137,22 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun saveAiSettings(settings: AiSettings) {
         prefs.edit()
-            .putString(KEY_AI_CHATGPT_API_KEY, settings.chatGptApiKey)
-            .putString(KEY_AI_CHATGPT_MODEL, settings.chatGptModel)
-            .putString(KEY_AI_CHATGPT_MODEL_SOURCE, settings.chatGptModelSource.name)
-            .putString(KEY_AI_CHATGPT_MANUAL_MODELS, gson.toJson(settings.chatGptManualModels))
-            .putString(KEY_AI_CLAUDE_API_KEY, settings.claudeApiKey)
-            .putString(KEY_AI_CLAUDE_MODEL, settings.claudeModel)
-            .putString(KEY_AI_CLAUDE_MODEL_SOURCE, settings.claudeModelSource.name)
-            .putString(KEY_AI_CLAUDE_MANUAL_MODELS, gson.toJson(settings.claudeManualModels))
-            .putString(KEY_AI_GEMINI_API_KEY, settings.geminiApiKey)
-            .putString(KEY_AI_GEMINI_MODEL, settings.geminiModel)
-            .putString(KEY_AI_GEMINI_MODEL_SOURCE, settings.geminiModelSource.name)
-            .putString(KEY_AI_GEMINI_MANUAL_MODELS, gson.toJson(settings.geminiManualModels))
-            .putString(KEY_AI_GROK_API_KEY, settings.grokApiKey)
-            .putString(KEY_AI_GROK_MODEL, settings.grokModel)
-            .putString(KEY_AI_GROK_MODEL_SOURCE, settings.grokModelSource.name)
-            .putString(KEY_AI_GROK_MANUAL_MODELS, gson.toJson(settings.grokManualModels))
+            .putString(KEY_AI_OPENAI_API_KEY, settings.chatGptApiKey)
+            .putString(KEY_AI_OPENAI_MODEL, settings.chatGptModel)
+            .putString(KEY_AI_OPENAI_MODEL_SOURCE, settings.chatGptModelSource.name)
+            .putString(KEY_AI_OPENAI_MANUAL_MODELS, gson.toJson(settings.chatGptManualModels))
+            .putString(KEY_AI_ANTHROPIC_API_KEY, settings.claudeApiKey)
+            .putString(KEY_AI_ANTHROPIC_MODEL, settings.claudeModel)
+            .putString(KEY_AI_ANTHROPIC_MODEL_SOURCE, settings.claudeModelSource.name)
+            .putString(KEY_AI_ANTHROPIC_MANUAL_MODELS, gson.toJson(settings.claudeManualModels))
+            .putString(KEY_AI_GOOGLE_API_KEY, settings.geminiApiKey)
+            .putString(KEY_AI_GOOGLE_MODEL, settings.geminiModel)
+            .putString(KEY_AI_GOOGLE_MODEL_SOURCE, settings.geminiModelSource.name)
+            .putString(KEY_AI_GOOGLE_MANUAL_MODELS, gson.toJson(settings.geminiManualModels))
+            .putString(KEY_AI_XAI_API_KEY, settings.grokApiKey)
+            .putString(KEY_AI_XAI_MODEL, settings.grokModel)
+            .putString(KEY_AI_XAI_MODEL_SOURCE, settings.grokModelSource.name)
+            .putString(KEY_AI_XAI_MANUAL_MODELS, gson.toJson(settings.grokManualModels))
             .putString(KEY_AI_GROQ_API_KEY, settings.groqApiKey)
             .putString(KEY_AI_GROQ_MODEL, settings.groqModel)
             .putString(KEY_AI_GROQ_MODEL_SOURCE, settings.groqModelSource.name)
@@ -285,14 +285,14 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_HUGGINGFACE_API_KEY = "huggingface_api_key"
 
         // AI Analysis settings - API keys and models
-        private const val KEY_AI_CHATGPT_API_KEY = "ai_chatgpt_api_key"
-        private const val KEY_AI_CHATGPT_MODEL = "ai_chatgpt_model"
-        private const val KEY_AI_CLAUDE_API_KEY = "ai_claude_api_key"
-        private const val KEY_AI_CLAUDE_MODEL = "ai_claude_model"
-        private const val KEY_AI_GEMINI_API_KEY = "ai_gemini_api_key"
-        private const val KEY_AI_GEMINI_MODEL = "ai_gemini_model"
-        private const val KEY_AI_GROK_API_KEY = "ai_grok_api_key"
-        private const val KEY_AI_GROK_MODEL = "ai_grok_model"
+        private const val KEY_AI_OPENAI_API_KEY = "ai_openai_api_key"
+        private const val KEY_AI_OPENAI_MODEL = "ai_openai_model"
+        private const val KEY_AI_ANTHROPIC_API_KEY = "ai_anthropic_api_key"
+        private const val KEY_AI_ANTHROPIC_MODEL = "ai_anthropic_model"
+        private const val KEY_AI_GOOGLE_API_KEY = "ai_google_api_key"
+        private const val KEY_AI_GOOGLE_MODEL = "ai_google_model"
+        private const val KEY_AI_XAI_API_KEY = "ai_xai_api_key"
+        private const val KEY_AI_XAI_MODEL = "ai_xai_model"
         private const val KEY_AI_GROQ_API_KEY = "ai_groq_api_key"
         private const val KEY_AI_GROQ_MODEL = "ai_groq_model"
         private const val KEY_AI_DEEPSEEK_API_KEY = "ai_deepseek_api_key"
@@ -314,10 +314,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_DUMMY_MANUAL_MODELS = "ai_dummy_manual_models"
 
         // AI model source (API or MANUAL)
-        private const val KEY_AI_CHATGPT_MODEL_SOURCE = "ai_chatgpt_model_source"
-        private const val KEY_AI_CLAUDE_MODEL_SOURCE = "ai_claude_model_source"
-        private const val KEY_AI_GEMINI_MODEL_SOURCE = "ai_gemini_model_source"
-        private const val KEY_AI_GROK_MODEL_SOURCE = "ai_grok_model_source"
+        private const val KEY_AI_OPENAI_MODEL_SOURCE = "ai_openai_model_source"
+        private const val KEY_AI_ANTHROPIC_MODEL_SOURCE = "ai_anthropic_model_source"
+        private const val KEY_AI_GOOGLE_MODEL_SOURCE = "ai_google_model_source"
+        private const val KEY_AI_XAI_MODEL_SOURCE = "ai_xai_model_source"
         private const val KEY_AI_GROQ_MODEL_SOURCE = "ai_groq_model_source"
         private const val KEY_AI_DEEPSEEK_MODEL_SOURCE = "ai_deepseek_model_source"
         private const val KEY_AI_MISTRAL_MODEL_SOURCE = "ai_mistral_model_source"
@@ -329,10 +329,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_DUMMY_MODEL_SOURCE = "ai_dummy_model_source"
 
         // AI manual models lists
-        private const val KEY_AI_CHATGPT_MANUAL_MODELS = "ai_chatgpt_manual_models"
-        private const val KEY_AI_CLAUDE_MANUAL_MODELS = "ai_claude_manual_models"
-        private const val KEY_AI_GEMINI_MANUAL_MODELS = "ai_gemini_manual_models"
-        private const val KEY_AI_GROK_MANUAL_MODELS = "ai_grok_manual_models"
+        private const val KEY_AI_OPENAI_MANUAL_MODELS = "ai_openai_manual_models"
+        private const val KEY_AI_ANTHROPIC_MANUAL_MODELS = "ai_anthropic_manual_models"
+        private const val KEY_AI_GOOGLE_MANUAL_MODELS = "ai_google_manual_models"
+        private const val KEY_AI_XAI_MANUAL_MODELS = "ai_xai_manual_models"
         private const val KEY_AI_GROQ_MANUAL_MODELS = "ai_groq_manual_models"
         private const val KEY_AI_DEEPSEEK_MANUAL_MODELS = "ai_deepseek_manual_models"
         private const val KEY_AI_MISTRAL_MANUAL_MODELS = "ai_mistral_manual_models"
@@ -363,9 +363,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_USAGE_STATS = "ai_usage_stats"
 
         // API-fetched model lists (cached from API calls)
-        private const val KEY_API_MODELS_CHATGPT = "api_models_chatgpt"
-        private const val KEY_API_MODELS_GEMINI = "api_models_gemini"
-        private const val KEY_API_MODELS_GROK = "api_models_grok"
+        private const val KEY_API_MODELS_OPENAI = "api_models_openai"
+        private const val KEY_API_MODELS_GOOGLE = "api_models_google"
+        private const val KEY_API_MODELS_XAI = "api_models_xai"
         private const val KEY_API_MODELS_GROQ = "api_models_groq"
         private const val KEY_API_MODELS_DEEPSEEK = "api_models_deepseek"
         private const val KEY_API_MODELS_MISTRAL = "api_models_mistral"
@@ -458,14 +458,14 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         }
     }
 
-    fun loadChatGptApiModels(): List<String> = loadApiModels(KEY_API_MODELS_CHATGPT)
-    fun saveChatGptApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_CHATGPT, models)
+    fun loadChatGptApiModels(): List<String> = loadApiModels(KEY_API_MODELS_OPENAI)
+    fun saveChatGptApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_OPENAI, models)
 
-    fun loadGeminiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GEMINI)
-    fun saveGeminiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GEMINI, models)
+    fun loadGeminiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GOOGLE)
+    fun saveGeminiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GOOGLE, models)
 
-    fun loadGrokApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GROK)
-    fun saveGrokApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GROK, models)
+    fun loadGrokApiModels(): List<String> = loadApiModels(KEY_API_MODELS_XAI)
+    fun saveGrokApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_XAI, models)
 
     fun loadGroqApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GROQ)
     fun saveGroqApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GROQ, models)
