@@ -56,6 +56,7 @@ fun ChatGptSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.OPENAI.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -120,6 +121,7 @@ fun ClaudeSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.ANTHROPIC.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -187,6 +189,7 @@ fun GeminiSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.GOOGLE.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -254,6 +257,7 @@ fun GrokSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.XAI.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -321,6 +325,7 @@ fun GroqSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.GROQ.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -388,6 +393,7 @@ fun DeepSeekSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.DEEPSEEK.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -455,6 +461,7 @@ fun MistralSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.MISTRAL.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -519,6 +526,7 @@ fun PerplexitySettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.PERPLEXITY.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -586,6 +594,7 @@ fun TogetherSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.TOGETHER.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -653,6 +662,7 @@ fun OpenRouterSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.OPENROUTER.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -717,6 +727,7 @@ fun SiliconFlowSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.SILICONFLOW.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -781,6 +792,7 @@ fun ZaiSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.ZAI.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.ZAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent
@@ -848,6 +860,7 @@ fun DummySettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
+        adminUrl = AiService.DUMMY.adminUrl,
         onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent

@@ -16,20 +16,20 @@ import java.util.concurrent.TimeUnit
 /**
  * Enum representing the supported AI services for chess position analysis.
  */
-enum class AiService(val displayName: String, val baseUrl: String) {
-    OPENAI("OpenAI", "https://api.openai.com/"),
-    ANTHROPIC("Anthropic", "https://api.anthropic.com/"),
-    GOOGLE("Google", "https://generativelanguage.googleapis.com/"),
-    XAI("xAI", "https://api.x.ai/"),
-    GROQ("Groq", "https://api.groq.com/openai/"),
-    DEEPSEEK("DeepSeek", "https://api.deepseek.com/"),
-    MISTRAL("Mistral", "https://api.mistral.ai/"),
-    PERPLEXITY("Perplexity", "https://api.perplexity.ai/"),
-    TOGETHER("Together", "https://api.together.xyz/"),
-    OPENROUTER("OpenRouter", "https://openrouter.ai/api/"),
-    SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/"),
-    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/"),
-    DUMMY("Dummy", "http://localhost:54321/")
+enum class AiService(val displayName: String, val baseUrl: String, val adminUrl: String) {
+    OPENAI("OpenAI", "https://api.openai.com/", "https://platform.openai.com/settings/organization/api-keys"),
+    ANTHROPIC("Anthropic", "https://api.anthropic.com/", "https://console.anthropic.com/settings/keys"),
+    GOOGLE("Google", "https://generativelanguage.googleapis.com/", "https://aistudio.google.com/app/apikey"),
+    XAI("xAI", "https://api.x.ai/", "https://console.x.ai/"),
+    GROQ("Groq", "https://api.groq.com/openai/", "https://console.groq.com/keys"),
+    DEEPSEEK("DeepSeek", "https://api.deepseek.com/", "https://platform.deepseek.com/api_keys"),
+    MISTRAL("Mistral", "https://api.mistral.ai/", "https://console.mistral.ai/api-keys/"),
+    PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api"),
+    TOGETHER("Together", "https://api.together.xyz/", "https://api.together.xyz/settings/api-keys"),
+    OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys"),
+    SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/", "https://cloud.siliconflow.cn/account/ak"),
+    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys"),
+    DUMMY("Dummy", "http://localhost:54321/", "")
 }
 
 // OpenAI models

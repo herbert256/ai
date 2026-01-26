@@ -1,5 +1,7 @@
 package com.ai.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,9 +12,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -86,11 +90,13 @@ fun AiServiceSettingsScreenTemplate(
     hasChanges: Boolean = false,
     apiKey: String = "",
     defaultModel: String = "",
+    adminUrl: String = "",
     onTestApiKey: (suspend () -> String?)? = null,
     onClearApiKey: (() -> Unit)? = null,
     onCreateAgent: (() -> Unit)? = null,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isValidating by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
@@ -188,6 +194,30 @@ fun AiServiceSettingsScreenTemplate(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFFAAAAAA)
                 )
+            }
+
+            // Admin URL (clickable link to open in browser)
+            if (adminUrl.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Admin URL:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF888888)
+                    )
+                    Text(
+                        text = adminUrl,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF6B9BFF),
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(adminUrl))
+                            context.startActivity(intent)
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
