@@ -26,8 +26,21 @@ object NavRoutes {
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_REPORTS = "ai_reports"
     const val AI_STATISTICS = "ai_statistics"
+    const val AI_CHAT_PROVIDER = "ai_chat_provider"
+    const val AI_CHAT_MODEL = "ai_chat_model/{provider}"
+    const val AI_CHAT_PARAMS = "ai_chat_params/{provider}/{model}"
+    const val AI_CHAT_SESSION = "ai_chat_session/{provider}/{model}"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
+    fun aiChatModel(provider: String) = "ai_chat_model/$provider"
+    fun aiChatParams(provider: String, model: String): String {
+        val encodedModel = java.net.URLEncoder.encode(model, "UTF-8")
+        return "ai_chat_params/$provider/$encodedModel"
+    }
+    fun aiChatSession(provider: String, model: String): String {
+        val encodedModel = java.net.URLEncoder.encode(model, "UTF-8")
+        return "ai_chat_session/$provider/$encodedModel"
+    }
     fun aiNewReportWithParams(title: String, prompt: String): String {
         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
         val encodedPrompt = java.net.URLEncoder.encode(prompt, "UTF-8")
@@ -81,6 +94,7 @@ fun AiNavHost(
                 onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
+                onNavigateToChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 viewModel = viewModel
             )
         }
@@ -182,6 +196,138 @@ fun AiNavHost(
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
+        }
+
+        // Chat screens
+        composable(NavRoutes.AI_CHAT_PROVIDER) {
+            val uiState by viewModel.uiState.collectAsState()
+            ChatSelectProviderScreen(
+                aiSettings = uiState.aiSettings,
+                developerMode = uiState.generalSettings.developerMode,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onSelectProvider = { provider ->
+                    navController.navigate(NavRoutes.aiChatModel(provider.name))
+                }
+            )
+        }
+
+        composable(NavRoutes.AI_CHAT_MODEL) { backStackEntry ->
+            val providerName = backStackEntry.arguments?.getString("provider") ?: ""
+            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+            val uiState by viewModel.uiState.collectAsState()
+
+            if (provider != null) {
+                val availableModels = when (provider) {
+                    com.ai.data.AiService.CHATGPT -> uiState.availableChatGptModels
+                    com.ai.data.AiService.GEMINI -> uiState.availableGeminiModels
+                    com.ai.data.AiService.GROK -> uiState.availableGrokModels
+                    com.ai.data.AiService.GROQ -> uiState.availableGroqModels
+                    com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
+                    com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
+                    com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
+                    com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
+                    com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
+                    else -> emptyList()
+                }
+                val isLoadingModels = when (provider) {
+                    com.ai.data.AiService.CHATGPT -> uiState.isLoadingChatGptModels
+                    com.ai.data.AiService.GEMINI -> uiState.isLoadingGeminiModels
+                    com.ai.data.AiService.GROK -> uiState.isLoadingGrokModels
+                    com.ai.data.AiService.GROQ -> uiState.isLoadingGroqModels
+                    com.ai.data.AiService.DEEPSEEK -> uiState.isLoadingDeepSeekModels
+                    com.ai.data.AiService.MISTRAL -> uiState.isLoadingMistralModels
+                    com.ai.data.AiService.TOGETHER -> uiState.isLoadingTogetherModels
+                    com.ai.data.AiService.OPENROUTER -> uiState.isLoadingOpenRouterModels
+                    com.ai.data.AiService.DUMMY -> uiState.isLoadingDummyModels
+                    else -> false
+                }
+
+                ChatSelectModelScreen(
+                    provider = provider,
+                    aiSettings = uiState.aiSettings,
+                    availableModels = availableModels,
+                    isLoadingModels = isLoadingModels,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateHome = navigateHome,
+                    onSelectModel = { model ->
+                        navController.navigate(NavRoutes.aiChatParams(provider.name, model))
+                    },
+                    onFetchModels = { apiKey ->
+                        when (provider) {
+                            com.ai.data.AiService.CHATGPT -> viewModel.fetchChatGptModels(apiKey)
+                            com.ai.data.AiService.GEMINI -> viewModel.fetchGeminiModels(apiKey)
+                            com.ai.data.AiService.GROK -> viewModel.fetchGrokModels(apiKey)
+                            com.ai.data.AiService.GROQ -> viewModel.fetchGroqModels(apiKey)
+                            com.ai.data.AiService.DEEPSEEK -> viewModel.fetchDeepSeekModels(apiKey)
+                            com.ai.data.AiService.MISTRAL -> viewModel.fetchMistralModels(apiKey)
+                            com.ai.data.AiService.TOGETHER -> viewModel.fetchTogetherModels(apiKey)
+                            com.ai.data.AiService.OPENROUTER -> viewModel.fetchOpenRouterModels(apiKey)
+                            com.ai.data.AiService.DUMMY -> viewModel.fetchDummyModels(apiKey)
+                            else -> {}
+                        }
+                    }
+                )
+            }
+        }
+
+        composable(NavRoutes.AI_CHAT_PARAMS) { backStackEntry ->
+            val providerName = backStackEntry.arguments?.getString("provider") ?: ""
+            val encodedModel = backStackEntry.arguments?.getString("model") ?: ""
+            val model = try { java.net.URLDecoder.decode(encodedModel, "UTF-8") } catch (e: Exception) { encodedModel }
+            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+
+            if (provider != null) {
+                ChatParametersScreen(
+                    provider = provider,
+                    model = model,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateHome = navigateHome,
+                    onStartChat = { params ->
+                        // Store params in ViewModel and navigate to session
+                        viewModel.setChatParameters(params)
+                        navController.navigate(NavRoutes.aiChatSession(provider.name, model))
+                    }
+                )
+            }
+        }
+
+        composable(NavRoutes.AI_CHAT_SESSION) { backStackEntry ->
+            val providerName = backStackEntry.arguments?.getString("provider") ?: ""
+            val encodedModel = backStackEntry.arguments?.getString("model") ?: ""
+            val model = try { java.net.URLDecoder.decode(encodedModel, "UTF-8") } catch (e: Exception) { encodedModel }
+            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+            val uiState by viewModel.uiState.collectAsState()
+
+            if (provider != null) {
+                val apiKey = when (provider) {
+                    com.ai.data.AiService.CHATGPT -> uiState.aiSettings.chatGptApiKey
+                    com.ai.data.AiService.CLAUDE -> uiState.aiSettings.claudeApiKey
+                    com.ai.data.AiService.GEMINI -> uiState.aiSettings.geminiApiKey
+                    com.ai.data.AiService.GROK -> uiState.aiSettings.grokApiKey
+                    com.ai.data.AiService.GROQ -> uiState.aiSettings.groqApiKey
+                    com.ai.data.AiService.DEEPSEEK -> uiState.aiSettings.deepSeekApiKey
+                    com.ai.data.AiService.MISTRAL -> uiState.aiSettings.mistralApiKey
+                    com.ai.data.AiService.PERPLEXITY -> uiState.aiSettings.perplexityApiKey
+                    com.ai.data.AiService.TOGETHER -> uiState.aiSettings.togetherApiKey
+                    com.ai.data.AiService.OPENROUTER -> uiState.aiSettings.openRouterApiKey
+                    com.ai.data.AiService.SILICONFLOW -> uiState.aiSettings.siliconFlowApiKey
+                    com.ai.data.AiService.ZAI -> uiState.aiSettings.zaiApiKey
+                    com.ai.data.AiService.DUMMY -> uiState.aiSettings.dummyApiKey
+                }
+
+                ChatSessionScreen(
+                    provider = provider,
+                    model = model,
+                    apiKey = apiKey,
+                    parameters = uiState.chatParameters,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateHome = navigateHome,
+                    onSendMessage = { messages, _ ->
+                        viewModel.sendChatMessage(provider, apiKey, model, messages)
+                    }
+                )
+            }
         }
     }
 }

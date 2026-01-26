@@ -440,6 +440,32 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ========== AI Chat ==========
+
+    fun setChatParameters(params: ChatParameters) {
+        _uiState.value = _uiState.value.copy(chatParameters = params)
+    }
+
+    suspend fun sendChatMessage(
+        service: AiService,
+        apiKey: String,
+        model: String,
+        messages: List<ChatMessage>
+    ): ChatMessage? {
+        return try {
+            val response = aiAnalysisRepository.sendChatMessage(
+                service = service,
+                apiKey = apiKey,
+                model = model,
+                messages = messages,
+                params = _uiState.value.chatParameters
+            )
+            ChatMessage(role = "assistant", content = response)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     companion object {
         private const val AI_REPORT_AGENTS_KEY = "ai_report_agents"
         private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms"

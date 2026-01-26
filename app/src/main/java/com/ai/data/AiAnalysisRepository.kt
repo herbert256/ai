@@ -62,6 +62,8 @@ class AiAnalysisRepository {
     private val togetherApi = AiApiFactory.createTogetherApi()
     private val openRouterApi = AiApiFactory.createOpenRouterApi()
     private val siliconFlowApi = AiApiFactory.createSiliconFlowApi()
+    private val zaiApi = AiApiFactory.createZaiApi()
+    private val dummyApi = AiApiFactory.createDummyApi()
 
     // Gson instance for pretty printing usage JSON
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -1394,6 +1396,415 @@ class AiAnalysisRepository {
         } catch (e: Exception) {
             android.util.Log.e("OpenRouterAPI", "Error fetching models: ${e.message}")
             emptyList()
+        }
+    }
+
+    /**
+     * Send a chat message with conversation history.
+     * Returns the assistant's response message.
+     */
+    suspend fun sendChatMessage(
+        service: AiService,
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String = withContext(Dispatchers.IO) {
+        when (service) {
+            AiService.CHATGPT -> sendChatMessageChatGpt(apiKey, model, messages, params)
+            AiService.CLAUDE -> sendChatMessageClaude(apiKey, model, messages, params)
+            AiService.GEMINI -> sendChatMessageGemini(apiKey, model, messages, params)
+            AiService.GROK -> sendChatMessageGrok(apiKey, model, messages, params)
+            AiService.GROQ -> sendChatMessageGroq(apiKey, model, messages, params)
+            AiService.DEEPSEEK -> sendChatMessageDeepSeek(apiKey, model, messages, params)
+            AiService.MISTRAL -> sendChatMessageMistral(apiKey, model, messages, params)
+            AiService.PERPLEXITY -> sendChatMessagePerplexity(apiKey, model, messages, params)
+            AiService.TOGETHER -> sendChatMessageTogether(apiKey, model, messages, params)
+            AiService.OPENROUTER -> sendChatMessageOpenRouter(apiKey, model, messages, params)
+            AiService.SILICONFLOW -> sendChatMessageSiliconFlow(apiKey, model, messages, params)
+            AiService.ZAI -> sendChatMessageZai(apiKey, model, messages, params)
+            AiService.DUMMY -> sendChatMessageDummy(apiKey, model, messages, params)
+        }
+    }
+
+    private fun convertToOpenAiMessages(messages: List<com.ai.ui.ChatMessage>): List<OpenAiMessage> {
+        return messages.map { msg -> OpenAiMessage(role = msg.role, content = msg.content) }
+    }
+
+    private suspend fun sendChatMessageChatGpt(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = openAiApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageGrok(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = GrokRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = grokApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageGroq(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = GroqRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = groqApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageDeepSeek(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = DeepSeekRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = deepSeekApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageMistral(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = MistralRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP
+        )
+        val response = mistralApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessagePerplexity(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = PerplexityRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = perplexityApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageTogether(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = TogetherRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            top_k = params.topK,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = togetherApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageOpenRouter(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenRouterRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            top_k = params.topK,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = openRouterApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageSiliconFlow(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = SiliconFlowRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            top_k = params.topK,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = siliconFlowApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageZai(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = zaiApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageDummy(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+        val response = dummyApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageClaude(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        // Filter out system message (passed separately) and convert to Claude format
+        val claudeMessages = messages
+            .filter { it.role != "system" }
+            .map { msg -> ClaudeMessage(role = msg.role, content = msg.content) }
+        val systemPrompt = messages.find { it.role == "system" }?.content
+
+        val request = ClaudeRequest(
+            model = model,
+            messages = claudeMessages,
+            max_tokens = params.maxTokens ?: 4096,
+            temperature = params.temperature,
+            top_p = params.topP,
+            top_k = params.topK,
+            system = systemPrompt
+        )
+        val response = claudeApi.createMessage(apiKey = apiKey, request = request)
+        if (response.isSuccessful) {
+            val content = response.body()?.content?.firstOrNull { it.type == "text" }?.text
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageGemini(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        // Convert messages to Gemini format (alternating user/model roles)
+        val contents = messages
+            .filter { it.role != "system" }
+            .map { msg ->
+                GeminiContent(
+                    parts = listOf(GeminiPart(text = msg.content)),
+                    role = if (msg.role == "user") "user" else "model"
+                )
+            }
+        val systemInstruction = messages.find { it.role == "system" }?.let {
+            GeminiContent(parts = listOf(GeminiPart(text = it.content)))
+        }
+
+        val request = GeminiRequest(
+            contents = contents,
+            generationConfig = GeminiGenerationConfig(
+                temperature = params.temperature,
+                maxOutputTokens = params.maxTokens,
+                topP = params.topP,
+                topK = params.topK
+            ),
+            systemInstruction = systemInstruction
+        )
+        val response = geminiApi.generateContent(model, apiKey, request)
+        if (response.isSuccessful) {
+            val content = response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
         }
     }
 

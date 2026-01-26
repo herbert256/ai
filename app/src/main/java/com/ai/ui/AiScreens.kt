@@ -34,6 +34,7 @@ fun AiHubScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToNewReport: () -> Unit,
     onNavigateToStatistics: () -> Unit,
+    onNavigateToChat: () -> Unit,
     viewModel: AiViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -150,6 +151,11 @@ fun AiHubScreen(
             HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
             Spacer(modifier = Modifier.height(8.dp))
             HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        // AI Chat - show when any API key is configured (doesn't require agents/swarms)
+        if (hasAnyApiKey) {
+            HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChat)
             Spacer(modifier = Modifier.height(8.dp))
         }
         HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)

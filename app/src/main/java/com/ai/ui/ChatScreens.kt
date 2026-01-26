@@ -1,0 +1,715 @@
+package com.ai.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.AiService
+import kotlinx.coroutines.launch
+
+/**
+ * Chat - Select Provider screen.
+ * Shows a table of all AI providers that have an API key configured.
+ */
+@Composable
+fun ChatSelectProviderScreen(
+    aiSettings: AiSettings,
+    developerMode: Boolean,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSelectProvider: (AiService) -> Unit
+) {
+    BackHandler { onNavigateBack() }
+
+    // Get providers with API keys configured
+    val configuredProviders = AiService.entries.filter { service ->
+        val hasApiKey = when (service) {
+            AiService.CHATGPT -> aiSettings.chatGptApiKey.isNotBlank()
+            AiService.CLAUDE -> aiSettings.claudeApiKey.isNotBlank()
+            AiService.GEMINI -> aiSettings.geminiApiKey.isNotBlank()
+            AiService.GROK -> aiSettings.grokApiKey.isNotBlank()
+            AiService.GROQ -> aiSettings.groqApiKey.isNotBlank()
+            AiService.DEEPSEEK -> aiSettings.deepSeekApiKey.isNotBlank()
+            AiService.MISTRAL -> aiSettings.mistralApiKey.isNotBlank()
+            AiService.PERPLEXITY -> aiSettings.perplexityApiKey.isNotBlank()
+            AiService.TOGETHER -> aiSettings.togetherApiKey.isNotBlank()
+            AiService.OPENROUTER -> aiSettings.openRouterApiKey.isNotBlank()
+            AiService.SILICONFLOW -> aiSettings.siliconFlowApiKey.isNotBlank()
+            AiService.ZAI -> aiSettings.zaiApiKey.isNotBlank()
+            AiService.DUMMY -> developerMode && aiSettings.dummyApiKey.isNotBlank()
+        }
+        hasApiKey
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Chat - Select Provider",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (configuredProviders.isEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "No AI providers configured. Please add API keys in Settings > AI Setup.",
+                    color = Color(0xFFAAAAAA),
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        } else {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    configuredProviders.forEachIndexed { index, provider ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectProvider(provider) }
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = provider.displayName,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = ">",
+                                color = Color(0xFF6B9BFF),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (index < configuredProviders.size - 1) {
+                            HorizontalDivider(color = Color(0xFF444444))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Chat - Select Model screen.
+ * Shows a table of models from the selected AI provider.
+ */
+@Composable
+fun ChatSelectModelScreen(
+    provider: AiService,
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSelectModel: (String) -> Unit,
+    onFetchModels: (String) -> Unit
+) {
+    BackHandler { onNavigateBack() }
+
+    // Get API key and model source for this provider
+    val (apiKey, modelSource, manualModels, defaultModel) = remember(provider) {
+        when (provider) {
+            AiService.CHATGPT -> Quadruple(aiSettings.chatGptApiKey, aiSettings.chatGptModelSource, aiSettings.chatGptManualModels, aiSettings.chatGptModel)
+            AiService.CLAUDE -> Quadruple(aiSettings.claudeApiKey, ModelSource.MANUAL, CLAUDE_MODELS, aiSettings.claudeModel)
+            AiService.GEMINI -> Quadruple(aiSettings.geminiApiKey, aiSettings.geminiModelSource, aiSettings.geminiManualModels, aiSettings.geminiModel)
+            AiService.GROK -> Quadruple(aiSettings.grokApiKey, aiSettings.grokModelSource, aiSettings.grokManualModels, aiSettings.grokModel)
+            AiService.GROQ -> Quadruple(aiSettings.groqApiKey, aiSettings.groqModelSource, aiSettings.groqManualModels, aiSettings.groqModel)
+            AiService.DEEPSEEK -> Quadruple(aiSettings.deepSeekApiKey, aiSettings.deepSeekModelSource, aiSettings.deepSeekManualModels, aiSettings.deepSeekModel)
+            AiService.MISTRAL -> Quadruple(aiSettings.mistralApiKey, aiSettings.mistralModelSource, aiSettings.mistralManualModels, aiSettings.mistralModel)
+            AiService.PERPLEXITY -> Quadruple(aiSettings.perplexityApiKey, ModelSource.MANUAL, PERPLEXITY_MODELS, aiSettings.perplexityModel)
+            AiService.TOGETHER -> Quadruple(aiSettings.togetherApiKey, aiSettings.togetherModelSource, aiSettings.togetherManualModels, aiSettings.togetherModel)
+            AiService.OPENROUTER -> Quadruple(aiSettings.openRouterApiKey, aiSettings.openRouterModelSource, aiSettings.openRouterManualModels, aiSettings.openRouterModel)
+            AiService.SILICONFLOW -> Quadruple(aiSettings.siliconFlowApiKey, ModelSource.MANUAL, SILICONFLOW_MODELS, aiSettings.siliconFlowModel)
+            AiService.ZAI -> Quadruple(aiSettings.zaiApiKey, ModelSource.MANUAL, ZAI_MODELS, aiSettings.zaiModel)
+            AiService.DUMMY -> Quadruple(aiSettings.dummyApiKey, aiSettings.dummyModelSource, aiSettings.dummyManualModels, aiSettings.dummyModel)
+        }
+    }
+
+    // Determine which models to show
+    val models = if (modelSource == ModelSource.API && availableModels.isNotEmpty()) {
+        availableModels
+    } else if (modelSource == ModelSource.MANUAL || availableModels.isEmpty()) {
+        manualModels.ifEmpty { listOf(defaultModel) }
+    } else {
+        listOf(defaultModel)
+    }
+
+    // Fetch models if API source and not loaded yet
+    LaunchedEffect(provider, modelSource) {
+        if (modelSource == ModelSource.API && availableModels.isEmpty() && !isLoadingModels) {
+            onFetchModels(apiKey)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Chat - Select Model",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Provider: ${provider.displayName}",
+            color = Color(0xFF6B9BFF),
+            fontSize = 14.sp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoadingModels) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color(0xFF6B9BFF))
+            }
+        } else {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                LazyColumn {
+                    items(models) { model ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectModel(model) }
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = model,
+                                color = Color.White,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = ">",
+                                color = Color(0xFF6B9BFF),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        HorizontalDivider(color = Color(0xFF444444))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Chat - Parameters screen.
+ * Shows only parameters supported by the selected provider.
+ */
+@Composable
+fun ChatParametersScreen(
+    provider: AiService,
+    model: String,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onStartChat: (ChatParameters) -> Unit
+) {
+    BackHandler { onNavigateBack() }
+
+    val supportedParams = PROVIDER_SUPPORTED_PARAMETERS[provider] ?: emptySet()
+
+    // Parameter state
+    var systemPrompt by remember { mutableStateOf("") }
+    var temperature by remember { mutableStateOf("") }
+    var maxTokens by remember { mutableStateOf("") }
+    var topP by remember { mutableStateOf("") }
+    var topK by remember { mutableStateOf("") }
+    var frequencyPenalty by remember { mutableStateOf("") }
+    var presencePenalty by remember { mutableStateOf("") }
+    var searchEnabled by remember { mutableStateOf(false) }
+    var returnCitations by remember { mutableStateOf(true) }
+    var searchRecency by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Chat - Parameters",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Provider: ${provider.displayName}",
+            color = Color(0xFF6B9BFF),
+            fontSize = 14.sp
+        )
+        Text(
+            text = "Model: $model",
+            color = Color(0xFFAAAAAA),
+            fontSize = 12.sp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Start Chat button at top
+        Button(
+            onClick = {
+                onStartChat(ChatParameters(
+                    systemPrompt = systemPrompt,
+                    temperature = temperature.toFloatOrNull(),
+                    maxTokens = maxTokens.toIntOrNull(),
+                    topP = topP.toFloatOrNull(),
+                    topK = topK.toIntOrNull(),
+                    frequencyPenalty = frequencyPenalty.toFloatOrNull(),
+                    presencePenalty = presencePenalty.toFloatOrNull(),
+                    searchEnabled = searchEnabled,
+                    returnCitations = returnCitations,
+                    searchRecency = searchRecency.ifBlank { null }
+                ))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+        ) {
+            Text("Start Chat")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // System Prompt (always first if supported)
+            if (AiParameter.SYSTEM_PROMPT in supportedParams) {
+                OutlinedTextField(
+                    value = systemPrompt,
+                    onValueChange = { systemPrompt = it },
+                    label = { Text("System Prompt") },
+                    placeholder = { Text("Optional instructions for the AI...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+
+            // Temperature
+            if (AiParameter.TEMPERATURE in supportedParams) {
+                OutlinedTextField(
+                    value = temperature,
+                    onValueChange = { temperature = it },
+                    label = { Text("Temperature (0.0 - 2.0)") },
+                    placeholder = { Text("Default varies by provider") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+
+            // Max Tokens
+            if (AiParameter.MAX_TOKENS in supportedParams) {
+                OutlinedTextField(
+                    value = maxTokens,
+                    onValueChange = { maxTokens = it },
+                    label = { Text("Max Tokens") },
+                    placeholder = { Text("Maximum response length") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+
+            // Top P
+            if (AiParameter.TOP_P in supportedParams) {
+                OutlinedTextField(
+                    value = topP,
+                    onValueChange = { topP = it },
+                    label = { Text("Top P (0.0 - 1.0)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+
+            // Top K
+            if (AiParameter.TOP_K in supportedParams) {
+                OutlinedTextField(
+                    value = topK,
+                    onValueChange = { topK = it },
+                    label = { Text("Top K") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+
+            // Frequency Penalty
+            if (AiParameter.FREQUENCY_PENALTY in supportedParams) {
+                OutlinedTextField(
+                    value = frequencyPenalty,
+                    onValueChange = { frequencyPenalty = it },
+                    label = { Text("Frequency Penalty (-2.0 to 2.0)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+
+            // Presence Penalty
+            if (AiParameter.PRESENCE_PENALTY in supportedParams) {
+                OutlinedTextField(
+                    value = presencePenalty,
+                    onValueChange = { presencePenalty = it },
+                    label = { Text("Presence Penalty (-2.0 to 2.0)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+
+            // Search Enabled (Grok, Perplexity)
+            if (AiParameter.SEARCH_ENABLED in supportedParams) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { searchEnabled = !searchEnabled }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = searchEnabled,
+                        onCheckedChange = { searchEnabled = it }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Enable Web Search", color = Color.White)
+                }
+            }
+
+            // Return Citations (Perplexity)
+            if (AiParameter.RETURN_CITATIONS in supportedParams) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { returnCitations = !returnCitations }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = returnCitations,
+                        onCheckedChange = { returnCitations = it }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Return Citations", color = Color.White)
+                }
+            }
+
+            // Search Recency (Perplexity)
+            if (AiParameter.SEARCH_RECENCY in supportedParams) {
+                OutlinedTextField(
+                    value = searchRecency,
+                    onValueChange = { searchRecency = it },
+                    label = { Text("Search Recency (day/week/month/year)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Chat - Session screen.
+ * The actual chat interface with message history.
+ */
+@Composable
+fun ChatSessionScreen(
+    provider: AiService,
+    model: String,
+    apiKey: String,
+    parameters: ChatParameters,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSendMessage: suspend (List<ChatMessage>, String) -> ChatMessage?
+) {
+    BackHandler { onNavigateBack() }
+
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+
+    // Chat state
+    var messages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    var userInput by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // Add system prompt as first message if provided
+    LaunchedEffect(parameters.systemPrompt) {
+        if (parameters.systemPrompt.isNotBlank() && messages.isEmpty()) {
+            messages = listOf(ChatMessage(role = "system", content = parameters.systemPrompt))
+        }
+    }
+
+    // Auto-scroll to bottom when new messages arrive
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Chat - Session",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "${provider.displayName} / $model",
+            color = Color(0xFF6B9BFF),
+            fontSize = 14.sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Chat messages
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            if (messages.isEmpty() || (messages.size == 1 && messages[0].role == "system")) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Start a conversation...",
+                        color = Color(0xFF666666)
+                    )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(messages.filter { it.role != "system" }) { message ->
+                        ChatMessageBubble(message = message)
+                    }
+
+                    if (isLoading) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = Color(0xFF6B9BFF),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Thinking...",
+                                    color = Color(0xFF888888),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Error message
+        error?.let {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = it,
+                color = Color(0xFFFF6B6B),
+                fontSize = 12.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Input area
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            OutlinedTextField(
+                value = userInput,
+                onValueChange = { userInput = it },
+                placeholder = { Text("Type a message...") },
+                modifier = Modifier.weight(1f),
+                minLines = 1,
+                maxLines = 4,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Button(
+                onClick = {
+                    if (userInput.isNotBlank() && !isLoading) {
+                        val input = userInput.trim()
+                        userInput = ""
+                        error = null
+
+                        // Add user message
+                        val userMessage = ChatMessage(role = "user", content = input)
+                        messages = messages + userMessage
+
+                        // Send to AI
+                        scope.launch {
+                            isLoading = true
+                            try {
+                                val response = onSendMessage(messages, input)
+                                if (response != null) {
+                                    messages = messages + response
+                                } else {
+                                    error = "Failed to get response"
+                                }
+                            } catch (e: Exception) {
+                                error = e.message ?: "Unknown error"
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    }
+                },
+                enabled = userInput.isNotBlank() && !isLoading,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            ) {
+                Text("Send")
+            }
+        }
+    }
+}
+
+/**
+ * A single chat message bubble.
+ */
+@Composable
+private fun ChatMessageBubble(message: ChatMessage) {
+    val isUser = message.role == "user"
+    val backgroundColor = if (isUser) Color(0xFF8B5CF6) else Color(0xFF2A2A2A)
+    val alignment = if (isUser) Arrangement.End else Arrangement.Start
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = alignment
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = backgroundColor),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.widthIn(max = 300.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp)
+            ) {
+                Text(
+                    text = if (isUser) "You" else "Assistant",
+                    color = if (isUser) Color.White.copy(alpha = 0.7f) else Color(0xFF6B9BFF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = message.content,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Helper class to return 4 values.
+ */
+private data class Quadruple<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)

@@ -174,7 +174,8 @@ data class GeminiPart(
 )
 
 data class GeminiContent(
-    val parts: List<GeminiPart>
+    val parts: List<GeminiPart>,
+    val role: String? = null  // "user" or "model" for multi-turn chat
 )
 
 data class GeminiRequest(

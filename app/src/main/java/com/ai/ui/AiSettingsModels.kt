@@ -447,3 +447,28 @@ data class AiUsageStats(
     /** Unique key for this provider+model combination */
     val key: String get() = "${provider.name}::$model"
 }
+
+/**
+ * A single message in a chat conversation.
+ */
+data class ChatMessage(
+    val role: String,      // "system", "user", or "assistant"
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * Parameters for a chat session (subset of AiAgentParameters used for chat).
+ */
+data class ChatParameters(
+    val systemPrompt: String = "",
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val topK: Int? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val searchEnabled: Boolean = false,
+    val returnCitations: Boolean = true,
+    val searchRecency: String? = null
+)
