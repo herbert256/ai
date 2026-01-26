@@ -323,7 +323,7 @@ fun AiSetupScreen(
                     if (manualProviders.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            "Providers with manual configured models, not updated:",
+                            "Manual configured - not updated:",
                             color = Color(0xFFAAAAAA),
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -372,14 +372,6 @@ fun AiSetupScreen(
 
         // Summary info
         val configuredAgents = aiSettings.agents.count { it.apiKey.isNotBlank() }
-
-        Text(
-            text = "Configure AI services:",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFFAAAAAA)
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
 
         // AI Providers card
         AiSetupNavigationCard(
@@ -437,8 +429,6 @@ fun AiSetupScreen(
                 Text("Refresh model lists")
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Export AI configuration button (only show if setup is complete)
         val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||

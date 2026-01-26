@@ -1,19 +1,27 @@
-# AI - Multi-Provider AI Report Generator
+# AI - Multi-Provider AI Report Generator & Chat
 
-An Android app that generates AI-powered reports using multiple AI services simultaneously. Compare responses from ChatGPT, Claude, Gemini, and 10 other AI providers in a single report.
+An Android app that generates AI-powered reports and enables conversations using 13 different AI services. Compare responses from ChatGPT, Claude, Gemini, and 10 other AI providers, chat with any model, and explore models across all providers.
 
 ## Features
 
 ### Core Features
 - **13 AI Services**: ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, plus DUMMY for testing
+- **AI Chat**: Multi-turn conversations with any AI model, auto-saved history
 - **Multi-Agent Reports**: Query multiple AI providers in parallel, compare responses side-by-side
 - **AI Swarms**: Group agents together for quick selection during report generation
 - **Advanced Parameters**: Configure temperature, max tokens, system prompts, and more per agent
 - **Real-time Progress**: Watch as each agent completes, with option to stop early
 
+### Model Discovery
+- **Model Search**: Search all models across all configured providers in one place
+- **Model Info**: View detailed model information from OpenRouter (pricing, context length) and Hugging Face (downloads, likes, tags)
+- **Quick Actions**: Start a chat or create an agent directly from model search results
+
 ### History & Organization
+- **Chat History**: Automatically saved conversations, tap to continue
 - **Prompt History**: Automatically saves prompts (up to 100), one-tap reuse
 - **Report History**: Browse, view, and share previously generated HTML reports
+- **AI Statistics**: Track API calls, input/output tokens per provider and model
 - **Paginated Lists**: Configurable page size (5-50 items)
 - **Swarm Selection Memory**: Remembers your last selected swarms for convenience
 
@@ -22,7 +30,7 @@ An Android app that generates AI-powered reports using multiple AI services simu
 - **Markdown Rendering**: AI responses rendered with formatting
 - **Collapsible Think Sections**: AI reasoning hidden behind expandable buttons
 - **Citations & Sources**: Perplexity citations, Grok/Perplexity search results displayed
-- **Configuration Export**: Backup/restore your agents and swarms as JSON (v6 format)
+- **Configuration Export**: Backup/restore your agents, swarms, and Hugging Face API key as JSON (v7 format)
 
 ### Developer Features
 - **API Tracing**: Log all API requests and responses
@@ -54,35 +62,55 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## Quick Start
 
-### 1. Add Your First AI Agent
+### 1. Configure a Provider
 
 1. Open app → Settings (gear icon) → AI Setup
-2. Tap "AI Agents" → "+ Add Agent"
+2. Tap "AI Providers"
+3. Select a provider (e.g., ChatGPT)
+4. Enter your API key
+5. Save
+
+### 2. Create Your First Agent
+
+1. Go to AI Setup → AI Agents
+2. Tap "+ Add Agent"
 3. Enter:
    - **Name**: e.g., "My GPT-4"
    - **Provider**: Select ChatGPT
-   - **Model**: Select gpt-4o-mini (or fetch models with API key)
+   - **Model**: Select gpt-4o-mini
    - **API Key**: Your OpenAI API key
 4. Optionally expand "Advanced Parameters" to configure:
    - Temperature, Max Tokens, Top P, etc.
    - System Prompt for custom instructions
 5. Save (tests API automatically)
 
-### 2. Create a Swarm (Optional)
+### 3. Create a Swarm (Optional)
 
-1. Go to Settings → AI Setup → AI Swarms
+1. Go to AI Setup → AI Swarms
 2. Tap "Add Swarm"
 3. Enter a name and select agents to include
 4. Save - now you can select this swarm for quick agent selection
 
-### 3. Generate a Report
+### 4. Start Using the App
 
-1. From AI Hub, tap "New AI Report"
+**For Reports:**
+1. From AI Hub, tap "AI Report"
 2. Enter a title and your prompt
 3. Tap "Generate" button at top
 4. Select individual agents or swarms in the dialog
 5. Watch progress as agents respond
 6. View results, toggle between agents, export or share
+
+**For Chat:**
+1. From AI Hub, tap "AI Chat"
+2. Select a provider with a configured API key
+3. Select a model
+4. Start chatting - conversations are auto-saved
+
+**For Model Discovery:**
+1. From AI Hub, tap "AI Models"
+2. Search across all providers
+3. Tap a model to view info, start chat, or create an agent
 
 ## Supported AI Services
 
@@ -116,7 +144,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | Together | meta-llama/Llama-3.3-70B-Instruct-Turbo |
 | OpenRouter | anthropic/claude-3.5-sonnet |
 | SiliconFlow | Qwen/Qwen2.5-7B-Instruct |
-| Z.AI | z1-preview |
+| Z.AI | glm-4.7-flash |
 
 ### Service-Specific Features
 
@@ -129,7 +157,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | **Perplexity** | Citations, search results, related questions, recency filter |
 | **DeepSeek** | Reasoning content support (think sections) |
 | **SiliconFlow** | OpenAI-compatible, Chinese AI models |
-| **Z.AI** | OpenAI-compatible, latest models |
+| **Z.AI** | OpenAI-compatible, GLM models |
 
 ## Agent Parameters
 
@@ -153,22 +181,49 @@ Each agent can be configured with advanced parameters (availability varies by pr
 
 ## Features in Detail
 
+### AI Chat
+
+Have multi-turn conversations with any AI:
+1. Select a provider (shows only configured ones)
+2. Select a model
+3. Optionally configure parameters (system prompt, temperature, etc.)
+4. Start chatting
+5. Conversations are automatically saved to Chat History
+6. Continue any previous conversation from Chat History
+
 ### AI Swarms
 
 Group your agents for convenient selection:
-1. Create swarms in Settings → AI Setup → AI Swarms
+1. Create swarms in AI Setup → AI Swarms
 2. Add any configured agents to a swarm
 3. When generating a report, select a swarm to include all its agents
 4. Your swarm selections are remembered for next time
 
-### Multi-Agent Reports
+### Model Search
 
-Query multiple AI providers simultaneously:
-1. Create agents for different services (or same service with different parameters)
-2. Select multiple agents or swarms when generating a report
-3. Compare responses side-by-side
-4. Toggle visibility of individual responses
-5. Stop generation early if needed (incomplete agents show "Not ready")
+Search and explore models across all providers:
+1. Unified search across all configured providers
+2. Filter by model name
+3. Color-coded by provider
+4. When you tap a model, choose:
+   - **Start AI Chat** - Begin chatting with this model
+   - **Create AI Agent** - Create an agent using this model
+   - **Model Info** - View detailed model information
+
+### Model Info
+
+View detailed information about any model:
+- **From OpenRouter** (if API key configured): Context length, max tokens, pricing per token, architecture
+- **From Hugging Face** (if API key configured): Author, downloads, likes, tags, license
+- **AI-generated description**: Create an agent named "model_info" to auto-generate introductions
+
+### AI Statistics
+
+Track your AI usage:
+- Total API calls made
+- Input and output token counts
+- Usage per provider and model
+- Clear statistics button
 
 ### Think Sections
 
@@ -198,8 +253,8 @@ Generated reports include:
 
 - **View in Chrome**: Opens HTML report in browser
 - **Share via Email**: Attaches report as HTML file
-- **Export Config**: Share your agent and swarm setup as JSON (version 6 format)
-- **Import Config**: Import agents and swarms from JSON file
+- **Export Config**: Share your agent, swarm setup, and Hugging Face API key as JSON (v7 format)
+- **Import Config**: Import from JSON file or clipboard
 
 ## Integration with Other Apps
 
@@ -246,25 +301,36 @@ For detailed integration documentation, see `CALL_AI.md`.
 
 ```
 AI Hub (Home)
-├── New AI Report
+├── AI Report
 │   ├── Enter title + prompt
 │   ├── Generate → Select agents/swarms
 │   ├── Progress with real-time updates
 │   └── Results → View/Export/Share
-├── Prompt History
-│   └── Browse → Tap to reuse
+├── AI Chat
+│   ├── Select provider + model
+│   ├── Configure parameters
+│   └── Multi-turn conversation (auto-saved)
+├── AI Models
+│   ├── Search across all providers
+│   └── View info / Start chat / Create agent
 ├── AI History
-│   └── Browse → View/Share/Delete
+│   └── Browse → View/Share/Delete reports
+├── AI Statistics
+│   └── API calls, token usage per provider/model
 └── Settings
     ├── General
+    │   ├── Username for chat display
     │   ├── Pagination size (5-50)
     │   ├── Developer mode toggle
-    │   └── API tracing toggle (when dev mode enabled)
+    │   └── API tracing toggle
     ├── AI Setup
-    │   ├── Service configs (API keys, models)
+    │   ├── AI Providers (API keys, models)
     │   ├── AI Agents (with parameters)
     │   ├── AI Swarms (agent groups)
-    │   └── Export/Import
+    │   ├── Refresh model lists
+    │   └── Export/Import configuration
+    ├── External Services
+    │   └── Hugging Face API Key
     └── Help
 ```
 
@@ -278,7 +344,7 @@ AI Hub (Home)
 ## Troubleshooting
 
 ### "API key not configured"
-Add your API key in Settings → AI Setup → AI Agents
+Add your API key in Settings → AI Setup → AI Providers
 
 ### "Network error"
 - Check internet connection
@@ -286,7 +352,7 @@ Add your API key in Settings → AI Setup → AI Agents
 
 ### "Model not found"
 - The model may have been deprecated
-- Try fetching fresh models or select a different one
+- Use "Refresh model lists" in AI Setup to update
 - For Claude/Perplexity: models are hardcoded (no list API)
 
 ### Slow responses
@@ -315,7 +381,7 @@ Add your API key in Settings → AI Setup → AI Agents
 - **Networking**: Retrofit 2 with OkHttp
 - **Min SDK**: 26 (Android 8.0)
 - **Target SDK**: 34 (Android 14)
-- **Codebase**: ~10,500 lines across 24 files
+- **Codebase**: ~17,000 lines across 26 files
 
 ## Building
 
@@ -345,10 +411,11 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 
 ## Configuration Export Format
 
-Version 6 JSON format (supports importing versions 3, 4, 5, and 6):
+Version 7 JSON format (supports importing versions 3-7):
 ```json
 {
-  "version": 6,
+  "version": 7,
+  "huggingFaceApiKey": "hf_...",
   "providers": {
     "CHATGPT": {
       "modelSource": "API",
@@ -366,17 +433,7 @@ Version 6 JSON format (supports importing versions 3, 4, 5, and 6):
       "parameters": {
         "temperature": 0.7,
         "maxTokens": 2048,
-        "topP": null,
-        "topK": null,
-        "frequencyPenalty": null,
-        "presencePenalty": null,
-        "systemPrompt": "You are helpful.",
-        "stopSequences": null,
-        "seed": null,
-        "responseFormatJson": false,
-        "searchEnabled": false,
-        "returnCitations": true,
-        "searchRecency": null
+        "systemPrompt": "You are helpful."
       }
     }
   ],
@@ -397,9 +454,10 @@ Private use only. Not for redistribution.
 ## Acknowledgments
 
 - **AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI
+- **Model Data**: OpenRouter API, Hugging Face API
 - **UI Framework**: Jetpack Compose, Material 3
 - **Networking**: Retrofit, OkHttp, Gson
 
 ---
 
-*AI - Compare AI providers, generate insights, configure with precision.*
+*AI - Compare AI providers, chat with any model, generate insights, configure with precision.*

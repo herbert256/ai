@@ -28,18 +28,23 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer)"
 
 ## Project Overview
 
-**AI** is an Android app for creating AI-powered reports using 13 different AI services. Users can configure multiple AI agents with advanced parameters, organize them into swarms, submit custom prompts, and generate comparative reports from multiple AI providers simultaneously.
+**AI** is an Android app for creating AI-powered reports and having conversations using 13 different AI services. Users can configure multiple AI agents with advanced parameters, organize them into swarms, submit custom prompts, generate comparative reports, search and explore models across all providers, and chat with any AI model.
 
 **Key Features:**
 - Support for 13 AI services (ChatGPT, Claude, Gemini, Grok, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI) + DUMMY for testing
+- AI Chat with multi-turn conversations and auto-save
 - AI Agents with configurable parameters (temperature, max_tokens, system prompt, etc.)
 - AI Swarms for organizing agents into named groups
 - Parallel multi-agent report generation with real-time progress
+- Model Search across all configured providers with one-tap chat or agent creation
+- Model Info with OpenRouter pricing/specs and Hugging Face metadata
+- AI Statistics tracking API calls and token usage
 - Collapsible `<think>` sections in AI responses
 - Prompt history (up to 100 entries) and HTML report history
+- Chat history with automatic conversation saving
 - Developer mode with comprehensive API tracing
 - HTML report export with markdown rendering, citations, and search results
-- Configuration export/import (JSON format, version 6 with swarms)
+- Configuration export/import (JSON format, version 7 with HuggingFace API key)
 - External app integration via Intent (see CALL_AI.md)
 
 **Technical Stack:**
@@ -64,27 +69,31 @@ com.ai/
 │   ├── ApiTracer.kt                  # Debug API request/response logging (308 lines)
 │   └── DummyApiServer.kt             # Local test HTTP server (155 lines)
 └── ui/                                # UI layer
-    ├── AiViewModel.kt                # Central state management (435 lines)
+    ├── AiViewModel.kt                # Central state management (500 lines)
     ├── AiModels.kt                   # Core UI state model (57 lines)
-    ├── AiScreens.kt                  # Main screens: Hub, NewReport, History, Results (2,473 lines)
-    ├── AiSettingsScreen.kt           # AI settings navigation (887 lines)
+    ├── AiScreens.kt                  # Report screens: Hub, NewReport, History, Results (2,473 lines)
+    ├── ChatScreens.kt                # AI Chat: conversation UI, provider/model selection (1,200 lines)
+    ├── ModelSearchScreen.kt          # Model search across providers (450 lines)
+    ├── ModelInfoScreen.kt            # Model details from OpenRouter/HuggingFace (400 lines)
+    ├── StatisticsScreen.kt           # API call and token usage tracking (350 lines)
+    ├── AiSettingsScreen.kt           # AI settings navigation (920 lines)
     ├── AiSettingsModels.kt           # AI settings data: agents, swarms, parameters, providers (433 lines)
     ├── AiSettingsComponents.kt       # Reusable AI settings UI components (937 lines)
     ├── AiServiceSettingsScreens.kt   # Per-service config screens (906 lines)
     ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (1,016 lines)
     ├── AiSwarmsScreen.kt             # Swarm management CRUD (375 lines)
-    ├── AiSettingsExport.kt           # Configuration export/import v6 (674 lines)
-    ├── SettingsScreen.kt             # Settings hub navigation (587 lines)
-    ├── GeneralSettingsScreen.kt      # General + Developer settings (177 lines)
-    ├── HelpScreen.kt                 # In-app documentation (380 lines)
+    ├── AiSettingsExport.kt           # Configuration export/import v7 (700 lines)
+    ├── SettingsScreen.kt             # Settings hub navigation (600 lines)
+    ├── GeneralSettingsScreen.kt      # General + Developer settings (200 lines)
+    ├── HelpScreen.kt                 # In-app documentation (450 lines)
     ├── TraceScreen.kt                # API trace list and detail viewer (559 lines)
-    ├── SettingsPreferences.kt        # SharedPreferences persistence (386 lines)
+    ├── SettingsPreferences.kt        # SharedPreferences persistence (420 lines)
     ├── SharedComponents.kt           # AiTitleBar, common widgets (127 lines)
-    ├── Navigation.kt                 # Jetpack Navigation routes (232 lines)
+    ├── Navigation.kt                 # Jetpack Navigation routes (280 lines)
     └── theme/Theme.kt                # Material3 dark theme (32 lines)
 ```
 
-**Total:** 23 Kotlin files, ~9,600 lines of code
+**Total:** 26 Kotlin files, ~17,000 lines of code
 
 ### Key Data Classes
 
@@ -155,11 +164,23 @@ data class AiAnalysisResponse(
     val httpHeaders: String?            // HTTP headers (developer mode)
 )
 
+// Chat conversation
+data class ChatConversation(
+    val id: String,                     // UUID
+    val provider: AiService,
+    val model: String,
+    val messages: List<ChatMessage>,
+    val parameters: AiAgentParameters,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
 // General settings
 data class GeneralSettings(
     val paginationPageSize: Int = 25,   // 5-50
     val developerMode: Boolean = false,
-    val trackApiCalls: Boolean = false
+    val trackApiCalls: Boolean = false,
+    val username: String = "You"
 )
 ```
 
@@ -271,6 +292,11 @@ object NavRoutes {
     const val AI_NEW_REPORT = "ai_new_report"              // New report
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"      // Prompt history
+    const val AI_CHAT = "ai_chat"                          // Chat interface
+    const val AI_CHAT_HISTORY = "ai_chat_history"          // Chat history
+    const val AI_MODEL_SEARCH = "ai_model_search"          // Model search
+    const val AI_MODEL_INFO = "ai_model_info/{provider}/{model}"  // Model details
+    const val AI_STATISTICS = "ai_statistics"              // Usage statistics
     const val SETTINGS = "settings"                        // Settings hub
     const val HELP = "help"                                // Help screen
     const val TRACE_LIST = "trace_list"                    // API traces
@@ -282,14 +308,17 @@ object NavRoutes {
 
 ```
 AI Hub (Home)
-├── New AI Report → Swarm Selection → Progress → Results
+├── AI Report → New Report → Swarm Selection → Progress → Results
 │   └── Results: View, Export HTML, Share, toggle agent visibility
-├── Prompt History → Click to reuse → New AI Report (pre-filled)
+├── AI Chat → Provider Selection → Model Selection → Chat Interface
+│   └── Chat: Multi-turn, parameters, auto-save
+├── AI Models → Search → Model Info / Start Chat / Create Agent
 ├── AI History → View/Share/Delete HTML reports
-├── Settings → General / AI Setup
-│   ├── General: Pagination, Developer mode, API tracing
-│   └── AI Setup → Providers / Agents / Swarms / Export
-└── Help
+├── AI Statistics → API calls, token usage per provider/model
+├── Settings → General / AI Setup / Help
+│   ├── General: Username, Pagination, Developer mode, API tracing
+│   └── AI Setup → Providers / Agents / Swarms / Export / Refresh
+└── Help → Comprehensive in-app documentation
 ```
 
 ## Settings & Persistence
@@ -301,6 +330,8 @@ AI Hub (Home)
 "pagination_page_size"    // Int (5-50, default 25)
 "developer_mode"          // Boolean
 "track_api_calls"         // Boolean
+"username"                // String (default "You")
+"hugging_face_api_key"    // String (for model info)
 
 // Per-service AI settings (×13 services)
 "ai_{service}_api_key"        // String
@@ -318,6 +349,10 @@ AI Hub (Home)
 
 // History
 "prompt_history"          // JSON List<PromptHistoryEntry>
+"chat_conversations"      // JSON List<ChatConversation>
+
+// Statistics
+"ai_statistics"           // JSON Map<provider:model, ApiCallStats>
 ```
 
 ## File Storage
@@ -407,11 +442,12 @@ adb shell am start -a com.ai.ACTION_NEW_REPORT \
 
 ## Export/Import Configuration
 
-### Version 6 Format (Current)
+### Version 7 Format (Current)
 
 ```json
 {
-  "version": 6,
+  "version": 7,
+  "huggingFaceApiKey": "hf_...",
   "providers": {
     "CHATGPT": {
       "modelSource": "API",
@@ -439,7 +475,7 @@ adb shell am start -a com.ai.ACTION_NEW_REPORT \
 }
 ```
 
-**Backward Compatibility**: Imports versions 3, 4, 5, and 6.
+**Backward Compatibility**: Imports versions 3, 4, 5, 6, and 7.
 
 ## Testing Checklist
 
@@ -448,15 +484,21 @@ After making changes:
 - [ ] App launches without crash
 - [ ] AI Hub displays correctly as home page
 - [ ] New AI Report flow works (prompt → swarms → results)
+- [ ] AI Chat works (provider → model → conversation)
+- [ ] Chat History shows and continues conversations
+- [ ] Model Search finds models across providers
+- [ ] Model Info shows OpenRouter/HuggingFace data
+- [ ] AI Statistics tracks usage correctly
 - [ ] Agent parameters save and apply correctly
 - [ ] Swarm creation and selection works
 - [ ] Think sections collapse/expand properly
 - [ ] Prompt History shows entries and allows reuse
 - [ ] AI History lists reports, view/share/delete work
 - [ ] Settings navigation works (General with Developer, AI Setup)
+- [ ] Refresh model lists button works
 - [ ] API tracing captures requests when enabled
 - [ ] HTML reports render correctly in browser
-- [ ] Export/import configuration works (v6 with swarms)
+- [ ] Export/import configuration works (v7 with HuggingFace key)
 - [ ] DUMMY provider hidden when not in developer mode
 - [ ] All 13 providers show in provider list
 
