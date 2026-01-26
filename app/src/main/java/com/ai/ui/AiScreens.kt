@@ -45,10 +45,18 @@ fun AiHubScreen(
     viewModel: AiViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Chat choice dialog state
     var showChatChoiceDialog by remember { mutableStateOf(false) }
     val hasChatHistory = remember { ChatHistoryManager.getSessionCount() > 0 }
+
+    // Check if there are any statistics
+    val hasStatistics = remember {
+        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val statsJson = prefs.getString("ai_usage_stats", null)
+        !statsJson.isNullOrBlank() && statsJson != "[]"
+    }
 
     // Check if any provider has an API key configured
     val hasAnyApiKey = uiState.aiSettings.chatGptApiKey.isNotBlank() ||
@@ -81,7 +89,8 @@ fun AiHubScreen(
 
     // Count cards that will be shown
     var cardCount = 3  // AI Setup, Settings, Help (always shown)
-    if (isSetupComplete) cardCount += 3  // AI Reports, AI Statistics, AI Costs
+    if (isSetupComplete) cardCount += 1  // AI Reports
+    if (isSetupComplete && hasStatistics) cardCount += 2  // AI Statistics, AI Costs
     if (hasAnyAgent) cardCount += 2  // AI Chat, AI Models
     if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
 
@@ -236,7 +245,7 @@ fun AiHubScreen(
                 HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
                 Spacer(modifier = Modifier.height(7.dp))
             }
-            if (isSetupComplete) {
+            if (isSetupComplete && hasStatistics) {
                 HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
                 Spacer(modifier = Modifier.height(7.dp))
                 HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts)
@@ -2961,7 +2970,7 @@ fun AiReportsScreen(
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(16.dp)
+                        .padding(start = 4.dp, end = 8.dp, top = 16.dp, bottom = 16.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -2971,7 +2980,7 @@ fun AiReportsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.width(24.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = "Agent",
                             fontWeight = FontWeight.Bold,
@@ -2987,7 +2996,7 @@ fun AiReportsScreen(
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = "Output",
                             fontWeight = FontWeight.Bold,
@@ -2996,7 +3005,7 @@ fun AiReportsScreen(
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = "Cents",
                             fontWeight = FontWeight.Bold,
@@ -3037,12 +3046,13 @@ fun AiReportsScreen(
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             // Agent name
                             Text(
                                 text = agent.name,
                                 fontWeight = FontWeight.Medium,
                                 color = Color.White,
+                                fontSize = 13.sp,
                                 modifier = Modifier.weight(1f)
                             )
                             // Input tokens
@@ -3054,7 +3064,7 @@ fun AiReportsScreen(
                                 textAlign = TextAlign.End,
                                 modifier = Modifier.width(50.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             // Output tokens
                             Text(
                                 text = tokenUsage?.outputTokens?.toString() ?: "",
@@ -3064,7 +3074,7 @@ fun AiReportsScreen(
                                 textAlign = TextAlign.End,
                                 modifier = Modifier.width(50.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             // Cost in cents (right-aligned, only show if available)
                             Text(
                                 text = if (cost != null) String.format("%.4f", cost * 100) else "",
@@ -3088,7 +3098,7 @@ fun AiReportsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.width(24.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = "Total",
                             fontWeight = FontWeight.Bold,
@@ -3105,7 +3115,7 @@ fun AiReportsScreen(
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         // Total output tokens
                         Text(
                             text = if (totalOutputTokens > 0) totalOutputTokens.toString() else "",
@@ -3116,7 +3126,7 @@ fun AiReportsScreen(
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
                         Text(
                             text = String.format("%.4f", totalCost * 100),
                             fontFamily = FontFamily.Monospace,
