@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
 import com.ai.data.ChatHistoryManager
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -505,7 +506,7 @@ fun ChatParametersScreen(
 
 /**
  * Chat - Session screen.
- * The actual chat interface with message history.
+ * The actual chat interface with message history and streaming support.
  */
 @Composable
 fun ChatSessionScreen(
@@ -518,7 +519,8 @@ fun ChatSessionScreen(
     sessionId: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSendMessage: suspend (List<ChatMessage>, String) -> ChatMessage?
+    onSendMessage: suspend (List<ChatMessage>, String) -> ChatMessage?,
+    onSendMessageStream: ((List<ChatMessage>) -> Flow<String>)? = null
 ) {
     BackHandler { onNavigateBack() }
 
@@ -531,6 +533,10 @@ fun ChatSessionScreen(
     var userInput by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    // Streaming state
+    var isStreaming by remember { mutableStateOf(false) }
+    var streamingContent by remember { mutableStateOf("") }
 
     // Current session ID (create new one if not continuing an existing session)
     val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }
@@ -560,9 +566,9 @@ fun ChatSessionScreen(
         focusRequester.requestFocus()
     }
 
-    // Auto-scroll to top when new messages arrive (newest first)
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
+    // Auto-scroll to top when new messages arrive or streaming content changes
+    LaunchedEffect(messages.size, streamingContent) {
+        if (messages.isNotEmpty() || streamingContent.isNotEmpty()) {
             listState.animateScrollToItem(0)
         }
     }
@@ -613,7 +619,7 @@ fun ChatSessionScreen(
 
             Button(
                 onClick = {
-                    if (userInput.isNotBlank() && !isLoading) {
+                    if (userInput.isNotBlank() && !isLoading && !isStreaming) {
                         val input = userInput.trim()
                         userInput = ""
                         error = null
@@ -625,27 +631,64 @@ fun ChatSessionScreen(
                         // Save session with user message
                         saveSession(messages)
 
-                        // Send to AI
-                        scope.launch {
-                            isLoading = true
-                            try {
-                                val response = onSendMessage(messages, input)
-                                if (response != null) {
-                                    messages = messages + response
-                                    // Save session with AI response
-                                    saveSession(messages)
-                                } else {
-                                    error = "Failed to get response"
+                        // Use streaming if available, otherwise fall back to regular
+                        if (onSendMessageStream != null) {
+                            scope.launch {
+                                isStreaming = true
+                                streamingContent = ""
+                                try {
+                                    onSendMessageStream(messages).collect { chunk ->
+                                        streamingContent += chunk
+                                    }
+                                    // Stream complete - add final message
+                                    if (streamingContent.isNotEmpty()) {
+                                        val assistantMessage = ChatMessage(
+                                            role = "assistant",
+                                            content = streamingContent
+                                        )
+                                        messages = messages + assistantMessage
+                                        saveSession(messages)
+                                    } else {
+                                        error = "No response received"
+                                    }
+                                } catch (e: Exception) {
+                                    error = e.message ?: "Streaming error"
+                                    // If we got partial content, still save it
+                                    if (streamingContent.isNotEmpty()) {
+                                        val assistantMessage = ChatMessage(
+                                            role = "assistant",
+                                            content = streamingContent + "\n\n[Stream interrupted]"
+                                        )
+                                        messages = messages + assistantMessage
+                                        saveSession(messages)
+                                    }
+                                } finally {
+                                    isStreaming = false
+                                    streamingContent = ""
                                 }
-                            } catch (e: Exception) {
-                                error = e.message ?: "Unknown error"
-                            } finally {
-                                isLoading = false
+                            }
+                        } else {
+                            // Fall back to non-streaming
+                            scope.launch {
+                                isLoading = true
+                                try {
+                                    val response = onSendMessage(messages, input)
+                                    if (response != null) {
+                                        messages = messages + response
+                                        saveSession(messages)
+                                    } else {
+                                        error = "Failed to get response"
+                                    }
+                                } catch (e: Exception) {
+                                    error = e.message ?: "Unknown error"
+                                } finally {
+                                    isLoading = false
+                                }
                             }
                         }
                     }
                 },
-                enabled = userInput.isNotBlank() && !isLoading,
+                enabled = userInput.isNotBlank() && !isLoading && !isStreaming,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
             ) {
                 Text("Send")
@@ -689,10 +732,38 @@ fun ChatSessionScreen(
                         .padding(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(messages.filter { it.role != "system" }.reversed()) { message ->
-                        ChatMessageBubble(message = message, userName = userName)
+                    // Show streaming message at top (newest first layout)
+                    if (isStreaming && streamingContent.isNotEmpty()) {
+                        item {
+                            StreamingMessageBubble(content = streamingContent)
+                        }
                     }
 
+                    // Show loading indicator while waiting for first chunk
+                    if (isStreaming && streamingContent.isEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = Color(0xFF6B9BFF),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Thinking...",
+                                    color = Color(0xFF888888),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Non-streaming loading indicator (fallback mode)
                     if (isLoading) {
                         item {
                             Row(
@@ -715,7 +786,54 @@ fun ChatSessionScreen(
                             }
                         }
                     }
+
+                    items(messages.filter { it.role != "system" }.reversed()) { message ->
+                        ChatMessageBubble(message = message, userName = userName)
+                    }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * A streaming message bubble that shows content as it arrives.
+ */
+@Composable
+private fun StreamingMessageBubble(content: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.widthIn(max = 300.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Assistant",
+                        color = Color(0xFF6B9BFF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // Typing indicator
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(10.dp),
+                        color = Color(0xFF6B9BFF),
+                        strokeWidth = 1.dp
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = content,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
             }
         }
     }

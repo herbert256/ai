@@ -4,8 +4,12 @@ import com.ai.ui.AiAgentParameters
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import okhttp3.Headers
+import okhttp3.ResponseBody
+import java.io.BufferedReader
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -64,6 +68,21 @@ class AiAnalysisRepository {
     private val siliconFlowApi = AiApiFactory.createSiliconFlowApi()
     private val zaiApi = AiApiFactory.createZaiApi()
     private val dummyApi = AiApiFactory.createDummyApi()
+
+    // Streaming API instances
+    private val openAiStreamApi = AiApiFactory.createOpenAiStreamApi()
+    private val claudeStreamApi = AiApiFactory.createClaudeStreamApi()
+    private val geminiStreamApi = AiApiFactory.createGeminiStreamApi()
+    private val grokStreamApi = AiApiFactory.createGrokStreamApi()
+    private val groqStreamApi = AiApiFactory.createGroqStreamApi()
+    private val deepSeekStreamApi = AiApiFactory.createDeepSeekStreamApi()
+    private val mistralStreamApi = AiApiFactory.createMistralStreamApi()
+    private val perplexityStreamApi = AiApiFactory.createPerplexityStreamApi()
+    private val togetherStreamApi = AiApiFactory.createTogetherStreamApi()
+    private val openRouterStreamApi = AiApiFactory.createOpenRouterStreamApi()
+    private val siliconFlowStreamApi = AiApiFactory.createSiliconFlowStreamApi()
+    private val zaiStreamApi = AiApiFactory.createZaiStreamApi()
+    private val dummyStreamApi = AiApiFactory.createDummyStreamApi()
 
     // Gson instance for pretty printing usage JSON
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -1803,6 +1822,578 @@ class AiAnalysisRepository {
         if (response.isSuccessful) {
             val content = response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    // ========== Streaming Chat Methods ==========
+
+    /**
+     * Send a chat message with streaming response.
+     * Returns a Flow that emits content chunks as they arrive.
+     */
+    fun sendChatMessageStream(
+        service: AiService,
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        when (service) {
+            AiService.OPENAI -> streamChatOpenAi(apiKey, model, messages, params).collect { emit(it) }
+            AiService.ANTHROPIC -> streamChatClaude(apiKey, model, messages, params).collect { emit(it) }
+            AiService.GOOGLE -> streamChatGemini(apiKey, model, messages, params).collect { emit(it) }
+            AiService.XAI -> streamChatGrok(apiKey, model, messages, params).collect { emit(it) }
+            AiService.GROQ -> streamChatGroq(apiKey, model, messages, params).collect { emit(it) }
+            AiService.DEEPSEEK -> streamChatDeepSeek(apiKey, model, messages, params).collect { emit(it) }
+            AiService.MISTRAL -> streamChatMistral(apiKey, model, messages, params).collect { emit(it) }
+            AiService.PERPLEXITY -> streamChatPerplexity(apiKey, model, messages, params).collect { emit(it) }
+            AiService.TOGETHER -> streamChatTogether(apiKey, model, messages, params).collect { emit(it) }
+            AiService.OPENROUTER -> streamChatOpenRouter(apiKey, model, messages, params).collect { emit(it) }
+            AiService.SILICONFLOW -> streamChatSiliconFlow(apiKey, model, messages, params).collect { emit(it) }
+            AiService.ZAI -> streamChatZai(apiKey, model, messages, params).collect { emit(it) }
+            AiService.DUMMY -> streamChatDummy(apiKey, model, messages, params).collect { emit(it) }
+        }
+    }
+
+    /**
+     * Parse SSE (Server-Sent Events) stream for OpenAI-compatible format.
+     * Format: data: {"choices":[{"delta":{"content":"..."}}]}
+     */
+    private fun parseOpenAiSseStream(responseBody: ResponseBody): Flow<String> = flow {
+        val reader = responseBody.charStream().buffered()
+        try {
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val currentLine = line ?: continue
+
+                // Skip empty lines and comments
+                if (currentLine.isBlank() || currentLine.startsWith(":")) continue
+
+                // Parse SSE data lines
+                if (currentLine.startsWith("data: ")) {
+                    val data = currentLine.removePrefix("data: ").trim()
+
+                    // Check for stream termination
+                    if (data == "[DONE]") break
+
+                    try {
+                        val chunk = gson.fromJson(data, OpenAiStreamChunk::class.java)
+                        val delta = chunk?.choices?.firstOrNull()?.delta
+
+                        // Emit content or reasoning_content (for DeepSeek)
+                        delta?.content?.let { if (it.isNotEmpty()) emit(it) }
+                        delta?.reasoning_content?.let { if (it.isNotEmpty()) emit(it) }
+                    } catch (e: Exception) {
+                        android.util.Log.w("StreamParse", "Failed to parse chunk: $data")
+                    }
+                }
+            }
+        } finally {
+            reader.close()
+            responseBody.close()
+        }
+    }
+
+    /**
+     * Parse SSE stream for Anthropic Claude format.
+     * Events: content_block_delta with delta.text
+     */
+    private fun parseClaudeSseStream(responseBody: ResponseBody): Flow<String> = flow {
+        val reader = responseBody.charStream().buffered()
+        try {
+            var line: String?
+            var eventType: String? = null
+
+            while (reader.readLine().also { line = it } != null) {
+                val currentLine = line ?: continue
+
+                // Skip empty lines
+                if (currentLine.isBlank()) {
+                    eventType = null
+                    continue
+                }
+
+                // Parse event type
+                if (currentLine.startsWith("event: ")) {
+                    eventType = currentLine.removePrefix("event: ").trim()
+                    continue
+                }
+
+                // Parse data lines
+                if (currentLine.startsWith("data: ")) {
+                    val data = currentLine.removePrefix("data: ").trim()
+
+                    // Only process content_block_delta events
+                    if (eventType == "content_block_delta") {
+                        try {
+                            val event = gson.fromJson(data, ClaudeStreamEvent::class.java)
+                            event.delta?.text?.let { if (it.isNotEmpty()) emit(it) }
+                        } catch (e: Exception) {
+                            android.util.Log.w("StreamParse", "Failed to parse Claude chunk: $data")
+                        }
+                    }
+
+                    // Check for message_stop
+                    if (eventType == "message_stop") break
+                }
+            }
+        } finally {
+            reader.close()
+            responseBody.close()
+        }
+    }
+
+    /**
+     * Parse SSE stream for Google Gemini format.
+     * Format: data: {"candidates":[{"content":{"parts":[{"text":"..."}]}}]}
+     */
+    private fun parseGeminiSseStream(responseBody: ResponseBody): Flow<String> = flow {
+        val reader = responseBody.charStream().buffered()
+        try {
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val currentLine = line ?: continue
+
+                // Skip empty lines
+                if (currentLine.isBlank()) continue
+
+                // Parse data lines
+                if (currentLine.startsWith("data: ")) {
+                    val data = currentLine.removePrefix("data: ").trim()
+
+                    try {
+                        val chunk = gson.fromJson(data, GeminiStreamChunk::class.java)
+                        val text = chunk?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                        text?.let { if (it.isNotEmpty()) emit(it) }
+                    } catch (e: Exception) {
+                        android.util.Log.w("StreamParse", "Failed to parse Gemini chunk: $data")
+                    }
+                }
+            }
+        } finally {
+            reader.close()
+            responseBody.close()
+        }
+    }
+
+    // ========== Provider-Specific Streaming Methods ==========
+
+    private fun streamChatOpenAi(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            openAiStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatClaude(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val claudeMessages = messages
+            .filter { it.role != "system" }
+            .map { msg -> ClaudeMessage(role = msg.role, content = msg.content) }
+        val systemPrompt = messages.find { it.role == "system" }?.content
+
+        val request = ClaudeStreamRequest(
+            model = model,
+            messages = claudeMessages,
+            stream = true,
+            max_tokens = params.maxTokens ?: 4096,
+            temperature = params.temperature,
+            top_p = params.topP,
+            top_k = params.topK,
+            system = systemPrompt
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            claudeStreamApi.createMessageStream(apiKey, request = request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseClaudeSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatGemini(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val contents = messages
+            .filter { it.role != "system" }
+            .map { msg ->
+                GeminiContent(
+                    parts = listOf(GeminiPart(text = msg.content)),
+                    role = if (msg.role == "user") "user" else "model"
+                )
+            }
+        val systemInstruction = messages.find { it.role == "system" }?.let {
+            GeminiContent(parts = listOf(GeminiPart(text = it.content)))
+        }
+
+        val request = GeminiRequest(
+            contents = contents,
+            generationConfig = GeminiGenerationConfig(
+                temperature = params.temperature,
+                maxOutputTokens = params.maxTokens,
+                topP = params.topP,
+                topK = params.topK
+            ),
+            systemInstruction = systemInstruction
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            geminiStreamApi.streamGenerateContent(model, apiKey, request = request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseGeminiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatGrok(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            grokStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatGroq(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            groqStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatDeepSeek(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            deepSeekStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatMistral(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            mistralStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatPerplexity(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            perplexityStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatTogether(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            togetherStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatOpenRouter(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            openRouterStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatSiliconFlow(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            siliconFlowStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatZai(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            zaiStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatDummy(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): Flow<String> = flow {
+        // Ensure Dummy server is running
+        DummyApiServer.start()
+
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            dummyStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
         } else {
             throw Exception("API error: ${response.code()} ${response.message()}")
         }

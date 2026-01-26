@@ -398,6 +398,9 @@ fun AiNavHost(
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
                         viewModel.sendChatMessage(provider, apiKey, model, messages)
+                    },
+                    onSendMessageStream = { messages ->
+                        viewModel.sendChatMessageStream(provider, apiKey, model, messages)
                     }
                 )
             }
@@ -437,6 +440,9 @@ fun AiNavHost(
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
                         viewModel.sendChatMessage(session.provider, apiKey, session.model, messages)
+                    },
+                    onSendMessageStream = { messages ->
+                        viewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages)
                     }
                 )
             } else {

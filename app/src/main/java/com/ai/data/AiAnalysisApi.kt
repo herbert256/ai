@@ -611,6 +611,60 @@ object AiApiFactory {
     fun createOpenRouterModelsApi(): OpenRouterModelsApi {
         return getRetrofit(AiService.OPENROUTER.baseUrl).create(OpenRouterModelsApi::class.java)
     }
+
+    // ========== Streaming API Factories ==========
+
+    fun createOpenAiStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.OPENAI.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createClaudeStreamApi(): ClaudeStreamApi {
+        return getRetrofit(AiService.ANTHROPIC.baseUrl).create(ClaudeStreamApi::class.java)
+    }
+
+    fun createGeminiStreamApi(): GeminiStreamApi {
+        return getRetrofit(AiService.GOOGLE.baseUrl).create(GeminiStreamApi::class.java)
+    }
+
+    fun createGrokStreamApi(): GrokStreamApi {
+        return getRetrofit(AiService.XAI.baseUrl).create(GrokStreamApi::class.java)
+    }
+
+    fun createGroqStreamApi(): GroqStreamApi {
+        return getRetrofit(AiService.GROQ.baseUrl).create(GroqStreamApi::class.java)
+    }
+
+    fun createDeepSeekStreamApi(): DeepSeekStreamApi {
+        return getRetrofit(AiService.DEEPSEEK.baseUrl).create(DeepSeekStreamApi::class.java)
+    }
+
+    fun createMistralStreamApi(): MistralStreamApi {
+        return getRetrofit(AiService.MISTRAL.baseUrl).create(MistralStreamApi::class.java)
+    }
+
+    fun createPerplexityStreamApi(): PerplexityStreamApi {
+        return getRetrofit(AiService.PERPLEXITY.baseUrl).create(PerplexityStreamApi::class.java)
+    }
+
+    fun createTogetherStreamApi(): TogetherStreamApi {
+        return getRetrofit(AiService.TOGETHER.baseUrl).create(TogetherStreamApi::class.java)
+    }
+
+    fun createOpenRouterStreamApi(): OpenRouterStreamApi {
+        return getRetrofit(AiService.OPENROUTER.baseUrl).create(OpenRouterStreamApi::class.java)
+    }
+
+    fun createSiliconFlowStreamApi(): SiliconFlowStreamApi {
+        return getRetrofit(AiService.SILICONFLOW.baseUrl).create(SiliconFlowStreamApi::class.java)
+    }
+
+    fun createZaiStreamApi(): ZaiStreamApi {
+        return getRetrofit(AiService.ZAI.baseUrl).create(ZaiStreamApi::class.java)
+    }
+
+    fun createDummyStreamApi(): DummyStreamApi {
+        return getRetrofit(AiService.DUMMY.baseUrl).create(DummyStreamApi::class.java)
+    }
 }
 
 // ============================================================================
@@ -716,4 +770,267 @@ interface HuggingFaceApi {
         @Path("modelId", encoded = true) modelId: String,
         @Header("Authorization") authorization: String
     ): Response<HuggingFaceModelInfo>
+}
+
+// ============================================================================
+// Streaming API Models - for SSE (Server-Sent Events) streaming responses
+// ============================================================================
+
+/**
+ * OpenAI streaming chunk response (used by most providers).
+ * Format: data: {"id":"...","choices":[{"delta":{"content":"..."}}]}
+ */
+data class OpenAiStreamChunk(
+    val id: String?,
+    val choices: List<StreamChoice>?,
+    val created: Long?
+)
+
+data class StreamChoice(
+    val index: Int?,
+    val delta: StreamDelta?,
+    val finish_reason: String?
+)
+
+data class StreamDelta(
+    val role: String? = null,
+    val content: String? = null,
+    val reasoning_content: String? = null  // DeepSeek reasoning models
+)
+
+/**
+ * Anthropic streaming event format.
+ * Events: message_start, content_block_start, content_block_delta, content_block_stop, message_delta, message_stop
+ */
+data class ClaudeStreamEvent(
+    val type: String,
+    val index: Int? = null,
+    val delta: ClaudeStreamDelta? = null,
+    val content_block: ClaudeStreamContentBlock? = null
+)
+
+data class ClaudeStreamDelta(
+    val type: String? = null,
+    val text: String? = null,
+    val stop_reason: String? = null
+)
+
+data class ClaudeStreamContentBlock(
+    val type: String? = null,
+    val text: String? = null
+)
+
+/**
+ * Google Gemini streaming response.
+ * Returns array of candidates with partial content.
+ */
+data class GeminiStreamChunk(
+    val candidates: List<GeminiStreamCandidate>?
+)
+
+data class GeminiStreamCandidate(
+    val content: GeminiContent?,
+    val finishReason: String?
+)
+
+// ============================================================================
+// Streaming Request Models - with stream: true parameter
+// ============================================================================
+
+/**
+ * OpenAI streaming request (adds stream: true).
+ */
+data class OpenAiStreamRequest(
+    val model: String,
+    val messages: List<OpenAiMessage>,
+    val stream: Boolean = true,
+    val max_tokens: Int? = null,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val stop: List<String>? = null,
+    val seed: Int? = null
+)
+
+/**
+ * Claude streaming request (adds stream: true).
+ */
+data class ClaudeStreamRequest(
+    val model: String,
+    val messages: List<ClaudeMessage>,
+    val stream: Boolean = true,
+    val max_tokens: Int = 4096,
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val top_k: Int? = null,
+    val system: String? = null,
+    val stop_sequences: List<String>? = null
+)
+
+/**
+ * Gemini doesn't use a separate stream request - uses different endpoint.
+ */
+
+// ============================================================================
+// Streaming API Interfaces - using ResponseBody for raw stream access
+// ============================================================================
+
+/**
+ * Streaming API interface for OpenAI-compatible providers.
+ */
+interface OpenAiStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Anthropic.
+ */
+interface ClaudeStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/messages")
+    suspend fun createMessageStream(
+        @Header("x-api-key") apiKey: String,
+        @Header("anthropic-version") version: String = "2023-06-01",
+        @Body request: ClaudeStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Google Gemini.
+ */
+interface GeminiStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1beta/models/{model}:streamGenerateContent")
+    suspend fun streamGenerateContent(
+        @Path("model") model: String,
+        @Query("key") apiKey: String,
+        @Query("alt") alt: String = "sse",
+        @Body request: GeminiRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for xAI Grok.
+ */
+interface GrokStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Groq.
+ */
+interface GroqStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for DeepSeek.
+ */
+interface DeepSeekStreamApi {
+    @retrofit2.http.Streaming
+    @POST("chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Mistral.
+ */
+interface MistralStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Perplexity.
+ */
+interface PerplexityStreamApi {
+    @retrofit2.http.Streaming
+    @POST("chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Together AI.
+ */
+interface TogetherStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for OpenRouter.
+ */
+interface OpenRouterStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for SiliconFlow.
+ */
+interface SiliconFlowStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Z.AI.
+ */
+interface ZaiStreamApi {
+    @retrofit2.http.Streaming
+    @POST("chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Dummy (uses OpenAI format).
+ */
+interface DummyStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
 }

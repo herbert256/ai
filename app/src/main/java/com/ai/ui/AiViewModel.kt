@@ -11,12 +11,15 @@ import com.ai.data.AiService
 import com.ai.data.ChatHistoryManager
 import com.ai.data.ApiTracer
 import com.ai.data.DummyApiServer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 
 class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val aiAnalysisRepository = AiAnalysisRepository()
@@ -588,6 +591,25 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             null
         }
+    }
+
+    /**
+     * Send a chat message with streaming response.
+     * Returns a Flow that emits content chunks as they arrive.
+     */
+    fun sendChatMessageStream(
+        service: AiService,
+        apiKey: String,
+        model: String,
+        messages: List<ChatMessage>
+    ): Flow<String> {
+        return aiAnalysisRepository.sendChatMessageStream(
+            service = service,
+            apiKey = apiKey,
+            model = model,
+            messages = messages,
+            params = _uiState.value.chatParameters
+        ).flowOn(Dispatchers.IO)
     }
 
     companion object {
