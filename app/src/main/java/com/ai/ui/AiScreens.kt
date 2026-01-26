@@ -59,9 +59,12 @@ fun AiHubScreen(
             uiState.aiSettings.togetherApiKey.isNotBlank() ||
             uiState.aiSettings.openRouterApiKey.isNotBlank()
 
+    // Check if any agents are defined
+    val hasAnyAgent = uiState.aiSettings.agents.isNotEmpty()
+
     // Check if setup is complete (no warnings)
     val isSetupComplete = hasAnyApiKey &&
-            uiState.aiSettings.agents.isNotEmpty() &&
+            hasAnyAgent &&
             uiState.aiSettings.swarms.isNotEmpty()
 
     // Calculate number of cards and required height
@@ -73,7 +76,7 @@ fun AiHubScreen(
     // Count cards that will be shown
     var cardCount = 3  // AI Setup, Settings, Help (always shown)
     if (isSetupComplete) cardCount += 4  // AI Report, AI History, AI Statistics + extra cards
-    if (hasAnyApiKey) cardCount += 2  // AI Chat, AI Models
+    if (hasAnyAgent) cardCount += 2  // AI Chat, AI Models
     if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
 
     // Calculate total height needed for cards
@@ -180,8 +183,8 @@ fun AiHubScreen(
                 HubCard(icon = "\uD83D\uDCDD", title = "AI Report", onClick = onNavigateToNewReport)
                 Spacer(modifier = Modifier.height(8.dp))
             }
-            // AI Chat - show when any API key is configured (doesn't require agents/swarms)
-            if (hasAnyApiKey) {
+            // AI Chat - show when any agent is defined
+            if (hasAnyAgent) {
                 HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = {
                     if (hasChatHistory) {
                         showChatChoiceDialog = true
@@ -222,8 +225,8 @@ fun AiHubScreen(
                     containerColor = Color(0xFF2A2A2A)
                 )
             }
-            // AI Models - show when any API key is configured
-            if (hasAnyApiKey) {
+            // AI Models - show when any agent is defined
+            if (hasAnyAgent) {
                 HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
                 Spacer(modifier = Modifier.height(8.dp))
             }

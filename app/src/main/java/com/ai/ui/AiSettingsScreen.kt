@@ -776,7 +776,38 @@ fun AiProvidersScreen(
                         // Save updated settings if any agents were created/updated
                         val successCount = results.count { it.second }
                         if (successCount > 0) {
-                            onSaveAiSettings(aiSettings.copy(agents = updatedAgents))
+                            // Collect IDs of agents with provider display names (default agents)
+                            val defaultAgentIds = updatedAgents
+                                .filter { agent ->
+                                    AiService.entries.any { it.displayName == agent.name }
+                                }
+                                .map { it.id }
+
+                            // Find or create "default agents" swarm
+                            val updatedSwarms = aiSettings.swarms.toMutableList()
+                            val existingSwarmIndex = updatedSwarms.indexOfFirst {
+                                it.name == "default agents"
+                            }
+
+                            if (existingSwarmIndex >= 0) {
+                                // Update existing swarm with new agent IDs
+                                updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
+                                    agentIds = defaultAgentIds
+                                )
+                            } else {
+                                // Create new swarm
+                                val newSwarm = AiSwarm(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = "default agents",
+                                    agentIds = defaultAgentIds
+                                )
+                                updatedSwarms.add(newSwarm)
+                            }
+
+                            onSaveAiSettings(aiSettings.copy(
+                                agents = updatedAgents,
+                                swarms = updatedSwarms
+                            ))
                         }
 
                         generationResults = results
