@@ -476,32 +476,34 @@ fun AiSetupScreen(
             onClick = onNavigateToCostConfig
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Refresh model lists button - only show when at least one provider has an API key
+        if (aiSettings.hasAnyApiKey()) {
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Refresh model lists button
-        Button(
-            onClick = {
-                scope.launch {
-                    isRefreshing = true
-                    refreshResults = onRefreshAllModels(aiSettings)
-                    isRefreshing = false
-                    showResultsDialog = true
+            Button(
+                onClick = {
+                    scope.launch {
+                        isRefreshing = true
+                        refreshResults = onRefreshAllModels(aiSettings)
+                        isRefreshing = false
+                        showResultsDialog = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isRefreshing,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+            ) {
+                if (isRefreshing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Refreshing...")
+                } else {
+                    Text("Refresh model lists")
                 }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isRefreshing,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-        ) {
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Refreshing...")
-            } else {
-                Text("Refresh model lists")
             }
         }
 
