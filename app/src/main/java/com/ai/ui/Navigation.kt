@@ -80,7 +80,6 @@ fun AiNavHost(
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
-                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 viewModel = viewModel
             )
@@ -137,7 +136,8 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) }
+                onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
+                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) }
             )
         }
 
@@ -151,6 +151,7 @@ fun AiNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
+                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
                 initialTitle = title,
                 initialPrompt = prompt
             )

@@ -23,7 +23,7 @@ import com.ai.data.AiHistoryFileInfo
 
 /**
  * AI hub screen - the home page of the app.
- * Shows links to New AI Report, AI History, and Prompt History.
+ * Shows links to New AI Report, AI History, and AI Statistics.
  * Also has navigation icons for Settings, Trace, and Help.
  */
 @Composable
@@ -33,7 +33,6 @@ fun AiHubScreen(
     onNavigateToHelp: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToNewReport: () -> Unit,
-    onNavigateToPromptHistory: () -> Unit,
     onNavigateToStatistics: () -> Unit,
     viewModel: AiViewModel
 ) {
@@ -147,8 +146,6 @@ fun AiHubScreen(
         // Cards - only show AI features when setup is complete
         if (isSetupComplete) {
             HubCard(icon = "\uD83D\uDCDD", title = "New AI Report", onClick = onNavigateToNewReport)
-            Spacer(modifier = Modifier.height(8.dp))
-            HubCard(icon = "\uD83D\uDD52", title = "Prompt History", onClick = onNavigateToPromptHistory)
             Spacer(modifier = Modifier.height(8.dp))
             HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
             Spacer(modifier = Modifier.height(8.dp))
@@ -754,6 +751,7 @@ fun AiNewReportScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToAiReports: () -> Unit = {},
+    onNavigateToPromptHistory: () -> Unit = {},
     initialTitle: String = "",
     initialPrompt: String = ""
 ) {
@@ -860,6 +858,16 @@ fun AiNewReportScreen(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Select previous prompt button
+        OutlinedButton(
+            onClick = onNavigateToPromptHistory,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Select previous prompt")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Clear button
         OutlinedButton(
