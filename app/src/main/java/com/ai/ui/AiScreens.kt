@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.ai.R
 import androidx.compose.ui.text.style.TextAlign
@@ -1922,13 +1923,15 @@ fun AiReportsScreen(
     }
 
     // Direct agent selection state (separate from swarm-based selection)
-    // Filter to only include agents that still exist
-    val validAgentIds = allConfiguredAgents.map { it.id }.toSet()
+    // Filter to only include agents that still exist (excluding DUMMY when not in dev mode)
+    val validAgentIds = configuredAgents.map { it.id }.toSet()
     val validSavedAgents = savedAgentIds.filter { it in validAgentIds }.toSet()
     var directlySelectedAgentIds by remember { mutableStateOf(validSavedAgents) }
 
-    // Get agents from selected swarms
-    val swarmAgentIds = uiState.aiSettings.getAgentsForSwarms(selectedSwarmIds).map { it.id }.toSet()
+    // Get agents from selected swarms (excluding DUMMY when not in dev mode)
+    val swarmAgentIds = uiState.aiSettings.getAgentsForSwarms(selectedSwarmIds)
+        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+        .map { it.id }.toSet()
 
     // Combined unique agent IDs (from swarms + directly selected)
     val combinedAgentIds = swarmAgentIds + directlySelectedAgentIds
@@ -2048,6 +2051,7 @@ fun AiReportsScreen(
                         } else {
                             filteredSwarms.forEach { swarm ->
                                 val swarmAgentsList = uiState.aiSettings.getAgentsForSwarm(swarm)
+                                    .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
                                 val swarmAgentIdsList = swarmAgentsList.map { it.id }.toSet()
                                 Row(
                                     modifier = Modifier
@@ -2236,7 +2240,35 @@ fun AiReportsScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // Report title
+                if (uiState.genericAiPromptTitle.isNotBlank()) {
+                    Text(
+                        text = uiState.genericAiPromptTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
+
+            // Calculate costs for each agent
+            val agentCosts = remember(reportsAgentResults) {
+                reportsAgentResults.mapNotNull { (agentId, result) ->
+                    val agent = uiState.aiSettings.getAgentById(agentId) ?: return@mapNotNull null
+                    val tokenUsage = result.tokenUsage ?: return@mapNotNull null
+                    val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, agent.model)
+                    if (pricing != null) {
+                        val inputCost = tokenUsage.inputTokens * pricing.promptPrice
+                        val outputCost = tokenUsage.outputTokens * pricing.completionPrice
+                        agentId to (inputCost + outputCost)
+                    } else {
+                        null
+                    }
+                }.toMap()
+            }
+            val totalCost = agentCosts.values.sum()
 
             // Progress/Results UI
             Card(
@@ -2247,13 +2279,40 @@ fun AiReportsScreen(
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Header row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Agent",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFAAAAAA),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Cost",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFAAAAAA),
+                            modifier = Modifier.width(100.dp)
+                        )
+                        Text(
+                            text = "",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.width(24.dp)
+                        )
+                    }
+                    HorizontalDivider(color = Color(0xFF404040))
+
                     // Show all selected agents with their status
                     reportsSelectedAgents.mapNotNull { agentId ->
                         uiState.aiSettings.getAgentById(agentId)
                     }.sortedBy { it.name.lowercase() }.forEach { agent ->
                         val result = reportsAgentResults[agent.id]
+                        val cost = agentCosts[agent.id]
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -2262,34 +2321,70 @@ fun AiReportsScreen(
                             Text(
                                 text = agent.name,
                                 fontWeight = FontWeight.Medium,
-                                color = Color.White
+                                color = Color.White,
+                                modifier = Modifier.weight(1f)
                             )
-                            when {
-                                result == null -> {
-                                    // Still pending - show small spinner
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color.Gray
-                                    )
-                                }
-                                result.isSuccess -> {
-                                    Text(
-                                        text = "✓",
-                                        color = Color(0xFF4CAF50),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp
-                                    )
-                                }
-                                else -> {
-                                    Text(
-                                        text = "✗",
-                                        color = Color(0xFFF44336),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp
-                                    )
+                            Text(
+                                text = if (cost != null) String.format("$%.8f", cost) else "-",
+                                fontFamily = FontFamily.Monospace,
+                                color = if (cost != null) Color(0xFF4CAF50) else Color(0xFF888888),
+                                fontSize = 12.sp,
+                                modifier = Modifier.width(100.dp)
+                            )
+                            Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
+                                when {
+                                    result == null -> {
+                                        // Still pending - show small spinner
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    result.isSuccess -> {
+                                        Text(
+                                            text = "✓",
+                                            color = Color(0xFF4CAF50),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp
+                                        )
+                                    }
+                                    else -> {
+                                        Text(
+                                            text = "✗",
+                                            color = Color(0xFFF44336),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp
+                                        )
+                                    }
                                 }
                             }
+                        }
+                    }
+
+                    // Total cost row
+                    if (isComplete && agentCosts.isNotEmpty()) {
+                        HorizontalDivider(color = Color(0xFF404040))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Total",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = String.format("$%.8f", totalCost),
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50),
+                                fontSize = 12.sp,
+                                modifier = Modifier.width(100.dp)
+                            )
+                            Box(modifier = Modifier.width(24.dp))
                         }
                     }
                 }

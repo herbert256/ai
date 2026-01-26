@@ -544,19 +544,19 @@ private fun ProviderCostCard(
                     Text(
                         text = if (isExpanded) "▼" else "▶",
                         color = Color(0xFF888888),
-                        fontSize = 10.sp
+                        fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = provider.displayName,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF6B9BFF)
                     )
                 }
                 Text(
                     text = formatCurrency(group.totalCost),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4CAF50)
@@ -780,5 +780,5 @@ private fun CostTokenStat(label: String, tokens: Long, cost: Double?) {
 }
 
 private fun formatCurrency(value: Double): String {
-    return String.format("$%.11f", value)
+    return String.format("$%.8f", value)
 }
