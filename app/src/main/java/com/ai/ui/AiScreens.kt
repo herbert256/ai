@@ -38,6 +38,7 @@ fun AiHubScreen(
     onNavigateToNewChat: () -> Unit,
     onNavigateToChatHistory: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
+    onNavigateToModelSearch: () -> Unit,
     viewModel: AiViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -46,174 +47,203 @@ fun AiHubScreen(
     var showChatChoiceDialog by remember { mutableStateOf(false) }
     val hasChatHistory = remember { ChatHistoryManager.getSessionCount() > 0 }
 
-    Column(
+    // Check if any provider has an API key configured
+    val hasAnyApiKey = uiState.aiSettings.chatGptApiKey.isNotBlank() ||
+            uiState.aiSettings.claudeApiKey.isNotBlank() ||
+            uiState.aiSettings.geminiApiKey.isNotBlank() ||
+            uiState.aiSettings.grokApiKey.isNotBlank() ||
+            uiState.aiSettings.groqApiKey.isNotBlank() ||
+            uiState.aiSettings.deepSeekApiKey.isNotBlank() ||
+            uiState.aiSettings.mistralApiKey.isNotBlank() ||
+            uiState.aiSettings.perplexityApiKey.isNotBlank() ||
+            uiState.aiSettings.togetherApiKey.isNotBlank() ||
+            uiState.aiSettings.openRouterApiKey.isNotBlank()
+
+    // Check if setup is complete (no warnings)
+    val isSetupComplete = hasAnyApiKey &&
+            uiState.aiSettings.agents.isNotEmpty() &&
+            uiState.aiSettings.swarms.isNotEmpty()
+
+    // Calculate number of cards and required height
+    val cardHeight = 56.dp  // HubCard height (icon 40sp + padding 8dp top+bottom)
+    val cardSpacing = 8.dp
+    val largeSpacing = 32.dp
+    val warningHeight = 76.dp  // Warning card height including spacer
+
+    // Count cards that will be shown
+    var cardCount = 3  // AI Setup, Settings, Help (always shown)
+    if (isSetupComplete) cardCount += 4  // AI Report, AI History, AI Statistics + extra cards
+    if (hasAnyApiKey) cardCount += 2  // AI Chat, AI Models
+    if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
+
+    // Calculate total height needed for cards
+    val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + largeSpacing
+    val warningCardHeight = if (!isSetupComplete) warningHeight else 0.dp
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 16.dp)
     ) {
-        // App logo
-        Image(
-            painter = painterResource(id = R.drawable.ic_launcher_foreground),
-            contentDescription = "AI App Logo",
-            modifier = Modifier.size(200.dp)
-        )
+        // Calculate logo size based on available height
+        val availableForLogo = maxHeight - cardsHeight - warningCardHeight
+        val logoSize = availableForLogo.coerceIn(100.dp, 300.dp)
 
-        // Check if any provider has an API key configured
-        val hasAnyApiKey = uiState.aiSettings.chatGptApiKey.isNotBlank() ||
-                uiState.aiSettings.claudeApiKey.isNotBlank() ||
-                uiState.aiSettings.geminiApiKey.isNotBlank() ||
-                uiState.aiSettings.grokApiKey.isNotBlank() ||
-                uiState.aiSettings.groqApiKey.isNotBlank() ||
-                uiState.aiSettings.deepSeekApiKey.isNotBlank() ||
-                uiState.aiSettings.mistralApiKey.isNotBlank() ||
-                uiState.aiSettings.perplexityApiKey.isNotBlank() ||
-                uiState.aiSettings.togetherApiKey.isNotBlank() ||
-                uiState.aiSettings.openRouterApiKey.isNotBlank()
-
-        // Check if setup is complete (no warnings)
-        val isSetupComplete = hasAnyApiKey &&
-                uiState.aiSettings.agents.isNotEmpty() &&
-                uiState.aiSettings.swarms.isNotEmpty()
-
-        // Warning if no API keys configured
-        if (!hasAnyApiKey) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF4A2A2A)
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "❌", fontSize = 20.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "No API keys configured. Go to AI Setup → AI Providers to add an API key.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFFF8080)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-        } else if (uiState.aiSettings.agents.isEmpty()) {
-            // Warning if no agents configured (only show if API keys exist)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF4A3A2A)
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "⚠️", fontSize = 20.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "No AI agents configured. Go to AI Setup → AI Agents to add your first agent.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFFFCC80)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-        } else if (uiState.aiSettings.swarms.isEmpty()) {
-            // Warning if no swarms configured (only show if agents exist)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF3A3A4A)
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = "\uD83D\uDC1D", fontSize = 20.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "No AI swarms configured. Go to AI Setup → AI Swarms to create your first swarm.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFB0B0FF)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        // Cards - only show AI features when setup is complete
-        if (isSetupComplete) {
-            HubCard(icon = "\uD83D\uDCDD", title = "AI Report", onClick = onNavigateToNewReport)
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        // AI Chat - show when any API key is configured (doesn't require agents/swarms)
-        if (hasAnyApiKey) {
-            HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = {
-                if (hasChatHistory) {
-                    showChatChoiceDialog = true
-                } else {
-                    onNavigateToNewChat()
-                }
-            })
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // Chat choice dialog
-        if (showChatChoiceDialog) {
-            AlertDialog(
-                onDismissRequest = { showChatChoiceDialog = false },
-                title = { Text("AI Chat", color = Color.White) },
-                text = {
-                    Text(
-                        "Would you like to start a new chat or continue with a previous chat?",
-                        color = Color(0xFFAAAAAA)
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showChatChoiceDialog = false
-                        onNavigateToNewChat()
-                    }) {
-                        Text("Start new chat", color = Color(0xFF6B9BFF))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showChatChoiceDialog = false
-                        onNavigateToChatHistory()
-                    }) {
-                        Text("Continue with previous chat", color = Color(0xFF8B5CF6))
-                    }
-                },
-                containerColor = Color(0xFF2A2A2A)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // App logo with dynamic size
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                contentDescription = "AI App Logo",
+                modifier = Modifier.size(logoSize)
             )
-        }
-        if (isSetupComplete) {
-            HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
-            Spacer(modifier = Modifier.height(8.dp))
-            HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
-        Spacer(modifier = Modifier.height(32.dp))
-        HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
-        Spacer(modifier = Modifier.height(8.dp))
-        HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
 
-        // API Traces card (developer mode only)
-        if (uiState.generalSettings.developerMode) {
+            // Warning if no API keys configured
+            if (!hasAnyApiKey) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF4A2A2A)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "❌", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "No API keys configured. Go to AI Setup → AI Providers to add an API key.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFFF8080)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            } else if (uiState.aiSettings.agents.isEmpty()) {
+                // Warning if no agents configured (only show if API keys exist)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF4A3A2A)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "⚠️", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "No AI agents configured. Go to AI Setup → AI Agents to add your first agent.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFFFCC80)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            } else if (uiState.aiSettings.swarms.isEmpty()) {
+                // Warning if no swarms configured (only show if agents exist)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF3A3A4A)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "\uD83D\uDC1D", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "No AI swarms configured. Go to AI Setup → AI Swarms to create your first swarm.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFB0B0FF)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // Cards - only show AI features when setup is complete
+            if (isSetupComplete) {
+                HubCard(icon = "\uD83D\uDCDD", title = "AI Report", onClick = onNavigateToNewReport)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            // AI Chat - show when any API key is configured (doesn't require agents/swarms)
+            if (hasAnyApiKey) {
+                HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = {
+                    if (hasChatHistory) {
+                        showChatChoiceDialog = true
+                    } else {
+                        onNavigateToNewChat()
+                    }
+                })
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Chat choice dialog
+            if (showChatChoiceDialog) {
+                AlertDialog(
+                    onDismissRequest = { showChatChoiceDialog = false },
+                    title = { Text("AI Chat", color = Color.White) },
+                    text = {
+                        Text(
+                            "Would you like to start a new chat or continue with a previous chat?",
+                            color = Color(0xFFAAAAAA)
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showChatChoiceDialog = false
+                            onNavigateToNewChat()
+                        }) {
+                            Text("Start new chat", color = Color(0xFF6B9BFF))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            showChatChoiceDialog = false
+                            onNavigateToChatHistory()
+                        }) {
+                            Text("Continue with previous chat", color = Color(0xFF8B5CF6))
+                        }
+                    },
+                    containerColor = Color(0xFF2A2A2A)
+                )
+            }
+            // AI Models - show when any API key is configured
+            if (hasAnyApiKey) {
+                HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            if (isSetupComplete) {
+                HubCard(icon = "\uD83D\uDCDA", title = "AI History", onClick = onNavigateToHistory)
+                Spacer(modifier = Modifier.height(8.dp))
+                HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
+            Spacer(modifier = Modifier.height(32.dp))
+            HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(8.dp))
-            HubCard(icon = "\uD83D\uDC1E", title = "API Traces", onClick = onNavigateToTrace)
+            HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
+
+            // API Traces card (developer mode only)
+            if (uiState.generalSettings.developerMode) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HubCard(icon = "\uD83D\uDC1E", title = "API Traces", onClick = onNavigateToTrace)
+            }
         }
     }
 }
@@ -238,17 +268,17 @@ private fun HubCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = icon,
-                fontSize = 22.sp
+                fontSize = 40.sp
             )
             Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White
             )

@@ -19,7 +19,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             developerMode = prefs.getBoolean(KEY_DEVELOPER_MODE, false),
-            trackApiCalls = prefs.getBoolean(KEY_TRACK_API_CALLS, false)
+            trackApiCalls = prefs.getBoolean(KEY_TRACK_API_CALLS, false),
+            huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: ""
         )
     }
 
@@ -28,6 +29,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
             .putBoolean(KEY_DEVELOPER_MODE, settings.developerMode)
             .putBoolean(KEY_TRACK_API_CALLS, settings.trackApiCalls)
+            .putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
             .apply()
     }
 
@@ -280,6 +282,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_DEVELOPER_MODE = "developer_mode"
         private const val KEY_TRACK_API_CALLS = "track_api_calls"
+        private const val KEY_HUGGINGFACE_API_KEY = "huggingface_api_key"
 
         // AI Analysis settings - API keys and models
         private const val KEY_AI_CHATGPT_API_KEY = "ai_chatgpt_api_key"

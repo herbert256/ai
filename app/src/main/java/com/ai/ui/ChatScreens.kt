@@ -134,8 +134,7 @@ fun ChatSelectModelScreen(
     isLoadingModels: Boolean,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSelectModel: (String) -> Unit,
-    onFetchModels: (String) -> Unit
+    onSelectModel: (String) -> Unit
 ) {
     BackHandler { onNavigateBack() }
 
@@ -175,13 +174,6 @@ fun ChatSelectModelScreen(
         allModels
     } else {
         allModels.filter { it.contains(searchQuery, ignoreCase = true) }
-    }
-
-    // Fetch models if API source and not loaded yet
-    LaunchedEffect(provider, modelSource) {
-        if (modelSource == ModelSource.API && availableModels.isEmpty() && !isLoadingModels) {
-            onFetchModels(apiKey)
-        }
     }
 
     Column(

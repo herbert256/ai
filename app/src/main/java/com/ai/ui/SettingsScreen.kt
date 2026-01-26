@@ -20,7 +20,6 @@ import com.ai.data.AiService
  */
 enum class SettingsSubScreen {
     MAIN,
-    GENERAL_SETTINGS,
     // AI settings structure
     AI_SETTINGS,
     AI_CHATGPT,
@@ -43,8 +42,7 @@ enum class SettingsSubScreen {
     AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
     AI_SWARMS,      // Swarms CRUD
     AI_ADD_SWARM,   // Add new swarm
-    AI_EDIT_SWARM,  // Edit existing swarm
-    MODEL_SEARCH    // Search models across providers
+    AI_EDIT_SWARM   // Edit existing swarm
 }
 
 /**
@@ -91,7 +89,6 @@ fun SettingsScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onFetchModelsAfterImport: (AiSettings) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
@@ -143,8 +140,7 @@ fun SettingsScreen(
             // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
-            SettingsSubScreen.AI_SWARMS,
-            SettingsSubScreen.MODEL_SEARCH -> {
+            SettingsSubScreen.AI_SWARMS -> {
                 if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
                     currentSubScreen = SettingsSubScreen.AI_SETUP
                 } else {
@@ -173,13 +169,6 @@ fun SettingsScreen(
             generalSettings = generalSettings,
             onBack = onBack,
             onNavigateHome = onNavigateHome,
-            onSave = onSaveGeneral,
-            onTrackApiCallsChanged = onTrackApiCallsChanged
-        )
-        SettingsSubScreen.GENERAL_SETTINGS -> GeneralSettingsScreen(
-            generalSettings = generalSettings,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToHome = onNavigateHome,
             onSave = onSaveGeneral,
             onTrackApiCallsChanged = onTrackApiCallsChanged
         )
@@ -336,8 +325,7 @@ fun SettingsScreen(
             },
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
-            onSave = onSaveAi,
-            onFetchModelsAfterImport = onFetchModelsAfterImport
+            onSave = onSaveAi
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,
@@ -362,43 +350,6 @@ fun SettingsScreen(
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onTestAiModel = onTestAiModel,
-            onFetchChatGptModels = onFetchChatGptModels,
-            onFetchGeminiModels = onFetchGeminiModels,
-            onFetchGrokModels = onFetchGrokModels,
-            onFetchGroqModels = onFetchGroqModels,
-            onFetchDeepSeekModels = onFetchDeepSeekModels,
-            onFetchMistralModels = onFetchMistralModels,
-            onFetchPerplexityModels = onFetchPerplexityModels,
-            onFetchTogetherModels = onFetchTogetherModels,
-            onFetchOpenRouterModels = onFetchOpenRouterModels,
-            onFetchDummyModels = onFetchDummyModels
-        )
-        SettingsSubScreen.MODEL_SEARCH -> ModelSearchScreen(
-            aiSettings = aiSettings,
-            developerMode = generalSettings.developerMode,
-            availableChatGptModels = availableChatGptModels,
-            availableGeminiModels = availableGeminiModels,
-            availableGrokModels = availableGrokModels,
-            availableGroqModels = availableGroqModels,
-            availableDeepSeekModels = availableDeepSeekModels,
-            availableMistralModels = availableMistralModels,
-            availablePerplexityModels = availablePerplexityModels,
-            availableTogetherModels = availableTogetherModels,
-            availableOpenRouterModels = availableOpenRouterModels,
-            availableDummyModels = availableDummyModels,
-            isLoadingChatGptModels = isLoadingChatGptModels,
-            isLoadingGeminiModels = isLoadingGeminiModels,
-            isLoadingGrokModels = isLoadingGrokModels,
-            isLoadingGroqModels = isLoadingGroqModels,
-            isLoadingDeepSeekModels = isLoadingDeepSeekModels,
-            isLoadingMistralModels = isLoadingMistralModels,
-            isLoadingTogetherModels = isLoadingTogetherModels,
-            isLoadingOpenRouterModels = isLoadingOpenRouterModels,
-            isLoadingDummyModels = isLoadingDummyModels,
-            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
-            onBackToHome = onNavigateHome,
-            onSaveAiSettings = onSaveAi,
             onTestAiModel = onTestAiModel,
             onFetchChatGptModels = onFetchChatGptModels,
             onFetchGeminiModels = onFetchGeminiModels,
@@ -536,12 +487,14 @@ private fun SettingsMainScreen(
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
     var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
+    var huggingFaceApiKey by remember { mutableStateOf(generalSettings.huggingFaceApiKey) }
 
     fun saveSettings() {
         onSave(generalSettings.copy(
             userName = userName.ifBlank { "user" },
             developerMode = developerMode,
-            trackApiCalls = trackApiCalls
+            trackApiCalls = trackApiCalls,
+            huggingFaceApiKey = huggingFaceApiKey
         ))
     }
 
@@ -594,6 +547,47 @@ private fun SettingsMainScreen(
                         focusedBorderColor = Color(0xFF6B9BFF),
                         unfocusedBorderColor = Color(0xFF444444)
                     )
+                )
+            }
+        }
+
+        // External Services card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "External Services",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                OutlinedTextField(
+                    value = huggingFaceApiKey,
+                    onValueChange = {
+                        huggingFaceApiKey = it
+                        saveSettings()
+                    },
+                    label = { Text("Hugging Face API Key") },
+                    placeholder = { Text("hf_...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFF9800),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+                Text(
+                    text = "Used for fetching model info. Get your token at huggingface.co/settings/tokens",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFAAAAAA)
                 )
             }
         }

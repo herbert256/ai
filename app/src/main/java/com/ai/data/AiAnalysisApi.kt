@@ -603,4 +603,117 @@ object AiApiFactory {
         // Dummy API uses OpenAI-compatible format
         return getRetrofit(AiService.DUMMY.baseUrl).create(OpenAiApi::class.java)
     }
+
+    fun createHuggingFaceApi(): HuggingFaceApi {
+        return getRetrofit("https://huggingface.co/api/").create(HuggingFaceApi::class.java)
+    }
+
+    fun createOpenRouterModelsApi(): OpenRouterModelsApi {
+        return getRetrofit(AiService.OPENROUTER.baseUrl).create(OpenRouterModelsApi::class.java)
+    }
+}
+
+// ============================================================================
+// Model Info APIs - for fetching detailed model information
+// ============================================================================
+
+/**
+ * OpenRouter detailed model info response.
+ */
+data class OpenRouterModelInfo(
+    val id: String,
+    val name: String? = null,
+    val description: String? = null,
+    val context_length: Int? = null,
+    val pricing: OpenRouterPricing? = null,
+    val top_provider: OpenRouterTopProvider? = null,
+    val architecture: OpenRouterArchitecture? = null,
+    val per_request_limits: OpenRouterLimits? = null
+)
+
+data class OpenRouterPricing(
+    val prompt: String? = null,  // Cost per token (as string)
+    val completion: String? = null,
+    val image: String? = null,
+    val request: String? = null
+)
+
+data class OpenRouterTopProvider(
+    val context_length: Int? = null,
+    val max_completion_tokens: Int? = null,
+    val is_moderated: Boolean? = null
+)
+
+data class OpenRouterArchitecture(
+    val modality: String? = null,  // "text->text", "text+image->text", etc.
+    val tokenizer: String? = null,
+    val instruct_type: String? = null
+)
+
+data class OpenRouterLimits(
+    val prompt_tokens: Int? = null,
+    val completion_tokens: Int? = null
+)
+
+data class OpenRouterModelsDetailedResponse(
+    val data: List<OpenRouterModelInfo>
+)
+
+/**
+ * Hugging Face model info response.
+ */
+data class HuggingFaceModelInfo(
+    val id: String? = null,
+    val modelId: String? = null,
+    val author: String? = null,
+    val sha: String? = null,
+    val downloads: Long? = null,
+    val likes: Int? = null,
+    val tags: List<String>? = null,
+    val pipeline_tag: String? = null,
+    val library_name: String? = null,
+    val createdAt: String? = null,
+    val lastModified: String? = null,
+    val private: Boolean? = null,
+    val gated: Boolean? = null,
+    val disabled: Boolean? = null,
+    val cardData: HuggingFaceCardData? = null,
+    val siblings: List<HuggingFaceSibling>? = null,
+    val config: Map<String, Any>? = null
+)
+
+data class HuggingFaceCardData(
+    val license: String? = null,
+    val language: List<String>? = null,
+    val datasets: List<String>? = null,
+    val base_model: String? = null,
+    val model_type: String? = null,
+    val pipeline_tag: String? = null,
+    val tags: List<String>? = null
+)
+
+data class HuggingFaceSibling(
+    val rfilename: String? = null
+)
+
+/**
+ * Retrofit interface for OpenRouter Models API with detailed info.
+ */
+interface OpenRouterModelsApi {
+    @retrofit2.http.GET("v1/models")
+    suspend fun listModelsDetailed(
+        @Header("Authorization") authorization: String
+    ): Response<OpenRouterModelsDetailedResponse>
+}
+
+/**
+ * Retrofit interface for Hugging Face API.
+ * Requires Bearer token authentication.
+ */
+interface HuggingFaceApi {
+    @retrofit2.http.GET("models/{modelId}")
+    suspend fun getModelInfo(
+        @Path("modelId", encoded = true) modelId: String,
+        @Header("Authorization") authorization: String
+    ): Response<HuggingFaceModelInfo>
 }

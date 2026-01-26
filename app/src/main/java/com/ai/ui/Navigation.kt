@@ -34,8 +34,14 @@ object NavRoutes {
     const val AI_CHAT_SESSION = "ai_chat_session/{provider}/{model}"
     const val AI_CHAT_HISTORY = "ai_chat_history"
     const val AI_CHAT_CONTINUE = "ai_chat_continue/{sessionId}"
+    const val AI_MODEL_SEARCH = "ai_model_search"
+    const val AI_MODEL_INFO = "ai_model_info/{provider}/{model}"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
+    fun aiModelInfo(provider: String, model: String): String {
+        val encodedModel = java.net.URLEncoder.encode(model, "UTF-8")
+        return "ai_model_info/$provider/$encodedModel"
+    }
     fun aiChatContinue(sessionId: String) = "ai_chat_continue/$sessionId"
     fun aiChatModel(provider: String) = "ai_chat_model/$provider"
     fun aiChatParams(provider: String, model: String): String {
@@ -102,6 +108,7 @@ fun AiNavHost(
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
+                onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 viewModel = viewModel
             )
         }
@@ -207,6 +214,76 @@ fun AiNavHost(
             )
         }
 
+        composable(NavRoutes.AI_MODEL_SEARCH) {
+            val uiState by viewModel.uiState.collectAsState()
+            ModelSearchScreen(
+                aiSettings = uiState.aiSettings,
+                developerMode = uiState.generalSettings.developerMode,
+                availableChatGptModels = uiState.availableChatGptModels,
+                availableGeminiModels = uiState.availableGeminiModels,
+                availableGrokModels = uiState.availableGrokModels,
+                availableGroqModels = uiState.availableGroqModels,
+                availableDeepSeekModels = uiState.availableDeepSeekModels,
+                availableMistralModels = uiState.availableMistralModels,
+                availablePerplexityModels = uiState.availablePerplexityModels,
+                availableTogetherModels = uiState.availableTogetherModels,
+                availableOpenRouterModels = uiState.availableOpenRouterModels,
+                availableDummyModels = uiState.availableDummyModels,
+                isLoadingChatGptModels = uiState.isLoadingChatGptModels,
+                isLoadingGeminiModels = uiState.isLoadingGeminiModels,
+                isLoadingGrokModels = uiState.isLoadingGrokModels,
+                isLoadingGroqModels = uiState.isLoadingGroqModels,
+                isLoadingDeepSeekModels = uiState.isLoadingDeepSeekModels,
+                isLoadingMistralModels = uiState.isLoadingMistralModels,
+                isLoadingTogetherModels = uiState.isLoadingTogetherModels,
+                isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
+                isLoadingDummyModels = uiState.isLoadingDummyModels,
+                onBackToAiSetup = { navController.popBackStack() },
+                onBackToHome = navigateHome,
+                onSaveAiSettings = { viewModel.updateAiSettings(it) },
+                onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
+                onFetchChatGptModels = { viewModel.fetchChatGptModels(it) },
+                onFetchGeminiModels = { viewModel.fetchGeminiModels(it) },
+                onFetchGrokModels = { viewModel.fetchGrokModels(it) },
+                onFetchGroqModels = { viewModel.fetchGroqModels(it) },
+                onFetchDeepSeekModels = { viewModel.fetchDeepSeekModels(it) },
+                onFetchMistralModels = { viewModel.fetchMistralModels(it) },
+                onFetchPerplexityModels = { viewModel.fetchPerplexityModels(it) },
+                onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
+                onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
+                onFetchDummyModels = { viewModel.fetchDummyModels(it) },
+                onNavigateToChatParams = { provider, model ->
+                    navController.navigate(NavRoutes.aiChatParams(provider.name, model))
+                },
+                onNavigateToModelInfo = { provider, model ->
+                    navController.navigate(NavRoutes.aiModelInfo(provider.name, model))
+                }
+            )
+        }
+
+        // Model Info screen
+        composable(NavRoutes.AI_MODEL_INFO) { backStackEntry ->
+            val providerName = backStackEntry.arguments?.getString("provider") ?: ""
+            val model = java.net.URLDecoder.decode(
+                backStackEntry.arguments?.getString("model") ?: "",
+                "UTF-8"
+            )
+            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+            val uiState by viewModel.uiState.collectAsState()
+
+            if (provider != null) {
+                ModelInfoScreen(
+                    provider = provider,
+                    modelName = model,
+                    openRouterApiKey = uiState.aiSettings.openRouterApiKey,
+                    huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
+                    aiSettings = uiState.aiSettings,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateHome = navigateHome
+                )
+            }
+        }
+
         // Chat screens
         composable(NavRoutes.AI_CHAT_PROVIDER) {
             val uiState by viewModel.uiState.collectAsState()
@@ -261,20 +338,6 @@ fun AiNavHost(
                     onNavigateHome = navigateHome,
                     onSelectModel = { model ->
                         navController.navigate(NavRoutes.aiChatParams(provider.name, model))
-                    },
-                    onFetchModels = { apiKey ->
-                        when (provider) {
-                            com.ai.data.AiService.CHATGPT -> viewModel.fetchChatGptModels(apiKey)
-                            com.ai.data.AiService.GEMINI -> viewModel.fetchGeminiModels(apiKey)
-                            com.ai.data.AiService.GROK -> viewModel.fetchGrokModels(apiKey)
-                            com.ai.data.AiService.GROQ -> viewModel.fetchGroqModels(apiKey)
-                            com.ai.data.AiService.DEEPSEEK -> viewModel.fetchDeepSeekModels(apiKey)
-                            com.ai.data.AiService.MISTRAL -> viewModel.fetchMistralModels(apiKey)
-                            com.ai.data.AiService.TOGETHER -> viewModel.fetchTogetherModels(apiKey)
-                            com.ai.data.AiService.OPENROUTER -> viewModel.fetchOpenRouterModels(apiKey)
-                            com.ai.data.AiService.DUMMY -> viewModel.fetchDummyModels(apiKey)
-                            else -> {}
-                        }
                     }
                 )
             }
@@ -437,7 +500,6 @@ fun SettingsScreenNav(
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
-        onFetchModelsAfterImport = { viewModel.fetchModelsForApiSourceProviders(it) },
         initialSubScreen = initialSubScreen
     )
 }
