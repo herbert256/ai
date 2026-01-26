@@ -1,42 +1,49 @@
 # AI - Multi-Provider AI Report Generator & Chat
 
-An Android app that generates AI-powered reports and enables conversations using 13 different AI services. Compare responses from OpenAI, Anthropic, Google, and 10 other AI providers, chat with any model, and explore models across all providers.
+An Android app that generates AI-powered reports and enables conversations using 13 different AI services. Compare responses from OpenAI, Anthropic, Google, and 10 other AI providers, chat with real-time streaming responses, track costs, and explore models across all providers.
 
 ## Features
 
 ### Core Features
 - **13 AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, plus DUMMY for testing
-- **AI Chat**: Multi-turn conversations with any AI model, auto-saved history
+- **AI Chat**: Multi-turn conversations with real-time streaming responses (word-by-word), auto-saved history
 - **Multi-Agent Reports**: Query multiple AI providers in parallel, compare responses side-by-side
 - **AI Swarms**: Group agents together for quick selection during report generation
 - **Advanced Parameters**: Configure temperature, max tokens, system prompts, and more per agent
-- **Real-time Progress**: Watch as each agent completes, with option to stop early
+- **Real-time Progress**: Watch as each agent completes, with token counts and costs per agent
 
 ### Model Discovery
 - **Model Search**: Search all models across all configured providers in one place
 - **Model Info**: View detailed model information from OpenRouter (pricing, context length) and Hugging Face (downloads, likes, tags)
 - **Quick Actions**: Start a chat or create an agent directly from model search results
 
+### Cost Tracking
+- **AI Costs**: Track estimated costs for all API usage
+- **Four-Tier Pricing**: Manual overrides > OpenRouter API (weekly cached) > LiteLLM (bundled) > Fallback
+- **Cost Configuration**: Set manual price overrides per model in dollars per million tokens
+- **Per-Agent Costs**: See input/output token counts and cost in cents for each agent response
+
 ### History & Organization
-- **Chat History**: Automatically saved conversations, tap to continue
+- **Chat History**: Automatically saved conversations with streaming support, tap to continue
+- **Report History**: Browse, view, share (JSON or HTML), and delete generated reports
 - **Prompt History**: Automatically saves prompts (up to 100), one-tap reuse
-- **Report History**: Browse, view, and share previously generated HTML reports
 - **AI Statistics**: Track API calls, input/output tokens per provider and model
-- **Paginated Lists**: Configurable page size (5-50 items)
 - **Swarm Selection Memory**: Remembers your last selected swarms for convenience
 
 ### Export & Sharing
-- **HTML Reports**: View in browser or share via email
+- **Share Reports**: Export as JSON (raw data) or HTML (formatted report)
+- **View in Browser**: Open interactive HTML report with collapsible sections
 - **Markdown Rendering**: AI responses rendered with formatting
 - **Collapsible Think Sections**: AI reasoning hidden behind expandable buttons
 - **Citations & Sources**: Perplexity citations, xAI/Perplexity search results displayed
-- **Configuration Export**: Backup/restore your agents, swarms, and Hugging Face API key as JSON (v7 format)
+- **Configuration Export**: Backup/restore your agents, swarms, and API keys as JSON (v7 format)
 
 ### Developer Features
 - **API Tracing**: Log all API requests and responses
 - **Trace Viewer**: Inspect request/response details with header masking
 - **Token Usage**: See input/output token counts in reports
 - **HTTP Headers**: View response headers in developer mode
+- **DUMMY Provider**: Local test server for development
 
 ## Requirements
 
@@ -93,19 +100,21 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ### 4. Start Using the App
 
+**For Chat (Recommended Start):**
+1. From AI Hub, tap "AI Chat"
+2. Choose "New chat" or "Continue previous"
+3. Select a provider with a configured API key
+4. Select a model
+5. Start chatting - responses stream in real-time, word by word
+6. Conversations are automatically saved
+
 **For Reports:**
 1. From AI Hub, tap "AI Report"
 2. Enter a title and your prompt
 3. Tap "Generate" button at top
 4. Select individual agents or swarms in the dialog
-5. Watch progress as agents respond
-6. View results, toggle between agents, export or share
-
-**For Chat:**
-1. From AI Hub, tap "AI Chat"
-2. Select a provider with a configured API key
-3. Select a model
-4. Start chatting - conversations are auto-saved
+5. Watch progress with token counts and costs
+6. View results, share as JSON/HTML, or open in browser
 
 **For Model Discovery:**
 1. From AI Hub, tap "AI Models"
@@ -150,14 +159,14 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 | Service | Special Features |
 |---------|-----------------|
-| **OpenAI** | JSON response format, Responses API for GPT-5.x/o3/o4 |
-| **Anthropic** | Top-K parameter, content blocks |
-| **Google** | System instruction, generation config |
-| **xAI** | Web search toggle, returns search results |
-| **Perplexity** | Citations, search results, related questions, recency filter |
-| **DeepSeek** | Reasoning content support (think sections) |
-| **SiliconFlow** | OpenAI-compatible, Chinese AI models |
-| **Z.AI** | OpenAI-compatible, GLM models |
+| **OpenAI** | JSON response format, Responses API for GPT-5.x/o3/o4, streaming |
+| **Anthropic** | Top-K parameter, content blocks, streaming |
+| **Google** | System instruction, generation config, streaming |
+| **xAI** | Web search toggle, returns search results, streaming |
+| **Perplexity** | Citations, search results, related questions, recency filter, streaming |
+| **DeepSeek** | Reasoning content support (think sections), streaming |
+| **SiliconFlow** | OpenAI-compatible, Chinese AI models, streaming |
+| **Z.AI** | OpenAI-compatible, GLM models, streaming |
 
 ## Agent Parameters
 
@@ -181,15 +190,40 @@ Each agent can be configured with advanced parameters (availability varies by pr
 
 ## Features in Detail
 
-### AI Chat
+### AI Chat with Streaming
 
-Have multi-turn conversations with any AI:
+Have real-time conversations with any AI:
 1. Select a provider (shows only configured ones)
-2. Select a model
+2. Select a model (search to filter)
 3. Optionally configure parameters (system prompt, temperature, etc.)
-4. Start chatting
+4. Start chatting - responses appear word by word as they're generated
 5. Conversations are automatically saved to Chat History
 6. Continue any previous conversation from Chat History
+
+### AI Reports
+
+Generate comparative reports from multiple AI agents:
+1. Enter a title (optional) and your prompt
+2. Use `@DATE@` to insert current date automatically
+3. Select agents or swarms to query
+4. Watch real-time progress with:
+   - Agent name, provider, model
+   - Status (pending, running, success, error)
+   - Input/output token counts
+   - Cost in cents per agent
+5. When complete:
+   - **View** - See formatted responses in-app
+   - **Share** - Export as JSON or HTML
+   - **Browser** - Open interactive HTML report
+
+### AI Costs
+
+Track your AI spending:
+- **Total cost** across all models
+- **Expandable provider groups** showing per-model breakdown
+- **Pricing sources** (color-coded): Manual, OpenRouter, LiteLLM, Fallback
+- **Refresh button** to update OpenRouter pricing (cached weekly)
+- **Cost Configuration** in Settings for manual price overrides
 
 ### AI Swarms
 
@@ -252,8 +286,9 @@ Generated reports include:
 ### Export & Share
 
 - **View in Chrome**: Opens HTML report in browser
-- **Share via Email**: Attaches report as HTML file
-- **Export Config**: Share your agent, swarm setup, and Hugging Face API key as JSON (v7 format)
+- **Share as JSON**: Raw report data for processing
+- **Share as HTML**: Formatted report for viewing
+- **Export Config**: Share your agent, swarm setup as JSON (v7 format)
 - **Import Config**: Import from JSON file or clipboard
 
 ## Integration with Other Apps
@@ -304,25 +339,29 @@ AI Hub (Home)
 ├── AI Report
 │   ├── Enter title + prompt
 │   ├── Generate → Select agents/swarms
-│   ├── Progress with real-time updates
-│   └── Results → View/Export/Share
+│   ├── Progress with token counts & costs
+│   └── Results → View/Share (JSON/HTML)/Browser
 ├── AI Chat
 │   ├── Select provider + model
 │   ├── Configure parameters
-│   └── Multi-turn conversation (auto-saved)
+│   └── Streaming conversation (auto-saved)
 ├── AI Models
 │   ├── Search across all providers
 │   └── View info / Start chat / Create agent
 ├── AI History
-│   └── Browse → View/Share/Delete reports
+│   └── Browse → View/Share/Browser/Delete reports
 ├── AI Statistics
 │   └── API calls, token usage per provider/model
+├── AI Costs
+│   └── Estimated costs with expandable provider groups
 └── Settings
     ├── General
     │   ├── Username for chat display
-    │   ├── Pagination size (5-50)
+    │   ├── Full screen mode toggle
     │   ├── Developer mode toggle
     │   └── API tracing toggle
+    ├── Cost Configuration
+    │   └── Manual price overrides per model
     ├── AI Setup
     │   ├── AI Providers (API keys, models)
     │   ├── AI Agents (with parameters)
@@ -365,6 +404,16 @@ Add your API key in Settings → AI Setup → AI Providers
 - Check the parameter availability table above
 - Parameters left empty use provider defaults
 
+### Streaming not working
+- All 13 providers support streaming
+- If issues occur, check your API key and network connection
+- Falls back gracefully if partial content received
+
+### No pricing data
+- Add OpenRouter API key for best pricing coverage
+- Use Cost Configuration to set manual prices
+- LiteLLM bundled data provides fallback pricing
+
 ### Debug API issues
 1. Enable Developer Mode (Settings → General)
 2. Enable "Track API calls" in the same card
@@ -379,9 +428,10 @@ Add your API key in Settings → AI Setup → AI Providers
 - **UI**: Jetpack Compose with Material 3 (dark theme)
 - **Architecture**: MVVM with StateFlow
 - **Networking**: Retrofit 2 with OkHttp
+- **Streaming**: Server-Sent Events (SSE) with Kotlin Flow
 - **Min SDK**: 26 (Android 8.0)
 - **Target SDK**: 34 (Android 14)
-- **Codebase**: ~17,000 lines across 26 files
+- **Codebase**: ~22,000 lines across 25+ files
 
 ## Building
 
@@ -454,10 +504,10 @@ Private use only. Not for redistribution.
 ## Acknowledgments
 
 - **AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI
-- **Model Data**: OpenRouter API, Hugging Face API
+- **Model Data**: OpenRouter API, Hugging Face API, LiteLLM pricing data
 - **UI Framework**: Jetpack Compose, Material 3
 - **Networking**: Retrofit, OkHttp, Gson
 
 ---
 
-*AI - Compare AI providers, chat with any model, generate insights, configure with precision.*
+*AI - Compare AI providers, chat with streaming, track costs, generate insights, configure with precision.*
