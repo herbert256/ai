@@ -429,6 +429,126 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ========== Refresh All Model Lists ==========
+
+    /**
+     * Refresh model lists for all providers with API as model source.
+     * Returns a map of provider display name to model count.
+     */
+    suspend fun refreshAllModelLists(settings: AiSettings): Map<String, Int> {
+        val results = mutableMapOf<String, Int>()
+
+        // ChatGPT
+        if (settings.chatGptModelSource == ModelSource.API && settings.chatGptApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchChatGptModels(settings.chatGptApiKey)
+                _uiState.value = _uiState.value.copy(availableChatGptModels = models)
+                settingsPrefs.saveChatGptApiModels(models)
+                results["ChatGPT"] = models.size
+            } catch (e: Exception) {
+                results["ChatGPT"] = -1  // -1 indicates error
+            }
+        }
+
+        // Gemini
+        if (settings.geminiModelSource == ModelSource.API && settings.geminiApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchGeminiModels(settings.geminiApiKey)
+                _uiState.value = _uiState.value.copy(availableGeminiModels = models)
+                settingsPrefs.saveGeminiApiModels(models)
+                results["Gemini"] = models.size
+            } catch (e: Exception) {
+                results["Gemini"] = -1
+            }
+        }
+
+        // Grok
+        if (settings.grokModelSource == ModelSource.API && settings.grokApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchGrokModels(settings.grokApiKey)
+                _uiState.value = _uiState.value.copy(availableGrokModels = models)
+                settingsPrefs.saveGrokApiModels(models)
+                results["Grok"] = models.size
+            } catch (e: Exception) {
+                results["Grok"] = -1
+            }
+        }
+
+        // Groq
+        if (settings.groqModelSource == ModelSource.API && settings.groqApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchGroqModels(settings.groqApiKey)
+                _uiState.value = _uiState.value.copy(availableGroqModels = models)
+                settingsPrefs.saveGroqApiModels(models)
+                results["Groq"] = models.size
+            } catch (e: Exception) {
+                results["Groq"] = -1
+            }
+        }
+
+        // DeepSeek
+        if (settings.deepSeekModelSource == ModelSource.API && settings.deepSeekApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchDeepSeekModels(settings.deepSeekApiKey)
+                _uiState.value = _uiState.value.copy(availableDeepSeekModels = models)
+                settingsPrefs.saveDeepSeekApiModels(models)
+                results["DeepSeek"] = models.size
+            } catch (e: Exception) {
+                results["DeepSeek"] = -1
+            }
+        }
+
+        // Mistral
+        if (settings.mistralModelSource == ModelSource.API && settings.mistralApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchMistralModels(settings.mistralApiKey)
+                _uiState.value = _uiState.value.copy(availableMistralModels = models)
+                settingsPrefs.saveMistralApiModels(models)
+                results["Mistral"] = models.size
+            } catch (e: Exception) {
+                results["Mistral"] = -1
+            }
+        }
+
+        // Together
+        if (settings.togetherModelSource == ModelSource.API && settings.togetherApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchTogetherModels(settings.togetherApiKey)
+                _uiState.value = _uiState.value.copy(availableTogetherModels = models)
+                settingsPrefs.saveTogetherApiModels(models)
+                results["Together"] = models.size
+            } catch (e: Exception) {
+                results["Together"] = -1
+            }
+        }
+
+        // OpenRouter
+        if (settings.openRouterModelSource == ModelSource.API && settings.openRouterApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchOpenRouterModels(settings.openRouterApiKey)
+                _uiState.value = _uiState.value.copy(availableOpenRouterModels = models)
+                settingsPrefs.saveOpenRouterApiModels(models)
+                results["OpenRouter"] = models.size
+            } catch (e: Exception) {
+                results["OpenRouter"] = -1
+            }
+        }
+
+        // Dummy (if in developer mode, we'd need to check that separately)
+        if (settings.dummyModelSource == ModelSource.API && settings.dummyApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchDummyModels(settings.dummyApiKey)
+                _uiState.value = _uiState.value.copy(availableDummyModels = models)
+                settingsPrefs.saveDummyApiModels(models)
+                results["Dummy"] = models.size
+            } catch (e: Exception) {
+                results["Dummy"] = -1
+            }
+        }
+
+        return results
+    }
+
     // ========== AI Model Testing ==========
 
     suspend fun testAiModel(service: AiService, apiKey: String, model: String): String? {

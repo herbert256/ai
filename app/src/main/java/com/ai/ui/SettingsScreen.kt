@@ -89,6 +89,8 @@ fun SettingsScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
+    onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
+    onSaveHuggingFaceApiKey: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
@@ -314,6 +316,7 @@ fun SettingsScreen(
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
+            huggingFaceApiKey = generalSettings.huggingFaceApiKey,
             onBackToSettings = {
                 // If AI_SETUP is the initial screen (accessed from home), go home
                 // Otherwise go back to Settings main screen
@@ -325,7 +328,9 @@ fun SettingsScreen(
             },
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
-            onSave = onSaveAi
+            onSave = onSaveAi,
+            onRefreshAllModels = onRefreshAllModels,
+            onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,

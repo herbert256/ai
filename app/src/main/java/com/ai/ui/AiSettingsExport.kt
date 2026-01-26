@@ -77,14 +77,16 @@ data class SwarmExport(
 
 /**
  * Data class for the complete AI configuration export.
+ * Version 7: Added huggingFaceApiKey.
  * Version 6: Providers, agents with parameters, and swarms.
  * Also supports importing version 3/4/5 (legacy formats - prompts ignored, parameters/swarms default).
  */
 data class AiConfigExport(
-    val version: Int = 6,
+    val version: Int = 7,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
+    val huggingFaceApiKey: String? = null,  // Version 7+
     // Legacy field from version 3 (ignored on import)
     val prompts: List<Any>? = null
 )
@@ -98,10 +100,18 @@ data class ApiKeyEntry(
 )
 
 /**
- * Export AI configuration to a file and share via Android share sheet.
- * Exports providers (model config) and agents.
+ * Result of importing AI configuration.
  */
-fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
+data class AiConfigImportResult(
+    val aiSettings: AiSettings,
+    val huggingFaceApiKey: String? = null
+)
+
+/**
+ * Export AI configuration to a file and share via Android share sheet.
+ * Exports providers (model config), agents, swarms, and huggingFaceApiKey.
+ */
+fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "") {
     // Build providers map (model source, manual models, and API key per provider)
     val providers = mapOf(
         "CHATGPT" to ProviderConfigExport(aiSettings.chatGptModelSource.name, aiSettings.chatGptManualModels, aiSettings.chatGptApiKey),
@@ -162,7 +172,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings) {
     val export = AiConfigExport(
         providers = providers,
         agents = agents,
-        swarms = swarms
+        swarms = swarms,
+        huggingFaceApiKey = huggingFaceApiKey.ifBlank { null }
     )
 
     val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
@@ -252,10 +263,10 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
 
 /**
  * Import AI configuration from clipboard JSON.
- * Supports version 3/4 (legacy formats) and version 5 (current with parameters).
+ * Supports version 3-7.
  * Prompts from version 3 are ignored.
  */
-fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiSettings? {
+fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiConfigImportResult? {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clipData = clipboard.primaryClip
 
@@ -274,8 +285,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..6) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-6.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..7) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-7.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -420,7 +431,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
         Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
-        settings
+        AiConfigImportResult(settings, export.huggingFaceApiKey)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
         null
@@ -432,10 +443,10 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Supports version 3/4 (legacy formats) and version 5 (current with parameters).
+ * Supports version 3-7.
  * Prompts from version 3 are ignored.
  */
-fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiSettings? {
+fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri)
         if (inputStream == null) {
@@ -455,8 +466,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..6) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-6.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..7) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-7.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -601,7 +612,7 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
         Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
-        settings
+        AiConfigImportResult(settings, export.huggingFaceApiKey)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
         null
@@ -619,6 +630,7 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
 fun ImportAiConfigDialog(
     currentSettings: AiSettings,
     onImport: (AiSettings) -> Unit,
+    onImportHuggingFaceApiKey: (String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -641,7 +653,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 3, 4, or 5).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 3-7).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
@@ -656,9 +668,10 @@ fun ImportAiConfigDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val imported = importAiConfigFromClipboard(context, currentSettings)
-                    if (imported != null) {
-                        onImport(imported)
+                    val result = importAiConfigFromClipboard(context, currentSettings)
+                    if (result != null) {
+                        onImport(result.aiSettings)
+                        result.huggingFaceApiKey?.let { onImportHuggingFaceApiKey(it) }
                     }
                 }
             ) {

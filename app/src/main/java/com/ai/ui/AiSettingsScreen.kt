@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
+import kotlinx.coroutines.launch
 
 /**
  * Main AI settings screen with navigation cards for each AI service.
@@ -29,10 +30,12 @@ import com.ai.data.AiService
 fun AiSettingsScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
+    huggingFaceApiKey: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
-    onSave: (AiSettings) -> Unit
+    onSave: (AiSettings) -> Unit,
+    onSaveHuggingFaceApiKey: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -41,9 +44,10 @@ fun AiSettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            val imported = importAiConfigFromFile(context, it, aiSettings)
-            if (imported != null) {
-                onSave(imported)
+            val result = importAiConfigFromFile(context, it, aiSettings)
+            if (result != null) {
+                onSave(result.aiSettings)
+                result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
             }
         }
     }
@@ -160,7 +164,7 @@ fun AiSettingsScreen(
         if (aiSettings.hasAnyApiKey()) {
             Button(
                 onClick = {
-                    exportAiConfigToFile(context, aiSettings)
+                    exportAiConfigToFile(context, aiSettings, huggingFaceApiKey)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
@@ -210,23 +214,144 @@ fun AiSettingsScreen(
 @Composable
 fun AiSetupScreen(
     aiSettings: AiSettings,
+    huggingFaceApiKey: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
-    onSave: (AiSettings) -> Unit
+    onSave: (AiSettings) -> Unit,
+    onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
+    onSaveHuggingFaceApiKey: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // State for refresh model lists
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
+    var showResultsDialog by remember { mutableStateOf(false) }
 
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
-            val imported = importAiConfigFromFile(context, it, aiSettings)
-            if (imported != null) {
-                onSave(imported)
+            val result = importAiConfigFromFile(context, it, aiSettings)
+            if (result != null) {
+                onSave(result.aiSettings)
+                result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
             }
         }
+    }
+
+    // Results dialog
+    if (showResultsDialog && refreshResults != null) {
+        // Calculate manual providers with their model counts
+        val manualProviders = buildList {
+            // Claude and Perplexity are always manual
+            if (aiSettings.claudeApiKey.isNotBlank()) {
+                add("Claude" to CLAUDE_MODELS.size)
+            }
+            if (aiSettings.perplexityApiKey.isNotBlank()) {
+                add("Perplexity" to PERPLEXITY_MODELS.size)
+            }
+            if (aiSettings.siliconFlowApiKey.isNotBlank()) {
+                add("SiliconFlow" to SILICONFLOW_MODELS.size)
+            }
+            if (aiSettings.zaiApiKey.isNotBlank()) {
+                add("Z.AI" to ZAI_MODELS.size)
+            }
+            // Check providers that can be API or manual
+            if (aiSettings.chatGptModelSource == ModelSource.MANUAL && aiSettings.chatGptApiKey.isNotBlank()) {
+                add("ChatGPT" to aiSettings.chatGptManualModels.size)
+            }
+            if (aiSettings.geminiModelSource == ModelSource.MANUAL && aiSettings.geminiApiKey.isNotBlank()) {
+                add("Gemini" to aiSettings.geminiManualModels.size)
+            }
+            if (aiSettings.grokModelSource == ModelSource.MANUAL && aiSettings.grokApiKey.isNotBlank()) {
+                add("Grok" to aiSettings.grokManualModels.size)
+            }
+            if (aiSettings.groqModelSource == ModelSource.MANUAL && aiSettings.groqApiKey.isNotBlank()) {
+                add("Groq" to aiSettings.groqManualModels.size)
+            }
+            if (aiSettings.deepSeekModelSource == ModelSource.MANUAL && aiSettings.deepSeekApiKey.isNotBlank()) {
+                add("DeepSeek" to aiSettings.deepSeekManualModels.size)
+            }
+            if (aiSettings.mistralModelSource == ModelSource.MANUAL && aiSettings.mistralApiKey.isNotBlank()) {
+                add("Mistral" to aiSettings.mistralManualModels.size)
+            }
+            if (aiSettings.togetherModelSource == ModelSource.MANUAL && aiSettings.togetherApiKey.isNotBlank()) {
+                add("Together" to aiSettings.togetherManualModels.size)
+            }
+            if (aiSettings.openRouterModelSource == ModelSource.MANUAL && aiSettings.openRouterApiKey.isNotBlank()) {
+                add("OpenRouter" to aiSettings.openRouterManualModels.size)
+            }
+            if (aiSettings.dummyModelSource == ModelSource.MANUAL && aiSettings.dummyApiKey.isNotBlank()) {
+                add("Dummy" to aiSettings.dummyManualModels.size)
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showResultsDialog = false },
+            title = { Text("Model Lists Refreshed") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    if (refreshResults!!.isEmpty()) {
+                        Text(
+                            "No providers have API as model source.",
+                            color = Color(0xFFAAAAAA)
+                        )
+                    } else {
+                        refreshResults!!.forEach { (provider, count) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(provider, color = Color.White)
+                                Text(
+                                    if (count >= 0) "$count models" else "Error",
+                                    color = if (count >= 0) Color(0xFF6B9BFF) else Color(0xFFFF6B6B)
+                                )
+                            }
+                        }
+                    }
+
+                    // Show manual providers section
+                    if (manualProviders.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Providers with manual configured models, not updated:",
+                            color = Color(0xFFAAAAAA),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        manualProviders.forEach { (provider, count) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(provider, color = Color.White)
+                                Text(
+                                    "$count models",
+                                    color = Color(0xFF888888)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showResultsDialog = false }) {
+                    Text("OK")
+                }
+            },
+            containerColor = Color(0xFF2A2A2A)
+        )
     }
 
     Column(
@@ -286,6 +411,35 @@ fun AiSetupScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Refresh model lists button
+        Button(
+            onClick = {
+                scope.launch {
+                    isRefreshing = true
+                    refreshResults = onRefreshAllModels(aiSettings)
+                    isRefreshing = false
+                    showResultsDialog = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isRefreshing,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+        ) {
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Refreshing...")
+            } else {
+                Text("Refresh model lists")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Export AI configuration button (only show if setup is complete)
         val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||
                 aiSettings.claudeApiKey.isNotBlank() ||
@@ -306,7 +460,7 @@ fun AiSetupScreen(
         if (canExport) {
             Button(
                 onClick = {
-                    exportAiConfigToFile(context, aiSettings)
+                    exportAiConfigToFile(context, aiSettings, huggingFaceApiKey)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
