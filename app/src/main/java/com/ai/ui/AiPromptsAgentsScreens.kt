@@ -53,6 +53,7 @@ fun AiAgentsScreen(
     var editingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var copyingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<AiAgent?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
 
     // Helper to fetch models for a provider
     val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
@@ -183,13 +184,43 @@ fun AiAgentsScreen(
                     Text("+ Add Agent")
                 }
 
-                // Agent list - filter out DUMMY agents when not in developer mode
-                val visibleAgents = if (developerMode) {
+                // Search box
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search agents...") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    ),
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Text("✕", color = Color(0xFF888888))
+                            }
+                        }
+                    }
+                )
+
+                // Agent list - filter out DUMMY agents when not in developer mode and apply search
+                val baseAgents = if (developerMode) {
                     aiSettings.agents
                 } else {
                     aiSettings.agents.filter { it.provider != AiService.DUMMY }
                 }
-                if (visibleAgents.isEmpty()) {
+                val visibleAgents = if (searchQuery.isBlank()) {
+                    baseAgents
+                } else {
+                    val query = searchQuery.lowercase()
+                    baseAgents.filter { agent ->
+                        agent.name.lowercase().contains(query) ||
+                        agent.provider.displayName.lowercase().contains(query) ||
+                        agent.model.lowercase().contains(query)
+                    }
+                }
+                if (baseAgents.isEmpty()) {
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -209,6 +240,25 @@ fun AiAgentsScreen(
                                 text = "Add an agent to start using AI analysis",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFF888888)
+                            )
+                        }
+                    }
+                } else if (visibleAgents.isEmpty()) {
+                    // Search returned no results
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "No agents match \"$searchQuery\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFFAAAAAA)
                             )
                         }
                     }
