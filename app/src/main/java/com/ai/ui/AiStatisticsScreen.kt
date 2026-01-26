@@ -2,6 +2,7 @@ package com.ai.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -536,16 +537,197 @@ fun AiCostsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // List of costs per model
-                val sortedStats = statsWithCosts.sortedByDescending { it.totalCost ?: 0.0 }
+                // Group stats by provider
+                val groupedByProvider = statsWithCosts.groupBy { it.stat.provider }
+                    .mapValues { (_, models) ->
+                        ProviderCostGroup(
+                            models = models.sortedByDescending { it.totalCost ?: 0.0 },
+                            totalCost = models.mapNotNull { it.totalCost }.sum(),
+                            totalInputCost = models.mapNotNull { it.inputCost }.sum(),
+                            totalOutputCost = models.mapNotNull { it.outputCost }.sum(),
+                            totalCalls = models.sumOf { it.stat.callCount }
+                        )
+                    }
+                    .toList()
+                    .sortedByDescending { it.second.totalCost }
+
+                // Track expanded providers
+                var expandedProviders by remember { mutableStateOf(setOf<com.ai.data.AiService>()) }
 
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(sortedStats) { statWithCost ->
-                        CostCard(statWithCost = statWithCost)
+                    items(groupedByProvider) { (provider, group) ->
+                        ProviderCostCard(
+                            provider = provider,
+                            group = group,
+                            isExpanded = provider in expandedProviders,
+                            onToggle = {
+                                expandedProviders = if (provider in expandedProviders) {
+                                    expandedProviders - provider
+                                } else {
+                                    expandedProviders + provider
+                                }
+                            }
+                        )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Group of costs for a provider.
+ */
+data class ProviderCostGroup(
+    val models: List<StatWithCost>,
+    val totalCost: Double,
+    val totalInputCost: Double,
+    val totalOutputCost: Double,
+    val totalCalls: Int
+)
+
+/**
+ * Expandable card showing provider costs.
+ */
+@Composable
+private fun ProviderCostCard(
+    provider: com.ai.data.AiService,
+    group: ProviderCostGroup,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF2A2A2A)
+        ),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            // Header row (always visible)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = if (isExpanded) "▼" else "▶",
+                        color = Color(0xFF888888),
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = provider.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF6B9BFF)
+                        )
+                        Text(
+                            text = "${group.models.size} model${if (group.models.size != 1) "s" else ""} • ${group.totalCalls} calls",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888)
+                        )
+                    }
+                }
+                Text(
+                    text = formatCurrency(group.totalCost),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4CAF50)
+                )
+            }
+
+            // Expanded content
+            if (isExpanded) {
+                HorizontalDivider(color = Color(0xFF404040))
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    group.models.forEach { statWithCost ->
+                        CompactModelCostRow(statWithCost = statWithCost)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Compact row showing model cost within expanded provider.
+ */
+@Composable
+private fun CompactModelCostRow(statWithCost: StatWithCost) {
+    val stat = statWithCost.stat
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stat.model,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "${stat.callCount} calls",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF888888)
+                )
+                Text(
+                    text = "In: ${formatTokens(stat.inputTokens)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF888888)
+                )
+                Text(
+                    text = "Out: ${formatTokens(stat.outputTokens)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF888888)
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            if (statWithCost.hasPricing) {
+                Text(
+                    text = formatCurrency(statWithCost.totalCost ?: 0.0),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF4CAF50)
+                )
+                val sourceColor = when (statWithCost.pricingSource) {
+                    "openrouter" -> Color(0xFF64B5F6)
+                    "litellm" -> Color(0xFFBA68C8)
+                    "fallback" -> Color(0xFFFFB74D)
+                    else -> Color(0xFF888888)
+                }
+                Text(
+                    text = statWithCost.pricingSource ?: "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sourceColor
+                )
+            } else {
+                Text(
+                    text = "No pricing",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFFF9800)
+                )
             }
         }
     }
