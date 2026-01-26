@@ -28,6 +28,7 @@ object NavRoutes {
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_REPORTS = "ai_reports"
     const val AI_STATISTICS = "ai_statistics"
+    const val AI_COSTS = "ai_costs"
     const val AI_SETUP = "ai_setup"
     const val AI_CHAT_PROVIDER = "ai_chat_provider"
     const val AI_CHAT_MODEL = "ai_chat_model/{provider}"
@@ -219,6 +220,16 @@ fun AiNavHost(
 
         composable(NavRoutes.AI_STATISTICS) {
             AiStatisticsScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS) }
+            )
+        }
+
+        composable(NavRoutes.AI_COSTS) {
+            val uiState by viewModel.uiState.collectAsState()
+            AiCostsScreen(
+                openRouterApiKey = uiState.aiSettings.openRouterApiKey,
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
