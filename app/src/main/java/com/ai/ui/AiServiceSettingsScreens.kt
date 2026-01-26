@@ -46,7 +46,6 @@ fun ChatGptSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "OpenAI",
-        subtitle = "OpenAI",
         accentColor = Color(0xFF10A37F),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -115,7 +114,6 @@ fun ClaudeSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Anthropic",
-        subtitle = "Anthropic",
         accentColor = Color(0xFFD97706),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -187,7 +185,6 @@ fun GeminiSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Google",
-        subtitle = "Google",
         accentColor = Color(0xFF4285F4),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -259,7 +256,6 @@ fun GrokSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "xAI",
-        subtitle = "xAI",
         accentColor = Color(0xFFFFFFFF),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -331,7 +327,6 @@ fun GroqSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Groq",
-        subtitle = "Groq",
         accentColor = Color(0xFFF55036),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -403,7 +398,6 @@ fun DeepSeekSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "DeepSeek",
-        subtitle = "DeepSeek AI",
         accentColor = Color(0xFF4D6BFE),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -475,7 +469,6 @@ fun MistralSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Mistral",
-        subtitle = "Mistral AI",
         accentColor = Color(0xFFFF7000),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -544,7 +537,6 @@ fun PerplexitySettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Perplexity",
-        subtitle = "Perplexity AI",
         accentColor = Color(0xFF20B2AA),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -616,7 +608,6 @@ fun TogetherSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Together",
-        subtitle = "Together AI",
         accentColor = Color(0xFF6366F1),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -688,7 +679,6 @@ fun OpenRouterSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "OpenRouter",
-        subtitle = "OpenRouter AI",
         accentColor = Color(0xFF6B5AED),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -757,7 +747,6 @@ fun SiliconFlowSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "SiliconFlow",
-        subtitle = "SiliconFlow AI",
         accentColor = Color(0xFF00B4D8),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -826,7 +815,6 @@ fun ZaiSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Z.AI",
-        subtitle = "ZhipuAI GLM Models",
         accentColor = Color(0xFF6366F1),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -898,7 +886,6 @@ fun DummySettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Dummy",
-        subtitle = "Local test server (port 54321)",
         accentColor = Color(0xFF888888),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,

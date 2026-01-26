@@ -99,7 +99,6 @@ fun AiServiceNavigationCard(
 @Composable
 fun AiServiceSettingsScreenTemplate(
     title: String,
-    subtitle: String,
     accentColor: Color,
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
@@ -198,23 +197,6 @@ fun AiServiceSettingsScreenTemplate(
                         Text("Create Agent")
                     }
                 }
-            }
-
-            // Provider info with color indicator
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .background(accentColor, shape = MaterialTheme.shapes.small)
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFAAAAAA)
-                )
             }
 
             // Admin URL (editable with open button)
