@@ -581,6 +581,77 @@ internal fun AgentEditScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Top action buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Cancel")
+            }
+            Button(
+                onClick = {
+                    saveError = null
+                    isSaving = true
+                    coroutineScope.launch {
+                        // Build parameters
+                        val params = AiAgentParameters(
+                            temperature = temperature.toFloatOrNull(),
+                            maxTokens = maxTokens.toIntOrNull(),
+                            topP = topP.toFloatOrNull(),
+                            topK = topK.toIntOrNull(),
+                            frequencyPenalty = frequencyPenalty.toFloatOrNull(),
+                            presencePenalty = presencePenalty.toFloatOrNull(),
+                            systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
+                            stopSequences = stopSequences.takeIf { it.isNotBlank() }
+                                ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
+                            seed = seed.toIntOrNull(),
+                            responseFormatJson = responseFormatJson,
+                            searchEnabled = searchEnabled,
+                            returnCitations = returnCitations,
+                            searchRecency = searchRecency.takeIf { it.isNotBlank() }
+                        )
+                        val newAgent = AiAgent(
+                            id = agent?.id ?: java.util.UUID.randomUUID().toString(),
+                            name = name.trim(),
+                            provider = selectedProvider,
+                            model = model,
+                            apiKey = apiKey.trim(),
+                            parameters = params
+                        )
+                        isSaving = false
+                        onSave(newAgent)
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                enabled = !isSaving && nameError == null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50)
+                )
+            ) {
+                if (isSaving) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                        Text("Saving...")
+                    }
+                } else {
+                    Text(if (isEditing) "Save" else "Add")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // Scrollable content
         Column(
             modifier = Modifier
