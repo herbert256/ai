@@ -86,19 +86,31 @@ data class PromptExport(
 )
 
 /**
+ * Data class for manual pricing override in JSON export/import (version 9+).
+ * Key format: "PROVIDER:model" (e.g., "OPENAI:gpt-4o")
+ */
+data class ManualPricingExport(
+    val key: String,           // "PROVIDER:model"
+    val promptPrice: Double,   // Per token price
+    val completionPrice: Double // Per token price
+)
+
+/**
  * Data class for the complete AI configuration export.
+ * Version 9: Added manual pricing overrides.
  * Version 8: Added AI prompts (internal app prompts).
  * Version 7: Added huggingFaceApiKey.
  * Version 6: Providers, agents with parameters, and swarms.
  * Also supports importing version 3/4/5 (legacy formats - prompts ignored, parameters/swarms default).
  */
 data class AiConfigExport(
-    val version: Int = 8,
+    val version: Int = 9,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
     val huggingFaceApiKey: String? = null,  // Version 7+
     val aiPrompts: List<PromptExport>? = null,  // Version 8+
+    val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
     // Legacy field from version 3 (ignored on import)
     val prompts: List<Any>? = null
 )
@@ -191,12 +203,23 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         )
     }
 
+    // Convert manual pricing overrides
+    val manualPricingMap = com.ai.data.PricingCache.getAllManualPricing(context)
+    val manualPricing = manualPricingMap.map { (key, pricing) ->
+        ManualPricingExport(
+            key = key,
+            promptPrice = pricing.promptPrice,
+            completionPrice = pricing.completionPrice
+        )
+    }
+
     val export = AiConfigExport(
         providers = providers,
         agents = agents,
         swarms = swarms,
         huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
-        aiPrompts = aiPrompts.ifEmpty { null }
+        aiPrompts = aiPrompts.ifEmpty { null },
+        manualPricing = manualPricing.ifEmpty { null }
     )
 
     val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
@@ -308,8 +331,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..8) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-8.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..9) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-9.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -462,9 +485,24 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             )
         }
 
+        // Import manual pricing overrides (version 9+)
+        export.manualPricing?.let { pricingList ->
+            val pricingMap = pricingList.associate { mp ->
+                mp.key to com.ai.data.PricingCache.ModelPricing(
+                    modelId = mp.key.substringAfter(":"),
+                    promptPrice = mp.promptPrice,
+                    completionPrice = mp.completionPrice,
+                    source = "manual"
+                )
+            }
+            com.ai.data.PricingCache.setAllManualPricing(context, pricingMap)
+        }
+
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
+        val importedPricing = export.manualPricing?.size ?: 0
+        val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
+        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg", Toast.LENGTH_SHORT).show()
         AiConfigImportResult(settings, export.huggingFaceApiKey)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
@@ -477,7 +515,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Supports version 3-7.
+ * Supports version 3-9.
  * Prompts from version 3 are ignored.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
@@ -500,8 +538,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..8) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-8.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..9) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-9.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -654,9 +692,24 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             )
         }
 
+        // Import manual pricing overrides (version 9+)
+        export.manualPricing?.let { pricingList ->
+            val pricingMap = pricingList.associate { mp ->
+                mp.key to com.ai.data.PricingCache.ModelPricing(
+                    modelId = mp.key.substringAfter(":"),
+                    promptPrice = mp.promptPrice,
+                    completionPrice = mp.completionPrice,
+                    source = "manual"
+                )
+            }
+            com.ai.data.PricingCache.setAllManualPricing(context, pricingMap)
+        }
+
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys", Toast.LENGTH_SHORT).show()
+        val importedPricing = export.manualPricing?.size ?: 0
+        val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
+        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg", Toast.LENGTH_SHORT).show()
         AiConfigImportResult(settings, export.huggingFaceApiKey)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()

@@ -7,7 +7,7 @@ import com.google.gson.reflect.TypeToken
 
 /**
  * Cached model pricing data for cost calculations.
- * Uses a three-tier lookup: OpenRouter API (cached weekly) -> LiteLLM JSON -> Hardcoded fallback.
+ * Uses a four-tier lookup: Manual overrides -> OpenRouter API (cached weekly) -> LiteLLM JSON -> Hardcoded fallback.
  */
 object PricingCache {
 
@@ -16,12 +16,14 @@ object PricingCache {
     private const val KEY_OPENROUTER_TIMESTAMP = "openrouter_timestamp"
     private const val KEY_LITELLM_PRICING = "litellm_pricing"
     private const val KEY_LITELLM_TIMESTAMP = "litellm_timestamp"
+    private const val KEY_MANUAL_PRICING = "manual_pricing"
 
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000  // 7 days in milliseconds
 
     private val gson = Gson()
 
     // In-memory cache for quick access
+    private var manualPricing: MutableMap<String, ModelPricing>? = null
     private var openRouterPricing: Map<String, ModelPricing>? = null
     private var litellmPricing: Map<String, ModelPricing>? = null
     private var openRouterTimestamp: Long = 0
@@ -80,12 +82,83 @@ object PricingCache {
         android.util.Log.d("PricingCache", "Saved ${pricing.size} OpenRouter prices")
     }
 
+    // ============================================================================
+    // Manual pricing overrides
+    // ============================================================================
+
     /**
-     * Get pricing for a specific model, using three-tier lookup.
+     * Set manual pricing override for a provider/model combination.
+     * Prices are per token (not per million).
+     */
+    fun setManualPricing(context: Context, provider: AiService, model: String, promptPrice: Double, completionPrice: Double) {
+        ensureLoaded(context)
+        val key = "${provider.name}:$model"
+        val pricing = ModelPricing(model, promptPrice, completionPrice, "manual")
+
+        if (manualPricing == null) {
+            manualPricing = mutableMapOf()
+        }
+        manualPricing!![key] = pricing
+        saveManualPricing(context)
+        android.util.Log.d("PricingCache", "Set manual pricing for $key")
+    }
+
+    /**
+     * Remove manual pricing override for a provider/model combination.
+     */
+    fun removeManualPricing(context: Context, provider: AiService, model: String) {
+        ensureLoaded(context)
+        val key = "${provider.name}:$model"
+        manualPricing?.remove(key)
+        saveManualPricing(context)
+        android.util.Log.d("PricingCache", "Removed manual pricing for $key")
+    }
+
+    /**
+     * Get manual pricing for a provider/model combination.
+     */
+    fun getManualPricing(context: Context, provider: AiService, model: String): ModelPricing? {
+        ensureLoaded(context)
+        val key = "${provider.name}:$model"
+        return manualPricing?.get(key)
+    }
+
+    /**
+     * Get all manual pricing overrides.
+     */
+    fun getAllManualPricing(context: Context): Map<String, ModelPricing> {
+        ensureLoaded(context)
+        return manualPricing?.toMap() ?: emptyMap()
+    }
+
+    /**
+     * Set all manual pricing overrides (for import).
+     */
+    fun setAllManualPricing(context: Context, pricing: Map<String, ModelPricing>) {
+        manualPricing = pricing.toMutableMap()
+        saveManualPricing(context)
+        android.util.Log.d("PricingCache", "Imported ${pricing.size} manual prices")
+    }
+
+    private fun saveManualPricing(context: Context) {
+        val prefs = getPrefs(context)
+        prefs.edit()
+            .putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing))
+            .apply()
+    }
+
+    /**
+     * Get pricing for a specific model, using four-tier lookup.
      * Returns null if no pricing found.
      */
     fun getPricing(context: Context, provider: AiService, model: String): ModelPricing? {
         ensureLoaded(context)
+
+        // Build the key for manual pricing lookup
+        val manualKey = "${provider.name}:$model"
+
+        // 0. Try manual overrides first (highest priority)
+        manualPricing?.get(manualKey)?.let { return it }
 
         // 1. Try OpenRouter (best source for most models)
         openRouterPricing?.let { pricing ->
@@ -121,7 +194,7 @@ object PricingCache {
 
     /**
      * Get all cached pricing (merged from all sources).
-     * OpenRouter takes priority, then LiteLLM, then fallback.
+     * Manual takes priority, then OpenRouter, then LiteLLM, then fallback.
      */
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
         ensureLoaded(context)
@@ -134,8 +207,11 @@ object PricingCache {
         // Add LiteLLM (medium priority)
         litellmPricing?.let { merged.putAll(it) }
 
-        // Add OpenRouter last (highest priority)
+        // Add OpenRouter (high priority)
         openRouterPricing?.let { merged.putAll(it) }
+
+        // Add manual last (highest priority)
+        manualPricing?.let { merged.putAll(it) }
 
         return merged
     }
@@ -146,6 +222,7 @@ object PricingCache {
     fun getPricingStats(context: Context): String {
         ensureLoaded(context)
         val sources = mutableListOf<String>()
+        manualPricing?.let { if (it.isNotEmpty()) sources.add("Manual (${it.size})") }
         openRouterPricing?.let { if (it.isNotEmpty()) sources.add("OpenRouter (${it.size})") }
         litellmPricing?.let { if (it.isNotEmpty()) sources.add("LiteLLM (${it.size})") }
         sources.add("Fallback (${FALLBACK_PRICING.size})")
@@ -206,6 +283,9 @@ object PricingCache {
     }
 
     private fun ensureLoaded(context: Context) {
+        if (manualPricing == null) {
+            loadManualPricing(context)
+        }
         if (openRouterPricing == null) {
             loadFromPrefs(context)
         }
@@ -247,6 +327,23 @@ object PricingCache {
             }
         } else {
             openRouterPricing = emptyMap()
+        }
+    }
+
+    private fun loadManualPricing(context: Context) {
+        val prefs = getPrefs(context)
+        val manualJson = prefs.getString(KEY_MANUAL_PRICING, null)
+        if (manualJson != null) {
+            try {
+                val type = object : TypeToken<MutableMap<String, ModelPricing>>() {}.type
+                manualPricing = gson.fromJson(manualJson, type)
+                android.util.Log.d("PricingCache", "Loaded ${manualPricing?.size ?: 0} manual prices")
+            } catch (e: Exception) {
+                android.util.Log.w("PricingCache", "Failed to load manual pricing: ${e.message}")
+                manualPricing = mutableMapOf()
+            }
+        } else {
+            manualPricing = mutableMapOf()
         }
     }
 

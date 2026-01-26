@@ -782,3 +782,288 @@ private fun CostTokenStat(label: String, tokens: Long, cost: Double?) {
 private fun formatCurrency(value: Double): String {
     return String.format("$%.8f", value)
 }
+
+/**
+ * Cost Configuration Screen - allows manual price overrides per model.
+ */
+@Composable
+fun CostConfigurationScreen(
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack
+) {
+    BackHandler { onBack() }
+
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { SettingsPreferences(prefs) }
+
+    // Load stats to get models that have been used (exclude DUMMY)
+    val stats = remember {
+        settingsPrefs.loadUsageStats().filterValues { it.provider != com.ai.data.AiService.DUMMY }
+    }
+
+    // State for editing
+    var editingKey by remember { mutableStateOf<String?>(null) }
+    var editInputPrice by remember { mutableStateOf("") }
+    var editOutputPrice by remember { mutableStateOf("") }
+
+    // Force recomposition when manual pricing changes
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    // Get manual pricing (reloads when refreshTrigger changes)
+    val manualPricing = remember(refreshTrigger) {
+        com.ai.data.PricingCache.getAllManualPricing(context)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Cost Configuration",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Manual price overrides (per 1M tokens)",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFAAAAAA)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (stats.isEmpty()) {
+            Text(
+                text = "No models with usage statistics yet. Use AI Chat or Reports to generate statistics.",
+                color = Color(0xFF888888)
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Sort by provider name, then model name
+                val sortedStats = stats.entries.sortedWith(
+                    compareBy({ it.value.provider.displayName }, { it.value.model })
+                )
+
+                items(sortedStats, key = { it.key }) { (_, stat) ->
+                    val manualKey = "${stat.provider.name}:${stat.model}"
+                    val manualPrice = manualPricing[manualKey]
+                    val isEditing = editingKey == manualKey
+
+                    // Get current pricing (from any tier)
+                    val currentPricing = com.ai.data.PricingCache.getPricing(context, stat.provider, stat.model)
+
+                    CostConfigCard(
+                        provider = stat.provider,
+                        model = stat.model,
+                        currentInputPrice = currentPricing?.promptPrice,
+                        currentOutputPrice = currentPricing?.completionPrice,
+                        pricingSource = currentPricing?.source,
+                        hasManualOverride = manualPrice != null,
+                        isEditing = isEditing,
+                        editInputPrice = if (isEditing) editInputPrice else "",
+                        editOutputPrice = if (isEditing) editOutputPrice else "",
+                        onEditInputPriceChange = { editInputPrice = it },
+                        onEditOutputPriceChange = { editOutputPrice = it },
+                        onOverrideClick = {
+                            editingKey = manualKey
+                            // Pre-fill with current prices converted to per-million
+                            val inputPerMillion = (currentPricing?.promptPrice ?: 0.0) * 1_000_000
+                            val outputPerMillion = (currentPricing?.completionPrice ?: 0.0) * 1_000_000
+                            editInputPrice = if (inputPerMillion > 0) String.format("%.4f", inputPerMillion) else ""
+                            editOutputPrice = if (outputPerMillion > 0) String.format("%.4f", outputPerMillion) else ""
+                        },
+                        onSaveClick = {
+                            val inputPerToken = editInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                            val outputPerToken = editOutputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                            if (inputPerToken != null && outputPerToken != null) {
+                                com.ai.data.PricingCache.setManualPricing(
+                                    context, stat.provider, stat.model,
+                                    inputPerToken, outputPerToken
+                                )
+                                editingKey = null
+                                refreshTrigger++
+                            }
+                        },
+                        onCancelClick = {
+                            editingKey = null
+                        },
+                        onRemoveOverrideClick = {
+                            com.ai.data.PricingCache.removeManualPricing(context, stat.provider, stat.model)
+                            refreshTrigger++
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CostConfigCard(
+    provider: com.ai.data.AiService,
+    model: String,
+    currentInputPrice: Double?,
+    currentOutputPrice: Double?,
+    pricingSource: String?,
+    hasManualOverride: Boolean,
+    isEditing: Boolean,
+    editInputPrice: String,
+    editOutputPrice: String,
+    onEditInputPriceChange: (String) -> Unit,
+    onEditOutputPriceChange: (String) -> Unit,
+    onOverrideClick: () -> Unit,
+    onSaveClick: () -> Unit,
+    onCancelClick: () -> Unit,
+    onRemoveOverrideClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            // Provider and model name
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = provider.displayName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFF6B9BFF)
+                    )
+                    Text(
+                        text = model,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
+                }
+                if (hasManualOverride) {
+                    Text(
+                        text = "MANUAL",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF4CAF50),
+                        fontWeight = FontWeight.Bold
+                    )
+                } else if (pricingSource != null) {
+                    Text(
+                        text = pricingSource.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when (pricingSource) {
+                            "openrouter" -> Color(0xFF64B5F6)
+                            "litellm" -> Color(0xFFBA68C8)
+                            "fallback" -> Color(0xFFFFB74D)
+                            else -> Color(0xFF888888)
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isEditing) {
+                // Editing mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editInputPrice,
+                        onValueChange = onEditInputPriceChange,
+                        label = { Text("Input $/1M") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF6B9BFF),
+                            unfocusedBorderColor = Color(0xFF444444)
+                        )
+                    )
+                    OutlinedTextField(
+                        value = editOutputPrice,
+                        onValueChange = onEditOutputPriceChange,
+                        label = { Text("Output $/1M") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF6B9BFF),
+                            unfocusedBorderColor = Color(0xFF444444)
+                        )
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onCancelClick) {
+                        Text("Cancel", color = Color(0xFFAAAAAA))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onSaveClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("Save")
+                    }
+                }
+            } else {
+                // Display mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Column {
+                                Text("Input", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text(
+                                    text = if (currentInputPrice != null)
+                                        String.format("$%.4f", currentInputPrice * 1_000_000)
+                                    else "-",
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFCCCCCC),
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Column {
+                                Text("Output", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text(
+                                    text = if (currentOutputPrice != null)
+                                        String.format("$%.4f", currentOutputPrice * 1_000_000)
+                                    else "-",
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFCCCCCC),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                    Row {
+                        if (hasManualOverride) {
+                            TextButton(onClick = onRemoveOverrideClick) {
+                                Text("Remove", color = Color(0xFFFF5252), fontSize = 12.sp)
+                            }
+                        }
+                        TextButton(onClick = onOverrideClick) {
+                            Text("Override", color = Color(0xFF64B5F6), fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

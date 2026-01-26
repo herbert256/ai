@@ -29,6 +29,7 @@ object NavRoutes {
     const val AI_REPORTS = "ai_reports"
     const val AI_STATISTICS = "ai_statistics"
     const val AI_COSTS = "ai_costs"
+    const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"
     const val AI_CHAT_PROVIDER = "ai_chat_provider"
     const val AI_CHAT_MODEL = "ai_chat_model/{provider}"
@@ -119,7 +120,8 @@ fun AiNavHost(
             SettingsScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
             )
         }
 
@@ -127,7 +129,8 @@ fun AiNavHost(
             AiSetupScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
             )
         }
 
@@ -230,6 +233,13 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             AiCostsScreen(
                 openRouterApiKey = uiState.aiSettings.openRouterApiKey,
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+
+        composable(NavRoutes.AI_COST_CONFIG) {
+            CostConfigurationScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -484,6 +494,7 @@ fun SettingsScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
+    onNavigateToCostConfig: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -531,6 +542,7 @@ fun SettingsScreenNav(
         onSaveHuggingFaceApiKey = { key ->
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
         },
+        onNavigateToCostConfig = onNavigateToCostConfig,
         initialSubScreen = initialSubScreen
     )
 }
@@ -542,12 +554,14 @@ fun SettingsScreenNav(
 fun AiSetupScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onNavigateToCostConfig: () -> Unit = {}
 ) {
     SettingsScreenNav(
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
+        onNavigateToCostConfig = onNavigateToCostConfig,
         initialSubScreen = SettingsSubScreen.AI_SETUP
     )
 }

@@ -219,6 +219,7 @@ fun AiSetupScreen(
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
+    onNavigateToCostConfig: () -> Unit = {},
     onSave: (AiSettings) -> Unit,
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
@@ -461,6 +462,18 @@ fun AiSetupScreen(
             icon = "📝",
             count = "$configuredPrompts configured",
             onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
+        )
+
+        // AI Costs card
+        val manualPricingCount = remember {
+            com.ai.data.PricingCache.getAllManualPricing(context).size
+        }
+        AiSetupNavigationCard(
+            title = "AI Costs",
+            description = "Configure manual price overrides per model",
+            icon = "💰",
+            count = "$manualPricingCount configured",
+            onClick = onNavigateToCostConfig
         )
 
         Spacer(modifier = Modifier.height(16.dp))
