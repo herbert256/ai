@@ -280,7 +280,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             context = context,
                             reportId = reportId,
                             agentId = agent.id,
-                            httpStatus = null,
+                            httpStatus = response.httpStatusCode,
                             errorMessage = response.error,
                             responseHeaders = response.httpHeaders,
                             responseBody = response.analysis

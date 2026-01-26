@@ -38,7 +38,8 @@ data class AiAnalysisResponse(
     val searchResults: List<SearchResult>? = null,  // Search results returned by AI (e.g., Grok, Perplexity)
     val relatedQuestions: List<String>? = null,  // Related questions returned by AI (e.g., Perplexity)
     val rawUsageJson: String? = null,  // Raw usage/usageMetadata JSON for developer mode
-    val httpHeaders: String? = null  // HTTP response headers for developer mode
+    val httpHeaders: String? = null,  // HTTP response headers for developer mode
+    val httpStatusCode: Int? = null  // HTTP status code (captured even on parse errors)
 ) {
     val isSuccess: Boolean get() = analysis != null && error == null
 
@@ -494,9 +495,20 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                // Strategy 1: Get content from first choice's message
+                choices.firstOrNull()?.message?.content
+                // Strategy 2: Get reasoning_content from first choice (DeepSeek)
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                // Strategy 3: Try any choice with non-null content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+                // Strategy 4: Try any choice with reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
+            }
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
                 TokenUsage(
@@ -505,13 +517,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -530,11 +542,22 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            // Extract text from output[0].content where type is "output_text"
-            val content = body?.output?.firstOrNull()?.content
-                ?.firstOrNull { it.type == "output_text" }?.text
+            // Try multiple parsing strategies for content extraction
+            val content = body?.output?.let { outputs ->
+                // Strategy 1: Look for output_text type in first output's content
+                outputs.firstOrNull()?.content?.firstOrNull { it.type == "output_text" }?.text
+                // Strategy 2: Look for text type in first output's content
+                    ?: outputs.firstOrNull()?.content?.firstOrNull { it.type == "text" }?.text
+                // Strategy 3: Get first non-null text from first output's content
+                    ?: outputs.firstOrNull()?.content?.firstNotNullOfOrNull { it.text }
+                // Strategy 4: Look for message type output with content
+                    ?: outputs.firstOrNull { it.type == "message" }?.content?.firstNotNullOfOrNull { it.text }
+                // Strategy 5: Try any output's content
+                    ?: outputs.flatMap { it.content ?: emptyList() }.firstNotNullOfOrNull { it.text }
+            }
             val rawUsageJson = formatUsageJson(body?.usage)
             // Responses API uses input_tokens/output_tokens (not prompt_tokens/completion_tokens)
             val usage = body?.usage?.let {
@@ -544,13 +567,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (output: ${body?.output})"
+                AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -568,9 +591,16 @@ class AiAnalysisRepository {
         val response = claudeApi.createMessage(apiKey = apiKey, request = request)
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.content?.firstOrNull { it.type == "text" }?.text
+            // Try multiple parsing strategies for content extraction
+            val content = body?.content?.let { contentBlocks ->
+                // Strategy 1: Get text from first "text" type block
+                contentBlocks.firstOrNull { it.type == "text" }?.text
+                // Strategy 2: Get any non-null text from content blocks
+                    ?: contentBlocks.firstNotNullOfOrNull { it.text }
+            }
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
                 TokenUsage(
@@ -579,13 +609,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.ANTHROPIC, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.ANTHROPIC, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.ANTHROPIC, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (blocks: ${body?.content?.size ?: 0})"
+                AiAnalysisResponse(AiService.ANTHROPIC, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.ANTHROPIC, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.ANTHROPIC, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -620,9 +650,18 @@ class AiAnalysisRepository {
         android.util.Log.d("GeminiAPI", "Response code: ${response.code()}, message: ${response.message()}")
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+            // Try multiple parsing strategies for content extraction
+            val content = body?.candidates?.let { candidates ->
+                // Strategy 1: Get text from first candidate's first part
+                candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                // Strategy 2: Get any non-null text from first candidate's parts
+                    ?: candidates.firstOrNull()?.content?.parts?.firstNotNullOfOrNull { it.text }
+                // Strategy 3: Try any candidate with non-null content
+                    ?: candidates.flatMap { it.content?.parts ?: emptyList() }.firstNotNullOfOrNull { it.text }
+            }
             val rawUsageJson = formatUsageJson(body?.usageMetadata)
             val usage = body?.usageMetadata?.let {
                 TokenUsage(
@@ -631,15 +670,15 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.GOOGLE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.GOOGLE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.GOOGLE, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (candidates: ${body?.candidates?.size ?: 0})"
+                AiAnalysisResponse(AiService.GOOGLE, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
             val errorBody = response.errorBody()?.string()
             android.util.Log.e("GeminiAPI", "Error body: $errorBody")
-            AiAnalysisResponse(AiService.GOOGLE, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers)
+            AiAnalysisResponse(AiService.GOOGLE, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -671,9 +710,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val searchResults = body?.search_results  // Grok may return search results
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
@@ -683,13 +728,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.XAI, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.XAI, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.XAI, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.XAI, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.XAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.XAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -721,9 +766,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
                 TokenUsage(
@@ -732,13 +783,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.GROQ, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.GROQ, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.GROQ, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.GROQ, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.GROQ, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.GROQ, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -769,12 +820,18 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val message = body?.choices?.firstOrNull()?.message
+            // Try multiple parsing strategies for content extraction
             // DeepSeek reasoning models may return content in reasoning_content field
-            // Use content first, fall back to reasoning_content
-            val content = message?.content ?: message?.reasoning_content
+            val content = body?.choices?.let { choices ->
+                val message = choices.firstOrNull()?.message
+                message?.content
+                    ?: message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+                    ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
+            }
             val searchResults = body?.search_results
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
@@ -784,13 +841,13 @@ class AiAnalysisRepository {
                 )
             }
             if (!content.isNullOrBlank()) {
-                AiAnalysisResponse(AiService.DEEPSEEK, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.DEEPSEEK, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.DEEPSEEK, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.DEEPSEEK, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.DEEPSEEK, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.DEEPSEEK, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -820,9 +877,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val searchResults = body?.search_results
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
@@ -832,13 +895,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.MISTRAL, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.MISTRAL, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.MISTRAL, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.MISTRAL, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.MISTRAL, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.MISTRAL, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -870,9 +933,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val citations = body?.citations  // Extract citations from Perplexity response
             val searchResults = body?.search_results  // Extract search results
             val relatedQuestions = body?.related_questions  // Extract related questions
@@ -884,13 +953,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.PERPLEXITY, content, null, usage, citations = citations, searchResults = searchResults, relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.PERPLEXITY, content, null, usage, citations = citations, searchResults = searchResults, relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.PERPLEXITY, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.PERPLEXITY, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.PERPLEXITY, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.PERPLEXITY, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -922,9 +991,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val searchResults = body?.search_results
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
@@ -934,13 +1009,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.TOGETHER, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.TOGETHER, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.TOGETHER, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.TOGETHER, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.TOGETHER, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.TOGETHER, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -973,9 +1048,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val searchResults = body?.search_results
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
@@ -985,13 +1066,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.OPENROUTER, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.OPENROUTER, content, null, usage, searchResults = searchResults, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.OPENROUTER, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.OPENROUTER, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.OPENROUTER, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.OPENROUTER, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -1023,9 +1104,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
                 TokenUsage(
@@ -1034,13 +1121,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.SILICONFLOW, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.SILICONFLOW, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.SILICONFLOW, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.SILICONFLOW, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.SILICONFLOW, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.SILICONFLOW, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -1074,9 +1161,15 @@ class AiAnalysisRepository {
         )
 
         val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
         return if (response.isSuccessful) {
             val body = response.body()
-            val content = body?.choices?.firstOrNull()?.message?.content
+            // Try multiple parsing strategies for content extraction
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
             val rawUsageJson = formatUsageJson(body?.usage)
             val usage = body?.usage?.let {
                 TokenUsage(
@@ -1085,13 +1178,13 @@ class AiAnalysisRepository {
                 )
             }
             if (content != null) {
-                AiAnalysisResponse(AiService.ZAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers)
+                AiAnalysisResponse(AiService.ZAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
-                val errorMsg = body?.error?.message ?: "No response content"
-                AiAnalysisResponse(AiService.ZAI, null, errorMsg, httpHeaders = headers)
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.ZAI, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
-            AiAnalysisResponse(AiService.ZAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers)
+            AiAnalysisResponse(AiService.ZAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
 
@@ -1125,10 +1218,16 @@ class AiAnalysisRepository {
 
         return try {
             val response = api.createChatCompletion("Bearer $apiKey", request)
+            val statusCode = response.code()
 
             if (response.isSuccessful) {
                 val body = response.body()
-                val content = body?.choices?.firstOrNull()?.message?.content ?: ""
+                // Try multiple parsing strategies for content extraction
+                val content = body?.choices?.let { choices ->
+                    choices.firstOrNull()?.message?.content
+                        ?: choices.firstOrNull()?.message?.reasoning_content
+                        ?: choices.firstNotNullOfOrNull { it.message?.content }
+                }
                 val usage = body?.usage?.let {
                     TokenUsage(
                         inputTokens = it.prompt_tokens ?: 0,
@@ -1141,17 +1240,23 @@ class AiAnalysisRepository {
                 }
                 val headers = formatHeaders(response.headers())
 
-                AiAnalysisResponse(
-                    service = AiService.DUMMY,
-                    analysis = content,
-                    error = null,
-                    tokenUsage = usage,
-                    rawUsageJson = rawUsage,
-                    httpHeaders = headers
-                )
+                if (content != null) {
+                    AiAnalysisResponse(
+                        service = AiService.DUMMY,
+                        analysis = content,
+                        error = null,
+                        tokenUsage = usage,
+                        rawUsageJson = rawUsage,
+                        httpHeaders = headers,
+                        httpStatusCode = statusCode
+                    )
+                } else {
+                    val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                    AiAnalysisResponse(AiService.DUMMY, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+                }
             } else {
                 val errorBody = response.errorBody()?.string() ?: "Unknown error"
-                AiAnalysisResponse(AiService.DUMMY, null, "Dummy API error: $errorBody")
+                AiAnalysisResponse(AiService.DUMMY, null, "Dummy API error: $errorBody", httpStatusCode = statusCode)
             }
         } catch (e: Exception) {
             AiAnalysisResponse(AiService.DUMMY, null, "Dummy API error: ${e.message}")
