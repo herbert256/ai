@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -264,87 +265,8 @@ private fun formatTokens(value: Long): String {
 }
 
 /**
- * Data class for model pricing info.
- */
-data class ModelPricing(
-    val modelId: String,
-    val promptPrice: Double,     // Price per token
-    val completionPrice: Double, // Price per token
-    val source: String = "unknown"  // Where pricing came from
-)
-
-/**
- * Hardcoded fallback pricing for common models (per token, not per million).
- * Prices as of January 2025.
- */
-private val FALLBACK_PRICING = mapOf(
-    // DeepSeek
-    "deepseek-chat" to ModelPricing("deepseek-chat", 0.14e-6, 0.28e-6, "fallback"),
-    "deepseek-coder" to ModelPricing("deepseek-coder", 0.14e-6, 0.28e-6, "fallback"),
-    "deepseek-reasoner" to ModelPricing("deepseek-reasoner", 0.55e-6, 2.19e-6, "fallback"),
-    // Groq
-    "llama-3.3-70b-versatile" to ModelPricing("llama-3.3-70b-versatile", 0.59e-6, 0.79e-6, "fallback"),
-    "llama-3.1-8b-instant" to ModelPricing("llama-3.1-8b-instant", 0.05e-6, 0.08e-6, "fallback"),
-    "llama3-70b-8192" to ModelPricing("llama3-70b-8192", 0.59e-6, 0.79e-6, "fallback"),
-    "llama3-8b-8192" to ModelPricing("llama3-8b-8192", 0.05e-6, 0.08e-6, "fallback"),
-    "mixtral-8x7b-32768" to ModelPricing("mixtral-8x7b-32768", 0.24e-6, 0.24e-6, "fallback"),
-    "gemma2-9b-it" to ModelPricing("gemma2-9b-it", 0.20e-6, 0.20e-6, "fallback"),
-    // xAI Grok
-    "grok-3" to ModelPricing("grok-3", 3.0e-6, 15.0e-6, "fallback"),
-    "grok-3-mini" to ModelPricing("grok-3-mini", 0.30e-6, 0.50e-6, "fallback"),
-    "grok-2" to ModelPricing("grok-2", 2.0e-6, 10.0e-6, "fallback"),
-    "grok-beta" to ModelPricing("grok-beta", 5.0e-6, 15.0e-6, "fallback"),
-    // Mistral
-    "mistral-small-latest" to ModelPricing("mistral-small-latest", 0.1e-6, 0.3e-6, "fallback"),
-    "mistral-medium-latest" to ModelPricing("mistral-medium-latest", 0.4e-6, 2.0e-6, "fallback"),
-    "mistral-large-latest" to ModelPricing("mistral-large-latest", 2.0e-6, 6.0e-6, "fallback"),
-    "open-mistral-7b" to ModelPricing("open-mistral-7b", 0.25e-6, 0.25e-6, "fallback"),
-    "open-mixtral-8x7b" to ModelPricing("open-mixtral-8x7b", 0.7e-6, 0.7e-6, "fallback"),
-    "open-mixtral-8x22b" to ModelPricing("open-mixtral-8x22b", 2.0e-6, 6.0e-6, "fallback"),
-    "codestral-latest" to ModelPricing("codestral-latest", 0.3e-6, 0.9e-6, "fallback"),
-    // Perplexity
-    "sonar" to ModelPricing("sonar", 1.0e-6, 1.0e-6, "fallback"),
-    "sonar-pro" to ModelPricing("sonar-pro", 3.0e-6, 15.0e-6, "fallback"),
-    "sonar-reasoning" to ModelPricing("sonar-reasoning", 1.0e-6, 5.0e-6, "fallback"),
-    // SiliconFlow (estimated based on similar models)
-    "Qwen/Qwen2.5-7B-Instruct" to ModelPricing("Qwen/Qwen2.5-7B-Instruct", 0.35e-6, 0.35e-6, "fallback"),
-    "Qwen/Qwen2.5-72B-Instruct" to ModelPricing("Qwen/Qwen2.5-72B-Instruct", 1.26e-6, 1.26e-6, "fallback"),
-    "deepseek-ai/DeepSeek-V3" to ModelPricing("deepseek-ai/DeepSeek-V3", 0.5e-6, 2.0e-6, "fallback"),
-    "deepseek-ai/DeepSeek-R1" to ModelPricing("deepseek-ai/DeepSeek-R1", 0.55e-6, 2.19e-6, "fallback"),
-    // Z.AI / ZhipuAI GLM
-    "glm-4" to ModelPricing("glm-4", 1.4e-6, 1.4e-6, "fallback"),
-    "glm-4-plus" to ModelPricing("glm-4-plus", 0.7e-6, 0.7e-6, "fallback"),
-    "glm-4-flash" to ModelPricing("glm-4-flash", 0.007e-6, 0.007e-6, "fallback"),
-    "glm-4-long" to ModelPricing("glm-4-long", 0.14e-6, 0.14e-6, "fallback"),
-    "glm-4.5-flash" to ModelPricing("glm-4.5-flash", 0.007e-6, 0.007e-6, "fallback"),
-    "glm-4.7-flash" to ModelPricing("glm-4.7-flash", 0.007e-6, 0.007e-6, "fallback")
-)
-
-/**
- * Parse LiteLLM pricing JSON from assets.
- */
-private fun parseLiteLLMPricing(context: android.content.Context): Map<String, ModelPricing> {
-    return try {
-        val json = context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
-        val gson = com.google.gson.Gson()
-        val type = object : com.google.gson.reflect.TypeToken<Map<String, Map<String, Any>>>() {}.type
-        val data: Map<String, Map<String, Any>> = gson.fromJson(json, type)
-
-        data.mapNotNull { (modelId, info) ->
-            val inputCost = (info["input_cost_per_token"] as? Number)?.toDouble()
-            val outputCost = (info["output_cost_per_token"] as? Number)?.toDouble()
-            if (inputCost != null && outputCost != null) {
-                modelId to ModelPricing(modelId, inputCost, outputCost, "litellm")
-            } else null
-        }.toMap()
-    } catch (e: Exception) {
-        android.util.Log.w("AiCosts", "Failed to parse LiteLLM pricing: ${e.message}")
-        emptyMap()
-    }
-}
-
-/**
  * Screen displaying AI usage costs based on multi-source pricing.
+ * Uses PricingCache for weekly-cached OpenRouter pricing data.
  */
 @Composable
 fun AiCostsScreen(
@@ -357,48 +279,44 @@ fun AiCostsScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
     val settingsPrefs = remember { SettingsPreferences(prefs) }
+    val scope = rememberCoroutineScope()
 
     // Filter out DUMMY provider stats
     val stats = remember {
         settingsPrefs.loadUsageStats().filterValues { it.provider != com.ai.data.AiService.DUMMY }
     }
-    var openRouterPricing by remember { mutableStateOf<Map<String, ModelPricing>>(emptyMap()) }
-    var litellmPricing by remember { mutableStateOf<Map<String, ModelPricing>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
     var pricingSource by remember { mutableStateOf("") }
+    var cacheAge by remember { mutableStateOf("") }
+    var pricingReady by remember { mutableStateOf(false) }
 
-    // Load pricing data from multiple sources
-    LaunchedEffect(Unit) {
-        // 1. Load LiteLLM pricing from assets (synchronous, fast)
-        litellmPricing = parseLiteLLMPricing(context)
+    // Function to load/refresh pricing
+    suspend fun loadPricing(forceRefresh: Boolean = false) {
+        val pricingCache = com.ai.data.PricingCache
 
-        // 2. Try OpenRouter API if key is available
-        if (openRouterApiKey.isNotBlank()) {
-            try {
-                val api = com.ai.data.AiApiFactory.createOpenRouterModelsApi()
-                val response = api.listModelsDetailed("Bearer $openRouterApiKey")
-                if (response.isSuccessful) {
-                    val models = response.body()?.data ?: emptyList()
-                    openRouterPricing = models.mapNotNull { model ->
-                        val promptPrice = model.pricing?.prompt?.toDoubleOrNull()
-                        val completionPrice = model.pricing?.completion?.toDoubleOrNull()
-                        if (promptPrice != null && completionPrice != null) {
-                            model.id to ModelPricing(model.id, promptPrice, completionPrice, "openrouter")
-                        } else null
-                    }.toMap()
+        // Ensure LiteLLM pricing is loaded
+        pricingCache.refreshLiteLLMPricing(context)
+
+        // Check if we need to refresh OpenRouter pricing
+        if (forceRefresh || pricingCache.needsOpenRouterRefresh(context)) {
+            if (openRouterApiKey.isNotBlank()) {
+                val pricing = pricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                if (pricing.isNotEmpty()) {
+                    pricingCache.saveOpenRouterPricing(context, pricing)
                 }
-            } catch (e: Exception) {
-                android.util.Log.w("AiCosts", "OpenRouter API error: ${e.message}")
             }
         }
 
-        // Build source description
-        val sources = mutableListOf<String>()
-        if (openRouterPricing.isNotEmpty()) sources.add("OpenRouter (${openRouterPricing.size})")
-        if (litellmPricing.isNotEmpty()) sources.add("LiteLLM (${litellmPricing.size})")
-        sources.add("Fallback (${FALLBACK_PRICING.size})")
-        pricingSource = sources.joinToString(" • ")
+        // Update UI state
+        pricingSource = pricingCache.getPricingStats(context)
+        cacheAge = pricingCache.getOpenRouterCacheAge(context)
+        pricingReady = true
+    }
 
+    // Load pricing data on first launch
+    LaunchedEffect(Unit) {
+        loadPricing()
         isLoading = false
     }
 
@@ -459,13 +377,12 @@ fun AiCostsScreen(
                     }
                 }
             }
-            else -> {
-                // Calculate costs for each stat using multi-source pricing
+            pricingReady -> {
+                val pricingCache = com.ai.data.PricingCache
+
+                // Calculate costs for each stat using cached pricing
                 val statsWithCosts = stats.values.map { stat ->
-                    val pricing = findPricingMultiSource(
-                        stat.provider, stat.model,
-                        openRouterPricing, litellmPricing, FALLBACK_PRICING
-                    )
+                    val pricing = pricingCache.getPricing(context, stat.provider, stat.model)
                     val inputCost = if (pricing != null) stat.inputTokens * pricing.promptPrice else null
                     val outputCost = if (pricing != null) stat.outputTokens * pricing.completionPrice else null
                     val totalCost = if (inputCost != null && outputCost != null) inputCost + outputCost else null
@@ -484,12 +401,39 @@ fun AiCostsScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF2A4A3A))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Total Estimated Cost",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4CAF50)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Total Estimated Cost",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
+                            )
+                            // Refresh button
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        isRefreshing = true
+                                        loadPricing(forceRefresh = true)
+                                        isRefreshing = false
+                                    }
+                                },
+                                enabled = !isRefreshing && openRouterApiKey.isNotBlank()
+                            ) {
+                                if (isRefreshing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color(0xFF4CAF50),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text("↻ Refresh", color = Color(0xFF64B5F6), fontSize = 12.sp)
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = formatCurrency(totalCost),
@@ -528,12 +472,21 @@ fun AiCostsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Pricing info
-                Text(
-                    text = "Pricing: $pricingSource",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF888888)
-                )
+                // Pricing info with cache age
+                Column {
+                    Text(
+                        text = "Pricing: $pricingSource",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF888888)
+                    )
+                    if (cacheAge.isNotEmpty()) {
+                        Text(
+                            text = "OpenRouter cache: $cacheAge",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -733,67 +686,7 @@ private fun CompactModelCostRow(statWithCost: StatWithCost) {
     }
 }
 
-/**
- * Find pricing for a model using multiple sources in order of preference:
- * 1. OpenRouter API
- * 2. LiteLLM JSON from assets
- * 3. Hardcoded fallback values
- */
-private fun findPricingMultiSource(
-    provider: com.ai.data.AiService,
-    model: String,
-    openRouterPricing: Map<String, ModelPricing>,
-    litellmPricing: Map<String, ModelPricing>,
-    fallbackPricing: Map<String, ModelPricing>
-): ModelPricing? {
-    // Provider prefixes for matching
-    val providerPrefixes = when (provider) {
-        com.ai.data.AiService.OPENAI -> listOf("openai/", "azure/", "")
-        com.ai.data.AiService.ANTHROPIC -> listOf("anthropic/", "")
-        com.ai.data.AiService.GOOGLE -> listOf("google/", "gemini/", "vertex_ai/", "")
-        com.ai.data.AiService.XAI -> listOf("x-ai/", "xai/", "")
-        com.ai.data.AiService.GROQ -> listOf("groq/", "")
-        com.ai.data.AiService.DEEPSEEK -> listOf("deepseek/", "")
-        com.ai.data.AiService.MISTRAL -> listOf("mistralai/", "mistral/", "")
-        com.ai.data.AiService.PERPLEXITY -> listOf("perplexity/", "")
-        com.ai.data.AiService.TOGETHER -> listOf("together/", "together_ai/", "")
-        com.ai.data.AiService.OPENROUTER -> listOf("")
-        com.ai.data.AiService.SILICONFLOW -> listOf("siliconflow/", "")
-        com.ai.data.AiService.ZAI -> listOf("zhipuai/", "")
-        com.ai.data.AiService.DUMMY -> listOf("")
-    }
-
-    // Helper to search in a pricing map with various key formats
-    fun searchInMap(pricingMap: Map<String, ModelPricing>): ModelPricing? {
-        // Direct match
-        pricingMap[model]?.let { return it }
-
-        // Try with provider prefixes
-        for (prefix in providerPrefixes) {
-            pricingMap["$prefix$model"]?.let { return it }
-        }
-
-        // Try partial match
-        pricingMap.entries.find { (key, _) ->
-            key.endsWith("/$model", ignoreCase = true) ||
-            key.equals(model, ignoreCase = true) ||
-            model.contains(key.substringAfter("/"), ignoreCase = true)
-        }?.let { return it.value }
-
-        return null
-    }
-
-    // 1. Try OpenRouter first
-    searchInMap(openRouterPricing)?.let { return it }
-
-    // 2. Try LiteLLM
-    searchInMap(litellmPricing)?.let { return it }
-
-    // 3. Try fallback
-    searchInMap(fallbackPricing)?.let { return it }
-
-    return null
-}
+// Pricing lookup is now handled by com.ai.data.PricingCache
 
 data class StatWithCost(
     val stat: AiUsageStats,
