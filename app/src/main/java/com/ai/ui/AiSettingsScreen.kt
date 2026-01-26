@@ -753,41 +753,13 @@ fun AiProvidersScreen(
             onAiClick = onBackToHome
         )
 
-        // Provider cards - navigate to individual provider screens for model config
-        AiServiceNavigationCard(
-            title = "OpenAI",
-            accentColor = Color(0xFF10A37F),
-            hasApiKey = aiSettings.chatGptApiKey.isNotBlank(),
-            adminUrl = AiService.OPENAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
-        )
+        // Provider cards - sorted alphabetically, navigate to individual provider screens
         AiServiceNavigationCard(
             title = "Anthropic",
             accentColor = Color(0xFFD97706),
             hasApiKey = aiSettings.claudeApiKey.isNotBlank(),
             adminUrl = AiService.ANTHROPIC.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
-        )
-        AiServiceNavigationCard(
-            title = "Google",
-            accentColor = Color(0xFF4285F4),
-            hasApiKey = aiSettings.geminiApiKey.isNotBlank(),
-            adminUrl = AiService.GOOGLE.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
-        )
-        AiServiceNavigationCard(
-            title = "xAI",
-            accentColor = Color(0xFFFFFFFF),
-            hasApiKey = aiSettings.grokApiKey.isNotBlank(),
-            adminUrl = AiService.XAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
-        )
-        AiServiceNavigationCard(
-            title = "Groq",
-            accentColor = Color(0xFFF55036),
-            hasApiKey = aiSettings.groqApiKey.isNotBlank(),
-            adminUrl = AiService.GROQ.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
         )
         AiServiceNavigationCard(
             title = "DeepSeek",
@@ -797,6 +769,20 @@ fun AiProvidersScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
         )
         AiServiceNavigationCard(
+            title = "Google",
+            accentColor = Color(0xFF4285F4),
+            hasApiKey = aiSettings.geminiApiKey.isNotBlank(),
+            adminUrl = AiService.GOOGLE.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
+        )
+        AiServiceNavigationCard(
+            title = "Groq",
+            accentColor = Color(0xFFF55036),
+            hasApiKey = aiSettings.groqApiKey.isNotBlank(),
+            adminUrl = AiService.GROQ.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
+        )
+        AiServiceNavigationCard(
             title = "Mistral",
             accentColor = Color(0xFFFF7000),
             hasApiKey = aiSettings.mistralApiKey.isNotBlank(),
@@ -804,18 +790,11 @@ fun AiProvidersScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
         )
         AiServiceNavigationCard(
-            title = "Perplexity",
-            accentColor = Color(0xFF20B2AA),
-            hasApiKey = aiSettings.perplexityApiKey.isNotBlank(),
-            adminUrl = AiService.PERPLEXITY.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
-        )
-        AiServiceNavigationCard(
-            title = "Together",
-            accentColor = Color(0xFF6366F1),
-            hasApiKey = aiSettings.togetherApiKey.isNotBlank(),
-            adminUrl = AiService.TOGETHER.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
+            title = "OpenAI",
+            accentColor = Color(0xFF10A37F),
+            hasApiKey = aiSettings.chatGptApiKey.isNotBlank(),
+            adminUrl = AiService.OPENAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
         )
         AiServiceNavigationCard(
             title = "OpenRouter",
@@ -825,11 +804,32 @@ fun AiProvidersScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
         )
         AiServiceNavigationCard(
+            title = "Perplexity",
+            accentColor = Color(0xFF20B2AA),
+            hasApiKey = aiSettings.perplexityApiKey.isNotBlank(),
+            adminUrl = AiService.PERPLEXITY.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
+        )
+        AiServiceNavigationCard(
             title = "SiliconFlow",
             accentColor = Color(0xFF00B4D8),
             hasApiKey = aiSettings.siliconFlowApiKey.isNotBlank(),
             adminUrl = AiService.SILICONFLOW.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
+        )
+        AiServiceNavigationCard(
+            title = "Together",
+            accentColor = Color(0xFF6366F1),
+            hasApiKey = aiSettings.togetherApiKey.isNotBlank(),
+            adminUrl = AiService.TOGETHER.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
+        )
+        AiServiceNavigationCard(
+            title = "xAI",
+            accentColor = Color(0xFFFFFFFF),
+            hasApiKey = aiSettings.grokApiKey.isNotBlank(),
+            adminUrl = AiService.XAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
             title = "Z.AI",
@@ -838,7 +838,7 @@ fun AiProvidersScreen(
             adminUrl = AiService.ZAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
         )
-        // Dummy provider only visible in developer mode
+        // Dummy provider only visible in developer mode (always last)
         if (developerMode) {
             AiServiceNavigationCard(
                 title = "Dummy",
