@@ -719,6 +719,60 @@ fun AiSetupScreen(
                     Text("Generate default agents")
                 }
             }
+
+            // Get model specifications from OpenRouter button
+            var isFetchingSpecs by remember { mutableStateOf(false) }
+            var specsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+            var showSpecsResultDialog by remember { mutableStateOf(false) }
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        isFetchingSpecs = true
+                        specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(
+                            context,
+                            aiSettings.openRouterApiKey
+                        )
+                        isFetchingSpecs = false
+                        showSpecsResultDialog = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isFetchingSpecs && aiSettings.openRouterApiKey.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF607D8B))
+            ) {
+                if (isFetchingSpecs) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Fetching specifications...")
+                } else {
+                    Text("Get model specifications from OpenRouter")
+                }
+            }
+
+            // Specs result dialog
+            if (showSpecsResultDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSpecsResultDialog = false },
+                    title = { Text("Model Specifications") },
+                    text = {
+                        if (specsResult != null) {
+                            Text("Successfully saved:\n• ${specsResult!!.first} pricing entries\n• ${specsResult!!.second} parameter entries\n\nFiles saved to app storage.")
+                        } else {
+                            Text("Failed to fetch model specifications.\nPlease check your OpenRouter API key.")
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showSpecsResultDialog = false }) {
+                            Text("OK")
+                        }
+                    }
+                )
+            }
         }
 
         // Export AI configuration button (only show if setup is complete)

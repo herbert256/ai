@@ -57,6 +57,8 @@ data class AiUiState(
     val genericAiReportsSelectedAgents: Set<String> = emptySet(),
     val genericAiReportsAgentResults: Map<String, AiAnalysisResponse> = emptyMap(),
     val currentReportId: String? = null,  // ID of the current AI report being generated
+    // Report advanced parameters (override agent parameters for a specific report)
+    val reportAdvancedParameters: AiAgentParameters? = null,
     // Chat
     val chatParameters: ChatParameters = ChatParameters()
 )

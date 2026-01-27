@@ -367,16 +367,7 @@ object PricingCache {
     }
 
     private fun getOpenRouterPrefix(provider: AiService): String? {
-        return when (provider) {
-            AiService.OPENAI -> "openai"
-            AiService.ANTHROPIC -> "anthropic"
-            AiService.GOOGLE -> "google"
-            AiService.XAI -> "x-ai"
-            AiService.MISTRAL -> "mistralai"
-            AiService.DEEPSEEK -> "deepseek"
-            AiService.PERPLEXITY -> "perplexity"
-            else -> null
-        }
+        return provider.openRouterName
     }
 
     private fun getLiteLLMPrefix(provider: AiService): String? {
@@ -436,4 +427,172 @@ object PricingCache {
         "glm-4.5-flash" to ModelPricing("glm-4.5-flash", 0.007e-6, 0.007e-6, "fallback"),
         "glm-4.7-flash" to ModelPricing("glm-4.7-flash", 0.007e-6, 0.007e-6, "fallback")
     )
+
+    // ============================================================================
+    // Model Specifications from OpenRouter
+    // ============================================================================
+
+    /**
+     * Model pricing entry for JSON export.
+     */
+    data class ModelPricingEntry(
+        val provider: String,  // Our provider name (e.g., "OPENAI", "ANTHROPIC")
+        val model: String,     // Model name without provider prefix
+        val pricing: OpenRouterPricing?
+    )
+
+    /**
+     * Model supported parameters entry for JSON export.
+     */
+    data class ModelSupportedParametersEntry(
+        val provider: String,  // Our provider name (e.g., "OPENAI", "ANTHROPIC")
+        val model: String,     // Model name without provider prefix
+        val supported_parameters: List<String>?
+    )
+
+    /**
+     * Map OpenRouter provider prefix to our AiService.
+     * Reverse lookup of AiService.openRouterName.
+     */
+    private fun getAiServiceFromOpenRouterPrefix(prefix: String): AiService? {
+        return AiService.entries.find { it.openRouterName == prefix }
+    }
+
+    /**
+     * Fetch model specifications from OpenRouter and save to JSON files.
+     * Creates two files:
+     * - model_pricing.json: Array of {provider, model, pricing}
+     * - model_supported_parameters.json: Array of {provider, model, supported_parameters}
+     *
+     * @return Pair of (pricing count, parameters count) or null on error
+     */
+    suspend fun fetchAndSaveModelSpecifications(context: Context, apiKey: String): Pair<Int, Int>? {
+        if (apiKey.isBlank()) return null
+
+        return try {
+            val api = AiApiFactory.createOpenRouterModelsApi()
+            val response = api.listModelsDetailed("Bearer $apiKey")
+
+            if (!response.isSuccessful) {
+                android.util.Log.w("PricingCache", "OpenRouter API error: ${response.code()}")
+                return null
+            }
+
+            val models = response.body()?.data ?: emptyList()
+
+            val pricingEntries = mutableListOf<ModelPricingEntry>()
+            val parametersEntries = mutableListOf<ModelSupportedParametersEntry>()
+
+            for (model in models) {
+                // Parse model ID: "provider/model-name" -> provider prefix and model name
+                val parts = model.id.split("/", limit = 2)
+                if (parts.size != 2) continue
+
+                val openRouterPrefix = parts[0]
+                val modelName = parts[1]
+
+                // Map OpenRouter prefix to our AiService
+                val aiService = getAiServiceFromOpenRouterPrefix(openRouterPrefix)
+                if (aiService == null) continue  // Skip models from providers we don't support
+
+                val providerName = aiService.name  // Our enum name (e.g., "OPENAI", "ANTHROPIC")
+
+                // Add pricing entry
+                if (model.pricing != null) {
+                    pricingEntries.add(ModelPricingEntry(
+                        provider = providerName,
+                        model = modelName,
+                        pricing = model.pricing
+                    ))
+                }
+
+                // Add supported parameters entry
+                if (model.supported_parameters != null) {
+                    parametersEntries.add(ModelSupportedParametersEntry(
+                        provider = providerName,
+                        model = modelName,
+                        supported_parameters = model.supported_parameters
+                    ))
+                }
+            }
+
+            // Save to files
+            val filesDir = context.filesDir
+
+            // Save model_pricing.json
+            val pricingFile = java.io.File(filesDir, "model_pricing.json")
+            pricingFile.writeText(gson.toJson(pricingEntries))
+            android.util.Log.d("PricingCache", "Saved ${pricingEntries.size} pricing entries to ${pricingFile.absolutePath}")
+
+            // Save model_supported_parameters.json
+            val parametersFile = java.io.File(filesDir, "model_supported_parameters.json")
+            parametersFile.writeText(gson.toJson(parametersEntries))
+            android.util.Log.d("PricingCache", "Saved ${parametersEntries.size} parameter entries to ${parametersFile.absolutePath}")
+
+            // Clear cache so it reloads on next lookup
+            clearSupportedParametersCache()
+
+            Pair(pricingEntries.size, parametersEntries.size)
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "Failed to fetch model specifications: ${e.message}")
+            null
+        }
+    }
+
+    // In-memory cache for supported parameters
+    private var supportedParametersCache: Map<String, List<String>>? = null
+
+    /**
+     * Get supported parameters for a specific provider/model combination.
+     * Returns null if no entry exists (meaning all parameters should be used).
+     *
+     * @param provider Our AiService enum
+     * @param model The model name (without provider prefix)
+     * @return List of supported parameter names, or null if not found
+     */
+    fun getSupportedParameters(context: Context, provider: AiService, model: String): List<String>? {
+        // Load cache if not loaded
+        if (supportedParametersCache == null) {
+            loadSupportedParametersCache(context)
+        }
+
+        // Lookup by "PROVIDER:model" key
+        val key = "${provider.name}:$model"
+        return supportedParametersCache?.get(key)
+    }
+
+    /**
+     * Load the supported parameters cache from JSON file.
+     */
+    private fun loadSupportedParametersCache(context: Context) {
+        val file = java.io.File(context.filesDir, "model_supported_parameters.json")
+        if (!file.exists()) {
+            android.util.Log.d("PricingCache", "model_supported_parameters.json not found")
+            supportedParametersCache = emptyMap()
+            return
+        }
+
+        try {
+            val json = file.readText()
+            val type = object : TypeToken<List<ModelSupportedParametersEntry>>() {}.type
+            val entries: List<ModelSupportedParametersEntry> = gson.fromJson(json, type)
+
+            // Build lookup map: "PROVIDER:model" -> List<String>
+            supportedParametersCache = entries
+                .filter { it.supported_parameters != null }
+                .associate { "${it.provider}:${it.model}" to it.supported_parameters!! }
+
+            android.util.Log.d("PricingCache", "Loaded ${supportedParametersCache?.size ?: 0} supported parameter entries")
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "Failed to load supported parameters: ${e.message}")
+            supportedParametersCache = emptyMap()
+        }
+    }
+
+    /**
+     * Clear the supported parameters cache (e.g., after fetching new data).
+     */
+    fun clearSupportedParametersCache() {
+        supportedParametersCache = null
+    }
 }

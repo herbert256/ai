@@ -16,19 +16,25 @@ import java.util.concurrent.TimeUnit
 /**
  * Enum representing the supported AI services for chess position analysis.
  */
-enum class AiService(val displayName: String, val baseUrl: String, val adminUrl: String, val defaultModel: String) {
-    OPENAI("OpenAI", "https://api.openai.com/", "https://platform.openai.com/settings/organization/api-keys", "gpt-4o-mini"),
-    ANTHROPIC("Anthropic", "https://api.anthropic.com/", "https://console.anthropic.com/settings/keys", "claude-sonnet-4-20250514"),
-    GOOGLE("Google", "https://generativelanguage.googleapis.com/", "https://aistudio.google.com/app/apikey", "gemini-2.0-flash"),
-    XAI("xAI", "https://api.x.ai/", "https://console.x.ai/", "grok-3-mini"),
+enum class AiService(
+    val displayName: String,
+    val baseUrl: String,
+    val adminUrl: String,
+    val defaultModel: String,
+    val openRouterName: String? = null  // Provider name as used in OpenRouter model IDs (e.g., "anthropic" for "anthropic/claude-3-opus")
+) {
+    OPENAI("OpenAI", "https://api.openai.com/", "https://platform.openai.com/settings/organization/api-keys", "gpt-4o-mini", "openai"),
+    ANTHROPIC("Anthropic", "https://api.anthropic.com/", "https://console.anthropic.com/settings/keys", "claude-sonnet-4-20250514", "anthropic"),
+    GOOGLE("Google", "https://generativelanguage.googleapis.com/", "https://aistudio.google.com/app/apikey", "gemini-2.0-flash", "google"),
+    XAI("xAI", "https://api.x.ai/", "https://console.x.ai/", "grok-3-mini", "x-ai"),
     GROQ("Groq", "https://api.groq.com/openai/", "https://console.groq.com/keys", "llama-3.3-70b-versatile"),
-    DEEPSEEK("DeepSeek", "https://api.deepseek.com/", "https://platform.deepseek.com/api_keys", "deepseek-chat"),
-    MISTRAL("Mistral", "https://api.mistral.ai/", "https://console.mistral.ai/api-keys/", "mistral-small-latest"),
-    PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api", "sonar"),
+    DEEPSEEK("DeepSeek", "https://api.deepseek.com/", "https://platform.deepseek.com/api_keys", "deepseek-chat", "deepseek"),
+    MISTRAL("Mistral", "https://api.mistral.ai/", "https://console.mistral.ai/api-keys/", "mistral-small-latest", "mistralai"),
+    PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api", "sonar", "perplexity"),
     TOGETHER("Together", "https://api.together.xyz/", "https://api.together.xyz/settings/api-keys", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys", "anthropic/claude-3.5-sonnet"),
     SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
-    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash"),
+    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash", "z-ai"),
     DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
 }
 
@@ -50,7 +56,8 @@ data class OpenAiRequest(
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
     val seed: Int? = null,
-    val response_format: OpenAiResponseFormat? = null
+    val response_format: OpenAiResponseFormat? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 data class OpenAiResponseFormat(
@@ -147,7 +154,8 @@ data class ClaudeRequest(
     // Additional parameters (may be ignored by API)
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 data class ClaudeContentBlock(
@@ -197,7 +205,8 @@ data class GeminiGenerationConfig(
     // Additional parameters (may be ignored by API)
     val frequencyPenalty: Float? = null,
     val presencePenalty: Float? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 data class GeminiCandidate(
@@ -248,7 +257,8 @@ data class DeepSeekRequest(
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 // Mistral models (uses OpenAI-compatible format)
@@ -262,7 +272,8 @@ data class MistralRequest(
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
-    val random_seed: Int? = null
+    val random_seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 // Perplexity models (uses OpenAI-compatible format)
@@ -278,7 +289,8 @@ data class PerplexityRequest(
     val stop: List<String>? = null,
     val seed: Int? = null,
     val return_citations: Boolean? = null,
-    val search_recency_filter: String? = null  // "day", "week", "month", "year"
+    val search_recency_filter: String? = null,  // "day", "week", "month", "year"
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 // Together AI models (uses OpenAI-compatible format)
@@ -292,7 +304,8 @@ data class TogetherRequest(
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 // OpenRouter models (uses OpenAI-compatible format)
@@ -306,7 +319,8 @@ data class OpenRouterRequest(
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 // SiliconFlow models (uses OpenAI-compatible format)
@@ -320,7 +334,8 @@ data class SiliconFlowRequest(
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 // Groq models (uses OpenAI-compatible format)
@@ -334,7 +349,8 @@ data class GroqRequest(
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
 /**
@@ -703,7 +719,8 @@ data class OpenRouterModelInfo(
     val pricing: OpenRouterPricing? = null,
     val top_provider: OpenRouterTopProvider? = null,
     val architecture: OpenRouterArchitecture? = null,
-    val per_request_limits: OpenRouterLimits? = null
+    val per_request_limits: OpenRouterLimits? = null,
+    val supported_parameters: List<String>? = null
 )
 
 data class OpenRouterPricing(

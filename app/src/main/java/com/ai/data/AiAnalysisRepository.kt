@@ -1,5 +1,6 @@
 package com.ai.data
 
+import android.content.Context
 import com.ai.ui.AiAgentParameters
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
@@ -316,13 +317,77 @@ class AiAnalysisRepository {
     }
 
     /**
+     * Merge agent parameters with optional override parameters.
+     * Override parameters take precedence for non-null values.
+     */
+    private fun mergeParameters(
+        agentParams: com.ai.ui.AiAgentParameters,
+        overrideParams: com.ai.ui.AiAgentParameters?
+    ): com.ai.ui.AiAgentParameters {
+        if (overrideParams == null) return agentParams
+        return com.ai.ui.AiAgentParameters(
+            temperature = overrideParams.temperature ?: agentParams.temperature,
+            maxTokens = overrideParams.maxTokens ?: agentParams.maxTokens,
+            topP = overrideParams.topP ?: agentParams.topP,
+            topK = overrideParams.topK ?: agentParams.topK,
+            frequencyPenalty = overrideParams.frequencyPenalty ?: agentParams.frequencyPenalty,
+            presencePenalty = overrideParams.presencePenalty ?: agentParams.presencePenalty,
+            systemPrompt = if (overrideParams.systemPrompt?.isNotBlank() == true) overrideParams.systemPrompt else agentParams.systemPrompt,
+            stopSequences = if (overrideParams.stopSequences?.isNotEmpty() == true) overrideParams.stopSequences else agentParams.stopSequences,
+            seed = overrideParams.seed ?: agentParams.seed,
+            responseFormatJson = overrideParams.responseFormatJson || agentParams.responseFormatJson,
+            searchEnabled = overrideParams.searchEnabled || agentParams.searchEnabled,
+            returnCitations = overrideParams.returnCitations && agentParams.returnCitations,
+            searchRecency = overrideParams.searchRecency ?: agentParams.searchRecency
+        )
+    }
+
+    /**
+     * Filter parameters based on supported parameters for the model.
+     * Only called when user has set advanced parameters (overrideParams).
+     *
+     * @param params The merged parameters
+     * @param supportedParams List of supported parameter names from OpenRouter, or null if not available
+     * @return Filtered parameters with unsupported parameters set to null/default
+     */
+    private fun filterParametersBySupported(
+        params: com.ai.ui.AiAgentParameters,
+        supportedParams: List<String>?
+    ): com.ai.ui.AiAgentParameters {
+        // If no supported params info, return original (use all parameters)
+        if (supportedParams == null) return params
+
+        // Map our parameter names to OpenRouter parameter names
+        // OpenRouter uses: max_tokens, temperature, top_p, top_k, frequency_penalty, presence_penalty, stop, seed, etc.
+        return com.ai.ui.AiAgentParameters(
+            temperature = if ("temperature" in supportedParams) params.temperature else null,
+            maxTokens = if ("max_tokens" in supportedParams) params.maxTokens else null,
+            topP = if ("top_p" in supportedParams) params.topP else null,
+            topK = if ("top_k" in supportedParams) params.topK else null,
+            frequencyPenalty = if ("frequency_penalty" in supportedParams) params.frequencyPenalty else null,
+            presencePenalty = if ("presence_penalty" in supportedParams) params.presencePenalty else null,
+            systemPrompt = params.systemPrompt,  // Always allow system prompt
+            stopSequences = if ("stop" in supportedParams) params.stopSequences else null,
+            seed = if ("seed" in supportedParams) params.seed else null,
+            responseFormatJson = if ("response_format" in supportedParams) params.responseFormatJson else false,
+            searchEnabled = params.searchEnabled,  // Provider-specific, always pass
+            returnCitations = params.returnCitations,  // Provider-specific, always pass
+            searchRecency = params.searchRecency  // Provider-specific, always pass
+        )
+    }
+
+    /**
      * Analyze a chess position using an AI Agent configuration.
      * Uses the agent's provider, model, and API key.
+     * @param overrideParams Optional parameters to override agent parameters for this specific call
+     * @param context Optional context for looking up supported parameters (only needed when overrideParams is set)
      */
     suspend fun analyzePositionWithAgent(
         agent: com.ai.ui.AiAgent,
         fen: String,
-        prompt: String
+        prompt: String,
+        overrideParams: com.ai.ui.AiAgentParameters? = null,
+        context: Context? = null
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (agent.apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -336,7 +401,13 @@ class AiAnalysisRepository {
         val finalPrompt = buildChessPrompt(prompt, fen)
 
         suspend fun makeApiCall(): AiAnalysisResponse {
-            val params = agent.parameters
+            var params = mergeParameters(agent.parameters, overrideParams)
+
+            // If user has set advanced parameters, filter by supported parameters
+            if (overrideParams != null && context != null) {
+                val supportedParams = PricingCache.getSupportedParameters(context, agent.provider, agent.model)
+                params = filterParametersBySupported(params, supportedParams)
+            }
             val result = when (agent.provider) {
                 AiService.OPENAI -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.ANTHROPIC -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
@@ -487,7 +558,8 @@ class AiAnalysisRepository {
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
             seed = params?.seed,
-            response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat(type = "json_object") else null
+            response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat(type = "json_object") else null,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = openAiApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -589,7 +661,8 @@ class AiAnalysisRepository {
             stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() },
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
-            seed = params?.seed
+            seed = params?.seed,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = claudeApi.createMessage(apiKey = apiKey, request = request)
 
@@ -633,7 +706,8 @@ class AiAnalysisRepository {
                 stopSequences = params.stopSequences?.takeIf { it.isNotEmpty() },
                 frequencyPenalty = params.frequencyPenalty,
                 presencePenalty = params.presencePenalty,
-                seed = params.seed
+                seed = params.seed,
+                search = if (params.searchEnabled) true else null
             )
         } else null
 
@@ -698,6 +772,8 @@ class AiAnalysisRepository {
             add(OpenAiMessage(role = "user", content = prompt))
         }
 
+        val searchValue = if (params?.searchEnabled == true) true else null
+        android.util.Log.d("GrokAPI", "analyzeWithGrok - params.searchEnabled=${params?.searchEnabled}, searchValue=$searchValue")
         val request = GrokRequest(
             model = model,
             messages = messages,
@@ -709,8 +785,9 @@ class AiAnalysisRepository {
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
             seed = params?.seed,
-            search = if (params?.searchEnabled == true) true else null
+            search = searchValue
         )
+        android.util.Log.d("GrokAPI", "analyzeWithGrok - request.search=${request.search}")
         val response = grokApi.createChatCompletion(
             authorization = "Bearer $apiKey",
             request = request
@@ -766,7 +843,8 @@ class AiAnalysisRepository {
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-            seed = params?.seed
+            seed = params?.seed,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = groqApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -822,7 +900,8 @@ class AiAnalysisRepository {
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-            seed = params?.seed
+            seed = params?.seed,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = deepSeekApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -882,7 +961,8 @@ class AiAnalysisRepository {
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-            random_seed = params?.seed
+            random_seed = params?.seed,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = mistralApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -941,7 +1021,8 @@ class AiAnalysisRepository {
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
             seed = params?.seed,
             return_citations = params?.returnCitations,
-            search_recency_filter = params?.searchRecency
+            search_recency_filter = params?.searchRecency,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = perplexityApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1000,7 +1081,8 @@ class AiAnalysisRepository {
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-            seed = params?.seed
+            seed = params?.seed,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = togetherApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1057,7 +1139,8 @@ class AiAnalysisRepository {
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-            seed = params?.seed
+            seed = params?.seed,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = openRouterApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1114,7 +1197,8 @@ class AiAnalysisRepository {
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-            seed = params?.seed
+            seed = params?.seed,
+            search = if (params?.searchEnabled == true) true else null
         )
         val response = siliconFlowApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1170,7 +1254,8 @@ class AiAnalysisRepository {
             top_p = params?.topP,
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
-            stop = params?.stopSequences?.takeIf { it.isNotEmpty() }
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
         )
 
         val response = api.createChatCompletion(
@@ -1231,7 +1316,8 @@ class AiAnalysisRepository {
             messages = messages,
             max_tokens = parameters?.maxTokens,
             temperature = parameters?.temperature,
-            top_p = parameters?.topP
+            top_p = parameters?.topP,
+            search = if (parameters?.searchEnabled == true) true else null
         )
 
         return try {
@@ -1587,7 +1673,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = openAiApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1615,7 +1702,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = grokApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1643,7 +1731,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = groqApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1671,7 +1760,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = deepSeekApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1697,7 +1787,8 @@ class AiAnalysisRepository {
             messages = openAiMessages,
             max_tokens = params.maxTokens,
             temperature = params.temperature,
-            top_p = params.topP
+            top_p = params.topP,
+            search = if (params.searchEnabled) true else null
         )
         val response = mistralApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1725,7 +1816,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = perplexityApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1754,7 +1846,8 @@ class AiAnalysisRepository {
             top_p = params.topP,
             top_k = params.topK,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = togetherApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1783,7 +1876,8 @@ class AiAnalysisRepository {
             top_p = params.topP,
             top_k = params.topK,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = openRouterApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1812,7 +1906,8 @@ class AiAnalysisRepository {
             top_p = params.topP,
             top_k = params.topK,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = siliconFlowApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1840,7 +1935,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = zaiApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1868,7 +1964,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
         )
         val response = dummyApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1901,7 +1998,8 @@ class AiAnalysisRepository {
             temperature = params.temperature,
             top_p = params.topP,
             top_k = params.topK,
-            system = systemPrompt
+            system = systemPrompt,
+            search = if (params.searchEnabled) true else null
         )
         val response = claudeApi.createMessage(apiKey = apiKey, request = request)
         if (response.isSuccessful) {
@@ -1937,7 +2035,8 @@ class AiAnalysisRepository {
                 temperature = params.temperature,
                 maxOutputTokens = params.maxTokens,
                 topP = params.topP,
-                topK = params.topK
+                topK = params.topK,
+                search = if (params.searchEnabled) true else null
             ),
             systemInstruction = systemInstruction
         )
@@ -2193,7 +2292,8 @@ class AiAnalysisRepository {
                 temperature = params.temperature,
                 maxOutputTokens = params.maxTokens,
                 topP = params.topP,
-                topK = params.topK
+                topK = params.topK,
+                search = if (params.searchEnabled) true else null
             ),
             systemInstruction = systemInstruction
         )

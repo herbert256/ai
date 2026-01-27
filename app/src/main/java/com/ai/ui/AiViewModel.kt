@@ -184,6 +184,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val aiSettings = _uiState.value.aiSettings
             val prompt = _uiState.value.genericAiPromptText
             val title = _uiState.value.genericAiPromptTitle
+            val overrideParams = _uiState.value.reportAdvancedParameters
 
             _uiState.value = _uiState.value.copy(
                 showGenericAiAgentSelection = false,
@@ -236,7 +237,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         aiAnalysisRepository.analyzePositionWithAgent(
                             agent = agent,
                             fen = "",  // No FEN for generic prompts
-                            prompt = prompt
+                            prompt = prompt,
+                            overrideParams = overrideParams,
+                            context = context  // For looking up supported parameters
                         )
                     } catch (e: Exception) {
                         AiAnalysisResponse(
@@ -356,7 +359,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             genericAiReportsTotal = 0,
             genericAiReportsSelectedAgents = emptySet(),
             genericAiReportsAgentResults = emptyMap(),
-            currentReportId = null
+            currentReportId = null,
+            reportAdvancedParameters = null  // Clear advanced parameters
         )
     }
 
@@ -665,6 +669,16 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setChatParameters(params: ChatParameters) {
         _uiState.value = _uiState.value.copy(chatParameters = params)
+    }
+
+    // ========== Report Advanced Parameters ==========
+
+    fun setReportAdvancedParameters(params: AiAgentParameters?) {
+        _uiState.value = _uiState.value.copy(reportAdvancedParameters = params)
+    }
+
+    fun clearReportAdvancedParameters() {
+        _uiState.value = _uiState.value.copy(reportAdvancedParameters = null)
     }
 
     suspend fun sendChatMessage(

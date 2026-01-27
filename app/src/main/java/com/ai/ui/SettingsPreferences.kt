@@ -305,6 +305,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun savePromptToHistory(title: String, prompt: String) {
         val history = loadPromptHistory().toMutableList()
+
+        // Check if there's already an entry with the same title and prompt
+        val existingIndex = history.indexOfFirst { it.title == title && it.prompt == prompt }
+
+        if (existingIndex >= 0) {
+            // Remove existing entry (will be re-added at the beginning with new timestamp)
+            history.removeAt(existingIndex)
+        }
+
         // Add at the beginning with current timestamp
         history.add(0, PromptHistoryEntry(
             timestamp = System.currentTimeMillis(),
