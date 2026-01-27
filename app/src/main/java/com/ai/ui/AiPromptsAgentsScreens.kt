@@ -25,6 +25,7 @@ fun AiAgentsScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     availableChatGptModels: List<String>,
+    availableClaudeModels: List<String>,
     availableGeminiModels: List<String>,
     availableGrokModels: List<String>,
     availableGroqModels: List<String>,
@@ -33,12 +34,15 @@ fun AiAgentsScreen(
     availablePerplexityModels: List<String>,
     availableTogetherModels: List<String>,
     availableOpenRouterModels: List<String>,
+    availableSiliconFlowModels: List<String>,
+    availableZaiModels: List<String>,
     availableDummyModels: List<String>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onFetchChatGptModels: (String) -> Unit = {},
+    onFetchClaudeModels: (String) -> Unit = {},
     onFetchGeminiModels: (String) -> Unit = {},
     onFetchGrokModels: (String) -> Unit = {},
     onFetchGroqModels: (String) -> Unit = {},
@@ -47,6 +51,8 @@ fun AiAgentsScreen(
     onFetchPerplexityModels: (String) -> Unit = {},
     onFetchTogetherModels: (String) -> Unit = {},
     onFetchOpenRouterModels: (String) -> Unit = {},
+    onFetchSiliconFlowModels: (String) -> Unit = {},
+    onFetchZaiModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit = {}
 ) {
     var showAddScreen by remember { mutableStateOf(false) }
@@ -59,6 +65,7 @@ fun AiAgentsScreen(
     val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
         when (provider) {
             AiService.OPENAI -> onFetchChatGptModels(apiKey)
+            AiService.ANTHROPIC -> onFetchClaudeModels(apiKey)
             AiService.GOOGLE -> onFetchGeminiModels(apiKey)
             AiService.XAI -> onFetchGrokModels(apiKey)
             AiService.GROQ -> onFetchGroqModels(apiKey)
@@ -67,10 +74,9 @@ fun AiAgentsScreen(
             AiService.PERPLEXITY -> onFetchPerplexityModels(apiKey)
             AiService.TOGETHER -> onFetchTogetherModels(apiKey)
             AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
+            AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
+            AiService.ZAI -> onFetchZaiModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
-            AiService.ANTHROPIC -> {} // Claude has hardcoded models
-            AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
-            AiService.ZAI -> {} // Z.AI has hardcoded models
         }
     }
 
@@ -91,6 +97,7 @@ fun AiAgentsScreen(
             aiSettings = aiSettings,
             developerMode = developerMode,
             availableChatGptModels = availableChatGptModels,
+            availableClaudeModels = availableClaudeModels,
             availableGeminiModels = availableGeminiModels,
             availableGrokModels = availableGrokModels,
             availableGroqModels = availableGroqModels,
@@ -99,6 +106,8 @@ fun AiAgentsScreen(
             availablePerplexityModels = availablePerplexityModels,
             availableTogetherModels = availableTogetherModels,
             availableOpenRouterModels = availableOpenRouterModels,
+            availableSiliconFlowModels = availableSiliconFlowModels,
+            availableZaiModels = availableZaiModels,
             availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
@@ -387,6 +396,7 @@ internal fun AgentEditScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     availableChatGptModels: List<String>,
+    availableClaudeModels: List<String>,
     availableGeminiModels: List<String>,
     availableGrokModels: List<String>,
     availableGroqModels: List<String>,
@@ -395,6 +405,8 @@ internal fun AgentEditScreen(
     availablePerplexityModels: List<String>,
     availableTogetherModels: List<String>,
     availableOpenRouterModels: List<String>,
+    availableSiliconFlowModels: List<String>,
+    availableZaiModels: List<String>,
     availableDummyModels: List<String>,
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
@@ -460,7 +472,11 @@ internal fun AgentEditScreen(
             val manualModels = if (aiSettings.chatGptModelSource == ModelSource.MANUAL) aiSettings.chatGptManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { listOf(model) }
         }
-        AiService.ANTHROPIC -> aiSettings.claudeManualModels.ifEmpty { CLAUDE_MODELS }
+        AiService.ANTHROPIC -> {
+            val apiModels = if (aiSettings.claudeModelSource == ModelSource.API) availableClaudeModels else emptyList()
+            val manualModels = if (aiSettings.claudeModelSource == ModelSource.MANUAL) aiSettings.claudeManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { CLAUDE_MODELS }
+        }
         AiService.GOOGLE -> {
             val apiModels = if (aiSettings.geminiModelSource == ModelSource.API) availableGeminiModels else emptyList()
             val manualModels = if (aiSettings.geminiModelSource == ModelSource.MANUAL) aiSettings.geminiManualModels else emptyList()
@@ -502,12 +518,14 @@ internal fun AgentEditScreen(
             (apiModels + manualModels).ifEmpty { listOf(model) }
         }
         AiService.SILICONFLOW -> {
-            val manualModels = aiSettings.siliconFlowManualModels
-            manualModels.ifEmpty { SILICONFLOW_MODELS }
+            val apiModels = if (aiSettings.siliconFlowModelSource == ModelSource.API) availableSiliconFlowModels else emptyList()
+            val manualModels = if (aiSettings.siliconFlowModelSource == ModelSource.MANUAL) aiSettings.siliconFlowManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { SILICONFLOW_MODELS }
         }
         AiService.ZAI -> {
-            val manualModels = aiSettings.zaiManualModels
-            manualModels.ifEmpty { ZAI_MODELS }
+            val apiModels = if (aiSettings.zaiModelSource == ModelSource.API) availableZaiModels else emptyList()
+            val manualModels = if (aiSettings.zaiModelSource == ModelSource.MANUAL) aiSettings.zaiManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { ZAI_MODELS }
         }
         AiService.DUMMY -> {
             val apiModels = if (aiSettings.dummyModelSource == ModelSource.API) availableDummyModels else emptyList()

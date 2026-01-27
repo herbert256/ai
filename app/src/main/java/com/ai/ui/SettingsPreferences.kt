@@ -446,6 +446,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_API_MODELS_TOGETHER = "api_models_together"
         private const val KEY_API_MODELS_OPENROUTER = "api_models_openrouter"
         private const val KEY_API_MODELS_DUMMY = "api_models_dummy"
+        private const val KEY_API_MODELS_CLAUDE = "api_models_claude"
+        private const val KEY_API_MODELS_SILICONFLOW = "api_models_siliconflow"
+        private const val KEY_API_MODELS_ZAI = "api_models_zai"
     }
 
     // ============================================================================
@@ -558,4 +561,13 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun loadDummyApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DUMMY)
     fun saveDummyApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DUMMY, models)
+
+    fun loadClaudeApiModels(): List<String> = loadApiModels(KEY_API_MODELS_CLAUDE)
+    fun saveClaudeApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_CLAUDE, models)
+
+    fun loadSiliconFlowApiModels(): List<String> = loadApiModels(KEY_API_MODELS_SILICONFLOW)
+    fun saveSiliconFlowApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_SILICONFLOW, models)
+
+    fun loadZaiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_ZAI)
+    fun saveZaiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_ZAI, models)
 }

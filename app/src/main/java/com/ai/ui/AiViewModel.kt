@@ -68,6 +68,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val togetherApiModels = settingsPrefs.loadTogetherApiModels()
         val openRouterApiModels = settingsPrefs.loadOpenRouterApiModels()
         val dummyApiModels = settingsPrefs.loadDummyApiModels()
+        val claudeApiModels = settingsPrefs.loadClaudeApiModels()
+        val siliconFlowApiModels = settingsPrefs.loadSiliconFlowApiModels()
+        val zaiApiModels = settingsPrefs.loadZaiApiModels()
 
         _uiState.value = _uiState.value.copy(
             generalSettings = generalSettings,
@@ -80,7 +83,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             availableMistralModels = mistralApiModels,
             availableTogetherModels = togetherApiModels,
             availableOpenRouterModels = openRouterApiModels,
-            availableDummyModels = dummyApiModels
+            availableDummyModels = dummyApiModels,
+            availableClaudeModels = claudeApiModels,
+            availableSiliconFlowModels = siliconFlowApiModels,
+            availableZaiModels = zaiApiModels
         )
 
         // Enable API tracing if configured
@@ -538,6 +544,57 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun fetchClaudeModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingClaudeModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchClaudeModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableClaudeModels = models,
+                    isLoadingClaudeModels = false
+                )
+                // Persist the fetched models
+                settingsPrefs.saveClaudeApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingClaudeModels = false)
+            }
+        }
+    }
+
+    fun fetchSiliconFlowModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingSiliconFlowModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchSiliconFlowModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableSiliconFlowModels = models,
+                    isLoadingSiliconFlowModels = false
+                )
+                // Persist the fetched models
+                settingsPrefs.saveSiliconFlowApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingSiliconFlowModels = false)
+            }
+        }
+    }
+
+    fun fetchZaiModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingZaiModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchZaiModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableZaiModels = models,
+                    isLoadingZaiModels = false
+                )
+                // Persist the fetched models
+                settingsPrefs.saveZaiApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingZaiModels = false)
+            }
+        }
+    }
+
     // ========== Refresh All Model Lists ==========
 
     /**
@@ -652,6 +709,42 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 results["Dummy"] = models.size
             } catch (e: Exception) {
                 results["Dummy"] = -1
+            }
+        }
+
+        // Anthropic/Claude
+        if (settings.claudeModelSource == ModelSource.API && settings.claudeApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchClaudeModels(settings.claudeApiKey)
+                _uiState.value = _uiState.value.copy(availableClaudeModels = models)
+                settingsPrefs.saveClaudeApiModels(models)
+                results["Anthropic"] = models.size
+            } catch (e: Exception) {
+                results["Anthropic"] = -1
+            }
+        }
+
+        // SiliconFlow
+        if (settings.siliconFlowModelSource == ModelSource.API && settings.siliconFlowApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchSiliconFlowModels(settings.siliconFlowApiKey)
+                _uiState.value = _uiState.value.copy(availableSiliconFlowModels = models)
+                settingsPrefs.saveSiliconFlowApiModels(models)
+                results["SiliconFlow"] = models.size
+            } catch (e: Exception) {
+                results["SiliconFlow"] = -1
+            }
+        }
+
+        // Z.AI
+        if (settings.zaiModelSource == ModelSource.API && settings.zaiApiKey.isNotBlank()) {
+            try {
+                val models = aiAnalysisRepository.fetchZaiModels(settings.zaiApiKey)
+                _uiState.value = _uiState.value.copy(availableZaiModels = models)
+                settingsPrefs.saveZaiApiModels(models)
+                results["Z.AI"] = models.size
+            } catch (e: Exception) {
+                results["Z.AI"] = -1
             }
         }
 

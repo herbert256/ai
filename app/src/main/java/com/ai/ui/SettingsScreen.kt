@@ -58,6 +58,8 @@ fun SettingsScreen(
     aiSettings: AiSettings,
     availableChatGptModels: List<String>,
     isLoadingChatGptModels: Boolean,
+    availableClaudeModels: List<String> = emptyList(),
+    isLoadingClaudeModels: Boolean = false,
     availableGeminiModels: List<String>,
     isLoadingGeminiModels: Boolean,
     availableGrokModels: List<String>,
@@ -74,6 +76,10 @@ fun SettingsScreen(
     isLoadingTogetherModels: Boolean,
     availableOpenRouterModels: List<String>,
     isLoadingOpenRouterModels: Boolean,
+    availableSiliconFlowModels: List<String> = emptyList(),
+    isLoadingSiliconFlowModels: Boolean = false,
+    availableZaiModels: List<String> = emptyList(),
+    isLoadingZaiModels: Boolean = false,
     availableDummyModels: List<String>,
     isLoadingDummyModels: Boolean,
     onBack: () -> Unit,
@@ -82,6 +88,7 @@ fun SettingsScreen(
     onTrackApiCallsChanged: (Boolean) -> Unit = {},
     onSaveAi: (AiSettings) -> Unit,
     onFetchChatGptModels: (String) -> Unit,
+    onFetchClaudeModels: (String) -> Unit = {},
     onFetchGeminiModels: (String) -> Unit,
     onFetchGrokModels: (String) -> Unit,
     onFetchGroqModels: (String) -> Unit,
@@ -90,6 +97,8 @@ fun SettingsScreen(
     onFetchPerplexityModels: (String) -> Unit,
     onFetchTogetherModels: (String) -> Unit,
     onFetchOpenRouterModels: (String) -> Unit,
+    onFetchSiliconFlowModels: (String) -> Unit = {},
+    onFetchZaiModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
@@ -354,6 +363,7 @@ fun SettingsScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
             availableChatGptModels = availableChatGptModels,
+            availableClaudeModels = availableClaudeModels,
             availableGeminiModels = availableGeminiModels,
             availableGrokModels = availableGrokModels,
             availableGroqModels = availableGroqModels,
@@ -362,12 +372,15 @@ fun SettingsScreen(
             availablePerplexityModels = availablePerplexityModels,
             availableTogetherModels = availableTogetherModels,
             availableOpenRouterModels = availableOpenRouterModels,
+            availableSiliconFlowModels = availableSiliconFlowModels,
+            availableZaiModels = availableZaiModels,
             availableDummyModels = availableDummyModels,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onTestAiModel = onTestAiModel,
             onFetchChatGptModels = onFetchChatGptModels,
+            onFetchClaudeModels = onFetchClaudeModels,
             onFetchGeminiModels = onFetchGeminiModels,
             onFetchGrokModels = onFetchGrokModels,
             onFetchGroqModels = onFetchGroqModels,
@@ -376,6 +389,8 @@ fun SettingsScreen(
             onFetchPerplexityModels = onFetchPerplexityModels,
             onFetchTogetherModels = onFetchTogetherModels,
             onFetchOpenRouterModels = onFetchOpenRouterModels,
+            onFetchSiliconFlowModels = onFetchSiliconFlowModels,
+            onFetchZaiModels = onFetchZaiModels,
             onFetchDummyModels = onFetchDummyModels
         )
         SettingsSubScreen.AI_ADD_AGENT -> {
@@ -383,6 +398,7 @@ fun SettingsScreen(
             val fetchModelsForProvider: (com.ai.data.AiService, String) -> Unit = { provider, apiKey ->
                 when (provider) {
                     com.ai.data.AiService.OPENAI -> onFetchChatGptModels(apiKey)
+                    com.ai.data.AiService.ANTHROPIC -> onFetchClaudeModels(apiKey)
                     com.ai.data.AiService.GOOGLE -> onFetchGeminiModels(apiKey)
                     com.ai.data.AiService.XAI -> onFetchGrokModels(apiKey)
                     com.ai.data.AiService.GROQ -> onFetchGroqModels(apiKey)
@@ -391,10 +407,9 @@ fun SettingsScreen(
                     com.ai.data.AiService.PERPLEXITY -> onFetchPerplexityModels(apiKey)
                     com.ai.data.AiService.TOGETHER -> onFetchTogetherModels(apiKey)
                     com.ai.data.AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
+                    com.ai.data.AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
+                    com.ai.data.AiService.ZAI -> onFetchZaiModels(apiKey)
                     com.ai.data.AiService.DUMMY -> onFetchDummyModels(apiKey)
-                    com.ai.data.AiService.ANTHROPIC -> {} // Claude has hardcoded models
-                    com.ai.data.AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
-                    com.ai.data.AiService.ZAI -> {} // Z.AI has hardcoded models
                 }
             }
 
@@ -408,6 +423,7 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 developerMode = generalSettings.developerMode,
                 availableChatGptModels = availableChatGptModels,
+                availableClaudeModels = availableClaudeModels,
                 availableGeminiModels = availableGeminiModels,
                 availableGrokModels = availableGrokModels,
                 availableGroqModels = availableGroqModels,
@@ -416,6 +432,8 @@ fun SettingsScreen(
                 availablePerplexityModels = availablePerplexityModels,
                 availableTogetherModels = availableTogetherModels,
                 availableOpenRouterModels = availableOpenRouterModels,
+                availableSiliconFlowModels = availableSiliconFlowModels,
+                availableZaiModels = availableZaiModels,
                 availableDummyModels = availableDummyModels,
                 existingNames = aiSettings.agents.map { it.name }.toSet(),
                 onTestAiModel = onTestAiModel,

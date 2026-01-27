@@ -6,6 +6,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Path
 import retrofit2.http.POST
@@ -404,7 +405,24 @@ interface ClaudeApi {
         @Header("anthropic-version") version: String = "2023-06-01",
         @Body request: ClaudeRequest
     ): Response<ClaudeResponse>
+
+    @GET("v1/models")
+    suspend fun listModels(
+        @Header("x-api-key") apiKey: String,
+        @Header("anthropic-version") version: String = "2023-06-01"
+    ): Response<ClaudeModelsResponse>
 }
+
+// Response for listing Claude/Anthropic models
+data class ClaudeModelsResponse(
+    val data: List<ClaudeModelInfo>?
+)
+
+data class ClaudeModelInfo(
+    val id: String?,
+    val display_name: String?,
+    val type: String?
+)
 
 // Response for listing Gemini models
 data class GeminiModelsResponse(
@@ -550,7 +568,22 @@ interface SiliconFlowApi {
         @Header("Authorization") authorization: String,
         @Body request: SiliconFlowRequest
     ): Response<OpenAiResponse>
+
+    @GET("v1/models")
+    suspend fun listModels(
+        @Header("Authorization") authorization: String
+    ): Response<SiliconFlowModelsResponse>
 }
+
+// Response for listing SiliconFlow models
+data class SiliconFlowModelsResponse(
+    val data: List<SiliconFlowModelInfo>?
+)
+
+data class SiliconFlowModelInfo(
+    val id: String?,
+    val `object`: String?
+)
 
 /**
  * Retrofit interface for Z.AI API (OpenAI-compatible format, different endpoint).
@@ -562,7 +595,22 @@ interface ZaiApi {
         @Header("Authorization") authorization: String,
         @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
+
+    @GET("model")
+    suspend fun listModels(
+        @Header("Authorization") authorization: String
+    ): Response<ZaiModelsResponse>
 }
+
+// Response for listing Z.AI models
+data class ZaiModelsResponse(
+    val data: List<ZaiModelInfo>?
+)
+
+data class ZaiModelInfo(
+    val id: String?,
+    val `object`: String?
+)
 
 /**
  * Retrofit interface for Groq API (OpenAI-compatible).

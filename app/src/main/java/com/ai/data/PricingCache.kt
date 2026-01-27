@@ -236,6 +236,29 @@ object PricingCache {
     }
 
     /**
+     * Get all OpenRouter pricing (for export).
+     */
+    fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> {
+        ensureLoaded(context)
+        return openRouterPricing?.toMap() ?: emptyMap()
+    }
+
+    /**
+     * Get all LiteLLM pricing (for export).
+     */
+    fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> {
+        ensureLoaded(context)
+        return litellmPricing?.toMap() ?: emptyMap()
+    }
+
+    /**
+     * Get all fallback pricing (for export).
+     */
+    fun getFallbackPricing(): Map<String, ModelPricing> {
+        return FALLBACK_PRICING.toMap()
+    }
+
+    /**
      * Force refresh of LiteLLM pricing from assets.
      */
     fun refreshLiteLLMPricing(context: Context) {

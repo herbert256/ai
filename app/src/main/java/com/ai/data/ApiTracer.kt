@@ -172,6 +172,32 @@ object ApiTracer {
     }
 
     /**
+     * Delete traces older than the given timestamp.
+     * Returns the number of traces deleted.
+     */
+    fun deleteTracesOlderThan(cutoffTimestamp: Long): Int {
+        val dir = traceDir ?: return 0
+        if (!dir.exists()) return 0
+
+        var deletedCount = 0
+        dir.listFiles()?.forEach { file ->
+            if (file.extension == "json") {
+                try {
+                    val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
+                    if (trace.timestamp < cutoffTimestamp) {
+                        if (file.delete()) {
+                            deletedCount++
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Skip files that can't be parsed
+                }
+            }
+        }
+        return deletedCount
+    }
+
+    /**
      * Get count of trace files.
      */
     fun getTraceCount(): Int {

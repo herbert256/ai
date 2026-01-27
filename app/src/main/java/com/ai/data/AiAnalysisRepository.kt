@@ -1679,6 +1679,62 @@ class AiAnalysisRepository {
         }
     }
 
+    suspend fun fetchClaudeModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val response = claudeApi.listModels(apiKey)
+            if (response.isSuccessful) {
+                val models = response.body()?.data ?: emptyList()
+                models
+                    .mapNotNull { it.id }
+                    .filter { it.startsWith("claude") }  // Only include Claude models
+                    .sorted()
+            } else {
+                android.util.Log.e("ClaudeAPI", "Failed to fetch models: ${response.code()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ClaudeAPI", "Error fetching models: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun fetchSiliconFlowModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val response = siliconFlowApi.listModels("Bearer $apiKey")
+            if (response.isSuccessful) {
+                val models = response.body()?.data ?: emptyList()
+                models
+                    .mapNotNull { it.id }
+                    .sorted()
+            } else {
+                android.util.Log.e("SiliconFlowAPI", "Failed to fetch models: ${response.code()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SiliconFlowAPI", "Error fetching models: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun fetchZaiModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            val response = zaiApi.listModels("Bearer $apiKey")
+            if (response.isSuccessful) {
+                val models = response.body()?.data ?: emptyList()
+                models
+                    .mapNotNull { it.id }
+                    .filter { it.startsWith("glm") || it.startsWith("codegeex") || it.startsWith("charglm") }  // Only include GLM models
+                    .sorted()
+            } else {
+                android.util.Log.e("ZaiAPI", "Failed to fetch models: ${response.code()}")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ZaiAPI", "Error fetching models: ${e.message}")
+            emptyList()
+        }
+    }
+
     /**
      * Send a chat message with conversation history.
      * Returns the assistant's response message.

@@ -47,6 +47,12 @@ data class AiUiState(
     val isLoadingOpenRouterModels: Boolean = false,
     val availableDummyModels: List<String> = emptyList(),
     val isLoadingDummyModels: Boolean = false,
+    val availableClaudeModels: List<String> = emptyList(),
+    val isLoadingClaudeModels: Boolean = false,
+    val availableSiliconFlowModels: List<String> = emptyList(),
+    val isLoadingSiliconFlowModels: Boolean = false,
+    val availableZaiModels: List<String> = emptyList(),
+    val isLoadingZaiModels: Boolean = false,
     // Generic AI Reports (main feature)
     val showGenericAiAgentSelection: Boolean = false,
     val showGenericAiReportsDialog: Boolean = false,

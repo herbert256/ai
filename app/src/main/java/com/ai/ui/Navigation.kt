@@ -272,6 +272,9 @@ fun AiNavHost(
                 availableTogetherModels = uiState.availableTogetherModels,
                 availableOpenRouterModels = uiState.availableOpenRouterModels,
                 availableDummyModels = uiState.availableDummyModels,
+                availableClaudeModels = uiState.availableClaudeModels,
+                availableSiliconFlowModels = uiState.availableSiliconFlowModels,
+                availableZaiModels = uiState.availableZaiModels,
                 isLoadingChatGptModels = uiState.isLoadingChatGptModels,
                 isLoadingGeminiModels = uiState.isLoadingGeminiModels,
                 isLoadingGrokModels = uiState.isLoadingGrokModels,
@@ -281,6 +284,9 @@ fun AiNavHost(
                 isLoadingTogetherModels = uiState.isLoadingTogetherModels,
                 isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
                 isLoadingDummyModels = uiState.isLoadingDummyModels,
+                isLoadingClaudeModels = uiState.isLoadingClaudeModels,
+                isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
+                isLoadingZaiModels = uiState.isLoadingZaiModels,
                 onBackToAiSetup = { navController.popBackStack() },
                 onBackToHome = navigateHome,
                 onSaveAiSettings = { viewModel.updateAiSettings(it) },
@@ -295,6 +301,9 @@ fun AiNavHost(
                 onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
                 onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
                 onFetchDummyModels = { viewModel.fetchDummyModels(it) },
+                onFetchClaudeModels = { viewModel.fetchClaudeModels(it) },
+                onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
+                onFetchZaiModels = { viewModel.fetchZaiModels(it) },
                 onNavigateToChatParams = { provider, model ->
                     navController.navigate(NavRoutes.aiChatParams(provider.name, model))
                 },
@@ -349,6 +358,7 @@ fun AiNavHost(
             if (provider != null) {
                 val availableModels = when (provider) {
                     com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
+                    com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
                     com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
                     com.ai.data.AiService.XAI -> uiState.availableGrokModels
                     com.ai.data.AiService.GROQ -> uiState.availableGroqModels
@@ -356,11 +366,14 @@ fun AiNavHost(
                     com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
                     com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
                     com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
+                    com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
+                    com.ai.data.AiService.ZAI -> uiState.availableZaiModels
                     com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                     else -> emptyList()
                 }
                 val isLoadingModels = when (provider) {
                     com.ai.data.AiService.OPENAI -> uiState.isLoadingChatGptModels
+                    com.ai.data.AiService.ANTHROPIC -> uiState.isLoadingClaudeModels
                     com.ai.data.AiService.GOOGLE -> uiState.isLoadingGeminiModels
                     com.ai.data.AiService.XAI -> uiState.isLoadingGrokModels
                     com.ai.data.AiService.GROQ -> uiState.isLoadingGroqModels
@@ -368,6 +381,8 @@ fun AiNavHost(
                     com.ai.data.AiService.MISTRAL -> uiState.isLoadingMistralModels
                     com.ai.data.AiService.TOGETHER -> uiState.isLoadingTogetherModels
                     com.ai.data.AiService.OPENROUTER -> uiState.isLoadingOpenRouterModels
+                    com.ai.data.AiService.SILICONFLOW -> uiState.isLoadingSiliconFlowModels
+                    com.ai.data.AiService.ZAI -> uiState.isLoadingZaiModels
                     com.ai.data.AiService.DUMMY -> uiState.isLoadingDummyModels
                     else -> false
                 }
@@ -516,6 +531,8 @@ fun SettingsScreenNav(
         aiSettings = uiState.aiSettings,
         availableChatGptModels = uiState.availableChatGptModels,
         isLoadingChatGptModels = uiState.isLoadingChatGptModels,
+        availableClaudeModels = uiState.availableClaudeModels,
+        isLoadingClaudeModels = uiState.isLoadingClaudeModels,
         availableGeminiModels = uiState.availableGeminiModels,
         isLoadingGeminiModels = uiState.isLoadingGeminiModels,
         availableGrokModels = uiState.availableGrokModels,
@@ -532,6 +549,10 @@ fun SettingsScreenNav(
         isLoadingTogetherModels = uiState.isLoadingTogetherModels,
         availableOpenRouterModels = uiState.availableOpenRouterModels,
         isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
+        availableSiliconFlowModels = uiState.availableSiliconFlowModels,
+        isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
+        availableZaiModels = uiState.availableZaiModels,
+        isLoadingZaiModels = uiState.isLoadingZaiModels,
         availableDummyModels = uiState.availableDummyModels,
         isLoadingDummyModels = uiState.isLoadingDummyModels,
         onBack = onNavigateBack,
@@ -540,6 +561,7 @@ fun SettingsScreenNav(
         onTrackApiCallsChanged = { viewModel.updateTrackApiCalls(it) },
         onSaveAi = { viewModel.updateAiSettings(it) },
         onFetchChatGptModels = { viewModel.fetchChatGptModels(it) },
+        onFetchClaudeModels = { viewModel.fetchClaudeModels(it) },
         onFetchGeminiModels = { viewModel.fetchGeminiModels(it) },
         onFetchGrokModels = { viewModel.fetchGrokModels(it) },
         onFetchGroqModels = { viewModel.fetchGroqModels(it) },
@@ -548,6 +570,8 @@ fun SettingsScreenNav(
         onFetchPerplexityModels = { viewModel.fetchPerplexityModels(it) },
         onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
+        onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
+        onFetchZaiModels = { viewModel.fetchZaiModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onRefreshAllModels = { viewModel.refreshAllModelLists(it) },

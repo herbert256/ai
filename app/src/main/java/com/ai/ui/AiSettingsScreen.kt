@@ -251,6 +251,21 @@ fun AiSetupScreen(
             onAiClick = onBackToHome
         )
 
+        // Import AI configuration button - only show if no swarm named "default agents"
+        val hasDefaultAgentsSwarm = aiSettings.swarms.any { it.name.equals("default agents", ignoreCase = true) }
+        if (!hasDefaultAgentsSwarm) {
+            Button(
+                onClick = {
+                    filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text("Import AI configuration")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         // Summary info (exclude DUMMY agents when not in developer mode)
         val configuredAgents = aiSettings.agents.count { agent ->
             agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
@@ -312,18 +327,6 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Import AI configuration button
-        Button(
-            onClick = {
-                filePickerLauncher.launch(arrayOf("application/json", "*/*"))
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            Text("Import AI configuration")
-        }
     }
 }
 
@@ -521,6 +524,7 @@ fun ModelSearchScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     availableChatGptModels: List<String>,
+    availableClaudeModels: List<String>,
     availableGeminiModels: List<String>,
     availableGrokModels: List<String>,
     availableGroqModels: List<String>,
@@ -529,8 +533,11 @@ fun ModelSearchScreen(
     availablePerplexityModels: List<String>,
     availableTogetherModels: List<String>,
     availableOpenRouterModels: List<String>,
+    availableSiliconFlowModels: List<String>,
+    availableZaiModels: List<String>,
     availableDummyModels: List<String>,
     isLoadingChatGptModels: Boolean = false,
+    isLoadingClaudeModels: Boolean = false,
     isLoadingGeminiModels: Boolean = false,
     isLoadingGrokModels: Boolean = false,
     isLoadingGroqModels: Boolean = false,
@@ -538,12 +545,15 @@ fun ModelSearchScreen(
     isLoadingMistralModels: Boolean = false,
     isLoadingTogetherModels: Boolean = false,
     isLoadingOpenRouterModels: Boolean = false,
+    isLoadingSiliconFlowModels: Boolean = false,
+    isLoadingZaiModels: Boolean = false,
     isLoadingDummyModels: Boolean = false,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSaveAiSettings: (AiSettings) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String?,
     onFetchChatGptModels: (String) -> Unit,
+    onFetchClaudeModels: (String) -> Unit,
     onFetchGeminiModels: (String) -> Unit,
     onFetchGrokModels: (String) -> Unit,
     onFetchGroqModels: (String) -> Unit,
@@ -552,14 +562,17 @@ fun ModelSearchScreen(
     onFetchPerplexityModels: (String) -> Unit,
     onFetchTogetherModels: (String) -> Unit,
     onFetchOpenRouterModels: (String) -> Unit,
+    onFetchSiliconFlowModels: (String) -> Unit,
+    onFetchZaiModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onNavigateToChatParams: (AiService, String) -> Unit,
     onNavigateToModelInfo: (AiService, String) -> Unit
 ) {
     // Check if any provider is loading
-    val isLoading = isLoadingChatGptModels || isLoadingGeminiModels || isLoadingGrokModels ||
+    val isLoading = isLoadingChatGptModels || isLoadingClaudeModels || isLoadingGeminiModels || isLoadingGrokModels ||
             isLoadingGroqModels || isLoadingDeepSeekModels || isLoadingMistralModels ||
-            isLoadingTogetherModels || isLoadingOpenRouterModels || isLoadingDummyModels
+            isLoadingTogetherModels || isLoadingOpenRouterModels || isLoadingSiliconFlowModels ||
+            isLoadingZaiModels || isLoadingDummyModels
     var searchQuery by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf<ModelSearchItem?>(null) }
 
@@ -567,6 +580,7 @@ fun ModelSearchScreen(
     val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
         when (provider) {
             AiService.OPENAI -> onFetchChatGptModels(apiKey)
+            AiService.ANTHROPIC -> onFetchClaudeModels(apiKey)
             AiService.GOOGLE -> onFetchGeminiModels(apiKey)
             AiService.XAI -> onFetchGrokModels(apiKey)
             AiService.GROQ -> onFetchGroqModels(apiKey)
@@ -575,10 +589,9 @@ fun ModelSearchScreen(
             AiService.PERPLEXITY -> onFetchPerplexityModels(apiKey)
             AiService.TOGETHER -> onFetchTogetherModels(apiKey)
             AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
+            AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
+            AiService.ZAI -> onFetchZaiModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
-            AiService.ANTHROPIC -> {} // Claude has hardcoded models
-            AiService.SILICONFLOW -> {} // SiliconFlow has hardcoded models
-            AiService.ZAI -> {} // Z.AI has hardcoded models
         }
     }
 
@@ -692,6 +705,7 @@ fun ModelSearchScreen(
             aiSettings = aiSettings,
             developerMode = developerMode,
             availableChatGptModels = availableChatGptModels,
+            availableClaudeModels = availableClaudeModels,
             availableGeminiModels = availableGeminiModels,
             availableGrokModels = availableGrokModels,
             availableGroqModels = availableGroqModels,
@@ -700,6 +714,8 @@ fun ModelSearchScreen(
             availablePerplexityModels = availablePerplexityModels,
             availableTogetherModels = availableTogetherModels,
             availableOpenRouterModels = availableOpenRouterModels,
+            availableSiliconFlowModels = availableSiliconFlowModels,
+            availableZaiModels = availableZaiModels,
             availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
@@ -722,16 +738,17 @@ fun ModelSearchScreen(
 
     // Combine all models with their provider info
     val allModels = remember(
-        availableChatGptModels, availableGeminiModels, availableGrokModels,
+        availableChatGptModels, availableClaudeModels, availableGeminiModels, availableGrokModels,
         availableGroqModels, availableDeepSeekModels, availableMistralModels,
         availablePerplexityModels, availableTogetherModels, availableOpenRouterModels,
-        availableDummyModels, aiSettings
+        availableSiliconFlowModels, availableZaiModels, availableDummyModels, aiSettings
     ) {
         buildList {
             // OpenAI models
             availableChatGptModels.forEach { add(ModelSearchItem(AiService.OPENAI, "OpenAI", it, Color(0xFF10A37F))) }
-            // Anthropic models (hardcoded)
-            aiSettings.claudeManualModels.forEach { add(ModelSearchItem(AiService.ANTHROPIC, "Anthropic", it, Color(0xFFD97706))) }
+            // Anthropic models (API or fallback to manual)
+            val claudeModels = if (availableClaudeModels.isNotEmpty()) availableClaudeModels else aiSettings.claudeManualModels
+            claudeModels.forEach { add(ModelSearchItem(AiService.ANTHROPIC, "Anthropic", it, Color(0xFFD97706))) }
             // Google models
             availableGeminiModels.forEach { add(ModelSearchItem(AiService.GOOGLE, "Google", it, Color(0xFF4285F4))) }
             // xAI models
@@ -742,16 +759,18 @@ fun ModelSearchScreen(
             availableDeepSeekModels.forEach { add(ModelSearchItem(AiService.DEEPSEEK, "DeepSeek", it, Color(0xFF4D6BFE))) }
             // Mistral models
             availableMistralModels.forEach { add(ModelSearchItem(AiService.MISTRAL, "Mistral", it, Color(0xFFFF7000))) }
-            // Perplexity models (hardcoded)
+            // Perplexity models (hardcoded - no API)
             aiSettings.perplexityManualModels.forEach { add(ModelSearchItem(AiService.PERPLEXITY, "Perplexity", it, Color(0xFF20B2AA))) }
             // Together models
             availableTogetherModels.forEach { add(ModelSearchItem(AiService.TOGETHER, "Together", it, Color(0xFF6366F1))) }
             // OpenRouter models
             availableOpenRouterModels.forEach { add(ModelSearchItem(AiService.OPENROUTER, "OpenRouter", it, Color(0xFF6B5AED))) }
-            // SiliconFlow models (manual only)
-            aiSettings.siliconFlowManualModels.forEach { add(ModelSearchItem(AiService.SILICONFLOW, "SiliconFlow", it, Color(0xFF00B4D8))) }
-            // Z.AI models (manual only)
-            aiSettings.zaiManualModels.forEach { add(ModelSearchItem(AiService.ZAI, "Z.AI", it, Color(0xFF6366F1))) }
+            // SiliconFlow models (API or fallback to manual)
+            val siliconFlowModels = if (availableSiliconFlowModels.isNotEmpty()) availableSiliconFlowModels else aiSettings.siliconFlowManualModels
+            siliconFlowModels.forEach { add(ModelSearchItem(AiService.SILICONFLOW, "SiliconFlow", it, Color(0xFF00B4D8))) }
+            // Z.AI models (API or fallback to manual)
+            val zaiModels = if (availableZaiModels.isNotEmpty()) availableZaiModels else aiSettings.zaiManualModels
+            zaiModels.forEach { add(ModelSearchItem(AiService.ZAI, "Z.AI", it, Color(0xFF6366F1))) }
             // Dummy models (only in developer mode)
             if (developerMode) {
                 availableDummyModels.forEach { add(ModelSearchItem(AiService.DUMMY, "Dummy", it, Color(0xFF888888))) }
@@ -1409,6 +1428,10 @@ fun HousekeepingScreen(
     var specsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var showSpecsResultDialog by remember { mutableStateOf(false) }
 
+    // State for refresh OpenRouter pricing
+    var isRefreshingPricing by remember { mutableStateOf(false) }
+    var pricingRefreshCount by remember { mutableStateOf(0) }
+
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -1785,6 +1808,39 @@ fun HousekeepingScreen(
             }
         }
 
+        // Refresh OpenRouter model cost cached data button
+        Button(
+            onClick = {
+                scope.launch {
+                    isRefreshingPricing = true
+                    val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(aiSettings.openRouterApiKey)
+                    if (pricing.isNotEmpty()) {
+                        com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
+                        pricingRefreshCount = pricing.size
+                        android.widget.Toast.makeText(context, "Refreshed ${pricing.size} model prices", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Failed to fetch pricing data", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    isRefreshingPricing = false
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isRefreshingPricing && aiSettings.openRouterApiKey.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            if (isRefreshingPricing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Refreshing pricing...")
+            } else {
+                Text("Refresh OpenRouter model cost cached data")
+            }
+        }
+
         // Export AI configuration button
         val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||
                 aiSettings.claudeApiKey.isNotBlank() ||
@@ -1825,5 +1881,411 @@ fun HousekeepingScreen(
         ) {
             Text("Import AI configuration")
         }
+
+        // Export model costs button
+        Button(
+            onClick = {
+                exportModelCostsToCsv(context)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("Export model costs")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Clean up card
+        var showCleanupDaysDialog by remember { mutableStateOf<String?>(null) }
+        var cleanupDaysInput by remember { mutableStateOf("30") }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Clean up",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { showCleanupDaysDialog = "chats" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("Chats", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { showCleanupDaysDialog = "reports" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("Reports", fontSize = 12.sp)
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { showCleanupDaysDialog = "statistics" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("Statistics", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { showCleanupDaysDialog = "traces" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("API Trace", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // Cleanup days dialog
+        if (showCleanupDaysDialog != null) {
+            val cleanupType = showCleanupDaysDialog!!
+            val title = when (cleanupType) {
+                "chats" -> "Clean up Chats"
+                "reports" -> "Clean up Reports"
+                "statistics" -> "Clean up Statistics"
+                "traces" -> "Clean up API Traces"
+                else -> "Clean up"
+            }
+            AlertDialog(
+                onDismissRequest = {
+                    showCleanupDaysDialog = null
+                    cleanupDaysInput = "30"
+                },
+                title = { Text(title, color = Color.White) },
+                text = {
+                    Column {
+                        if (cleanupType == "statistics") {
+                            Text(
+                                "Statistics don't have timestamps. Enter 0 to clear all statistics.",
+                                color = Color(0xFFAAAAAA),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        Text(
+                            "Delete data older than how many days?",
+                            color = Color(0xFFAAAAAA)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = cleanupDaysInput,
+                            onValueChange = { newValue ->
+                                if (newValue.all { it.isDigit() }) {
+                                    cleanupDaysInput = newValue
+                                }
+                            },
+                            label = { Text("Days to keep") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFFF9800),
+                                unfocusedBorderColor = Color(0xFF555555),
+                                focusedLabelColor = Color(0xFFFF9800)
+                            )
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val days = cleanupDaysInput.toIntOrNull() ?: 30
+                            val cutoffTime = System.currentTimeMillis() - (days * 24 * 60 * 60 * 1000L)
+                            var deletedCount = 0
+
+                            when (cleanupType) {
+                                "chats" -> {
+                                    val sessions = com.ai.data.ChatHistoryManager.getAllSessions()
+                                    sessions.forEach { session ->
+                                        if (session.updatedAt < cutoffTime) {
+                                            if (com.ai.data.ChatHistoryManager.deleteSession(session.id)) {
+                                                deletedCount++
+                                            }
+                                        }
+                                    }
+                                    android.widget.Toast.makeText(context, "Deleted $deletedCount chat(s)", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                "reports" -> {
+                                    val reports = com.ai.data.AiReportStorage.getAllReports(context)
+                                    reports.forEach { report ->
+                                        if (report.timestamp < cutoffTime) {
+                                            com.ai.data.AiReportStorage.deleteReport(context, report.id)
+                                            deletedCount++
+                                        }
+                                    }
+                                    android.widget.Toast.makeText(context, "Deleted $deletedCount report(s)", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                "statistics" -> {
+                                    if (days == 0) {
+                                        SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)).clearUsageStats()
+                                        android.widget.Toast.makeText(context, "Cleared all statistics", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        android.widget.Toast.makeText(context, "Enter 0 to clear statistics (no timestamp data)", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                "traces" -> {
+                                    deletedCount = com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
+                                    android.widget.Toast.makeText(context, "Deleted $deletedCount trace(s)", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+
+                            showCleanupDaysDialog = null
+                            cleanupDaysInput = "30"
+                        }
+                    ) {
+                        Text("Delete", color = Color(0xFFFF6B6B))
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showCleanupDaysDialog = null
+                            cleanupDaysInput = "30"
+                        }
+                    ) {
+                        Text("Cancel", color = Color(0xFF6B9BFF))
+                    }
+                },
+                containerColor = Color(0xFF2A2A2A)
+            )
+        }
+    }
+}
+
+/**
+ * Export model costs to CSV file.
+ * Prices are in USD ticks (one millionth of a dollar) per million tokens.
+ */
+private fun exportModelCostsToCsv(context: android.content.Context) {
+    val pricingCache = com.ai.data.PricingCache
+
+    // Get all pricing sources
+    val overridePricing = pricingCache.getAllManualPricing(context)
+    val openRouterPricing = pricingCache.getOpenRouterPricing(context)
+    val litellmPricing = pricingCache.getLiteLLMPricing(context)
+    val fallbackPricing = pricingCache.getFallbackPricing()
+
+    // Collect all unique provider/model combinations
+    data class ProviderModel(val provider: String, val model: String)
+    val allModels = mutableSetOf<ProviderModel>()
+
+    // From override pricing (key format: "PROVIDER:model")
+    overridePricing.keys.forEach { key ->
+        val parts = key.split(":", limit = 2)
+        if (parts.size == 2) {
+            allModels.add(ProviderModel(parts[0], parts[1]))
+        }
+    }
+
+    // From OpenRouter pricing (key format: "provider/model" or just "model")
+    openRouterPricing.keys.forEach { key ->
+        if (key.contains("/")) {
+            val parts = key.split("/", limit = 2)
+            // Map OpenRouter provider prefix to our provider name
+            val providerName = mapOpenRouterPrefixToProvider(parts[0])
+            if (providerName != null) {
+                allModels.add(ProviderModel(providerName, parts[1]))
+            }
+            // Also add as OPENROUTER provider with full model ID
+            allModels.add(ProviderModel("OPENROUTER", key))
+        } else {
+            allModels.add(ProviderModel("UNKNOWN", key))
+        }
+    }
+
+    // From LiteLLM pricing (key format varies: "provider/model" or "model")
+    litellmPricing.keys.forEach { key ->
+        if (key.contains("/")) {
+            val parts = key.split("/", limit = 2)
+            val providerName = mapLiteLLMPrefixToProvider(parts[0])
+            if (providerName != null) {
+                allModels.add(ProviderModel(providerName, parts[1]))
+            }
+        } else {
+            allModels.add(ProviderModel("UNKNOWN", key))
+        }
+    }
+
+    // From fallback pricing (model names only)
+    fallbackPricing.keys.forEach { key ->
+        allModels.add(ProviderModel("FALLBACK", key))
+    }
+
+    // Sort by provider then model
+    val sortedModels = allModels.sortedWith(compareBy({ it.provider }, { it.model }))
+
+    // Helper to convert price per token to USD ticks per million tokens
+    // Price per token * 1,000,000 (for million tokens) * 1,000,000 (for ticks) = price * 1e12
+    fun toUsdTicks(pricePerToken: Double?): String {
+        if (pricePerToken == null) return ""
+        val ticks = (pricePerToken * 1e12).toLong()
+        return ticks.toString()
+    }
+
+    // Build CSV
+    val csv = StringBuilder()
+    csv.appendLine("Provider,Model,Override Input,Override Output,OpenRouter Input,OpenRouter Output,LiteLLM Input,LiteLLM Output,Fallback Input,Fallback Output")
+
+    for (pm in sortedModels) {
+        val overrideKey = "${pm.provider}:${pm.model}"
+        val override = overridePricing[overrideKey]
+
+        // For OpenRouter, try both the full key and provider/model format
+        val openRouterKey = if (pm.provider == "OPENROUTER") pm.model else findOpenRouterKey(pm.provider, pm.model, openRouterPricing)
+        val openRouter = openRouterPricing[openRouterKey]
+
+        // For LiteLLM, try direct and with prefix
+        val litellmKey = findLiteLLMKey(pm.provider, pm.model, litellmPricing)
+        val litellm = litellmPricing[litellmKey]
+
+        val fallback = fallbackPricing[pm.model]
+
+        csv.appendLine(buildString {
+            append(escapeCsvField(pm.provider))
+            append(",")
+            append(escapeCsvField(pm.model))
+            append(",")
+            append(toUsdTicks(override?.promptPrice))
+            append(",")
+            append(toUsdTicks(override?.completionPrice))
+            append(",")
+            append(toUsdTicks(openRouter?.promptPrice))
+            append(",")
+            append(toUsdTicks(openRouter?.completionPrice))
+            append(",")
+            append(toUsdTicks(litellm?.promptPrice))
+            append(",")
+            append(toUsdTicks(litellm?.completionPrice))
+            append(",")
+            append(toUsdTicks(fallback?.promptPrice))
+            append(",")
+            append(toUsdTicks(fallback?.completionPrice))
+        })
+    }
+
+    // Save and share CSV file
+    try {
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val fileName = "model_costs_$timestamp.csv"
+        val exportDir = java.io.File(context.cacheDir ?: return, "exports")
+        exportDir.mkdirs()
+        val file = java.io.File(exportDir, fileName)
+        file.writeText(csv.toString())
+
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(android.content.Intent.createChooser(shareIntent, "Export Model Costs"))
+    } catch (e: Exception) {
+        android.util.Log.e("HousekeepingScreen", "Failed to export model costs: ${e.message}")
+        android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+    }
+}
+
+private fun mapOpenRouterPrefixToProvider(prefix: String): String? {
+    return when (prefix) {
+        "openai" -> "OPENAI"
+        "anthropic" -> "ANTHROPIC"
+        "google" -> "GOOGLE"
+        "x-ai" -> "XAI"
+        "deepseek" -> "DEEPSEEK"
+        "mistralai" -> "MISTRAL"
+        "perplexity" -> "PERPLEXITY"
+        "meta-llama", "meta" -> "TOGETHER"
+        else -> null
+    }
+}
+
+private fun mapLiteLLMPrefixToProvider(prefix: String): String? {
+    return when (prefix) {
+        "openai" -> "OPENAI"
+        "anthropic", "claude" -> "ANTHROPIC"
+        "gemini" -> "GOOGLE"
+        "xai" -> "XAI"
+        "groq" -> "GROQ"
+        "deepseek" -> "DEEPSEEK"
+        "mistral" -> "MISTRAL"
+        "perplexity" -> "PERPLEXITY"
+        "together_ai", "together" -> "TOGETHER"
+        else -> null
+    }
+}
+
+private fun findOpenRouterKey(provider: String, model: String, pricing: Map<String, com.ai.data.PricingCache.ModelPricing>): String? {
+    // Try direct match first
+    if (pricing.containsKey(model)) return model
+
+    // Try with provider prefix
+    val prefix = when (provider) {
+        "OPENAI" -> "openai"
+        "ANTHROPIC" -> "anthropic"
+        "GOOGLE" -> "google"
+        "XAI" -> "x-ai"
+        "DEEPSEEK" -> "deepseek"
+        "MISTRAL" -> "mistralai"
+        "PERPLEXITY" -> "perplexity"
+        else -> null
+    }
+    if (prefix != null) {
+        val key = "$prefix/$model"
+        if (pricing.containsKey(key)) return key
+    }
+
+    // Try to find a partial match
+    return pricing.keys.find { it.endsWith("/$model") }
+}
+
+private fun findLiteLLMKey(provider: String, model: String, pricing: Map<String, com.ai.data.PricingCache.ModelPricing>): String? {
+    // Try direct match first
+    if (pricing.containsKey(model)) return model
+
+    // Try with provider prefix
+    val prefix = when (provider) {
+        "GOOGLE" -> "gemini"
+        "XAI" -> "xai"
+        "GROQ" -> "groq"
+        "DEEPSEEK" -> "deepseek"
+        "TOGETHER" -> "together_ai"
+        else -> null
+    }
+    if (prefix != null) {
+        val key = "$prefix/$model"
+        if (pricing.containsKey(key)) return key
+    }
+
+    return null
+}
+
+private fun escapeCsvField(value: String): String {
+    return if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+        "\"${value.replace("\"", "\"\"")}\""
+    } else {
+        value
     }
 }
