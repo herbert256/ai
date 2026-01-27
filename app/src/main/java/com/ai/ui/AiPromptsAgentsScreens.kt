@@ -450,8 +450,8 @@ internal fun AgentEditScreen(
     var returnCitations by remember { mutableStateOf(existingParams.returnCitations) }
     var searchRecency by remember { mutableStateOf(existingParams.searchRecency ?: "") }
 
-    // Get supported parameters for selected provider
-    val supportedParams = PROVIDER_SUPPORTED_PARAMETERS[selectedProvider] ?: emptySet()
+    // All parameters available for every agent
+    val supportedParams = ALL_AGENT_PARAMETERS
 
     // Get models for selected provider
     val modelsForProvider = when (selectedProvider) {

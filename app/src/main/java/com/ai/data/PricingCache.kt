@@ -157,10 +157,21 @@ object PricingCache {
         // Build the key for manual pricing lookup
         val manualKey = "${provider.name}:$model"
 
-        // 0. Try manual overrides first (highest priority)
+        // 1. Try manual overrides first (highest priority)
         manualPricing?.get(manualKey)?.let { return it }
 
-        // 1. Try OpenRouter (best source for most models)
+        // 2. Try LiteLLM (bundled pricing data)
+        litellmPricing?.let { pricing ->
+            pricing[model]?.let { return it }
+
+            // Try with provider prefix
+            val litellmPrefix = getLiteLLMPrefix(provider)
+            if (litellmPrefix != null) {
+                pricing["$litellmPrefix/$model"]?.let { return it }
+            }
+        }
+
+        // 3. Try OpenRouter API
         openRouterPricing?.let { pricing ->
             // Try exact match first
             pricing[model]?.let { return it }
@@ -175,18 +186,7 @@ object PricingCache {
             pricing.entries.find { it.key.endsWith("/$model") || it.key == model }?.let { return it.value }
         }
 
-        // 2. Try LiteLLM
-        litellmPricing?.let { pricing ->
-            pricing[model]?.let { return it }
-
-            // Try with provider prefix
-            val litellmPrefix = getLiteLLMPrefix(provider)
-            if (litellmPrefix != null) {
-                pricing["$litellmPrefix/$model"]?.let { return it }
-            }
-        }
-
-        // 3. Try hardcoded fallback
+        // 4. Try hardcoded fallback
         FALLBACK_PRICING[model]?.let { return it }
 
         return null
@@ -194,7 +194,7 @@ object PricingCache {
 
     /**
      * Get all cached pricing (merged from all sources).
-     * Manual takes priority, then OpenRouter, then LiteLLM, then fallback.
+     * Manual takes priority, then LiteLLM, then OpenRouter, then fallback.
      */
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
         ensureLoaded(context)
@@ -204,11 +204,11 @@ object PricingCache {
         // Add fallback first (lowest priority)
         merged.putAll(FALLBACK_PRICING)
 
-        // Add LiteLLM (medium priority)
-        litellmPricing?.let { merged.putAll(it) }
-
-        // Add OpenRouter (high priority)
+        // Add OpenRouter (3rd priority)
         openRouterPricing?.let { merged.putAll(it) }
+
+        // Add LiteLLM (2nd priority)
+        litellmPricing?.let { merged.putAll(it) }
 
         // Add manual last (highest priority)
         manualPricing?.let { merged.putAll(it) }
@@ -223,8 +223,8 @@ object PricingCache {
         ensureLoaded(context)
         val sources = mutableListOf<String>()
         manualPricing?.let { if (it.isNotEmpty()) sources.add("Manual (${it.size})") }
-        openRouterPricing?.let { if (it.isNotEmpty()) sources.add("OpenRouter (${it.size})") }
         litellmPricing?.let { if (it.isNotEmpty()) sources.add("LiteLLM (${it.size})") }
+        openRouterPricing?.let { if (it.isNotEmpty()) sources.add("OpenRouter (${it.size})") }
         sources.add("Fallback (${FALLBACK_PRICING.size})")
         return sources.joinToString(" + ")
     }

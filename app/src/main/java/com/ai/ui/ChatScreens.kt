@@ -271,7 +271,7 @@ fun ChatParametersScreen(
 ) {
     BackHandler { onNavigateBack() }
 
-    val supportedParams = PROVIDER_SUPPORTED_PARAMETERS[provider] ?: emptySet()
+    val supportedParams = ALL_AGENT_PARAMETERS
 
     // Parameter state
     var systemPrompt by remember { mutableStateOf("") }

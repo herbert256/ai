@@ -586,7 +586,10 @@ class AiAnalysisRepository {
             top_p = params?.topP,
             top_k = params?.topK,
             system = params?.systemPrompt?.takeIf { it.isNotBlank() },
-            stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() }
+            stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            seed = params?.seed
         )
         val response = claudeApi.createMessage(apiKey = apiKey, request = request)
 
@@ -620,15 +623,17 @@ class AiAnalysisRepository {
     }
 
     private suspend fun analyzeWithGemini(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
-        // Build generation config if any parameters are set
-        val generationConfig = if (params != null && (params.temperature != null || params.topP != null ||
-            params.topK != null || params.maxTokens != null || !params.stopSequences.isNullOrEmpty())) {
+        // Build generation config with all parameters
+        val generationConfig = if (params != null) {
             GeminiGenerationConfig(
                 temperature = params.temperature,
                 topP = params.topP,
                 topK = params.topK,
                 maxOutputTokens = params.maxTokens,
-                stopSequences = params.stopSequences?.takeIf { it.isNotEmpty() }
+                stopSequences = params.stopSequences?.takeIf { it.isNotEmpty() },
+                frequencyPenalty = params.frequencyPenalty,
+                presencePenalty = params.presencePenalty,
+                seed = params.seed
             )
         } else null
 
@@ -699,9 +704,11 @@ class AiAnalysisRepository {
             max_tokens = params?.maxTokens,
             temperature = params?.temperature,
             top_p = params?.topP,
+            top_k = params?.topK,
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed,
             search = if (params?.searchEnabled == true) true else null
         )
         val response = grokApi.createChatCompletion(
@@ -755,6 +762,7 @@ class AiAnalysisRepository {
             max_tokens = params?.maxTokens,
             temperature = params?.temperature,
             top_p = params?.topP,
+            top_k = params?.topK,
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
@@ -810,9 +818,11 @@ class AiAnalysisRepository {
             max_tokens = params?.maxTokens,
             temperature = params?.temperature,
             top_p = params?.topP,
+            top_k = params?.topK,
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
-            stop = params?.stopSequences?.takeIf { it.isNotEmpty() }
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed
         )
         val response = deepSeekApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -868,6 +878,9 @@ class AiAnalysisRepository {
             max_tokens = params?.maxTokens,
             temperature = params?.temperature,
             top_p = params?.topP,
+            top_k = params?.topK,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
             stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
             random_seed = params?.seed
         )
@@ -922,8 +935,11 @@ class AiAnalysisRepository {
             max_tokens = params?.maxTokens,
             temperature = params?.temperature,
             top_p = params?.topP,
+            top_k = params?.topK,
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed,
             return_citations = params?.returnCitations,
             search_recency_filter = params?.searchRecency
         )
@@ -983,7 +999,8 @@ class AiAnalysisRepository {
             top_k = params?.topK,
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
-            stop = params?.stopSequences?.takeIf { it.isNotEmpty() }
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed
         )
         val response = togetherApi.createChatCompletion(
             authorization = "Bearer $apiKey",
@@ -1096,7 +1113,8 @@ class AiAnalysisRepository {
             top_k = params?.topK,
             frequency_penalty = params?.frequencyPenalty,
             presence_penalty = params?.presencePenalty,
-            stop = params?.stopSequences?.takeIf { it.isNotEmpty() }
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            seed = params?.seed
         )
         val response = siliconFlowApi.createChatCompletion(
             authorization = "Bearer $apiKey",

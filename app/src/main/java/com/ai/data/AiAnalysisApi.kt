@@ -143,7 +143,11 @@ data class ClaudeRequest(
     val top_p: Float? = null,
     val top_k: Int? = null,
     val system: String? = null,
-    val stop_sequences: List<String>? = null
+    val stop_sequences: List<String>? = null,
+    // Additional parameters (may be ignored by API)
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val seed: Int? = null
 )
 
 data class ClaudeContentBlock(
@@ -189,7 +193,11 @@ data class GeminiGenerationConfig(
     val topP: Float? = null,
     val topK: Int? = null,
     val maxOutputTokens: Int? = null,
-    val stopSequences: List<String>? = null
+    val stopSequences: List<String>? = null,
+    // Additional parameters (may be ignored by API)
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val seed: Int? = null
 )
 
 data class GeminiCandidate(
@@ -221,9 +229,11 @@ data class GrokRequest(
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
     val top_p: Float? = null,
+    val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
+    val seed: Int? = null,
     val search: Boolean? = null  // Enable web search
 )
 
@@ -234,9 +244,11 @@ data class DeepSeekRequest(
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
     val top_p: Float? = null,
+    val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
-    val stop: List<String>? = null
+    val stop: List<String>? = null,
+    val seed: Int? = null
 )
 
 // Mistral models (uses OpenAI-compatible format)
@@ -246,6 +258,9 @@ data class MistralRequest(
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
     val top_p: Float? = null,
+    val top_k: Int? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
     val stop: List<String>? = null,
     val random_seed: Int? = null
 )
@@ -257,8 +272,11 @@ data class PerplexityRequest(
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
     val top_p: Float? = null,
+    val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
+    val stop: List<String>? = null,
+    val seed: Int? = null,
     val return_citations: Boolean? = null,
     val search_recency_filter: String? = null  // "day", "week", "month", "year"
 )
@@ -273,7 +291,8 @@ data class TogetherRequest(
     val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
-    val stop: List<String>? = null
+    val stop: List<String>? = null,
+    val seed: Int? = null
 )
 
 // OpenRouter models (uses OpenAI-compatible format)
@@ -300,7 +319,8 @@ data class SiliconFlowRequest(
     val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
-    val stop: List<String>? = null
+    val stop: List<String>? = null,
+    val seed: Int? = null
 )
 
 // Groq models (uses OpenAI-compatible format)
@@ -310,6 +330,7 @@ data class GroqRequest(
     val max_tokens: Int? = 1024,
     val temperature: Float? = null,
     val top_p: Float? = null,
+    val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
