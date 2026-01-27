@@ -366,20 +366,20 @@ fun AiCostsScreen(
             pricingReady -> {
                 val pricingCache = com.ai.data.PricingCache
 
-                // Calculate costs for each stat using cached pricing
+                // Calculate costs for each stat using cached pricing (always returns a value)
                 val statsWithCosts = stats.values.map { stat ->
                     val pricing = pricingCache.getPricing(context, stat.provider, stat.model)
-                    val inputCost = if (pricing != null) stat.inputTokens * pricing.promptPrice else null
-                    val outputCost = if (pricing != null) stat.outputTokens * pricing.completionPrice else null
-                    val totalCost = if (inputCost != null && outputCost != null) inputCost + outputCost else null
-                    StatWithCost(stat, inputCost, outputCost, totalCost, pricing != null, pricing?.source)
+                    val inputCost = stat.inputTokens * pricing.promptPrice
+                    val outputCost = stat.outputTokens * pricing.completionPrice
+                    val totalCost = inputCost + outputCost
+                    StatWithCost(stat, inputCost, outputCost, totalCost, true, pricing.source)
                 }
 
-                val totalCost = statsWithCosts.mapNotNull { it.totalCost }.sum()
-                val totalInputCost = statsWithCosts.mapNotNull { it.inputCost }.sum()
-                val totalOutputCost = statsWithCosts.mapNotNull { it.outputCost }.sum()
-                val pricedCount = statsWithCosts.count { it.hasPricing }
-                val unpricedCount = statsWithCosts.count { !it.hasPricing }
+                val totalCost = statsWithCosts.sumOf { it.totalCost ?: 0.0 }
+                val totalInputCost = statsWithCosts.sumOf { it.inputCost ?: 0.0 }
+                val totalOutputCost = statsWithCosts.sumOf { it.outputCost ?: 0.0 }
+                val pricedCount = statsWithCosts.size
+                val unpricedCount = 0
 
                 // Summary card
                 Card(
@@ -856,15 +856,15 @@ fun CostConfigurationScreen(
                     val manualPrice = manualPricing[manualKey]
                     val isEditing = editingKey == manualKey
 
-                    // Get current pricing (from any tier)
+                    // Get current pricing (from any tier - always returns a value)
                     val currentPricing = com.ai.data.PricingCache.getPricing(context, stat.provider, stat.model)
 
                     CostConfigCard(
                         provider = stat.provider,
                         model = stat.model,
-                        currentInputPrice = currentPricing?.promptPrice,
-                        currentOutputPrice = currentPricing?.completionPrice,
-                        pricingSource = currentPricing?.source,
+                        currentInputPrice = currentPricing.promptPrice,
+                        currentOutputPrice = currentPricing.completionPrice,
+                        pricingSource = currentPricing.source,
                         hasManualOverride = manualPrice != null,
                         isEditing = isEditing,
                         editInputPrice = if (isEditing) editInputPrice else "",
@@ -874,8 +874,8 @@ fun CostConfigurationScreen(
                         onOverrideClick = {
                             editingKey = manualKey
                             // Pre-fill with current prices converted to per-million
-                            val inputPerMillion = (currentPricing?.promptPrice ?: 0.0) * 1_000_000
-                            val outputPerMillion = (currentPricing?.completionPrice ?: 0.0) * 1_000_000
+                            val inputPerMillion = currentPricing.promptPrice * 1_000_000
+                            val outputPerMillion = currentPricing.completionPrice * 1_000_000
                             editInputPrice = if (inputPerMillion > 0) String.format("%.4f", inputPerMillion) else ""
                             editOutputPrice = if (outputPerMillion > 0) String.format("%.4f", outputPerMillion) else ""
                         },

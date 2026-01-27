@@ -2991,14 +2991,14 @@ fun AiReportsScreen(
                     if (agent.provider == com.ai.data.AiService.DUMMY) {
                         return@mapNotNull agentId to 0.0
                     }
-                    val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, agent.model)
-                    if (pricing != null) {
+                    // Priority: API cost > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
+                    val cost = tokenUsage.apiCost ?: run {
+                        val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, agent.model)
                         val inputCost = tokenUsage.inputTokens * pricing.promptPrice
                         val outputCost = tokenUsage.outputTokens * pricing.completionPrice
-                        agentId to (inputCost + outputCost)
-                    } else {
-                        null
+                        inputCost + outputCost
                     }
+                    agentId to cost
                 }.toMap()
             }
             val totalCost = agentCosts.values.sum()

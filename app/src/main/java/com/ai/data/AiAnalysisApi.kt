@@ -69,6 +69,11 @@ data class OpenAiChoice(
     val index: Int
 )
 
+// Cost object structure (used by Perplexity)
+data class UsageCost(
+    val total_cost: Double? = null
+)
+
 data class OpenAiUsage(
     // Chat Completions API uses prompt_tokens/completion_tokens
     val prompt_tokens: Int?,
@@ -76,7 +81,11 @@ data class OpenAiUsage(
     val total_tokens: Int?,
     // Responses API uses input_tokens/output_tokens
     val input_tokens: Int? = null,
-    val output_tokens: Int? = null
+    val output_tokens: Int? = null,
+    // Cost variations from different providers
+    val cost: Double? = null,              // Standard: direct cost in USD
+    val cost_in_usd_ticks: Long? = null,   // xAI: cost in millionths of a dollar
+    val cost_usd: UsageCost? = null        // Perplexity: cost object with total_cost
 )
 
 // Search result from AI services that perform web searches
@@ -165,7 +174,11 @@ data class ClaudeContentBlock(
 
 data class ClaudeUsage(
     val input_tokens: Int?,
-    val output_tokens: Int?
+    val output_tokens: Int?,
+    // Cost variations (in case API provides them)
+    val cost: Double? = null,
+    val cost_in_usd_ticks: Long? = null,
+    val cost_usd: UsageCost? = null
 )
 
 data class ClaudeResponse(
@@ -216,7 +229,11 @@ data class GeminiCandidate(
 data class GeminiUsageMetadata(
     val promptTokenCount: Int?,
     val candidatesTokenCount: Int?,
-    val totalTokenCount: Int?
+    val totalTokenCount: Int?,
+    // Cost variations (in case API provides them)
+    val cost: Double? = null,
+    val cost_in_usd_ticks: Long? = null,
+    val cost_usd: UsageCost? = null
 )
 
 data class GeminiResponse(

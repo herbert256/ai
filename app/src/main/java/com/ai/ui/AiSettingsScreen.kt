@@ -218,9 +218,24 @@ fun AiSetupScreen(
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
-    onNavigateToCostConfig: () -> Unit = {}
+    onNavigateToCostConfig: () -> Unit = {},
+    onSave: (AiSettings) -> Unit = {},
+    onSaveHuggingFaceApiKey: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+
+    // File picker launcher for importing AI configuration
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            val result = importAiConfigFromFile(context, it, aiSettings)
+            if (result != null) {
+                onSave(result.aiSettings)
+                result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -235,8 +250,6 @@ fun AiSetupScreen(
             onBackClick = onBackToSettings,
             onAiClick = onBackToHome
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Summary info (exclude DUMMY agents when not in developer mode)
         val configuredAgents = aiSettings.agents.count { agent ->
@@ -298,6 +311,19 @@ fun AiSetupScreen(
             onClick = onNavigateToCostConfig,
             enabled = hasApiKey
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Import AI configuration button
+        Button(
+            onClick = {
+                filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("Import AI configuration")
+        }
     }
 }
 

@@ -7,7 +7,7 @@ import com.google.gson.reflect.TypeToken
 
 /**
  * Cached model pricing data for cost calculations.
- * Uses a four-tier lookup: Manual overrides -> OpenRouter API (cached weekly) -> LiteLLM JSON -> Hardcoded fallback.
+ * Uses six-tier lookup: API > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT.
  */
 object PricingCache {
 
@@ -93,7 +93,7 @@ object PricingCache {
     fun setManualPricing(context: Context, provider: AiService, model: String, promptPrice: Double, completionPrice: Double) {
         ensureLoaded(context)
         val key = "${provider.name}:$model"
-        val pricing = ModelPricing(model, promptPrice, completionPrice, "manual")
+        val pricing = ModelPricing(model, promptPrice, completionPrice, "OVERRIDE")
 
         if (manualPricing == null) {
             manualPricing = mutableMapOf()
@@ -147,31 +147,25 @@ object PricingCache {
             .apply()
     }
 
+    // Default pricing: $2.50 per 1M input tokens, $5.00 per 1M output tokens
+    private val DEFAULT_PRICING = ModelPricing("default", 2.50e-6, 5.00e-6, "DEFAULT")
+
     /**
-     * Get pricing for a specific model, using four-tier lookup.
-     * Returns null if no pricing found.
+     * Get pricing for a specific model, using six-tier lookup.
+     * Priority: API (from response) > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
+     * Note: API cost is checked at the call site before calling this function.
+     * Always returns pricing (DEFAULT as last resort).
      */
-    fun getPricing(context: Context, provider: AiService, model: String): ModelPricing? {
+    fun getPricing(context: Context, provider: AiService, model: String): ModelPricing {
         ensureLoaded(context)
 
-        // Build the key for manual pricing lookup
-        val manualKey = "${provider.name}:$model"
+        // Build the key for override pricing lookup
+        val overrideKey = "${provider.name}:$model"
 
-        // 1. Try manual overrides first (highest priority)
-        manualPricing?.get(manualKey)?.let { return it }
+        // 1. Try user overrides first (highest priority after API cost)
+        manualPricing?.get(overrideKey)?.let { return it }
 
-        // 2. Try LiteLLM (bundled pricing data)
-        litellmPricing?.let { pricing ->
-            pricing[model]?.let { return it }
-
-            // Try with provider prefix
-            val litellmPrefix = getLiteLLMPrefix(provider)
-            if (litellmPrefix != null) {
-                pricing["$litellmPrefix/$model"]?.let { return it }
-            }
-        }
-
-        // 3. Try OpenRouter API
+        // 2. Try OpenRouter API (cached weekly, accurate pricing)
         openRouterPricing?.let { pricing ->
             // Try exact match first
             pricing[model]?.let { return it }
@@ -186,29 +180,41 @@ object PricingCache {
             pricing.entries.find { it.key.endsWith("/$model") || it.key == model }?.let { return it.value }
         }
 
-        // 4. Try hardcoded fallback
+        // 3. Try LiteLLM (bundled pricing data)
+        litellmPricing?.let { pricing ->
+            pricing[model]?.let { return it }
+
+            // Try with provider prefix
+            val LITELLMPrefix = getLiteLLMPrefix(provider)
+            if (LITELLMPrefix != null) {
+                pricing["$LITELLMPrefix/$model"]?.let { return it }
+            }
+        }
+
+        // 4. Try hardcoded FALLBACK
         FALLBACK_PRICING[model]?.let { return it }
 
-        return null
+        // 5. Return DEFAULT pricing as last resort
+        return DEFAULT_PRICING
     }
 
     /**
      * Get all cached pricing (merged from all sources).
-     * Manual takes priority, then LiteLLM, then OpenRouter, then fallback.
+     * Manual takes priority, then OpenRouter, then LiteLLM, then FALLBACK.
      */
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
         ensureLoaded(context)
 
         val merged = mutableMapOf<String, ModelPricing>()
 
-        // Add fallback first (lowest priority)
+        // Add FALLBACK first (lowest priority)
         merged.putAll(FALLBACK_PRICING)
 
-        // Add OpenRouter (3rd priority)
-        openRouterPricing?.let { merged.putAll(it) }
-
-        // Add LiteLLM (2nd priority)
+        // Add LiteLLM (3rd priority)
         litellmPricing?.let { merged.putAll(it) }
+
+        // Add OpenRouter (2nd priority, overwrites LiteLLM)
+        openRouterPricing?.let { merged.putAll(it) }
 
         // Add manual last (highest priority)
         manualPricing?.let { merged.putAll(it) }
@@ -223,8 +229,8 @@ object PricingCache {
         ensureLoaded(context)
         val sources = mutableListOf<String>()
         manualPricing?.let { if (it.isNotEmpty()) sources.add("Manual (${it.size})") }
-        litellmPricing?.let { if (it.isNotEmpty()) sources.add("LiteLLM (${it.size})") }
         openRouterPricing?.let { if (it.isNotEmpty()) sources.add("OpenRouter (${it.size})") }
+        litellmPricing?.let { if (it.isNotEmpty()) sources.add("LiteLLM (${it.size})") }
         sources.add("Fallback (${FALLBACK_PRICING.size})")
         return sources.joinToString(" + ")
     }
@@ -261,7 +267,7 @@ object PricingCache {
                     val promptPrice = model.pricing?.prompt?.toDoubleOrNull()
                     val completionPrice = model.pricing?.completion?.toDoubleOrNull()
                     if (promptPrice != null && completionPrice != null) {
-                        model.id to ModelPricing(model.id, promptPrice, completionPrice, "openrouter")
+                        model.id to ModelPricing(model.id, promptPrice, completionPrice, "OPENROUTER")
                     } else null
                 }.toMap()
             } else {
@@ -292,11 +298,11 @@ object PricingCache {
         if (litellmPricing == null) {
             // First try loading from prefs cache
             val prefs = getPrefs(context)
-            val litellmJson = prefs.getString(KEY_LITELLM_PRICING, null)
-            if (litellmJson != null) {
+            val LITELLMJson = prefs.getString(KEY_LITELLM_PRICING, null)
+            if (LITELLMJson != null) {
                 try {
                     val type = object : TypeToken<Map<String, ModelPricing>>() {}.type
-                    litellmPricing = gson.fromJson(litellmJson, type)
+                    litellmPricing = gson.fromJson(LITELLMJson, type)
                     litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0)
                 } catch (e: Exception) {
                     android.util.Log.w("PricingCache", "Failed to load LiteLLM cache: ${e.message}")
@@ -357,7 +363,7 @@ object PricingCache {
                 val inputCost = (info["input_cost_per_token"] as? Number)?.toDouble()
                 val outputCost = (info["output_cost_per_token"] as? Number)?.toDouble()
                 if (inputCost != null && outputCost != null) {
-                    modelId to ModelPricing(modelId, inputCost, outputCost, "litellm")
+                    modelId to ModelPricing(modelId, inputCost, outputCost, "LITELLM")
                 } else null
             }.toMap()
         } catch (e: Exception) {
@@ -382,50 +388,50 @@ object PricingCache {
     }
 
     /**
-     * Hardcoded fallback pricing for common models (per token, not per million).
+     * Hardcoded FALLBACK pricing for common models (per token, not per million).
      * Prices as of January 2025.
      */
     private val FALLBACK_PRICING = mapOf(
         // DeepSeek
-        "deepseek-chat" to ModelPricing("deepseek-chat", 0.14e-6, 0.28e-6, "fallback"),
-        "deepseek-coder" to ModelPricing("deepseek-coder", 0.14e-6, 0.28e-6, "fallback"),
-        "deepseek-reasoner" to ModelPricing("deepseek-reasoner", 0.55e-6, 2.19e-6, "fallback"),
+        "deepseek-chat" to ModelPricing("deepseek-chat", 0.14e-6, 0.28e-6, "FALLBACK"),
+        "deepseek-coder" to ModelPricing("deepseek-coder", 0.14e-6, 0.28e-6, "FALLBACK"),
+        "deepseek-reasoner" to ModelPricing("deepseek-reasoner", 0.55e-6, 2.19e-6, "FALLBACK"),
         // Groq
-        "llama-3.3-70b-versatile" to ModelPricing("llama-3.3-70b-versatile", 0.59e-6, 0.79e-6, "fallback"),
-        "llama-3.1-8b-instant" to ModelPricing("llama-3.1-8b-instant", 0.05e-6, 0.08e-6, "fallback"),
-        "llama3-70b-8192" to ModelPricing("llama3-70b-8192", 0.59e-6, 0.79e-6, "fallback"),
-        "llama3-8b-8192" to ModelPricing("llama3-8b-8192", 0.05e-6, 0.08e-6, "fallback"),
-        "mixtral-8x7b-32768" to ModelPricing("mixtral-8x7b-32768", 0.24e-6, 0.24e-6, "fallback"),
-        "gemma2-9b-it" to ModelPricing("gemma2-9b-it", 0.20e-6, 0.20e-6, "fallback"),
+        "llama-3.3-70b-versatile" to ModelPricing("llama-3.3-70b-versatile", 0.59e-6, 0.79e-6, "FALLBACK"),
+        "llama-3.1-8b-instant" to ModelPricing("llama-3.1-8b-instant", 0.05e-6, 0.08e-6, "FALLBACK"),
+        "llama3-70b-8192" to ModelPricing("llama3-70b-8192", 0.59e-6, 0.79e-6, "FALLBACK"),
+        "llama3-8b-8192" to ModelPricing("llama3-8b-8192", 0.05e-6, 0.08e-6, "FALLBACK"),
+        "mixtral-8x7b-32768" to ModelPricing("mixtral-8x7b-32768", 0.24e-6, 0.24e-6, "FALLBACK"),
+        "gemma2-9b-it" to ModelPricing("gemma2-9b-it", 0.20e-6, 0.20e-6, "FALLBACK"),
         // xAI Grok
-        "grok-3" to ModelPricing("grok-3", 3.0e-6, 15.0e-6, "fallback"),
-        "grok-3-mini" to ModelPricing("grok-3-mini", 0.30e-6, 0.50e-6, "fallback"),
-        "grok-2" to ModelPricing("grok-2", 2.0e-6, 10.0e-6, "fallback"),
-        "grok-beta" to ModelPricing("grok-beta", 5.0e-6, 15.0e-6, "fallback"),
+        "grok-3" to ModelPricing("grok-3", 3.0e-6, 15.0e-6, "FALLBACK"),
+        "grok-3-mini" to ModelPricing("grok-3-mini", 0.30e-6, 0.50e-6, "FALLBACK"),
+        "grok-2" to ModelPricing("grok-2", 2.0e-6, 10.0e-6, "FALLBACK"),
+        "grok-beta" to ModelPricing("grok-beta", 5.0e-6, 15.0e-6, "FALLBACK"),
         // Mistral
-        "mistral-small-latest" to ModelPricing("mistral-small-latest", 0.1e-6, 0.3e-6, "fallback"),
-        "mistral-medium-latest" to ModelPricing("mistral-medium-latest", 0.4e-6, 2.0e-6, "fallback"),
-        "mistral-large-latest" to ModelPricing("mistral-large-latest", 2.0e-6, 6.0e-6, "fallback"),
-        "open-mistral-7b" to ModelPricing("open-mistral-7b", 0.25e-6, 0.25e-6, "fallback"),
-        "open-mixtral-8x7b" to ModelPricing("open-mixtral-8x7b", 0.7e-6, 0.7e-6, "fallback"),
-        "open-mixtral-8x22b" to ModelPricing("open-mixtral-8x22b", 2.0e-6, 6.0e-6, "fallback"),
-        "codestral-latest" to ModelPricing("codestral-latest", 0.3e-6, 0.9e-6, "fallback"),
+        "mistral-small-latest" to ModelPricing("mistral-small-latest", 0.1e-6, 0.3e-6, "FALLBACK"),
+        "mistral-medium-latest" to ModelPricing("mistral-medium-latest", 0.4e-6, 2.0e-6, "FALLBACK"),
+        "mistral-large-latest" to ModelPricing("mistral-large-latest", 2.0e-6, 6.0e-6, "FALLBACK"),
+        "open-mistral-7b" to ModelPricing("open-mistral-7b", 0.25e-6, 0.25e-6, "FALLBACK"),
+        "open-mixtral-8x7b" to ModelPricing("open-mixtral-8x7b", 0.7e-6, 0.7e-6, "FALLBACK"),
+        "open-mixtral-8x22b" to ModelPricing("open-mixtral-8x22b", 2.0e-6, 6.0e-6, "FALLBACK"),
+        "codestral-latest" to ModelPricing("codestral-latest", 0.3e-6, 0.9e-6, "FALLBACK"),
         // Perplexity
-        "sonar" to ModelPricing("sonar", 1.0e-6, 1.0e-6, "fallback"),
-        "sonar-pro" to ModelPricing("sonar-pro", 3.0e-6, 15.0e-6, "fallback"),
-        "sonar-reasoning" to ModelPricing("sonar-reasoning", 1.0e-6, 5.0e-6, "fallback"),
+        "sonar" to ModelPricing("sonar", 1.0e-6, 1.0e-6, "FALLBACK"),
+        "sonar-pro" to ModelPricing("sonar-pro", 3.0e-6, 15.0e-6, "FALLBACK"),
+        "sonar-reasoning" to ModelPricing("sonar-reasoning", 1.0e-6, 5.0e-6, "FALLBACK"),
         // SiliconFlow
-        "Qwen/Qwen2.5-7B-Instruct" to ModelPricing("Qwen/Qwen2.5-7B-Instruct", 0.35e-6, 0.35e-6, "fallback"),
-        "Qwen/Qwen2.5-72B-Instruct" to ModelPricing("Qwen/Qwen2.5-72B-Instruct", 1.26e-6, 1.26e-6, "fallback"),
-        "deepseek-ai/DeepSeek-V3" to ModelPricing("deepseek-ai/DeepSeek-V3", 0.5e-6, 2.0e-6, "fallback"),
-        "deepseek-ai/DeepSeek-R1" to ModelPricing("deepseek-ai/DeepSeek-R1", 0.55e-6, 2.19e-6, "fallback"),
+        "Qwen/Qwen2.5-7B-Instruct" to ModelPricing("Qwen/Qwen2.5-7B-Instruct", 0.35e-6, 0.35e-6, "FALLBACK"),
+        "Qwen/Qwen2.5-72B-Instruct" to ModelPricing("Qwen/Qwen2.5-72B-Instruct", 1.26e-6, 1.26e-6, "FALLBACK"),
+        "deepseek-ai/DeepSeek-V3" to ModelPricing("deepseek-ai/DeepSeek-V3", 0.5e-6, 2.0e-6, "FALLBACK"),
+        "deepseek-ai/DeepSeek-R1" to ModelPricing("deepseek-ai/DeepSeek-R1", 0.55e-6, 2.19e-6, "FALLBACK"),
         // Z.AI / ZhipuAI GLM
-        "glm-4" to ModelPricing("glm-4", 1.4e-6, 1.4e-6, "fallback"),
-        "glm-4-plus" to ModelPricing("glm-4-plus", 0.7e-6, 0.7e-6, "fallback"),
-        "glm-4-flash" to ModelPricing("glm-4-flash", 0.007e-6, 0.007e-6, "fallback"),
-        "glm-4-long" to ModelPricing("glm-4-long", 0.14e-6, 0.14e-6, "fallback"),
-        "glm-4.5-flash" to ModelPricing("glm-4.5-flash", 0.007e-6, 0.007e-6, "fallback"),
-        "glm-4.7-flash" to ModelPricing("glm-4.7-flash", 0.007e-6, 0.007e-6, "fallback")
+        "glm-4" to ModelPricing("glm-4", 1.4e-6, 1.4e-6, "FALLBACK"),
+        "glm-4-plus" to ModelPricing("glm-4-plus", 0.7e-6, 0.7e-6, "FALLBACK"),
+        "glm-4-flash" to ModelPricing("glm-4-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
+        "glm-4-long" to ModelPricing("glm-4-long", 0.14e-6, 0.14e-6, "FALLBACK"),
+        "glm-4.5-flash" to ModelPricing("glm-4.5-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
+        "glm-4.7-flash" to ModelPricing("glm-4.7-flash", 0.007e-6, 0.007e-6, "FALLBACK")
     )
 
     // ============================================================================

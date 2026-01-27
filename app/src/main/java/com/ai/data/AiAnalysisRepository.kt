@@ -20,9 +20,47 @@ import java.util.Locale
  */
 data class TokenUsage(
     val inputTokens: Int,
-    val outputTokens: Int
+    val outputTokens: Int,
+    val apiCost: Double? = null  // Cost from API response (highest priority, source "API")
 ) {
     val totalTokens: Int get() = inputTokens + outputTokens
+}
+
+/**
+ * Extract cost from OpenAiUsage, checking all variations.
+ * Returns the cost in USD, or null if not available.
+ */
+fun extractApiCost(usage: OpenAiUsage?): Double? {
+    if (usage == null) return null
+    // Check standard cost field
+    usage.cost?.let { return it }
+    // Check xAI cost_in_usd_ticks (millionths of a dollar)
+    usage.cost_in_usd_ticks?.let { return it / 1_000_000.0 }
+    // Check Perplexity cost object
+    usage.cost_usd?.total_cost?.let { return it }
+    return null
+}
+
+/**
+ * Extract cost from ClaudeUsage, checking all variations.
+ */
+fun extractApiCost(usage: ClaudeUsage?): Double? {
+    if (usage == null) return null
+    usage.cost?.let { return it }
+    usage.cost_in_usd_ticks?.let { return it / 1_000_000.0 }
+    usage.cost_usd?.total_cost?.let { return it }
+    return null
+}
+
+/**
+ * Extract cost from GeminiUsageMetadata, checking all variations.
+ */
+fun extractApiCost(usage: GeminiUsageMetadata?): Double? {
+    if (usage == null) return null
+    usage.cost?.let { return it }
+    usage.cost_in_usd_ticks?.let { return it / 1_000_000.0 }
+    usage.cost_usd?.total_cost?.let { return it }
+    return null
 }
 
 /**
@@ -585,7 +623,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: it.output_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: it.output_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -635,7 +674,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.input_tokens ?: it.prompt_tokens ?: 0,
-                    outputTokens = it.output_tokens ?: it.completion_tokens ?: 0
+                    outputTokens = it.output_tokens ?: it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -681,7 +721,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.input_tokens ?: 0,
-                    outputTokens = it.output_tokens ?: 0
+                    outputTokens = it.output_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -745,7 +786,8 @@ class AiAnalysisRepository {
             val usage = body?.usageMetadata?.let {
                 TokenUsage(
                     inputTokens = it.promptTokenCount ?: 0,
-                    outputTokens = it.candidatesTokenCount ?: 0
+                    outputTokens = it.candidatesTokenCount ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -808,7 +850,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -865,7 +908,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -926,7 +970,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (!content.isNullOrBlank()) {
@@ -984,7 +1029,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -1046,7 +1092,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -1104,7 +1151,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -1162,7 +1210,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -1219,7 +1268,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -1277,7 +1327,8 @@ class AiAnalysisRepository {
             val usage = body?.usage?.let {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
                 )
             }
             if (content != null) {
@@ -1335,7 +1386,8 @@ class AiAnalysisRepository {
                 val usage = body?.usage?.let {
                     TokenUsage(
                         inputTokens = it.prompt_tokens ?: 0,
-                        outputTokens = it.completion_tokens ?: 0
+                        outputTokens = it.completion_tokens ?: 0,
+                        apiCost = extractApiCost(it)
                     )
                 }
 

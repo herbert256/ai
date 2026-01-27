@@ -250,16 +250,19 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     // Calculate cost for this agent
+                    // Priority: API cost > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
                     val cost: Double? = if (response.tokenUsage != null) {
                         if (agent.provider == AiService.DUMMY) {
                             0.0
                         } else {
-                            val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                            if (pricing != null) {
+                            // First check if API provided the cost directly
+                            response.tokenUsage.apiCost ?: run {
+                                // Otherwise calculate from pricing cache (always returns a value)
+                                val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
                                 val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
                                 val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
                                 inputCost + outputCost
-                            } else null
+                            }
                         }
                     } else null
 
