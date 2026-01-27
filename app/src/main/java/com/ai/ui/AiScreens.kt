@@ -108,17 +108,19 @@ fun AiHubScreen(
     ) {
         // Calculate logo size based on available height
         val availableForLogo = maxHeight - cardsHeight - warningCardHeight
-        val logoSize = availableForLogo.coerceIn(90.dp, 260.dp)
+        val logoSize = availableForLogo.coerceIn(80.dp, 180.dp)
 
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // App logo with dynamic size
+            // App logo with dynamic size (offset to remove built-in padding)
             Image(
                 painter = painterResource(id = R.drawable.ic_launcher_foreground),
                 contentDescription = "AI App Logo",
-                modifier = Modifier.size(logoSize)
+                modifier = Modifier
+                    .size(logoSize)
+                    .offset(y = (-20).dp)
             )
 
             // Warning if no API keys configured
@@ -198,7 +200,7 @@ fun AiHubScreen(
             // Cards - only show AI features when setup is complete
             if (isSetupComplete) {
                 HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
-                Spacer(modifier = Modifier.height(7.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
             // AI Chat - show when any agent is defined
             if (hasAnyAgent) {
@@ -209,7 +211,7 @@ fun AiHubScreen(
                         onNavigateToNewChat()
                     }
                 })
-                Spacer(modifier = Modifier.height(7.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Chat choice dialog
@@ -245,28 +247,28 @@ fun AiHubScreen(
             // AI Models - show when any agent is defined
             if (hasAnyAgent) {
                 HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
-                Spacer(modifier = Modifier.height(7.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
             if (isSetupComplete && hasStatistics) {
                 HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
-                Spacer(modifier = Modifier.height(7.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts)
-                Spacer(modifier = Modifier.height(7.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
-            Spacer(modifier = Modifier.height(7.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             if (hasAnyApiKey) {
                 HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
-                Spacer(modifier = Modifier.height(7.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
-            Spacer(modifier = Modifier.height(21.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
-            Spacer(modifier = Modifier.height(7.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
 
             // API Traces card (developer mode only)
             if (uiState.generalSettings.developerMode) {
-                Spacer(modifier = Modifier.height(7.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 HubCard(icon = "\uD83D\uDC1E", title = "API Traces", onClick = onNavigateToTrace)
             }
         }
@@ -298,12 +300,12 @@ private fun HubCard(
         ) {
             Text(
                 text = icon,
-                fontSize = 34.sp
+                fontSize = 26.sp
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = title,
-                fontSize = 21.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White
             )
