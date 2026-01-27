@@ -214,288 +214,13 @@ fun AiSettingsScreen(
 @Composable
 fun AiSetupScreen(
     aiSettings: AiSettings,
-    huggingFaceApiKey: String = "",
     developerMode: Boolean = false,
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
-    onNavigateToCostConfig: () -> Unit = {},
-    onSave: (AiSettings) -> Unit,
-    onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
-    onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onSaveHuggingFaceApiKey: (String) -> Unit = {}
+    onNavigateToCostConfig: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    // State for refresh model lists
-    var isRefreshing by remember { mutableStateOf(false) }
-    var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
-    var showResultsDialog by remember { mutableStateOf(false) }
-
-    // State for generate default agents
-    var isGenerating by remember { mutableStateOf(false) }
-    var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
-    var showGenerationResultsDialog by remember { mutableStateOf(false) }
-
-    // File picker launcher for importing AI configuration
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let {
-            val result = importAiConfigFromFile(context, it, aiSettings)
-            if (result != null) {
-                val importedSettings = result.aiSettings
-                onSave(importedSettings)
-                result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
-
-                // Automatically refresh model lists and generate default agents after import
-                if (importedSettings.hasAnyApiKey()) {
-                    scope.launch {
-                        // 1. Refresh model lists
-                        isRefreshing = true
-                        onRefreshAllModels(importedSettings)
-                        isRefreshing = false
-
-                        // 2. Generate default agents
-                        isGenerating = true
-                        val results = mutableListOf<Pair<String, Boolean>>()
-
-                        val providersToTest = AiService.entries.filter { provider ->
-                            val apiKey = importedSettings.getApiKey(provider)
-                            apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
-                        }
-
-                        var updatedAgents = importedSettings.agents.toMutableList()
-
-                        for (provider in providersToTest) {
-                            val apiKey = importedSettings.getApiKey(provider)
-                            val model = provider.defaultModel
-
-                            val testResult = onTestApiKey(provider, apiKey, model)
-                            val isWorking = testResult == null
-
-                            if (isWorking) {
-                                val existingAgentIndex = updatedAgents.indexOfFirst {
-                                    it.name == provider.displayName
-                                }
-
-                                if (existingAgentIndex >= 0) {
-                                    val existingAgent = updatedAgents[existingAgentIndex]
-                                    updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                        model = model,
-                                        apiKey = apiKey,
-                                        provider = provider
-                                    )
-                                } else {
-                                    val newAgent = AiAgent(
-                                        id = java.util.UUID.randomUUID().toString(),
-                                        name = provider.displayName,
-                                        provider = provider,
-                                        model = model,
-                                        apiKey = apiKey,
-                                        parameters = AiAgentParameters()
-                                    )
-                                    updatedAgents.add(newAgent)
-                                }
-                            }
-
-                            results.add(provider.displayName to isWorking)
-                        }
-
-                        val successCount = results.count { it.second }
-                        if (successCount > 0) {
-                            val defaultAgentIds = updatedAgents
-                                .filter { agent ->
-                                    AiService.entries.any { it.displayName == agent.name }
-                                }
-                                .map { it.id }
-
-                            val updatedSwarms = importedSettings.swarms.toMutableList()
-                            val existingSwarmIndex = updatedSwarms.indexOfFirst {
-                                it.name == "default agents"
-                            }
-
-                            if (existingSwarmIndex >= 0) {
-                                updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
-                                    agentIds = defaultAgentIds
-                                )
-                            } else {
-                                val newSwarm = AiSwarm(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = "default agents",
-                                    agentIds = defaultAgentIds
-                                )
-                                updatedSwarms.add(newSwarm)
-                            }
-
-                            onSave(importedSettings.copy(
-                                agents = updatedAgents,
-                                swarms = updatedSwarms
-                            ))
-                        }
-
-                        generationResults = results
-                        isGenerating = false
-                        showGenerationResultsDialog = true
-                    }
-                }
-            }
-        }
-    }
-
-    // Results dialog
-    if (showResultsDialog && refreshResults != null) {
-        // Calculate manual providers with their model counts
-        val manualProviders = buildList {
-            // Anthropic and Perplexity are always manual
-            if (aiSettings.claudeApiKey.isNotBlank()) {
-                add("Anthropic" to aiSettings.claudeManualModels.size)
-            }
-            if (aiSettings.perplexityApiKey.isNotBlank()) {
-                add("Perplexity" to aiSettings.perplexityManualModels.size)
-            }
-            if (aiSettings.siliconFlowApiKey.isNotBlank()) {
-                add("SiliconFlow" to aiSettings.siliconFlowManualModels.size)
-            }
-            if (aiSettings.zaiApiKey.isNotBlank()) {
-                add("Z.AI" to aiSettings.zaiManualModels.size)
-            }
-            // Check providers that can be API or manual
-            if (aiSettings.chatGptModelSource == ModelSource.MANUAL && aiSettings.chatGptApiKey.isNotBlank()) {
-                add("OpenAI" to aiSettings.chatGptManualModels.size)
-            }
-            if (aiSettings.geminiModelSource == ModelSource.MANUAL && aiSettings.geminiApiKey.isNotBlank()) {
-                add("Google" to aiSettings.geminiManualModels.size)
-            }
-            if (aiSettings.grokModelSource == ModelSource.MANUAL && aiSettings.grokApiKey.isNotBlank()) {
-                add("xAI" to aiSettings.grokManualModels.size)
-            }
-            if (aiSettings.groqModelSource == ModelSource.MANUAL && aiSettings.groqApiKey.isNotBlank()) {
-                add("Groq" to aiSettings.groqManualModels.size)
-            }
-            if (aiSettings.deepSeekModelSource == ModelSource.MANUAL && aiSettings.deepSeekApiKey.isNotBlank()) {
-                add("DeepSeek" to aiSettings.deepSeekManualModels.size)
-            }
-            if (aiSettings.mistralModelSource == ModelSource.MANUAL && aiSettings.mistralApiKey.isNotBlank()) {
-                add("Mistral" to aiSettings.mistralManualModels.size)
-            }
-            if (aiSettings.togetherModelSource == ModelSource.MANUAL && aiSettings.togetherApiKey.isNotBlank()) {
-                add("Together" to aiSettings.togetherManualModels.size)
-            }
-            if (aiSettings.openRouterModelSource == ModelSource.MANUAL && aiSettings.openRouterApiKey.isNotBlank()) {
-                add("OpenRouter" to aiSettings.openRouterManualModels.size)
-            }
-            if (developerMode && aiSettings.dummyModelSource == ModelSource.MANUAL && aiSettings.dummyApiKey.isNotBlank()) {
-                add("Dummy" to aiSettings.dummyManualModels.size)
-            }
-        }
-
-        AlertDialog(
-            onDismissRequest = { showResultsDialog = false },
-            title = { Text("Model Lists Refreshed") },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState())
-                ) {
-                    if (refreshResults!!.isEmpty()) {
-                        Text(
-                            "No providers have API as model source.",
-                            color = Color(0xFFAAAAAA)
-                        )
-                    } else {
-                        refreshResults!!.forEach { (provider, count) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(provider, color = Color.White)
-                                Text(
-                                    if (count >= 0) "$count models" else "Error",
-                                    color = if (count >= 0) Color(0xFF6B9BFF) else Color(0xFFFF6B6B)
-                                )
-                            }
-                        }
-                    }
-
-                    // Show manual providers section
-                    if (manualProviders.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            "Manual configured - not updated:",
-                            color = Color(0xFFAAAAAA),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        manualProviders.forEach { (provider, count) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(provider, color = Color.White)
-                                Text(
-                                    "$count models",
-                                    color = Color(0xFF888888)
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showResultsDialog = false }) {
-                    Text("OK")
-                }
-            },
-            containerColor = Color(0xFF2A2A2A)
-        )
-    }
-
-    // Generation results dialog
-    if (showGenerationResultsDialog && generationResults != null) {
-        AlertDialog(
-            onDismissRequest = { showGenerationResultsDialog = false },
-            title = { Text("Default Agents Generated") },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState())
-                ) {
-                    generationResults!!.forEach { (provider, success) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(provider, color = Color.White)
-                            Text(
-                                if (success) "✓" else "✗",
-                                color = if (success) Color(0xFF4CAF50) else Color(0xFFFF6B6B)
-                            )
-                        }
-                    }
-                    val successCount = generationResults!!.count { it.second }
-                    val totalCount = generationResults!!.size
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "$successCount of $totalCount providers configured successfully",
-                        color = Color(0xFFAAAAAA),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showGenerationResultsDialog = false }) {
-                    Text("OK")
-                }
-            },
-            containerColor = Color(0xFF2A2A2A)
-        )
-    }
 
     Column(
         modifier = Modifier
@@ -573,249 +298,6 @@ fun AiSetupScreen(
             onClick = onNavigateToCostConfig,
             enabled = hasApiKey
         )
-
-        // Refresh model lists button - only show when at least one provider has an API key
-        if (aiSettings.hasAnyApiKey()) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = {
-                    scope.launch {
-                        isRefreshing = true
-                        refreshResults = onRefreshAllModels(aiSettings)
-                        isRefreshing = false
-                        showResultsDialog = true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isRefreshing,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-            ) {
-                if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Refreshing...")
-                } else {
-                    Text("Refresh model lists")
-                }
-            }
-        }
-
-        // Generate default agents button - only show when at least one provider has an API key
-        if (aiSettings.hasAnyApiKey()) {
-            Button(
-                onClick = {
-                    scope.launch {
-                        isGenerating = true
-                        val results = mutableListOf<Pair<String, Boolean>>()
-
-                        // Get all providers with configured API keys (excluding DUMMY unless in developer mode)
-                        val providersToTest = AiService.entries.filter { provider ->
-                            val apiKey = aiSettings.getApiKey(provider)
-                            apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
-                        }
-
-                        // Test each provider's API key and create/update agents
-                        var updatedAgents = aiSettings.agents.toMutableList()
-
-                        for (provider in providersToTest) {
-                            val apiKey = aiSettings.getApiKey(provider)
-                            val model = provider.defaultModel
-
-                            // Test the API key
-                            val testResult = onTestApiKey(provider, apiKey, model)
-                            val isWorking = testResult == null  // null means success
-
-                            if (isWorking) {
-                                // Check if agent with this provider name already exists
-                                val existingAgentIndex = updatedAgents.indexOfFirst {
-                                    it.name == provider.displayName
-                                }
-
-                                if (existingAgentIndex >= 0) {
-                                    // Update existing agent
-                                    val existingAgent = updatedAgents[existingAgentIndex]
-                                    updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                        model = model,
-                                        apiKey = apiKey,
-                                        provider = provider
-                                    )
-                                } else {
-                                    // Create new agent
-                                    val newAgent = AiAgent(
-                                        id = java.util.UUID.randomUUID().toString(),
-                                        name = provider.displayName,
-                                        provider = provider,
-                                        model = model,
-                                        apiKey = apiKey,
-                                        parameters = AiAgentParameters()
-                                    )
-                                    updatedAgents.add(newAgent)
-                                }
-                            }
-
-                            results.add(provider.displayName to isWorking)
-                        }
-
-                        // Save updated settings if any agents were created/updated
-                        val successCount = results.count { it.second }
-                        if (successCount > 0) {
-                            // Collect IDs of agents with provider display names (default agents)
-                            val defaultAgentIds = updatedAgents
-                                .filter { agent ->
-                                    AiService.entries.any { it.displayName == agent.name }
-                                }
-                                .map { it.id }
-
-                            // Find or create "default agents" swarm
-                            val updatedSwarms = aiSettings.swarms.toMutableList()
-                            val existingSwarmIndex = updatedSwarms.indexOfFirst {
-                                it.name == "default agents"
-                            }
-
-                            if (existingSwarmIndex >= 0) {
-                                // Update existing swarm with new agent IDs
-                                updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
-                                    agentIds = defaultAgentIds
-                                )
-                            } else {
-                                // Create new swarm
-                                val newSwarm = AiSwarm(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = "default agents",
-                                    agentIds = defaultAgentIds
-                                )
-                                updatedSwarms.add(newSwarm)
-                            }
-
-                            onSave(aiSettings.copy(
-                                agents = updatedAgents,
-                                swarms = updatedSwarms
-                            ))
-                        }
-
-                        generationResults = results
-                        isGenerating = false
-                        showGenerationResultsDialog = true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isGenerating,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
-            ) {
-                if (isGenerating) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Testing API keys...")
-                } else {
-                    Text("Generate default agents")
-                }
-            }
-
-            // Get model specifications from OpenRouter button
-            var isFetchingSpecs by remember { mutableStateOf(false) }
-            var specsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-            var showSpecsResultDialog by remember { mutableStateOf(false) }
-
-            Button(
-                onClick = {
-                    scope.launch {
-                        isFetchingSpecs = true
-                        specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(
-                            context,
-                            aiSettings.openRouterApiKey
-                        )
-                        isFetchingSpecs = false
-                        showSpecsResultDialog = true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isFetchingSpecs && aiSettings.openRouterApiKey.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF607D8B))
-            ) {
-                if (isFetchingSpecs) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Fetching specifications...")
-                } else {
-                    Text("Get model specifications from OpenRouter")
-                }
-            }
-
-            // Specs result dialog
-            if (showSpecsResultDialog) {
-                AlertDialog(
-                    onDismissRequest = { showSpecsResultDialog = false },
-                    title = { Text("Model Specifications") },
-                    text = {
-                        if (specsResult != null) {
-                            Text("Successfully saved:\n• ${specsResult!!.first} pricing entries\n• ${specsResult!!.second} parameter entries\n\nFiles saved to app storage.")
-                        } else {
-                            Text("Failed to fetch model specifications.\nPlease check your OpenRouter API key.")
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showSpecsResultDialog = false }) {
-                            Text("OK")
-                        }
-                    }
-                )
-            }
-        }
-
-        // Export AI configuration button (only show if setup is complete)
-        val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||
-                aiSettings.claudeApiKey.isNotBlank() ||
-                aiSettings.geminiApiKey.isNotBlank() ||
-                aiSettings.grokApiKey.isNotBlank() ||
-                aiSettings.groqApiKey.isNotBlank() ||
-                aiSettings.deepSeekApiKey.isNotBlank() ||
-                aiSettings.mistralApiKey.isNotBlank() ||
-                aiSettings.perplexityApiKey.isNotBlank() ||
-                aiSettings.togetherApiKey.isNotBlank() ||
-                aiSettings.openRouterApiKey.isNotBlank() ||
-                aiSettings.siliconFlowApiKey.isNotBlank() ||
-                aiSettings.zaiApiKey.isNotBlank()
-        // Filter DUMMY agents when not in developer mode for export availability check
-        val visibleAgentsForExport = if (developerMode) aiSettings.agents else aiSettings.agents.filter { it.provider != AiService.DUMMY }
-        val canExport = hasApiKeyForExport &&
-                visibleAgentsForExport.isNotEmpty() &&
-                aiSettings.swarms.isNotEmpty()
-
-        if (canExport) {
-            Button(
-                onClick = {
-                    exportAiConfigToFile(context, aiSettings, huggingFaceApiKey)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-            ) {
-                Text("Export AI configuration")
-            }
-        }
-
-        // Import AI configuration button (opens file picker)
-        Button(
-            onClick = {
-                filePickerLauncher.launch(arrayOf("application/json", "*/*"))
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-        ) {
-            Text("Import AI configuration")
-        }
     }
 }
 
@@ -1866,5 +1348,458 @@ private fun formatPricing(pricePerToken: Double): String {
         pricePerMillion >= 1 -> String.format("$%.2f / 1M tokens", pricePerMillion)
         pricePerMillion >= 0.01 -> String.format("$%.4f / 1M tokens", pricePerMillion)
         else -> String.format("$%.6f / 1M tokens", pricePerMillion)
+    }
+}
+
+/**
+ * AI Housekeeping screen with maintenance actions like refresh models, generate agents, import/export.
+ */
+@Composable
+fun HousekeepingScreen(
+    aiSettings: AiSettings,
+    huggingFaceApiKey: String = "",
+    developerMode: Boolean = false,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
+    onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
+    onSaveHuggingFaceApiKey: (String) -> Unit = {}
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // State for refresh model lists
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
+    var showResultsDialog by remember { mutableStateOf(false) }
+
+    // State for generate default agents
+    var isGenerating by remember { mutableStateOf(false) }
+    var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
+    var showGenerationResultsDialog by remember { mutableStateOf(false) }
+
+    // State for fetch model specs
+    var isFetchingSpecs by remember { mutableStateOf(false) }
+    var specsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var showSpecsResultDialog by remember { mutableStateOf(false) }
+
+    // File picker launcher for importing AI configuration
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            val result = importAiConfigFromFile(context, it, aiSettings)
+            if (result != null) {
+                val importedSettings = result.aiSettings
+                onSave(importedSettings)
+                result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+
+                // Automatically refresh model lists and generate default agents after import
+                if (importedSettings.hasAnyApiKey()) {
+                    scope.launch {
+                        // 1. Refresh model lists
+                        isRefreshing = true
+                        onRefreshAllModels(importedSettings)
+                        isRefreshing = false
+
+                        // 2. Generate default agents
+                        isGenerating = true
+                        val results = mutableListOf<Pair<String, Boolean>>()
+
+                        val providersToTest = AiService.entries.filter { provider ->
+                            val apiKey = importedSettings.getApiKey(provider)
+                            apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
+                        }
+
+                        var updatedAgents = importedSettings.agents.toMutableList()
+
+                        for (provider in providersToTest) {
+                            val apiKey = importedSettings.getApiKey(provider)
+                            val model = provider.defaultModel
+
+                            val testResult = onTestApiKey(provider, apiKey, model)
+                            val isWorking = testResult == null
+
+                            if (isWorking) {
+                                val existingAgentIndex = updatedAgents.indexOfFirst {
+                                    it.name == provider.displayName
+                                }
+
+                                if (existingAgentIndex >= 0) {
+                                    val existingAgent = updatedAgents[existingAgentIndex]
+                                    updatedAgents[existingAgentIndex] = existingAgent.copy(
+                                        model = model,
+                                        apiKey = apiKey,
+                                        provider = provider
+                                    )
+                                } else {
+                                    val newAgent = AiAgent(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = provider.displayName,
+                                        provider = provider,
+                                        model = model,
+                                        apiKey = apiKey,
+                                        parameters = AiAgentParameters()
+                                    )
+                                    updatedAgents.add(newAgent)
+                                }
+                            }
+
+                            results.add(provider.displayName to isWorking)
+                        }
+
+                        val successCount = results.count { it.second }
+                        if (successCount > 0) {
+                            val defaultAgentIds = updatedAgents
+                                .filter { agent ->
+                                    AiService.entries.any { it.displayName == agent.name }
+                                }
+                                .map { it.id }
+
+                            val updatedSwarms = importedSettings.swarms.toMutableList()
+                            val existingSwarmIndex = updatedSwarms.indexOfFirst {
+                                it.name == "default agents"
+                            }
+
+                            if (existingSwarmIndex >= 0) {
+                                updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
+                                    agentIds = defaultAgentIds
+                                )
+                            } else {
+                                val newSwarm = AiSwarm(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = "default agents",
+                                    agentIds = defaultAgentIds
+                                )
+                                updatedSwarms.add(newSwarm)
+                            }
+
+                            onSave(importedSettings.copy(
+                                agents = updatedAgents,
+                                swarms = updatedSwarms
+                            ))
+                        }
+
+                        generationResults = results
+                        isGenerating = false
+                        showGenerationResultsDialog = true
+                    }
+                }
+            }
+        }
+    }
+
+    // Results dialog for refresh model lists
+    if (showResultsDialog && refreshResults != null) {
+        val manualProviders = buildList {
+            if (aiSettings.claudeApiKey.isNotBlank()) {
+                add("Anthropic" to aiSettings.claudeManualModels.size)
+            }
+            if (aiSettings.perplexityApiKey.isNotBlank()) {
+                add("Perplexity" to aiSettings.perplexityManualModels.size)
+            }
+            if (aiSettings.siliconFlowApiKey.isNotBlank()) {
+                add("SiliconFlow" to aiSettings.siliconFlowManualModels.size)
+            }
+            if (aiSettings.zaiApiKey.isNotBlank()) {
+                add("Z.AI" to aiSettings.zaiManualModels.size)
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showResultsDialog = false },
+            title = { Text("Refresh Results") },
+            text = {
+                Column {
+                    Text("Models fetched from API:")
+                    refreshResults!!.forEach { (provider, count) ->
+                        Text("• $provider: $count models")
+                    }
+                    if (manualProviders.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Manual model lists (no API):")
+                        manualProviders.forEach { (provider, count) ->
+                            Text("• $provider: $count models")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showResultsDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    // Results dialog for generate default agents
+    if (showGenerationResultsDialog && generationResults != null) {
+        AlertDialog(
+            onDismissRequest = { showGenerationResultsDialog = false },
+            title = { Text("Generate Default Agents") },
+            text = {
+                Column {
+                    val successCount = generationResults!!.count { it.second }
+                    val failCount = generationResults!!.count { !it.second }
+
+                    if (successCount > 0) {
+                        Text("✅ Created/updated $successCount agent(s)")
+                        Text("Added to 'default agents' swarm")
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    if (failCount > 0) {
+                        Text("❌ Failed: $failCount provider(s)")
+                        generationResults!!.filter { !it.second }.forEach { (provider, _) ->
+                            Text("• $provider")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showGenerationResultsDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    // Specs result dialog
+    if (showSpecsResultDialog) {
+        AlertDialog(
+            onDismissRequest = { showSpecsResultDialog = false },
+            title = { Text("Model Specifications") },
+            text = {
+                if (specsResult != null) {
+                    Text("Successfully saved:\n• ${specsResult!!.first} pricing entries\n• ${specsResult!!.second} parameter entries\n\nFiles saved to app storage.")
+                } else {
+                    Text("Failed to fetch model specifications.\nPlease check your OpenRouter API key.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSpecsResultDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AiTitleBar(
+            title = "AI Housekeeping",
+            onBackClick = onBackToHome,
+            onAiClick = onBackToHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Refresh model lists button
+        Button(
+            onClick = {
+                scope.launch {
+                    isRefreshing = true
+                    refreshResults = onRefreshAllModels(aiSettings)
+                    isRefreshing = false
+                    showResultsDialog = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isRefreshing,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+        ) {
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Refreshing...")
+            } else {
+                Text("Refresh model lists")
+            }
+        }
+
+        // Generate default agents button
+        Button(
+            onClick = {
+                scope.launch {
+                    isGenerating = true
+                    val results = mutableListOf<Pair<String, Boolean>>()
+
+                    val providersToTest = AiService.entries.filter { provider ->
+                        val apiKey = aiSettings.getApiKey(provider)
+                        apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
+                    }
+
+                    var updatedAgents = aiSettings.agents.toMutableList()
+
+                    for (provider in providersToTest) {
+                        val apiKey = aiSettings.getApiKey(provider)
+                        val model = provider.defaultModel
+
+                        val testResult = onTestApiKey(provider, apiKey, model)
+                        val isWorking = testResult == null
+
+                        if (isWorking) {
+                            val existingAgentIndex = updatedAgents.indexOfFirst {
+                                it.name == provider.displayName
+                            }
+
+                            if (existingAgentIndex >= 0) {
+                                val existingAgent = updatedAgents[existingAgentIndex]
+                                updatedAgents[existingAgentIndex] = existingAgent.copy(
+                                    model = model,
+                                    apiKey = apiKey,
+                                    provider = provider
+                                )
+                            } else {
+                                val newAgent = AiAgent(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = provider.displayName,
+                                    provider = provider,
+                                    model = model,
+                                    apiKey = apiKey,
+                                    parameters = AiAgentParameters()
+                                )
+                                updatedAgents.add(newAgent)
+                            }
+                        }
+
+                        results.add(provider.displayName to isWorking)
+                    }
+
+                    val successCount = results.count { it.second }
+                    if (successCount > 0) {
+                        val defaultAgentIds = updatedAgents
+                            .filter { agent ->
+                                AiService.entries.any { it.displayName == agent.name }
+                            }
+                            .map { it.id }
+
+                        val updatedSwarms = aiSettings.swarms.toMutableList()
+                        val existingSwarmIndex = updatedSwarms.indexOfFirst {
+                            it.name == "default agents"
+                        }
+
+                        if (existingSwarmIndex >= 0) {
+                            updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
+                                agentIds = defaultAgentIds
+                            )
+                        } else {
+                            val newSwarm = AiSwarm(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = "default agents",
+                                agentIds = defaultAgentIds
+                            )
+                            updatedSwarms.add(newSwarm)
+                        }
+
+                        onSave(aiSettings.copy(
+                            agents = updatedAgents,
+                            swarms = updatedSwarms
+                        ))
+                    }
+
+                    generationResults = results
+                    isGenerating = false
+                    showGenerationResultsDialog = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isGenerating,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+        ) {
+            if (isGenerating) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Testing API keys...")
+            } else {
+                Text("Generate default agents")
+            }
+        }
+
+        // Get model specifications from OpenRouter button
+        Button(
+            onClick = {
+                scope.launch {
+                    isFetchingSpecs = true
+                    specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(
+                        context,
+                        aiSettings.openRouterApiKey
+                    )
+                    isFetchingSpecs = false
+                    showSpecsResultDialog = true
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isFetchingSpecs && aiSettings.openRouterApiKey.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF607D8B))
+        ) {
+            if (isFetchingSpecs) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Fetching specifications...")
+            } else {
+                Text("Get model specifications from OpenRouter")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Export AI configuration button
+        val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||
+                aiSettings.claudeApiKey.isNotBlank() ||
+                aiSettings.geminiApiKey.isNotBlank() ||
+                aiSettings.grokApiKey.isNotBlank() ||
+                aiSettings.groqApiKey.isNotBlank() ||
+                aiSettings.deepSeekApiKey.isNotBlank() ||
+                aiSettings.mistralApiKey.isNotBlank() ||
+                aiSettings.perplexityApiKey.isNotBlank() ||
+                aiSettings.togetherApiKey.isNotBlank() ||
+                aiSettings.openRouterApiKey.isNotBlank() ||
+                aiSettings.siliconFlowApiKey.isNotBlank() ||
+                aiSettings.zaiApiKey.isNotBlank()
+        val visibleAgentsForExport = if (developerMode) aiSettings.agents else aiSettings.agents.filter { it.provider != AiService.DUMMY }
+        val canExport = hasApiKeyForExport &&
+                visibleAgentsForExport.isNotEmpty() &&
+                aiSettings.swarms.isNotEmpty()
+
+        if (canExport) {
+            Button(
+                onClick = {
+                    exportAiConfigToFile(context, aiSettings, huggingFaceApiKey)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text("Export AI configuration")
+            }
+        }
+
+        // Import AI configuration button
+        Button(
+            onClick = {
+                filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+        ) {
+            Text("Import AI configuration")
+        }
     }
 }

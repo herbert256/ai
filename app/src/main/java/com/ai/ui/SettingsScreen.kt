@@ -327,7 +327,6 @@ fun SettingsScreen(
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
-            huggingFaceApiKey = generalSettings.huggingFaceApiKey,
             developerMode = generalSettings.developerMode,
             onBackToSettings = {
                 // If AI_SETUP is the initial screen (accessed from home), go home
@@ -340,11 +339,7 @@ fun SettingsScreen(
             },
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
-            onNavigateToCostConfig = onNavigateToCostConfig,
-            onSave = onSaveAi,
-            onRefreshAllModels = onRefreshAllModels,
-            onTestApiKey = onTestAiModel,
-            onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey
+            onNavigateToCostConfig = onNavigateToCostConfig
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,

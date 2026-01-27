@@ -31,6 +31,7 @@ object NavRoutes {
     const val AI_COSTS = "ai_costs"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"
+    const val AI_HOUSEKEEPING = "ai_housekeeping"
     const val AI_CHAT_PROVIDER = "ai_chat_provider"
     const val AI_CHAT_MODEL = "ai_chat_model/{provider}"
     const val AI_CHAT_PARAMS = "ai_chat_params/{provider}/{model}"
@@ -111,6 +112,7 @@ fun AiNavHost(
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
+                onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 viewModel = viewModel
             )
@@ -131,6 +133,14 @@ fun AiNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
+            )
+        }
+
+        composable(NavRoutes.AI_HOUSEKEEPING) {
+            HousekeepingScreenNav(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
 
@@ -565,5 +575,29 @@ fun AiSetupScreenNav(
         onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig,
         initialSubScreen = SettingsSubScreen.AI_SETUP
+    )
+}
+
+/**
+ * Wrapper for HousekeepingScreen.
+ */
+@Composable
+fun HousekeepingScreenNav(
+    viewModel: AiViewModel,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    HousekeepingScreen(
+        aiSettings = uiState.aiSettings,
+        huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
+        developerMode = uiState.generalSettings.developerMode,
+        onBackToHome = onNavigateHome,
+        onSave = { settings -> viewModel.updateAiSettings(settings) },
+        onRefreshAllModels = { settings -> viewModel.refreshAllModelLists(settings) },
+        onTestApiKey = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
+        onSaveHuggingFaceApiKey = { key ->
+            viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
+        }
     )
 }

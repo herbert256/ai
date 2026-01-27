@@ -41,6 +41,7 @@ fun AiHubScreen(
     onNavigateToNewChat: () -> Unit,
     onNavigateToChatHistory: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
+    onNavigateToHousekeeping: () -> Unit,
     onNavigateToModelSearch: () -> Unit,
     viewModel: AiViewModel
 ) {
@@ -92,6 +93,7 @@ fun AiHubScreen(
     if (isSetupComplete) cardCount += 1  // AI Reports
     if (isSetupComplete && hasStatistics) cardCount += 2  // AI Statistics, AI Costs
     if (hasAnyAgent) cardCount += 2  // AI Chat, AI Models
+    if (hasAnyApiKey) cardCount += 1  // AI HouseKeeping
     if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
 
     // Calculate total height needed for cards
@@ -252,7 +254,12 @@ fun AiHubScreen(
                 Spacer(modifier = Modifier.height(7.dp))
             }
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(7.dp))
+            if (hasAnyApiKey) {
+                HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
+                Spacer(modifier = Modifier.height(7.dp))
+            }
+            Spacer(modifier = Modifier.height(21.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(7.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
