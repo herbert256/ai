@@ -1611,7 +1611,7 @@ fun HousekeepingScreen(
             },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isRefreshing,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
         ) {
             if (isRefreshing) {
                 CircularProgressIndicator(
@@ -1714,7 +1714,7 @@ fun HousekeepingScreen(
             },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isGenerating,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
         ) {
             if (isGenerating) {
                 CircularProgressIndicator(
@@ -1744,7 +1744,7 @@ fun HousekeepingScreen(
             },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isFetchingSpecs && aiSettings.openRouterApiKey.isNotBlank(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF607D8B))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
         ) {
             if (isFetchingSpecs) {
                 CircularProgressIndicator(
@@ -1758,8 +1758,6 @@ fun HousekeepingScreen(
                 Text("Get model specifications from OpenRouter")
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         // Export AI configuration button
         val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||
@@ -1797,7 +1795,7 @@ fun HousekeepingScreen(
                 filePickerLauncher.launch(arrayOf("application/json", "*/*"))
             },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
         ) {
             Text("Import AI configuration")
         }
