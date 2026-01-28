@@ -48,7 +48,7 @@ fun HelpScreen(
             HelpSection(
                 title = "Welcome to AI",
                 content = "Create AI-powered reports and have conversations using 13 different AI services. " +
-                    "Configure multiple agents with custom parameters, organize them into swarms, " +
+                    "Configure multiple agents with custom parameters and endpoints, organize them into swarms, " +
                     "compare responses side-by-side, track costs, and chat with any AI model using real-time streaming."
             )
 
@@ -59,11 +59,13 @@ fun HelpScreen(
                 content = "Quick setup:\n\n" +
                     "1. Go to AI Setup > AI Providers\n" +
                     "2. Select a provider and enter your API key\n" +
-                    "3. Go to AI Setup > AI Agents\n" +
-                    "4. Tap '+ Add Agent' to create your first agent\n" +
-                    "5. Go to AI Setup > AI Swarms\n" +
-                    "6. Create a swarm with your agents\n" +
-                    "7. Return to AI Hub and start using the app!\n\n" +
+                    "3. (Optional) Configure endpoints if needed\n" +
+                    "4. Go to AI Setup > AI Agents\n" +
+                    "5. Tap '+ Add Agent' or 'Create default agents'\n" +
+                    "6. Go to AI Setup > AI Swarms\n" +
+                    "7. Create a swarm with your agents\n" +
+                    "8. Return to AI Hub and start using the app!\n\n" +
+                    "Tip: Use 'Create default agents' to quickly create one agent per configured provider.\n\n" +
                     "The home screen will guide you with warnings if setup is incomplete."
             )
 
@@ -179,14 +181,18 @@ fun HelpScreen(
                 content = "View detailed information about any model:\n\n" +
                     "Data from OpenRouter (if API key configured):\n" +
                     "• Context length and max tokens\n" +
-                    "• Pricing per token\n" +
-                    "• Architecture and modality\n\n" +
+                    "• Pricing per token (input/output)\n" +
+                    "• Architecture and modality\n" +
+                    "• Provider information\n\n" +
                     "Data from Hugging Face (if API key configured):\n" +
                     "• Author and organization\n" +
                     "• Downloads and likes\n" +
                     "• Tags and license info\n\n" +
                     "AI-generated description:\n" +
-                    "• Create an agent named 'model_info' to auto-generate introductions"
+                    "• Create an AI Prompt named 'model_info'\n" +
+                    "• Assign an agent to generate descriptions\n" +
+                    "• Use @MODEL@ and @PROVIDER@ variables\n" +
+                    "• Description auto-generates when viewing model info"
             )
 
             // AI Statistics
@@ -249,18 +255,23 @@ fun HelpScreen(
                 title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
                 content = "13 AI services supported:\n\n" +
-                    "• OpenAI - GPT-4o, GPT-5.x, o3, o4 (Chat + Responses API)\n" +
+                    "• OpenAI - GPT-4o, GPT-5.x, o3, o4\n" +
+                    "  Endpoints: Chat Completions, Responses API\n" +
                     "• Anthropic - Claude 4, Claude 3.5 (hardcoded list)\n" +
                     "• Google - Gemini 2.0 Flash and more\n" +
                     "• xAI - Grok with optional web search\n" +
                     "• Groq - Ultra-fast inference\n" +
                     "• DeepSeek - Reasoning with think sections\n" +
+                    "  Endpoints: Standard, Beta (FIM)\n" +
                     "• Mistral - European AI models\n" +
+                    "  Endpoints: Standard, Codestral (code)\n" +
                     "• Perplexity - Web search with citations\n" +
                     "• Together AI - Open-source models\n" +
                     "• OpenRouter - Multiple providers, unified API\n" +
                     "• SiliconFlow - Qwen, DeepSeek models\n" +
+                    "  Endpoints: OpenAI-compatible, Anthropic-compatible\n" +
                     "• Z.AI - GLM models (ZhipuAI)\n" +
+                    "  Endpoints: General, Coding\n" +
                     "• DUMMY - Testing (developer mode only)\n\n" +
                     "Each requires an API key from the provider's website."
             )
@@ -273,13 +284,18 @@ fun HelpScreen(
                     "Each agent has:\n" +
                     "• Name - For easy identification\n" +
                     "• Provider - Which AI service\n" +
-                    "• Model - Which model to use\n" +
-                    "• API Key - Your credentials\n" +
+                    "• Model - Which model (optional, uses provider default)\n" +
+                    "• API Key - Your credentials (optional, uses provider key)\n" +
+                    "• Endpoint - API endpoint (optional, uses provider default)\n" +
                     "• Parameters - Advanced settings\n\n" +
                     "Agent actions:\n" +
                     "• Edit - Modify configuration\n" +
+                    "• Test - Verify API connectivity\n" +
                     "• Duplicate - Copy with same settings\n" +
                     "• Delete - Remove agent\n\n" +
+                    "Quick setup:\n" +
+                    "• Use 'Create default agents' to auto-create one agent per configured provider\n" +
+                    "• These agents inherit all settings from their provider\n\n" +
                     "Create multiple agents to compare services or configurations."
             )
 
@@ -300,6 +316,53 @@ fun HelpScreen(
                     "• Selections are remembered for next time"
             )
 
+            // AI Prompts
+            HelpSection(
+                title = "AI Prompts",
+                icon = "\uD83D\uDCDD",
+                content = "Internal prompts for AI-powered app features:\n\n" +
+                    "Used by:\n" +
+                    "• Model Info - Create agent named 'model_info'\n" +
+                    "• Auto-generates model descriptions\n\n" +
+                    "Creating a prompt:\n" +
+                    "1. Go to AI Setup > AI Prompts\n" +
+                    "2. Tap 'Add Prompt'\n" +
+                    "3. Enter name (e.g., 'model_info')\n" +
+                    "4. Select an agent to execute the prompt\n" +
+                    "5. Write the prompt template\n\n" +
+                    "Variables (auto-replaced):\n" +
+                    "• @MODEL@ - Model name\n" +
+                    "• @PROVIDER@ - Provider name\n" +
+                    "• @AGENT@ - Agent name\n" +
+                    "• @SWARM@ - Swarm name\n" +
+                    "• @NOW@ - Current date/time"
+            )
+
+            // Provider Configuration
+            HelpSection(
+                title = "Provider Configuration",
+                icon = "\uD83D\uDD27",
+                content = "Each AI provider can be configured with:\n\n" +
+                    "API Key:\n" +
+                    "• Required for API access\n" +
+                    "• Test button to verify connectivity\n\n" +
+                    "API Endpoints:\n" +
+                    "• Multiple endpoints per provider\n" +
+                    "• Add custom endpoints for self-hosted servers\n" +
+                    "• Set default endpoint for the provider\n" +
+                    "• OpenAI: Chat Completions vs Responses API\n" +
+                    "• DeepSeek: Standard vs Beta (FIM/prefix)\n" +
+                    "• Mistral: Standard vs Codestral (code)\n" +
+                    "• SiliconFlow: OpenAI vs Anthropic compatible\n" +
+                    "• Z.AI: General vs Coding endpoint\n\n" +
+                    "Model List URL:\n" +
+                    "• Custom URL for fetching available models\n" +
+                    "• Useful for self-hosted or proxy servers\n\n" +
+                    "Model Selection:\n" +
+                    "• API mode: Fetch models from provider\n" +
+                    "• Manual mode: Maintain your own model list"
+            )
+
             // Agent Parameters
             HelpSection(
                 title = "Agent Parameters",
@@ -311,12 +374,17 @@ fun HelpScreen(
                     "• System Prompt - AI behavior instructions\n" +
                     "• Top P / Top K - Sampling settings\n" +
                     "• Frequency/Presence Penalty - Reduce repetition\n" +
-                    "• Seed - Reproducible outputs\n\n" +
+                    "• Seed - Reproducible outputs\n" +
+                    "• Stop Sequences - Stop generation at keywords\n\n" +
                     "Provider-specific:\n" +
                     "• OpenAI: JSON response format\n" +
                     "• xAI: Web search toggle\n" +
-                    "• Perplexity: Citations, search recency\n\n" +
-                    "Leave empty to use provider defaults."
+                    "• Perplexity: Citations, search recency filter\n\n" +
+                    "Inheritance:\n" +
+                    "• Leave API key empty → uses provider key\n" +
+                    "• Leave model empty → uses provider model\n" +
+                    "• Leave endpoint empty → uses provider endpoint\n" +
+                    "• Leave parameters empty → uses provider defaults"
             )
 
             // Think Sections
@@ -349,14 +417,16 @@ fun HelpScreen(
                 icon = "\uD83D\uDCBE",
                 content = "Backup and restore your setup:\n\n" +
                     "Export (AI Setup page):\n" +
-                    "• Saves all providers, agents, swarms\n" +
-                    "• Includes API keys and parameters\n" +
+                    "• Saves all providers, agents, swarms, prompts\n" +
+                    "• Includes API keys, parameters, endpoints\n" +
+                    "• Includes model list URLs and admin URLs\n" +
+                    "• Includes manual pricing overrides\n" +
                     "• Includes Hugging Face API key\n" +
-                    "• JSON format (version 7)\n\n" +
+                    "• JSON format (version 11)\n\n" +
                     "Import:\n" +
                     "• From file picker or clipboard\n" +
-                    "• Supports versions 3-7\n" +
-                    "• All settings restored\n\n" +
+                    "• Requires version 11\n" +
+                    "• All settings restored including endpoints\n\n" +
                     "Refresh model lists: Updates all API-source providers at once."
             )
 
@@ -374,13 +444,16 @@ fun HelpScreen(
                     "• Hugging Face API Key - For model info\n\n" +
                     "Cost Configuration:\n" +
                     "• Set manual price overrides per model\n" +
-                    "• View and edit pricing sources\n\n" +
+                    "• Prices in dollars per million tokens\n" +
+                    "• Manual overrides have highest priority\n\n" +
                     "AI Setup:\n" +
-                    "• Provider configuration\n" +
-                    "• Agent management\n" +
-                    "• Swarm management\n" +
-                    "• Refresh model lists\n" +
-                    "• Export/Import configuration"
+                    "• Provider configuration (keys, endpoints, models)\n" +
+                    "• Agent management (create, edit, duplicate)\n" +
+                    "• Swarm management (group agents)\n" +
+                    "• AI Prompts (internal app prompts)\n" +
+                    "• Create default agents (one per provider)\n" +
+                    "• Refresh model lists (all providers)\n" +
+                    "• Export/Import configuration (v11)"
             )
 
             // Developer Mode
@@ -437,13 +510,20 @@ fun HelpScreen(
                     "\"Network error\"\n" +
                     "→ Check internet, retries once automatically\n\n" +
                     "\"Model not found\"\n" +
-                    "→ Use 'Refresh model lists' in AI Setup\n\n" +
+                    "→ Use 'Refresh model lists' in AI Setup\n" +
+                    "→ Check if model is available for your API tier\n\n" +
                     "\"No pricing data\"\n" +
                     "→ Add OpenRouter API key or use Cost Configuration\n\n" +
+                    "\"Wrong endpoint\"\n" +
+                    "→ Check provider settings for correct endpoint\n" +
+                    "→ OpenAI: gpt-4o uses Chat, gpt-5.x uses Responses\n\n" +
                     "Slow responses?\n" +
                     "→ Complex prompts can take minutes (7 min timeout)\n\n" +
                     "Streaming not working?\n" +
-                    "→ Not all providers support streaming; falls back automatically\n\n" +
+                    "→ All providers support streaming for chat\n\n" +
+                    "Agent using wrong settings?\n" +
+                    "→ Empty fields inherit from provider settings\n" +
+                    "→ Check provider has correct defaults\n\n" +
                     "For debugging, enable Developer Mode and API tracing."
             )
 

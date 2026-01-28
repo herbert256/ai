@@ -511,7 +511,27 @@ fun DeepSeekSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.deepSeekManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.deepSeekAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.deepSeekModelListUrl) }
-    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.DEEPSEEK)) }
+
+    // Default DeepSeek endpoints - Standard chat and Beta (FIM/prefix completion)
+    val defaultDeepSeekEndpoints = listOf(
+        AiEndpoint(
+            id = "deepseek-chat-completions",
+            name = "Chat Completions (Standard)",
+            url = "https://api.deepseek.com/chat/completions",
+            isDefault = true
+        ),
+        AiEndpoint(
+            id = "deepseek-beta",
+            name = "Beta (FIM/Prefix Completion)",
+            url = "https://api.deepseek.com/beta/completions",
+            isDefault = false
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.DEEPSEEK).ifEmpty { defaultDeepSeekEndpoints }
+        )
+    }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -604,7 +624,27 @@ fun MistralSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.mistralManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.mistralAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.mistralModelListUrl) }
-    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.MISTRAL)) }
+
+    // Default Mistral endpoints - Standard chat and Codestral for code generation
+    val defaultMistralEndpoints = listOf(
+        AiEndpoint(
+            id = "mistral-chat-completions",
+            name = "Chat Completions (Standard)",
+            url = "https://api.mistral.ai/v1/chat/completions",
+            isDefault = true
+        ),
+        AiEndpoint(
+            id = "mistral-codestral",
+            name = "Codestral (Code Generation)",
+            url = "https://codestral.mistral.ai/v1/chat/completions",
+            isDefault = false
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.MISTRAL).ifEmpty { defaultMistralEndpoints }
+        )
+    }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -963,7 +1003,27 @@ fun SiliconFlowSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.siliconFlowManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.siliconFlowAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.siliconFlowModelListUrl) }
-    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.SILICONFLOW)) }
+
+    // Default SiliconFlow endpoints - Chat Completions (OpenAI) and Messages (Anthropic)
+    val defaultSiliconFlowEndpoints = listOf(
+        AiEndpoint(
+            id = "siliconflow-chat-completions",
+            name = "Chat Completions (OpenAI compatible)",
+            url = "https://api.siliconflow.com/v1/chat/completions",
+            isDefault = true
+        ),
+        AiEndpoint(
+            id = "siliconflow-messages",
+            name = "Messages (Anthropic compatible)",
+            url = "https://api.siliconflow.com/messages",
+            isDefault = false
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.SILICONFLOW).ifEmpty { defaultSiliconFlowEndpoints }
+        )
+    }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
@@ -1046,7 +1106,27 @@ fun ZaiSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.zaiManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.zaiAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.zaiModelListUrl) }
-    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.ZAI)) }
+
+    // Default Z.AI endpoints - General chat and Coding-specific
+    val defaultZaiEndpoints = listOf(
+        AiEndpoint(
+            id = "zai-chat-completions",
+            name = "Chat Completions (General)",
+            url = "https://api.z.ai/api/paas/v4/chat/completions",
+            isDefault = true
+        ),
+        AiEndpoint(
+            id = "zai-coding",
+            name = "Coding (GLM Coding Plan)",
+            url = "https://api.z.ai/api/coding/paas/v4/chat/completions",
+            isDefault = false
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.ZAI).ifEmpty { defaultZaiEndpoints }
+        )
+    }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
