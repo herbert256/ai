@@ -83,13 +83,13 @@ fun AiHubScreen(
     ) {
         // Calculate logo size based on available height
         val availableForLogo = maxHeight - cardsHeight
-        val logoSize = availableForLogo.coerceIn(80.dp, 180.dp)
+        val logoSize = availableForLogo.coerceIn(100.dp, 220.dp)
 
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
             // App logo with dynamic size (offset to remove built-in padding)
             Image(
@@ -97,7 +97,7 @@ fun AiHubScreen(
                 contentDescription = "AI App Logo",
                 modifier = Modifier
                     .size(logoSize)
-                    .offset(y = (-20).dp)
+                    .offset(y = (-30).dp)
             )
 
             // Cards that require at least 1 AI Agent (shown grayed out if no agents)
