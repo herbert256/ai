@@ -41,6 +41,7 @@ fun AiHubScreen(
     onNavigateToCosts: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
+    onNavigateToAiSettings: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
     onNavigateToModelSearch: () -> Unit,
     viewModel: AiViewModel
@@ -67,7 +68,7 @@ fun AiHubScreen(
     val cardSpacing = 12.dp
 
     // Count cards that will be shown (all cards always shown, some may be disabled)
-    var cardCount = 9  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Housekeeping, Settings, Help
+    var cardCount = 10  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Settings, AI Housekeeping, Settings, Help
     val extraSpacing = if (uiState.generalSettings.developerMode) 64.dp else 32.dp  // 32dp before Settings + 32dp before Developer Options
 
     if (uiState.generalSettings.developerMode) cardCount += 1  // Developer Options
@@ -89,7 +90,7 @@ fun AiHubScreen(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             // App logo with dynamic size (offset to remove built-in padding)
             Image(
@@ -97,7 +98,7 @@ fun AiHubScreen(
                 contentDescription = "AI App Logo",
                 modifier = Modifier
                     .size(logoSize)
-                    .offset(y = (-30).dp)
+                    .offset(y = (-32).dp)
             )
 
             // Cards that require at least 1 AI Agent (shown grayed out if no agents)
@@ -118,11 +119,15 @@ fun AiHubScreen(
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
 
+            // AI Settings requires at least 1 provider with API key (excluding DUMMY)
+            HubCard(icon = "\uD83D\uDCCB", title = "AI Settings", onClick = onNavigateToAiSettings, enabled = hasAnyProviderApiKey)
+            Spacer(modifier = Modifier.height(12.dp))
+
             // AI Housekeeping requires at least 1 provider with API key (excluding DUMMY)
             HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping, enabled = hasAnyProviderApiKey)
 
             Spacer(modifier = Modifier.height(32.dp))
-            HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
+            HubCard(icon = "\u2699\uFE0F", title = "General Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
 
@@ -2783,12 +2788,12 @@ fun AiReportsScreen(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
-                                                text = agent.name,
+                                                text = "${agent.name} / ${agent.model}",
                                                 fontWeight = FontWeight.Medium,
                                                 color = Color.White
                                             )
                                             Text(
-                                                text = "${agent.provider.displayName} / ${agent.model}",
+                                                text = agent.provider.displayName,
                                                 fontSize = 12.sp,
                                                 color = Color(0xFFAAAAAA)
                                             )
@@ -2974,11 +2979,32 @@ fun AiReportsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Calculate costs for each agent
+            // Calculate costs for each agent and flock member
             val agentCosts = remember(reportsAgentResults) {
                 reportsAgentResults.mapNotNull { (agentId, result) ->
-                    val agent = uiState.aiSettings.getAgentById(agentId) ?: return@mapNotNull null
                     val tokenUsage = result.tokenUsage ?: return@mapNotNull null
+
+                    // Check if it's a flock member (synthetic ID)
+                    if (agentId.startsWith("flock:")) {
+                        val parts = agentId.removePrefix("flock:").split(":", limit = 2)
+                        val providerName = parts.getOrNull(0) ?: return@mapNotNull null
+                        val modelName = parts.getOrNull(1) ?: return@mapNotNull null
+                        val provider = com.ai.data.AiService.entries.find { it.name == providerName } ?: return@mapNotNull null
+
+                        if (provider == com.ai.data.AiService.DUMMY) {
+                            return@mapNotNull agentId to 0.0
+                        }
+                        val cost = tokenUsage.apiCost ?: run {
+                            val pricing = com.ai.data.PricingCache.getPricing(context, provider, modelName)
+                            val inputCost = tokenUsage.inputTokens * pricing.promptPrice
+                            val outputCost = tokenUsage.outputTokens * pricing.completionPrice
+                            inputCost + outputCost
+                        }
+                        return@mapNotNull agentId to cost
+                    }
+
+                    // Regular agent
+                    val agent = uiState.aiSettings.getAgentById(agentId) ?: return@mapNotNull null
                     // DUMMY provider always has 0 cost
                     if (agent.provider == com.ai.data.AiService.DUMMY) {
                         return@mapNotNull agentId to 0.0
@@ -3120,6 +3146,89 @@ fun AiReportsScreen(
                             )
                         }
                     }
+
+                    // Show flock members (synthetic IDs starting with "flock:")
+                    reportsSelectedAgents.filter { it.startsWith("flock:") }
+                        .sortedBy { it.lowercase() }
+                        .forEach { flockId ->
+                            // Parse synthetic ID: "flock:PROVIDER:model"
+                            val parts = flockId.removePrefix("flock:").split(":", limit = 2)
+                            val providerName = parts.getOrNull(0) ?: ""
+                            val modelName = parts.getOrNull(1) ?: ""
+                            val provider = com.ai.data.AiService.entries.find { it.name == providerName }
+
+                            val result = reportsAgentResults[flockId]
+                            val cost = agentCosts[flockId]
+                            val tokenUsage = result?.tokenUsage
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Status icon first
+                                Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
+                                    when {
+                                        result == null -> {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                        result.isSuccess -> {
+                                            Text("✓", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        }
+                                        else -> {
+                                            Text("✗", color = Color(0xFFF44336), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(2.dp))
+                                // Flock member: Provider on line 1, Model on line 2
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = provider?.displayName ?: providerName,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color.White,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = modelName,
+                                        color = Color(0xFFAAAAAA),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                // Input tokens
+                                Text(
+                                    text = tokenUsage?.inputTokens?.toString() ?: "",
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFAAAAAA),
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.width(50.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                // Output tokens
+                                Text(
+                                    text = tokenUsage?.outputTokens?.toString() ?: "",
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFAAAAAA),
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.width(50.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                // Cost in cents
+                                Text(
+                                    text = if (cost != null) String.format("%.4f", cost * 100) else "",
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF4CAF50),
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.width(70.dp)
+                                )
+                            }
+                        }
 
                     // Calculate total tokens
                     val totalInputTokens = reportsAgentResults.values.sumOf { it.tokenUsage?.inputTokens ?: 0 }

@@ -37,6 +37,7 @@ enum class SettingsSubScreen {
     AI_DUMMY,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
+    AI_AI_SETTINGS, // AI Settings hub (Prompts, Costs)
     AI_PROVIDERS,   // Provider model configuration
     AI_AGENTS,      // Agents CRUD
     AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
@@ -166,16 +167,32 @@ fun SettingsScreen(
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
             SettingsSubScreen.AI_SWARMS,
-            SettingsSubScreen.AI_PROMPTS -> {
+            SettingsSubScreen.AI_FLOCKS -> {
                 if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
                     currentSubScreen = SettingsSubScreen.AI_SETUP
                 } else {
                     currentSubScreen = SettingsSubScreen.AI_SETUP
                 }
             }
+            // AI Prompts goes back to AI_AI_SETTINGS
+            SettingsSubScreen.AI_PROMPTS -> {
+                if (initialSubScreen == SettingsSubScreen.AI_AI_SETTINGS) {
+                    currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
+                } else {
+                    currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
+                }
+            }
             // AI_SETUP goes back home if it was the initial screen, otherwise to MAIN
             SettingsSubScreen.AI_SETUP -> {
                 if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
+                    onBack()
+                } else {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                }
+            }
+            // AI_AI_SETTINGS goes back home if it was the initial screen, otherwise to MAIN
+            SettingsSubScreen.AI_AI_SETTINGS -> {
+                if (initialSubScreen == SettingsSubScreen.AI_AI_SETTINGS) {
                     onBack()
                 } else {
                     currentSubScreen = SettingsSubScreen.MAIN
@@ -359,10 +376,24 @@ fun SettingsScreen(
             },
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
-            onNavigateToCostConfig = onNavigateToCostConfig,
             onSave = onSaveAi,
             onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
             onSaveOpenRouterApiKey = onSaveOpenRouterApiKey
+        )
+        SettingsSubScreen.AI_AI_SETTINGS -> AiAiSettingsContentScreen(
+            aiSettings = aiSettings,
+            onBackToSettings = {
+                // If AI_AI_SETTINGS is the initial screen (accessed from home), go home
+                // Otherwise go back to Settings main screen
+                if (initialSubScreen == SettingsSubScreen.AI_AI_SETTINGS) {
+                    onBack()
+                } else {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                }
+            },
+            onBackToHome = onNavigateHome,
+            onNavigate = { currentSubScreen = it },
+            onNavigateToCostConfig = onNavigateToCostConfig
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,

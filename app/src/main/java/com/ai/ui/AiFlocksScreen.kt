@@ -322,14 +322,6 @@ fun FlockEditScreen(
                 // Group by provider for better organization
                 val groupedByProvider = filteredProviderModels.groupBy { it.provider }
                 groupedByProvider.toSortedMap(compareBy { it.displayName }).forEach { (provider, members) ->
-                    Text(
-                        text = provider.displayName,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF8B5CF6),
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-
                     members.sortedBy { it.model.lowercase() }.forEach { member ->
                         Row(
                             modifier = Modifier
@@ -341,7 +333,7 @@ fun FlockEditScreen(
                                         selectedMembers + member
                                     }
                                 }
-                                .padding(vertical = 8.dp, horizontal = 16.dp),
+                                .padding(vertical = 6.dp, horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(
@@ -355,10 +347,17 @@ fun FlockEditScreen(
                                 }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = member.model,
-                                color = Color.White
-                            )
+                            Column {
+                                Text(
+                                    text = member.provider.displayName,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF888888)
+                                )
+                                Text(
+                                    text = member.model,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
                 }

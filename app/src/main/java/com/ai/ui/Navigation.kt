@@ -32,6 +32,7 @@ object NavRoutes {
     const val AI_COSTS = "ai_costs"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"
+    const val AI_AI_SETTINGS = "ai_ai_settings"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
     const val AI_CHATS_HUB = "ai_chats_hub"
     const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
@@ -121,6 +122,7 @@ fun AiNavHost(
                 onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS) },
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
+                onNavigateToAiSettings = { navController.navigate(NavRoutes.AI_AI_SETTINGS) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 viewModel = viewModel
@@ -138,6 +140,14 @@ fun AiNavHost(
 
         composable(NavRoutes.AI_SETUP) {
             AiSetupScreenNav(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+
+        composable(NavRoutes.AI_AI_SETTINGS) {
+            AiAiSettingsScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
@@ -742,6 +752,23 @@ fun SettingsScreenNav(
 fun AiSetupScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    SettingsScreenNav(
+        viewModel = viewModel,
+        onNavigateBack = onNavigateBack,
+        onNavigateHome = onNavigateHome,
+        initialSubScreen = SettingsSubScreen.AI_SETUP
+    )
+}
+
+/**
+ * Wrapper for SettingsScreen that starts at AI Settings (Prompts, Costs).
+ */
+@Composable
+fun AiAiSettingsScreenNav(
+    viewModel: AiViewModel,
+    onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}
 ) {
@@ -750,7 +777,7 @@ fun AiSetupScreenNav(
         onNavigateBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig,
-        initialSubScreen = SettingsSubScreen.AI_SETUP
+        initialSubScreen = SettingsSubScreen.AI_AI_SETTINGS
     )
 }
 

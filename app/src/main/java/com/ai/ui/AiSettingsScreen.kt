@@ -221,7 +221,6 @@ fun AiSetupScreen(
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
-    onNavigateToCostConfig: () -> Unit = {},
     onSave: (AiSettings) -> Unit = {},
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {}
@@ -302,7 +301,7 @@ fun AiSetupScreen(
         AiSetupNavigationCard(
             title = "Swarms",
             description = "Group agents into swarms for report generation",
-            icon = "🐝",
+            icon = "🦆",
             count = "$configuredSwarms configured",
             onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) },
             enabled = hasApiKey
@@ -313,10 +312,40 @@ fun AiSetupScreen(
         AiSetupNavigationCard(
             title = "Flocks",
             description = "Group provider/model combinations for report generation",
-            icon = "🦆",
+            icon = "🐝",
             count = "$configuredFlocks configured",
             onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) },
             enabled = hasApiKey
+        )
+
+    }
+}
+
+/**
+ * AI Settings hub screen - contains Prompts and Costs navigation.
+ */
+@Composable
+fun AiAiSettingsContentScreen(
+    aiSettings: AiSettings,
+    onBackToSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onNavigate: (SettingsSubScreen) -> Unit,
+    onNavigateToCostConfig: () -> Unit = {}
+) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AiTitleBar(
+            title = "AI Settings",
+            onBackClick = onBackToSettings,
+            onAiClick = onBackToHome
         )
 
         // Prompts card
@@ -326,8 +355,7 @@ fun AiSetupScreen(
             description = "Internal prompts for AI-powered features",
             icon = "📝",
             count = "$configuredPrompts configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) },
-            enabled = hasApiKey
+            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
         )
 
         // Costs card - use aiSettings as key to refresh after import
@@ -339,10 +367,8 @@ fun AiSetupScreen(
             description = "Configure manual price overrides per model",
             icon = "💰",
             count = "$manualPricingCount configured",
-            onClick = onNavigateToCostConfig,
-            enabled = hasApiKey
+            onClick = onNavigateToCostConfig
         )
-
     }
 }
 
@@ -350,7 +376,7 @@ fun AiSetupScreen(
  * Navigation card for AI Setup screen.
  */
 @Composable
-private fun AiSetupNavigationCard(
+internal fun AiSetupNavigationCard(
     title: String,
     description: String,
     icon: String,
