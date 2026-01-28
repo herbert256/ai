@@ -176,66 +176,79 @@ data class AiSettings(
     val chatGptModelSource: ModelSource = ModelSource.API,
     val chatGptManualModels: List<String> = emptyList(),
     val chatGptAdminUrl: String = AiService.OPENAI.adminUrl,
+    val chatGptModelListUrl: String = "",  // Custom model list URL (empty = use default)
     val claudeApiKey: String = "",
     val claudeModel: String = AiService.ANTHROPIC.defaultModel,
     val claudeModelSource: ModelSource = ModelSource.API,
     val claudeManualModels: List<String> = CLAUDE_MODELS,
     val claudeAdminUrl: String = AiService.ANTHROPIC.adminUrl,
+    val claudeModelListUrl: String = "",
     val geminiApiKey: String = "",
     val geminiModel: String = AiService.GOOGLE.defaultModel,
     val geminiModelSource: ModelSource = ModelSource.API,
     val geminiManualModels: List<String> = emptyList(),
     val geminiAdminUrl: String = AiService.GOOGLE.adminUrl,
+    val geminiModelListUrl: String = "",
     val grokApiKey: String = "",
     val grokModel: String = AiService.XAI.defaultModel,
     val grokModelSource: ModelSource = ModelSource.API,
     val grokManualModels: List<String> = emptyList(),
     val grokAdminUrl: String = AiService.XAI.adminUrl,
+    val grokModelListUrl: String = "",
     val groqApiKey: String = "",
     val groqModel: String = AiService.GROQ.defaultModel,
     val groqModelSource: ModelSource = ModelSource.API,
     val groqManualModels: List<String> = emptyList(),
     val groqAdminUrl: String = AiService.GROQ.adminUrl,
+    val groqModelListUrl: String = "",
     val deepSeekApiKey: String = "",
     val deepSeekModel: String = AiService.DEEPSEEK.defaultModel,
     val deepSeekModelSource: ModelSource = ModelSource.API,
     val deepSeekManualModels: List<String> = emptyList(),
     val deepSeekAdminUrl: String = AiService.DEEPSEEK.adminUrl,
+    val deepSeekModelListUrl: String = "",
     val mistralApiKey: String = "",
     val mistralModel: String = AiService.MISTRAL.defaultModel,
     val mistralModelSource: ModelSource = ModelSource.API,
     val mistralManualModels: List<String> = emptyList(),
     val mistralAdminUrl: String = AiService.MISTRAL.adminUrl,
+    val mistralModelListUrl: String = "",
     val perplexityApiKey: String = "",
     val perplexityModel: String = AiService.PERPLEXITY.defaultModel,
     val perplexityModelSource: ModelSource = ModelSource.MANUAL,
     val perplexityManualModels: List<String> = PERPLEXITY_MODELS,
     val perplexityAdminUrl: String = AiService.PERPLEXITY.adminUrl,
+    val perplexityModelListUrl: String = "",
     val togetherApiKey: String = "",
     val togetherModel: String = AiService.TOGETHER.defaultModel,
     val togetherModelSource: ModelSource = ModelSource.API,
     val togetherManualModels: List<String> = emptyList(),
     val togetherAdminUrl: String = AiService.TOGETHER.adminUrl,
+    val togetherModelListUrl: String = "",
     val openRouterApiKey: String = "",
     val openRouterModel: String = AiService.OPENROUTER.defaultModel,
     val openRouterModelSource: ModelSource = ModelSource.API,
     val openRouterManualModels: List<String> = emptyList(),
     val openRouterAdminUrl: String = AiService.OPENROUTER.adminUrl,
+    val openRouterModelListUrl: String = "",
     val siliconFlowApiKey: String = "",
     val siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
     val siliconFlowModelSource: ModelSource = ModelSource.API,
     val siliconFlowManualModels: List<String> = SILICONFLOW_MODELS,
     val siliconFlowAdminUrl: String = AiService.SILICONFLOW.adminUrl,
+    val siliconFlowModelListUrl: String = "",
     val zaiApiKey: String = "",
     val zaiModel: String = AiService.ZAI.defaultModel,
     val zaiModelSource: ModelSource = ModelSource.API,
     val zaiManualModels: List<String> = ZAI_MODELS,
     val zaiAdminUrl: String = AiService.ZAI.adminUrl,
+    val zaiModelListUrl: String = "",
     val dummyApiKey: String = "",
     val dummyModel: String = AiService.DUMMY.defaultModel,
     val dummyModelSource: ModelSource = ModelSource.API,
     val dummyManualModels: List<String> = listOf("dummy-model"),
     val dummyAdminUrl: String = AiService.DUMMY.adminUrl,
+    val dummyModelListUrl: String = "",
     // AI Agents
     val agents: List<AiAgent> = emptyList(),
     // AI Swarms
@@ -413,6 +426,58 @@ data class AiSettings(
      */
     fun withEndpoints(provider: AiService, newEndpoints: List<AiEndpoint>): AiSettings {
         return copy(endpoints = endpoints + (provider to newEndpoints))
+    }
+
+    /**
+     * Get the custom model list URL for a provider.
+     * Returns empty string if using default (hardcoded) URL.
+     */
+    fun getModelListUrl(service: AiService): String {
+        return when (service) {
+            AiService.OPENAI -> chatGptModelListUrl
+            AiService.ANTHROPIC -> claudeModelListUrl
+            AiService.GOOGLE -> geminiModelListUrl
+            AiService.XAI -> grokModelListUrl
+            AiService.GROQ -> groqModelListUrl
+            AiService.DEEPSEEK -> deepSeekModelListUrl
+            AiService.MISTRAL -> mistralModelListUrl
+            AiService.PERPLEXITY -> perplexityModelListUrl
+            AiService.TOGETHER -> togetherModelListUrl
+            AiService.OPENROUTER -> openRouterModelListUrl
+            AiService.SILICONFLOW -> siliconFlowModelListUrl
+            AiService.ZAI -> zaiModelListUrl
+            AiService.DUMMY -> dummyModelListUrl
+        }
+    }
+
+    /**
+     * Get the default model list URL for a provider (hardcoded).
+     */
+    fun getDefaultModelListUrl(service: AiService): String {
+        return when (service) {
+            AiService.OPENAI -> "https://api.openai.com/v1/models"
+            AiService.ANTHROPIC -> "https://api.anthropic.com/v1/models"
+            AiService.GOOGLE -> "https://generativelanguage.googleapis.com/v1beta/models"
+            AiService.XAI -> "https://api.x.ai/v1/models"
+            AiService.GROQ -> "https://api.groq.com/openai/v1/models"
+            AiService.DEEPSEEK -> "https://api.deepseek.com/models"
+            AiService.MISTRAL -> "https://api.mistral.ai/v1/models"
+            AiService.PERPLEXITY -> "https://api.perplexity.ai/models"
+            AiService.TOGETHER -> "https://api.together.xyz/v1/models"
+            AiService.OPENROUTER -> "https://openrouter.ai/api/v1/models"
+            AiService.SILICONFLOW -> "https://api.siliconflow.cn/v1/models"
+            AiService.ZAI -> "https://api.z.ai/api/paas/v4/models"
+            AiService.DUMMY -> "http://localhost:54321/v1/models"
+        }
+    }
+
+    /**
+     * Get the effective model list URL for a provider.
+     * Returns custom URL if set, otherwise returns default URL.
+     */
+    fun getEffectiveModelListUrl(service: AiService): String {
+        val customUrl = getModelListUrl(service)
+        return if (customUrl.isNotBlank()) customUrl else getDefaultModelListUrl(service)
     }
 }
 

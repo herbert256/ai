@@ -33,6 +33,7 @@ fun ChatGptSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.chatGptModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.chatGptManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.chatGptAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.chatGptModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.OPENAI)) }
 
     // Effective model list for dropdown
@@ -44,6 +45,7 @@ fun ChatGptSettingsScreen(
             modelSource != aiSettings.chatGptModelSource ||
             manualModels != aiSettings.chatGptManualModels ||
             adminUrl != aiSettings.chatGptAdminUrl ||
+            modelListUrl != aiSettings.chatGptModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.OPENAI)
 
     // Auto-refresh model list on page load
@@ -64,7 +66,8 @@ fun ChatGptSettingsScreen(
                 chatGptModel = defaultModel,
                 chatGptModelSource = modelSource,
                 chatGptManualModels = manualModels,
-                chatGptAdminUrl = adminUrl
+                chatGptAdminUrl = adminUrl,
+                chatGptModelListUrl = modelListUrl
             ).withEndpoints(AiService.OPENAI, endpoints))
         },
         hasChanges = hasChanges,
@@ -92,6 +95,11 @@ fun ChatGptSettingsScreen(
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
         )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.OPENAI),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         EndpointsSection(
             endpoints = endpoints,
             defaultEndpointUrl = AiService.OPENAI.baseUrl,
@@ -117,6 +125,7 @@ fun ClaudeSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.claudeModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.claudeManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.claudeAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.claudeModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.ANTHROPIC)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
@@ -126,6 +135,7 @@ fun ClaudeSettingsScreen(
             modelSource != aiSettings.claudeModelSource ||
             manualModels != aiSettings.claudeManualModels ||
             adminUrl != aiSettings.claudeAdminUrl ||
+            modelListUrl != aiSettings.claudeModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.ANTHROPIC)
 
     AiServiceSettingsScreenTemplate(
@@ -139,7 +149,8 @@ fun ClaudeSettingsScreen(
                 claudeModel = defaultModel,
                 claudeModelSource = modelSource,
                 claudeManualModels = manualModels,
-                claudeAdminUrl = adminUrl
+                claudeAdminUrl = adminUrl,
+                claudeModelListUrl = modelListUrl
             ).withEndpoints(AiService.ANTHROPIC, endpoints))
         },
         hasChanges = hasChanges,
@@ -166,6 +177,11 @@ fun ClaudeSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.ANTHROPIC),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -195,6 +211,7 @@ fun GeminiSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.geminiModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.geminiManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.geminiAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.geminiModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.GOOGLE)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -204,6 +221,7 @@ fun GeminiSettingsScreen(
             modelSource != aiSettings.geminiModelSource ||
             manualModels != aiSettings.geminiManualModels ||
             adminUrl != aiSettings.geminiAdminUrl ||
+            modelListUrl != aiSettings.geminiModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.GOOGLE)
 
     // Auto-refresh model list on page load
@@ -224,7 +242,8 @@ fun GeminiSettingsScreen(
                 geminiModel = defaultModel,
                 geminiModelSource = modelSource,
                 geminiManualModels = manualModels,
-                geminiAdminUrl = adminUrl
+                geminiAdminUrl = adminUrl,
+                geminiModelListUrl = modelListUrl
             ).withEndpoints(AiService.GOOGLE, endpoints))
         },
         hasChanges = hasChanges,
@@ -251,6 +270,11 @@ fun GeminiSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.GOOGLE),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -280,6 +304,7 @@ fun GrokSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.grokModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.grokManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.grokAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.grokModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.XAI)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -289,6 +314,7 @@ fun GrokSettingsScreen(
             modelSource != aiSettings.grokModelSource ||
             manualModels != aiSettings.grokManualModels ||
             adminUrl != aiSettings.grokAdminUrl ||
+            modelListUrl != aiSettings.grokModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.XAI)
 
     // Auto-refresh model list on page load
@@ -309,7 +335,8 @@ fun GrokSettingsScreen(
                 grokModel = defaultModel,
                 grokModelSource = modelSource,
                 grokManualModels = manualModels,
-                grokAdminUrl = adminUrl
+                grokAdminUrl = adminUrl,
+                grokModelListUrl = modelListUrl
             ).withEndpoints(AiService.XAI, endpoints))
         },
         hasChanges = hasChanges,
@@ -336,6 +363,11 @@ fun GrokSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.XAI),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -365,6 +397,7 @@ fun GroqSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.groqModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.groqManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.groqAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.groqModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.GROQ)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -374,6 +407,7 @@ fun GroqSettingsScreen(
             modelSource != aiSettings.groqModelSource ||
             manualModels != aiSettings.groqManualModels ||
             adminUrl != aiSettings.groqAdminUrl ||
+            modelListUrl != aiSettings.groqModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.GROQ)
 
     // Auto-refresh model list on page load
@@ -394,7 +428,8 @@ fun GroqSettingsScreen(
                 groqModel = defaultModel,
                 groqModelSource = modelSource,
                 groqManualModels = manualModels,
-                groqAdminUrl = adminUrl
+                groqAdminUrl = adminUrl,
+                groqModelListUrl = modelListUrl
             ).withEndpoints(AiService.GROQ, endpoints))
         },
         hasChanges = hasChanges,
@@ -421,6 +456,11 @@ fun GroqSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.GROQ),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -450,6 +490,7 @@ fun DeepSeekSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.deepSeekModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.deepSeekManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.deepSeekAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.deepSeekModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.DEEPSEEK)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -459,6 +500,7 @@ fun DeepSeekSettingsScreen(
             modelSource != aiSettings.deepSeekModelSource ||
             manualModels != aiSettings.deepSeekManualModels ||
             adminUrl != aiSettings.deepSeekAdminUrl ||
+            modelListUrl != aiSettings.deepSeekModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.DEEPSEEK)
 
     // Auto-refresh model list on page load
@@ -479,7 +521,8 @@ fun DeepSeekSettingsScreen(
                 deepSeekModel = defaultModel,
                 deepSeekModelSource = modelSource,
                 deepSeekManualModels = manualModels,
-                deepSeekAdminUrl = adminUrl
+                deepSeekAdminUrl = adminUrl,
+                deepSeekModelListUrl = modelListUrl
             ).withEndpoints(AiService.DEEPSEEK, endpoints))
         },
         hasChanges = hasChanges,
@@ -506,6 +549,11 @@ fun DeepSeekSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DEEPSEEK),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -535,6 +583,7 @@ fun MistralSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.mistralModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.mistralManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.mistralAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.mistralModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.MISTRAL)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -544,6 +593,7 @@ fun MistralSettingsScreen(
             modelSource != aiSettings.mistralModelSource ||
             manualModels != aiSettings.mistralManualModels ||
             adminUrl != aiSettings.mistralAdminUrl ||
+            modelListUrl != aiSettings.mistralModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.MISTRAL)
 
     // Auto-refresh model list on page load
@@ -564,7 +614,8 @@ fun MistralSettingsScreen(
                 mistralModel = defaultModel,
                 mistralModelSource = modelSource,
                 mistralManualModels = manualModels,
-                mistralAdminUrl = adminUrl
+                mistralAdminUrl = adminUrl,
+                mistralModelListUrl = modelListUrl
             ).withEndpoints(AiService.MISTRAL, endpoints))
         },
         hasChanges = hasChanges,
@@ -592,6 +643,11 @@ fun MistralSettingsScreen(
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
         )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.MISTRAL),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         EndpointsSection(
             endpoints = endpoints,
             defaultEndpointUrl = AiService.MISTRAL.baseUrl,
@@ -617,6 +673,7 @@ fun PerplexitySettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.perplexityModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.perplexityManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.perplexityAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.perplexityModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.PERPLEXITY)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
@@ -626,6 +683,7 @@ fun PerplexitySettingsScreen(
             modelSource != aiSettings.perplexityModelSource ||
             manualModels != aiSettings.perplexityManualModels ||
             adminUrl != aiSettings.perplexityAdminUrl ||
+            modelListUrl != aiSettings.perplexityModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.PERPLEXITY)
 
     AiServiceSettingsScreenTemplate(
@@ -639,7 +697,8 @@ fun PerplexitySettingsScreen(
                 perplexityModel = defaultModel,
                 perplexityModelSource = modelSource,
                 perplexityManualModels = manualModels,
-                perplexityAdminUrl = adminUrl
+                perplexityAdminUrl = adminUrl,
+                perplexityModelListUrl = modelListUrl
             ).withEndpoints(AiService.PERPLEXITY, endpoints))
         },
         hasChanges = hasChanges,
@@ -666,6 +725,11 @@ fun PerplexitySettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.PERPLEXITY),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -695,6 +759,7 @@ fun TogetherSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.togetherModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.togetherManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.togetherAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.togetherModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.TOGETHER)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -704,6 +769,7 @@ fun TogetherSettingsScreen(
             modelSource != aiSettings.togetherModelSource ||
             manualModels != aiSettings.togetherManualModels ||
             adminUrl != aiSettings.togetherAdminUrl ||
+            modelListUrl != aiSettings.togetherModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.TOGETHER)
 
     // Auto-refresh model list on page load
@@ -724,7 +790,8 @@ fun TogetherSettingsScreen(
                 togetherModel = defaultModel,
                 togetherModelSource = modelSource,
                 togetherManualModels = manualModels,
-                togetherAdminUrl = adminUrl
+                togetherAdminUrl = adminUrl,
+                togetherModelListUrl = modelListUrl
             ).withEndpoints(AiService.TOGETHER, endpoints))
         },
         hasChanges = hasChanges,
@@ -751,6 +818,11 @@ fun TogetherSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.TOGETHER),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -780,6 +852,7 @@ fun OpenRouterSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.openRouterModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.openRouterManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.openRouterAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.openRouterModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.OPENROUTER)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -789,6 +862,7 @@ fun OpenRouterSettingsScreen(
             modelSource != aiSettings.openRouterModelSource ||
             manualModels != aiSettings.openRouterManualModels ||
             adminUrl != aiSettings.openRouterAdminUrl ||
+            modelListUrl != aiSettings.openRouterModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.OPENROUTER)
 
     // Auto-refresh model list on page load
@@ -809,7 +883,8 @@ fun OpenRouterSettingsScreen(
                 openRouterModel = defaultModel,
                 openRouterModelSource = modelSource,
                 openRouterManualModels = manualModels,
-                openRouterAdminUrl = adminUrl
+                openRouterAdminUrl = adminUrl,
+                openRouterModelListUrl = modelListUrl
             ).withEndpoints(AiService.OPENROUTER, endpoints))
         },
         hasChanges = hasChanges,
@@ -837,6 +912,11 @@ fun OpenRouterSettingsScreen(
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
         )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.OPENROUTER),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         EndpointsSection(
             endpoints = endpoints,
             defaultEndpointUrl = AiService.OPENROUTER.baseUrl,
@@ -862,6 +942,7 @@ fun SiliconFlowSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.siliconFlowModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.siliconFlowManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.siliconFlowAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.siliconFlowModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.SILICONFLOW)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
@@ -871,6 +952,7 @@ fun SiliconFlowSettingsScreen(
             modelSource != aiSettings.siliconFlowModelSource ||
             manualModels != aiSettings.siliconFlowManualModels ||
             adminUrl != aiSettings.siliconFlowAdminUrl ||
+            modelListUrl != aiSettings.siliconFlowModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.SILICONFLOW)
 
     AiServiceSettingsScreenTemplate(
@@ -884,7 +966,8 @@ fun SiliconFlowSettingsScreen(
                 siliconFlowModel = defaultModel,
                 siliconFlowModelSource = modelSource,
                 siliconFlowManualModels = manualModels,
-                siliconFlowAdminUrl = adminUrl
+                siliconFlowAdminUrl = adminUrl,
+                siliconFlowModelListUrl = modelListUrl
             ).withEndpoints(AiService.SILICONFLOW, endpoints))
         },
         hasChanges = hasChanges,
@@ -912,6 +995,11 @@ fun SiliconFlowSettingsScreen(
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
         )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.SILICONFLOW),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         EndpointsSection(
             endpoints = endpoints,
             defaultEndpointUrl = AiService.SILICONFLOW.baseUrl,
@@ -937,6 +1025,7 @@ fun ZaiSettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.zaiModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.zaiManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.zaiAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.zaiModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.ZAI)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
@@ -946,6 +1035,7 @@ fun ZaiSettingsScreen(
             modelSource != aiSettings.zaiModelSource ||
             manualModels != aiSettings.zaiManualModels ||
             adminUrl != aiSettings.zaiAdminUrl ||
+            modelListUrl != aiSettings.zaiModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.ZAI)
 
     AiServiceSettingsScreenTemplate(
@@ -959,7 +1049,8 @@ fun ZaiSettingsScreen(
                 zaiModel = defaultModel,
                 zaiModelSource = modelSource,
                 zaiManualModels = manualModels,
-                zaiAdminUrl = adminUrl
+                zaiAdminUrl = adminUrl,
+                zaiModelListUrl = modelListUrl
             ).withEndpoints(AiService.ZAI, endpoints))
         },
         hasChanges = hasChanges,
@@ -986,6 +1077,11 @@ fun ZaiSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.ZAI),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -1015,6 +1111,7 @@ fun DummySettingsScreen(
     var modelSource by remember { mutableStateOf(aiSettings.dummyModelSource) }
     var manualModels by remember { mutableStateOf(aiSettings.dummyManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.dummyAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.dummyModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.DUMMY)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -1024,6 +1121,7 @@ fun DummySettingsScreen(
             modelSource != aiSettings.dummyModelSource ||
             manualModels != aiSettings.dummyManualModels ||
             adminUrl != aiSettings.dummyAdminUrl ||
+            modelListUrl != aiSettings.dummyModelListUrl ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.DUMMY)
 
     // Auto-refresh model list on page load
@@ -1044,7 +1142,8 @@ fun DummySettingsScreen(
                 dummyModel = defaultModel,
                 dummyModelSource = modelSource,
                 dummyManualModels = manualModels,
-                dummyAdminUrl = adminUrl
+                dummyAdminUrl = adminUrl,
+                dummyModelListUrl = modelListUrl
             ).withEndpoints(AiService.DUMMY, endpoints))
         },
         hasChanges = hasChanges,
@@ -1103,6 +1202,11 @@ fun DummySettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DUMMY),
+            onModelListUrlChange = { modelListUrl = it }
         )
         EndpointsSection(
             endpoints = endpoints,

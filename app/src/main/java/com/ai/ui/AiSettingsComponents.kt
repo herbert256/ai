@@ -1073,6 +1073,60 @@ fun PromptEditSection(
 }
 
 /**
+ * Model List URL section for provider settings.
+ * Allows configuring a custom URL for fetching the model list.
+ */
+@Composable
+fun ModelListUrlSection(
+    modelListUrl: String,
+    defaultModelListUrl: String,
+    onModelListUrlChange: (String) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Model List URL",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+            Text(
+                text = "Custom URL for retrieving the model list (leave empty for default)",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
+            OutlinedTextField(
+                value = modelListUrl,
+                onValueChange = onModelListUrlChange,
+                label = { Text("URL") },
+                placeholder = { Text(defaultModelListUrl) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                )
+            )
+            if (modelListUrl.isBlank()) {
+                Text(
+                    text = "Default: $defaultModelListUrl",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF888888)
+                )
+            }
+        }
+    }
+}
+
+/**
  * Endpoints section for provider settings - allows CRUD for API endpoints.
  * Uses the provider's hardcoded baseUrl as the default when no endpoints are configured.
  */
