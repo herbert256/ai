@@ -437,30 +437,40 @@ internal fun AgentEditScreen(
     var testSuccess by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
-    var showParameters by remember { mutableStateOf(false) }
 
-    // Parameter state
-    val existingParams = agent?.parameters ?: AiAgentParameters()
-    var temperature by remember { mutableStateOf(existingParams.temperature?.toString() ?: "") }
-    var maxTokens by remember { mutableStateOf(existingParams.maxTokens?.toString() ?: "") }
-    var topP by remember { mutableStateOf(existingParams.topP?.toString() ?: "") }
-    var topK by remember { mutableStateOf(existingParams.topK?.toString() ?: "") }
-    var frequencyPenalty by remember { mutableStateOf(existingParams.frequencyPenalty?.toString() ?: "") }
-    var presencePenalty by remember { mutableStateOf(existingParams.presencePenalty?.toString() ?: "") }
-    var systemPrompt by remember { mutableStateOf(existingParams.systemPrompt ?: "") }
-    var stopSequences by remember { mutableStateOf(existingParams.stopSequences?.joinToString(", ") ?: "") }
-    var seed by remember { mutableStateOf(existingParams.seed?.toString() ?: "") }
-    var responseFormatJson by remember { mutableStateOf(existingParams.responseFormatJson) }
-    var searchEnabled by remember { mutableStateOf(existingParams.searchEnabled) }
-    var returnCitations by remember { mutableStateOf(existingParams.returnCitations) }
-    var searchRecency by remember { mutableStateOf(existingParams.searchRecency ?: "") }
+    // Parameters preset selection
+    var selectedParamsId by remember { mutableStateOf<String?>(null) }
+    var selectedParamsName by remember { mutableStateOf("") }
+    var showParamsDialog by remember { mutableStateOf(false) }
+
+    // Initialize selectedParamsName from existing agent parameters if they match a preset
+    LaunchedEffect(Unit) {
+        if (agent != null) {
+            // Try to find a matching params preset
+            val matchingParams = aiSettings.params.find { params ->
+                params.temperature == agent.parameters.temperature &&
+                params.maxTokens == agent.parameters.maxTokens &&
+                params.topP == agent.parameters.topP &&
+                params.topK == agent.parameters.topK &&
+                params.frequencyPenalty == agent.parameters.frequencyPenalty &&
+                params.presencePenalty == agent.parameters.presencePenalty &&
+                params.systemPrompt == agent.parameters.systemPrompt &&
+                params.seed == agent.parameters.seed &&
+                params.responseFormatJson == agent.parameters.responseFormatJson &&
+                params.searchEnabled == agent.parameters.searchEnabled &&
+                params.returnCitations == agent.parameters.returnCitations &&
+                params.searchRecency == agent.parameters.searchRecency
+            }
+            if (matchingParams != null) {
+                selectedParamsId = matchingParams.id
+                selectedParamsName = matchingParams.name
+            }
+        }
+    }
 
     // Endpoint state - tracks the selected endpoint ID and URL for the agent
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
     var showEndpointDialog by remember { mutableStateOf(false) }
-
-    // All parameters available for every agent
-    val supportedParams = ALL_AGENT_PARAMETERS
 
     // Get models for selected provider
     val modelsForProvider = when (selectedProvider) {
@@ -605,23 +615,10 @@ internal fun AgentEditScreen(
                     saveError = null
                     isSaving = true
                     coroutineScope.launch {
-                        // Build parameters
-                        val params = AiAgentParameters(
-                            temperature = temperature.toFloatOrNull(),
-                            maxTokens = maxTokens.toIntOrNull(),
-                            topP = topP.toFloatOrNull(),
-                            topK = topK.toIntOrNull(),
-                            frequencyPenalty = frequencyPenalty.toFloatOrNull(),
-                            presencePenalty = presencePenalty.toFloatOrNull(),
-                            systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
-                            stopSequences = stopSequences.takeIf { it.isNotBlank() }
-                                ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
-                            seed = seed.toIntOrNull(),
-                            responseFormatJson = responseFormatJson,
-                            searchEnabled = searchEnabled,
-                            returnCitations = returnCitations,
-                            searchRecency = searchRecency.takeIf { it.isNotBlank() }
-                        )
+                        // Get parameters from selected preset or use empty parameters
+                        val params = selectedParamsId?.let { id ->
+                            aiSettings.getParamsById(id)?.toAgentParameters()
+                        } ?: AiAgentParameters()
                         val newAgent = AiAgent(
                             id = agent?.id ?: java.util.UUID.randomUUID().toString(),
                             name = name.trim(),
@@ -860,216 +857,31 @@ internal fun AgentEditScreen(
                 )
             }
 
-            // Parameters toggle
-            HorizontalDivider(color = Color(0xFF444444), modifier = Modifier.padding(vertical = 8.dp))
+            // Parameters preset selection
+            Text(
+                text = "Parameters (optional - select a preset)",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Advanced Parameters",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                OutlinedTextField(
+                    value = selectedParamsName,
+                    onValueChange = { /* Read-only - use Select button */ },
+                    placeholder = { Text("No parameters selected", color = Color(0xFF666666)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    readOnly = true
                 )
-                TextButton(onClick = { showParameters = !showParameters }) {
-                    Text(
-                        if (showParameters) "Hide ^" else "Show v",
-                        color = Color(0xFF6B9BFF)
-                    )
-                }
-            }
-
-            // Parameters section (collapsible)
-            if (showParameters) {
-                // Temperature
-                if (AiParameter.TEMPERATURE in supportedParams) {
-                    OutlinedTextField(
-                        value = temperature,
-                        onValueChange = { temperature = it },
-                        label = { Text("Temperature (0.0-2.0)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("Controls randomness. Lower = focused, Higher = creative") }
-                    )
-                }
-
-                // Max Tokens
-                if (AiParameter.MAX_TOKENS in supportedParams) {
-                    OutlinedTextField(
-                        value = maxTokens,
-                        onValueChange = { maxTokens = it },
-                        label = { Text("Max Tokens") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("Maximum response length") }
-                    )
-                }
-
-                // Top P
-                if (AiParameter.TOP_P in supportedParams) {
-                    OutlinedTextField(
-                        value = topP,
-                        onValueChange = { topP = it },
-                        label = { Text("Top P (0.0-1.0)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("Nucleus sampling threshold") }
-                    )
-                }
-
-                // Top K
-                if (AiParameter.TOP_K in supportedParams) {
-                    OutlinedTextField(
-                        value = topK,
-                        onValueChange = { topK = it },
-                        label = { Text("Top K") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("Limits vocabulary choices per token") }
-                    )
-                }
-
-                // Frequency Penalty
-                if (AiParameter.FREQUENCY_PENALTY in supportedParams) {
-                    OutlinedTextField(
-                        value = frequencyPenalty,
-                        onValueChange = { frequencyPenalty = it },
-                        label = { Text("Frequency Penalty (-2.0 to 2.0)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("Reduces repetition of frequent tokens") }
-                    )
-                }
-
-                // Presence Penalty
-                if (AiParameter.PRESENCE_PENALTY in supportedParams) {
-                    OutlinedTextField(
-                        value = presencePenalty,
-                        onValueChange = { presencePenalty = it },
-                        label = { Text("Presence Penalty (-2.0 to 2.0)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("Encourages discussing new topics") }
-                    )
-                }
-
-                // System Prompt
-                if (AiParameter.SYSTEM_PROMPT in supportedParams) {
-                    OutlinedTextField(
-                        value = systemPrompt,
-                        onValueChange = { systemPrompt = it },
-                        label = { Text("System Prompt") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                        maxLines = 4,
-                        supportingText = { Text("Instructions for the AI's behavior") }
-                    )
-                }
-
-                // Stop Sequences
-                if (AiParameter.STOP_SEQUENCES in supportedParams) {
-                    OutlinedTextField(
-                        value = stopSequences,
-                        onValueChange = { stopSequences = it },
-                        label = { Text("Stop Sequences") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("Comma-separated list of stop strings") }
-                    )
-                }
-
-                // Seed
-                if (AiParameter.SEED in supportedParams) {
-                    OutlinedTextField(
-                        value = seed,
-                        onValueChange = { seed = it },
-                        label = { Text("Seed") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        supportingText = { Text("For reproducible outputs") }
-                    )
-                }
-
-                // Response Format JSON
-                if (AiParameter.RESPONSE_FORMAT in supportedParams) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = responseFormatJson,
-                            onCheckedChange = { responseFormatJson = it }
-                        )
-                        Text("JSON Response Format")
-                    }
-                }
-
-                // Search Enabled (Grok)
-                if (AiParameter.SEARCH_ENABLED in supportedParams) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = searchEnabled,
-                            onCheckedChange = { searchEnabled = it }
-                        )
-                        Text("Enable Web Search")
-                    }
-                }
-
-                // Return Citations (Perplexity)
-                if (AiParameter.RETURN_CITATIONS in supportedParams) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = returnCitations,
-                            onCheckedChange = { returnCitations = it }
-                        )
-                        Text("Return Citations")
-                    }
-                }
-
-                // Search Recency (Perplexity)
-                if (AiParameter.SEARCH_RECENCY in supportedParams) {
-                    Text(
-                        text = "Search Recency",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFAAAAAA)
-                    )
-                    var recencyExpanded by remember { mutableStateOf(false) }
-                    val recencyOptions = listOf("" to "Default", "day" to "Day", "week" to "Week", "month" to "Month", "year" to "Year")
-                    Box {
-                        OutlinedButton(
-                            onClick = { recencyExpanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = recencyOptions.find { it.first == searchRecency }?.second ?: "Default",
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(if (recencyExpanded) "^" else "v")
-                        }
-                        DropdownMenu(
-                            expanded = recencyExpanded,
-                            onDismissRequest = { recencyExpanded = false }
-                        ) {
-                            recencyOptions.forEach { (value, label) ->
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        searchRecency = value
-                                        recencyExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
+                Button(
+                    onClick = { showParamsDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
                 }
             }
 
@@ -1100,23 +912,10 @@ internal fun AgentEditScreen(
                     saveError = null
                     isSaving = true
                     coroutineScope.launch {
-                        // Build parameters
-                        val params = AiAgentParameters(
-                            temperature = temperature.toFloatOrNull(),
-                            maxTokens = maxTokens.toIntOrNull(),
-                            topP = topP.toFloatOrNull(),
-                            topK = topK.toIntOrNull(),
-                            frequencyPenalty = frequencyPenalty.toFloatOrNull(),
-                            presencePenalty = presencePenalty.toFloatOrNull(),
-                            systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
-                            stopSequences = stopSequences.takeIf { it.isNotBlank() }
-                                ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
-                            seed = seed.toIntOrNull(),
-                            responseFormatJson = responseFormatJson,
-                            searchEnabled = searchEnabled,
-                            returnCitations = returnCitations,
-                            searchRecency = searchRecency.takeIf { it.isNotBlank() }
-                        )
+                        // Get parameters from selected preset or use empty parameters
+                        val params = selectedParamsId?.let { id ->
+                            aiSettings.getParamsById(id)?.toAgentParameters()
+                        } ?: AiAgentParameters()
                         val newAgent = AiAgent(
                             id = agent?.id ?: java.util.UUID.randomUUID().toString(),
                             name = name.trim(),
@@ -1153,6 +952,100 @@ internal fun AgentEditScreen(
                 }
             }
         }
+    }
+
+    // Parameters Selection Dialog
+    if (showParamsDialog) {
+        AlertDialog(
+            onDismissRequest = { showParamsDialog = false },
+            title = { Text("Select Parameters", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // None option (clears parameters)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedParamsId = null
+                                selectedParamsName = ""
+                                showParamsDialog = false
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selectedParamsId == null) Color(0xFF6366F1).copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("None", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text("No parameters preset", fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+
+                    // Available params presets
+                    if (aiSettings.params.isNotEmpty()) {
+                        Text(
+                            "Available Presets",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        aiSettings.params.sortedBy { it.name.lowercase() }.forEach { params ->
+                            val configuredCount = listOfNotNull(
+                                params.temperature,
+                                params.maxTokens,
+                                params.topP,
+                                params.topK,
+                                params.frequencyPenalty,
+                                params.presencePenalty,
+                                params.systemPrompt?.takeIf { it.isNotBlank() },
+                                params.seed
+                            ).size + listOf(
+                                params.responseFormatJson,
+                                params.searchEnabled,
+                                params.returnCitations
+                            ).count { it } + (if (params.searchRecency != null) 1 else 0)
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedParamsId = params.id
+                                        selectedParamsName = params.name
+                                        showParamsDialog = false
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selectedParamsId == params.id) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(params.name, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    Text("$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured", fontSize = 12.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            "No parameter presets configured.\nGo to AI Setup > Parameters to create presets.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showParamsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Endpoint Selection Dialog

@@ -318,6 +318,16 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
+        // Parameters card
+        val configuredParams = aiSettings.params.size
+        AiSetupNavigationCard(
+            title = "Parameters",
+            description = "Reusable parameter presets for agents",
+            icon = "🎛",
+            count = "$configuredParams configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PARAMS) }
+        )
+
     }
 }
 

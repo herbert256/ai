@@ -49,7 +49,10 @@ enum class SettingsSubScreen {
     AI_EDIT_FLOCK,  // Edit existing flock
     AI_PROMPTS,     // AI Prompts CRUD
     AI_ADD_PROMPT,  // Add new prompt
-    AI_EDIT_PROMPT  // Edit existing prompt
+    AI_EDIT_PROMPT, // Edit existing prompt
+    AI_PARAMS,      // AI Params CRUD
+    AI_ADD_PARAMS,  // Add new params
+    AI_EDIT_PARAMS  // Edit existing params
 }
 
 /**
@@ -127,6 +130,9 @@ fun SettingsScreen(
     // State for prompt editing
     var editingPromptId by remember { mutableStateOf<String?>(null) }
 
+    // State for params editing
+    var editingParamsId by remember { mutableStateOf<String?>(null) }
+
     // Helper to generate unique agent name
     fun generateUniqueAgentName(baseName: String): String {
         val existingNames = aiSettings.agents.map { it.name }.toSet()
@@ -176,11 +182,11 @@ fun SettingsScreen(
             }
             // AI Prompts goes back to AI_AI_SETTINGS
             SettingsSubScreen.AI_PROMPTS -> {
-                if (initialSubScreen == SettingsSubScreen.AI_AI_SETTINGS) {
-                    currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
-                } else {
-                    currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
-                }
+                currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
+            }
+            // AI Params goes back to AI_SETUP
+            SettingsSubScreen.AI_PARAMS -> {
+                currentSubScreen = SettingsSubScreen.AI_SETUP
             }
             // AI_SETUP goes back home if it was the initial screen, otherwise to MAIN
             SettingsSubScreen.AI_SETUP -> {
@@ -206,6 +212,9 @@ fun SettingsScreen(
             // Prompt screens go back to AI_PROMPTS
             SettingsSubScreen.AI_ADD_PROMPT,
             SettingsSubScreen.AI_EDIT_PROMPT -> currentSubScreen = SettingsSubScreen.AI_PROMPTS
+            // Params screens go back to AI_PARAMS
+            SettingsSubScreen.AI_ADD_PARAMS,
+            SettingsSubScreen.AI_EDIT_PARAMS -> currentSubScreen = SettingsSubScreen.AI_PARAMS
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -666,6 +675,46 @@ fun SettingsScreen(
                 onBack = {
                     editingPromptId = null
                     currentSubScreen = SettingsSubScreen.AI_PROMPTS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_PARAMS -> AiParamsListScreen(
+            aiSettings = aiSettings,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddParams = { currentSubScreen = SettingsSubScreen.AI_ADD_PARAMS },
+            onEditParams = { paramsId ->
+                editingParamsId = paramsId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_PARAMS
+            }
+        )
+        SettingsSubScreen.AI_ADD_PARAMS -> ParamsEditScreen(
+            params = null,
+            existingNames = aiSettings.params.map { it.name }.toSet(),
+            onSave = { newParams ->
+                val newParamsList = aiSettings.params + newParams
+                onSaveAi(aiSettings.copy(params = newParamsList))
+                currentSubScreen = SettingsSubScreen.AI_PARAMS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_PARAMS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_PARAMS -> {
+            val params = editingParamsId?.let { aiSettings.getParamsById(it) }
+            ParamsEditScreen(
+                params = params,
+                existingNames = aiSettings.params.filter { it.id != editingParamsId }.map { it.name }.toSet(),
+                onSave = { updatedParams ->
+                    val newParamsList = aiSettings.params.map { if (it.id == updatedParams.id) updatedParams else it }
+                    onSaveAi(aiSettings.copy(params = newParamsList))
+                    editingParamsId = null
+                    currentSubScreen = SettingsSubScreen.AI_PARAMS
+                },
+                onBack = {
+                    editingParamsId = null
+                    currentSubScreen = SettingsSubScreen.AI_PARAMS
                 },
                 onNavigateHome = onNavigateHome
             )

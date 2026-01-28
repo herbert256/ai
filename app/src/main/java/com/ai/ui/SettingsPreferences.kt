@@ -63,9 +63,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val agents = loadAgents()
         val swarms = loadSwarms()
         val flocks = loadFlocks()
+        val params = loadParams()
         val prompts = loadPrompts()
         val endpoints = loadEndpoints()
-        return baseSettings.copy(agents = agents, swarms = swarms, flocks = flocks, prompts = prompts, endpoints = endpoints)
+        return baseSettings.copy(agents = agents, swarms = swarms, flocks = flocks, params = params, prompts = prompts, endpoints = endpoints)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -268,6 +269,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             // Save flocks
             .putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
+            // Save params
+            .putString(KEY_AI_PARAMS, gson.toJson(settings.params))
             // Save prompts
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             // Save endpoints (convert to Map<String, List<AiEndpoint>> for storage)
@@ -329,6 +332,20 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val json = prefs.getString(KEY_AI_FLOCKS, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<AiFlock>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // ============================================================================
+    // AI Params
+    // ============================================================================
+
+    private fun loadParams(): List<AiParams> {
+        val json = prefs.getString(KEY_AI_PARAMS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<AiParams>>() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -527,6 +544,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // AI flocks
         private const val KEY_AI_FLOCKS = "ai_flocks"
+
+        // AI params (reusable parameter presets)
+        private const val KEY_AI_PARAMS = "ai_params"
 
         // AI prompts (internal app prompts)
         private const val KEY_AI_PROMPTS = "ai_prompts"

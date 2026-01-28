@@ -158,6 +158,47 @@ data class AiFlock(
 )
 
 /**
+ * AI Params - a named parameter preset that can be reused across agents or reports.
+ * All parameters default to null/off, meaning they won't override provider defaults.
+ */
+data class AiParams(
+    val id: String,                    // UUID
+    val name: String,                  // User-defined name
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val topK: Int? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val systemPrompt: String? = null,
+    val stopSequences: List<String>? = null,
+    val seed: Int? = null,
+    val responseFormatJson: Boolean = false,
+    val searchEnabled: Boolean = false,
+    val returnCitations: Boolean = false,
+    val searchRecency: String? = null  // "day", "week", "month", "year"
+) {
+    /**
+     * Convert to AiAgentParameters for use with agents.
+     */
+    fun toAgentParameters(): AiAgentParameters = AiAgentParameters(
+        temperature = temperature,
+        maxTokens = maxTokens,
+        topP = topP,
+        topK = topK,
+        frequencyPenalty = frequencyPenalty,
+        presencePenalty = presencePenalty,
+        systemPrompt = systemPrompt,
+        stopSequences = stopSequences,
+        seed = seed,
+        responseFormatJson = responseFormatJson,
+        searchEnabled = searchEnabled,
+        returnCitations = returnCitations,
+        searchRecency = searchRecency
+    )
+}
+
+/**
  * AI Prompt - internal prompts used by the app for AI-powered features.
  * Supports variable replacement: @MODEL@, @PROVIDER@, @AGENT@, @SWARM@, @NOW@
  */
@@ -274,6 +315,8 @@ data class AiSettings(
     val swarms: List<AiSwarm> = emptyList(),
     // AI Flocks
     val flocks: List<AiFlock> = emptyList(),
+    // AI Params (reusable parameter presets)
+    val params: List<AiParams> = emptyList(),
     // AI Prompts (internal app prompts)
     val prompts: List<AiPrompt> = emptyList(),
     // API Endpoints per provider (multiple endpoints allowed, one can be default)
@@ -432,6 +475,11 @@ data class AiSettings(
 
     // Helper methods for prompts
     fun getPromptByName(name: String): AiPrompt? = prompts.find { it.name.equals(name, ignoreCase = true) }
+
+    // Helper methods for params
+    fun getParamsById(id: String): AiParams? = params.find { it.id == id }
+
+    fun getParamsByName(name: String): AiParams? = params.find { it.name.equals(name, ignoreCase = true) }
 
     fun getPromptById(id: String): AiPrompt? = prompts.find { it.id == id }
 

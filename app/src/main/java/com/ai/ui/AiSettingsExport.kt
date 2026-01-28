@@ -109,6 +109,27 @@ data class PromptExport(
 )
 
 /**
+ * Data class for params (parameter presets) in JSON export/import (version 14+).
+ */
+data class ParamsExport(
+    val id: String,
+    val name: String,
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val topK: Int? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val systemPrompt: String? = null,
+    val stopSequences: List<String>? = null,
+    val seed: Int? = null,
+    val responseFormatJson: Boolean = false,
+    val searchEnabled: Boolean = false,
+    val returnCitations: Boolean = false,
+    val searchRecency: String? = null
+)
+
+/**
  * Data class for manual pricing override in JSON export/import (version 9+).
  * Key format: "PROVIDER:model" (e.g., "OPENAI:gpt-4o")
  */
@@ -140,13 +161,15 @@ data class ProviderEndpointsExport(
  * Data class for the complete AI configuration export.
  * Version 11: Complete provider settings including defaultModel, adminUrl, modelListUrl,
  *             endpoints, agents with parameters, swarms, AI prompts, manual pricing.
+ * Version 14: Added params (reusable parameter presets).
  */
 data class AiConfigExport(
-    val version: Int = 13,
+    val version: Int = 14,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
     val flocks: List<FlockExport>? = null,  // Version 13+
+    val params: List<ParamsExport>? = null,  // Version 14+
     val huggingFaceApiKey: String? = null,  // Version 7+
     val aiPrompts: List<PromptExport>? = null,  // Version 8+
     val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
@@ -255,6 +278,27 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         )
     }
 
+    // Convert params (parameter presets)
+    val params = aiSettings.params.map { param ->
+        ParamsExport(
+            id = param.id,
+            name = param.name,
+            temperature = param.temperature,
+            maxTokens = param.maxTokens,
+            topP = param.topP,
+            topK = param.topK,
+            frequencyPenalty = param.frequencyPenalty,
+            presencePenalty = param.presencePenalty,
+            systemPrompt = param.systemPrompt,
+            stopSequences = param.stopSequences,
+            seed = param.seed,
+            responseFormatJson = param.responseFormatJson,
+            searchEnabled = param.searchEnabled,
+            returnCitations = param.returnCitations,
+            searchRecency = param.searchRecency
+        )
+    }
+
     // Convert manual pricing overrides
     val manualPricingMap = com.ai.data.PricingCache.getAllManualPricing(context)
     val manualPricing = manualPricingMap.map { (key, pricing) ->
@@ -287,6 +331,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         agents = agents,
         swarms = swarms,
         flocks = flocks.ifEmpty { null },
+        params = params.ifEmpty { null },
         huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
         aiPrompts = aiPrompts.ifEmpty { null },
         manualPricing = manualPricing.ifEmpty { null },
@@ -465,11 +510,33 @@ private fun processImportedConfig(
         )
     } ?: emptyList()
 
+    // Import params (parameter presets)
+    val params = export.params?.map { paramsExport ->
+        AiParams(
+            id = paramsExport.id,
+            name = paramsExport.name,
+            temperature = paramsExport.temperature,
+            maxTokens = paramsExport.maxTokens,
+            topP = paramsExport.topP,
+            topK = paramsExport.topK,
+            frequencyPenalty = paramsExport.frequencyPenalty,
+            presencePenalty = paramsExport.presencePenalty,
+            systemPrompt = paramsExport.systemPrompt,
+            stopSequences = paramsExport.stopSequences,
+            seed = paramsExport.seed,
+            responseFormatJson = paramsExport.responseFormatJson,
+            searchEnabled = paramsExport.searchEnabled,
+            returnCitations = paramsExport.returnCitations,
+            searchRecency = paramsExport.searchRecency
+        )
+    } ?: emptyList()
+
     // Import provider settings
     var settings = currentSettings.copy(
         agents = agents,
         swarms = swarms,
         flocks = flocks,
+        params = params,
         prompts = aiPrompts
     )
 
@@ -662,7 +729,7 @@ private fun processImportedConfig(
 
 /**
  * Import AI configuration from clipboard JSON.
- * Only supports version 11.
+ * Supports versions 11-14.
  */
 fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiConfigImportResult? {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -683,8 +750,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in listOf(11, 12)) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11 or 12.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..14) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-14.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -700,7 +767,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Supports version 11 and 12.
+ * Supports versions 11-14.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
     return try {
@@ -722,8 +789,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in listOf(11, 12)) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11 or 12.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..14) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-14.", Toast.LENGTH_LONG).show()
             return null
         }
 
