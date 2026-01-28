@@ -21,11 +21,15 @@ import java.io.InputStreamReader
 
 /**
  * Data class for provider settings in JSON export/import.
+ * Version 11: Added defaultModel, adminUrl, modelListUrl.
  */
 data class ProviderConfigExport(
     val modelSource: String,  // "API" or "MANUAL"
     val manualModels: List<String>,
-    val apiKey: String = ""   // API key for the provider
+    val apiKey: String = "",   // API key for the provider
+    val defaultModel: String? = null,  // Version 11+
+    val adminUrl: String? = null,       // Version 11+
+    val modelListUrl: String? = null    // Version 11+
 )
 
 /**
@@ -117,15 +121,11 @@ data class ProviderEndpointsExport(
 
 /**
  * Data class for the complete AI configuration export.
- * Version 10: Added configurable endpoints per provider.
- * Version 9: Added manual pricing overrides.
- * Version 8: Added AI prompts (internal app prompts).
- * Version 7: Added huggingFaceApiKey.
- * Version 6: Providers, agents with parameters, and swarms.
- * Also supports importing version 3/4/5 (legacy formats - prompts ignored, parameters/swarms default).
+ * Version 11: Complete provider settings including defaultModel, adminUrl, modelListUrl,
+ *             endpoints, agents with parameters, swarms, AI prompts, manual pricing.
  */
 data class AiConfigExport(
-    val version: Int = 10,
+    val version: Int = 11,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
@@ -158,21 +158,21 @@ data class AiConfigImportResult(
  * Exports providers (model config), agents, swarms, and huggingFaceApiKey.
  */
 fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "") {
-    // Build providers map (model source, manual models, and API key per provider)
+    // Build providers map (model source, manual models, API key, default model, admin URL, model list URL per provider)
     val providers = mapOf(
-        "OPENAI" to ProviderConfigExport(aiSettings.chatGptModelSource.name, aiSettings.chatGptManualModels, aiSettings.chatGptApiKey),
-        "ANTHROPIC" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.claudeManualModels, aiSettings.claudeApiKey),
-        "GOOGLE" to ProviderConfigExport(aiSettings.geminiModelSource.name, aiSettings.geminiManualModels, aiSettings.geminiApiKey),
-        "XAI" to ProviderConfigExport(aiSettings.grokModelSource.name, aiSettings.grokManualModels, aiSettings.grokApiKey),
-        "GROQ" to ProviderConfigExport(aiSettings.groqModelSource.name, aiSettings.groqManualModels, aiSettings.groqApiKey),
-        "DEEPSEEK" to ProviderConfigExport(aiSettings.deepSeekModelSource.name, aiSettings.deepSeekManualModels, aiSettings.deepSeekApiKey),
-        "MISTRAL" to ProviderConfigExport(aiSettings.mistralModelSource.name, aiSettings.mistralManualModels, aiSettings.mistralApiKey),
-        "PERPLEXITY" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.perplexityManualModels, aiSettings.perplexityApiKey),
-        "TOGETHER" to ProviderConfigExport(aiSettings.togetherModelSource.name, aiSettings.togetherManualModels, aiSettings.togetherApiKey),
-        "OPENROUTER" to ProviderConfigExport(aiSettings.openRouterModelSource.name, aiSettings.openRouterManualModels, aiSettings.openRouterApiKey),
-        "SILICONFLOW" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowApiKey),
-        "ZAI" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.zaiManualModels, aiSettings.zaiApiKey),
-        "DUMMY" to ProviderConfigExport(ModelSource.MANUAL.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey)
+        "OPENAI" to ProviderConfigExport(aiSettings.chatGptModelSource.name, aiSettings.chatGptManualModels, aiSettings.chatGptApiKey, aiSettings.chatGptModel, aiSettings.chatGptAdminUrl, aiSettings.chatGptModelListUrl.ifBlank { null }),
+        "ANTHROPIC" to ProviderConfigExport(aiSettings.claudeModelSource.name, aiSettings.claudeManualModels, aiSettings.claudeApiKey, aiSettings.claudeModel, aiSettings.claudeAdminUrl, aiSettings.claudeModelListUrl.ifBlank { null }),
+        "GOOGLE" to ProviderConfigExport(aiSettings.geminiModelSource.name, aiSettings.geminiManualModels, aiSettings.geminiApiKey, aiSettings.geminiModel, aiSettings.geminiAdminUrl, aiSettings.geminiModelListUrl.ifBlank { null }),
+        "XAI" to ProviderConfigExport(aiSettings.grokModelSource.name, aiSettings.grokManualModels, aiSettings.grokApiKey, aiSettings.grokModel, aiSettings.grokAdminUrl, aiSettings.grokModelListUrl.ifBlank { null }),
+        "GROQ" to ProviderConfigExport(aiSettings.groqModelSource.name, aiSettings.groqManualModels, aiSettings.groqApiKey, aiSettings.groqModel, aiSettings.groqAdminUrl, aiSettings.groqModelListUrl.ifBlank { null }),
+        "DEEPSEEK" to ProviderConfigExport(aiSettings.deepSeekModelSource.name, aiSettings.deepSeekManualModels, aiSettings.deepSeekApiKey, aiSettings.deepSeekModel, aiSettings.deepSeekAdminUrl, aiSettings.deepSeekModelListUrl.ifBlank { null }),
+        "MISTRAL" to ProviderConfigExport(aiSettings.mistralModelSource.name, aiSettings.mistralManualModels, aiSettings.mistralApiKey, aiSettings.mistralModel, aiSettings.mistralAdminUrl, aiSettings.mistralModelListUrl.ifBlank { null }),
+        "PERPLEXITY" to ProviderConfigExport(aiSettings.perplexityModelSource.name, aiSettings.perplexityManualModels, aiSettings.perplexityApiKey, aiSettings.perplexityModel, aiSettings.perplexityAdminUrl, aiSettings.perplexityModelListUrl.ifBlank { null }),
+        "TOGETHER" to ProviderConfigExport(aiSettings.togetherModelSource.name, aiSettings.togetherManualModels, aiSettings.togetherApiKey, aiSettings.togetherModel, aiSettings.togetherAdminUrl, aiSettings.togetherModelListUrl.ifBlank { null }),
+        "OPENROUTER" to ProviderConfigExport(aiSettings.openRouterModelSource.name, aiSettings.openRouterManualModels, aiSettings.openRouterApiKey, aiSettings.openRouterModel, aiSettings.openRouterAdminUrl, aiSettings.openRouterModelListUrl.ifBlank { null }),
+        "SILICONFLOW" to ProviderConfigExport(aiSettings.siliconFlowModelSource.name, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowApiKey, aiSettings.siliconFlowModel, aiSettings.siliconFlowAdminUrl, aiSettings.siliconFlowModelListUrl.ifBlank { null }),
+        "ZAI" to ProviderConfigExport(aiSettings.zaiModelSource.name, aiSettings.zaiManualModels, aiSettings.zaiApiKey, aiSettings.zaiModel, aiSettings.zaiAdminUrl, aiSettings.zaiModelListUrl.ifBlank { null }),
+        "DUMMY" to ProviderConfigExport(aiSettings.dummyModelSource.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey, aiSettings.dummyModel, aiSettings.dummyAdminUrl, aiSettings.dummyModelListUrl.ifBlank { null })
     )
 
     // Convert agents with parameters (handle null parameters for legacy agents)
@@ -350,8 +350,7 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
 
 /**
  * Import AI configuration from clipboard JSON.
- * Supports version 3-10.
- * Prompts from version 3 are ignored.
+ * Only supports version 11.
  */
 fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiConfigImportResult? {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -372,8 +371,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..10) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-10.", Toast.LENGTH_LONG).show()
+        if (export.version != 11) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -439,91 +438,135 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             prompts = aiPrompts
         )
 
-        // Update provider model sources, manual models, and API keys
+        // Update provider model sources, manual models, API keys, default model, admin URL, model list URL
         export.providers["OPENAI"]?.let { p ->
             settings = settings.copy(
                 chatGptModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 chatGptManualModels = p.manualModels,
-                chatGptApiKey = p.apiKey
+                chatGptApiKey = p.apiKey,
+                chatGptModel = p.defaultModel ?: settings.chatGptModel,
+                chatGptAdminUrl = p.adminUrl ?: settings.chatGptAdminUrl,
+                chatGptModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["ANTHROPIC"]?.let { p ->
             settings = settings.copy(
+                claudeModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 claudeManualModels = p.manualModels,
-                claudeApiKey = p.apiKey
+                claudeApiKey = p.apiKey,
+                claudeModel = p.defaultModel ?: settings.claudeModel,
+                claudeAdminUrl = p.adminUrl ?: settings.claudeAdminUrl,
+                claudeModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["GOOGLE"]?.let { p ->
             settings = settings.copy(
                 geminiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 geminiManualModels = p.manualModels,
-                geminiApiKey = p.apiKey
+                geminiApiKey = p.apiKey,
+                geminiModel = p.defaultModel ?: settings.geminiModel,
+                geminiAdminUrl = p.adminUrl ?: settings.geminiAdminUrl,
+                geminiModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["XAI"]?.let { p ->
             settings = settings.copy(
                 grokModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 grokManualModels = p.manualModels,
-                grokApiKey = p.apiKey
+                grokApiKey = p.apiKey,
+                grokModel = p.defaultModel ?: settings.grokModel,
+                grokAdminUrl = p.adminUrl ?: settings.grokAdminUrl,
+                grokModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["GROQ"]?.let { p ->
             settings = settings.copy(
                 groqModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 groqManualModels = p.manualModels,
-                groqApiKey = p.apiKey
+                groqApiKey = p.apiKey,
+                groqModel = p.defaultModel ?: settings.groqModel,
+                groqAdminUrl = p.adminUrl ?: settings.groqAdminUrl,
+                groqModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["DEEPSEEK"]?.let { p ->
             settings = settings.copy(
                 deepSeekModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 deepSeekManualModels = p.manualModels,
-                deepSeekApiKey = p.apiKey
+                deepSeekApiKey = p.apiKey,
+                deepSeekModel = p.defaultModel ?: settings.deepSeekModel,
+                deepSeekAdminUrl = p.adminUrl ?: settings.deepSeekAdminUrl,
+                deepSeekModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["MISTRAL"]?.let { p ->
             settings = settings.copy(
                 mistralModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 mistralManualModels = p.manualModels,
-                mistralApiKey = p.apiKey
+                mistralApiKey = p.apiKey,
+                mistralModel = p.defaultModel ?: settings.mistralModel,
+                mistralAdminUrl = p.adminUrl ?: settings.mistralAdminUrl,
+                mistralModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["PERPLEXITY"]?.let { p ->
             settings = settings.copy(
+                perplexityModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 perplexityManualModels = p.manualModels,
-                perplexityApiKey = p.apiKey
+                perplexityApiKey = p.apiKey,
+                perplexityModel = p.defaultModel ?: settings.perplexityModel,
+                perplexityAdminUrl = p.adminUrl ?: settings.perplexityAdminUrl,
+                perplexityModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["TOGETHER"]?.let { p ->
             settings = settings.copy(
                 togetherModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 togetherManualModels = p.manualModels,
-                togetherApiKey = p.apiKey
+                togetherApiKey = p.apiKey,
+                togetherModel = p.defaultModel ?: settings.togetherModel,
+                togetherAdminUrl = p.adminUrl ?: settings.togetherAdminUrl,
+                togetherModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["OPENROUTER"]?.let { p ->
             settings = settings.copy(
                 openRouterModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 openRouterManualModels = p.manualModels,
-                openRouterApiKey = p.apiKey
+                openRouterApiKey = p.apiKey,
+                openRouterModel = p.defaultModel ?: settings.openRouterModel,
+                openRouterAdminUrl = p.adminUrl ?: settings.openRouterAdminUrl,
+                openRouterModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["SILICONFLOW"]?.let { p ->
             settings = settings.copy(
+                siliconFlowModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 siliconFlowManualModels = p.manualModels,
-                siliconFlowApiKey = p.apiKey
+                siliconFlowApiKey = p.apiKey,
+                siliconFlowModel = p.defaultModel ?: settings.siliconFlowModel,
+                siliconFlowAdminUrl = p.adminUrl ?: settings.siliconFlowAdminUrl,
+                siliconFlowModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["ZAI"]?.let { p ->
             settings = settings.copy(
+                zaiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 zaiManualModels = p.manualModels,
-                zaiApiKey = p.apiKey
+                zaiApiKey = p.apiKey,
+                zaiModel = p.defaultModel ?: settings.zaiModel,
+                zaiAdminUrl = p.adminUrl ?: settings.zaiAdminUrl,
+                zaiModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["DUMMY"]?.let { p ->
             settings = settings.copy(
+                dummyModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 dummyManualModels = p.manualModels,
-                dummyApiKey = p.apiKey
+                dummyApiKey = p.apiKey,
+                dummyModel = p.defaultModel ?: settings.dummyModel,
+                dummyAdminUrl = p.adminUrl ?: settings.dummyAdminUrl,
+                dummyModelListUrl = p.modelListUrl ?: ""
             )
         }
 
@@ -580,8 +623,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Supports version 3-10.
- * Prompts from version 3 are ignored.
+ * Only supports version 11.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
     return try {
@@ -603,8 +645,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..10) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-10.", Toast.LENGTH_LONG).show()
+        if (export.version != 11) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -670,91 +712,135 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             prompts = aiPrompts
         )
 
-        // Update provider model sources, manual models, and API keys
+        // Update provider model sources, manual models, API keys, default model, admin URL, model list URL
         export.providers["OPENAI"]?.let { p ->
             settings = settings.copy(
                 chatGptModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 chatGptManualModels = p.manualModels,
-                chatGptApiKey = p.apiKey
+                chatGptApiKey = p.apiKey,
+                chatGptModel = p.defaultModel ?: settings.chatGptModel,
+                chatGptAdminUrl = p.adminUrl ?: settings.chatGptAdminUrl,
+                chatGptModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["ANTHROPIC"]?.let { p ->
             settings = settings.copy(
+                claudeModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 claudeManualModels = p.manualModels,
-                claudeApiKey = p.apiKey
+                claudeApiKey = p.apiKey,
+                claudeModel = p.defaultModel ?: settings.claudeModel,
+                claudeAdminUrl = p.adminUrl ?: settings.claudeAdminUrl,
+                claudeModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["GOOGLE"]?.let { p ->
             settings = settings.copy(
                 geminiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 geminiManualModels = p.manualModels,
-                geminiApiKey = p.apiKey
+                geminiApiKey = p.apiKey,
+                geminiModel = p.defaultModel ?: settings.geminiModel,
+                geminiAdminUrl = p.adminUrl ?: settings.geminiAdminUrl,
+                geminiModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["XAI"]?.let { p ->
             settings = settings.copy(
                 grokModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 grokManualModels = p.manualModels,
-                grokApiKey = p.apiKey
+                grokApiKey = p.apiKey,
+                grokModel = p.defaultModel ?: settings.grokModel,
+                grokAdminUrl = p.adminUrl ?: settings.grokAdminUrl,
+                grokModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["GROQ"]?.let { p ->
             settings = settings.copy(
                 groqModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 groqManualModels = p.manualModels,
-                groqApiKey = p.apiKey
+                groqApiKey = p.apiKey,
+                groqModel = p.defaultModel ?: settings.groqModel,
+                groqAdminUrl = p.adminUrl ?: settings.groqAdminUrl,
+                groqModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["DEEPSEEK"]?.let { p ->
             settings = settings.copy(
                 deepSeekModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 deepSeekManualModels = p.manualModels,
-                deepSeekApiKey = p.apiKey
+                deepSeekApiKey = p.apiKey,
+                deepSeekModel = p.defaultModel ?: settings.deepSeekModel,
+                deepSeekAdminUrl = p.adminUrl ?: settings.deepSeekAdminUrl,
+                deepSeekModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["MISTRAL"]?.let { p ->
             settings = settings.copy(
                 mistralModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 mistralManualModels = p.manualModels,
-                mistralApiKey = p.apiKey
+                mistralApiKey = p.apiKey,
+                mistralModel = p.defaultModel ?: settings.mistralModel,
+                mistralAdminUrl = p.adminUrl ?: settings.mistralAdminUrl,
+                mistralModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["PERPLEXITY"]?.let { p ->
             settings = settings.copy(
+                perplexityModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 perplexityManualModels = p.manualModels,
-                perplexityApiKey = p.apiKey
+                perplexityApiKey = p.apiKey,
+                perplexityModel = p.defaultModel ?: settings.perplexityModel,
+                perplexityAdminUrl = p.adminUrl ?: settings.perplexityAdminUrl,
+                perplexityModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["TOGETHER"]?.let { p ->
             settings = settings.copy(
                 togetherModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 togetherManualModels = p.manualModels,
-                togetherApiKey = p.apiKey
+                togetherApiKey = p.apiKey,
+                togetherModel = p.defaultModel ?: settings.togetherModel,
+                togetherAdminUrl = p.adminUrl ?: settings.togetherAdminUrl,
+                togetherModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["OPENROUTER"]?.let { p ->
             settings = settings.copy(
                 openRouterModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
                 openRouterManualModels = p.manualModels,
-                openRouterApiKey = p.apiKey
+                openRouterApiKey = p.apiKey,
+                openRouterModel = p.defaultModel ?: settings.openRouterModel,
+                openRouterAdminUrl = p.adminUrl ?: settings.openRouterAdminUrl,
+                openRouterModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["SILICONFLOW"]?.let { p ->
             settings = settings.copy(
+                siliconFlowModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 siliconFlowManualModels = p.manualModels,
-                siliconFlowApiKey = p.apiKey
+                siliconFlowApiKey = p.apiKey,
+                siliconFlowModel = p.defaultModel ?: settings.siliconFlowModel,
+                siliconFlowAdminUrl = p.adminUrl ?: settings.siliconFlowAdminUrl,
+                siliconFlowModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["ZAI"]?.let { p ->
             settings = settings.copy(
+                zaiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 zaiManualModels = p.manualModels,
-                zaiApiKey = p.apiKey
+                zaiApiKey = p.apiKey,
+                zaiModel = p.defaultModel ?: settings.zaiModel,
+                zaiAdminUrl = p.adminUrl ?: settings.zaiAdminUrl,
+                zaiModelListUrl = p.modelListUrl ?: ""
             )
         }
         export.providers["DUMMY"]?.let { p ->
             settings = settings.copy(
+                dummyModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
                 dummyManualModels = p.manualModels,
-                dummyApiKey = p.apiKey
+                dummyApiKey = p.apiKey,
+                dummyModel = p.defaultModel ?: settings.dummyModel,
+                dummyAdminUrl = p.adminUrl ?: settings.dummyAdminUrl,
+                dummyModelListUrl = p.modelListUrl ?: ""
             )
         }
 
@@ -840,7 +926,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 3-8).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 11).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
