@@ -34,6 +34,8 @@ fun ChatGptSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.chatGptManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.chatGptAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.chatGptModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.chatGptParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.chatGptParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     // Default OpenAI endpoints - Chat Completions for gpt-4o etc, Responses for gpt-5.x/o3/o4
     val defaultOpenAiEndpoints = listOf(
@@ -66,6 +68,7 @@ fun ChatGptSettingsScreen(
             manualModels != aiSettings.chatGptManualModels ||
             adminUrl != aiSettings.chatGptAdminUrl ||
             modelListUrl != aiSettings.chatGptModelListUrl ||
+            selectedParamsId != aiSettings.chatGptParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.OPENAI)
 
     // Auto-refresh model list on page load
@@ -87,7 +90,8 @@ fun ChatGptSettingsScreen(
                 chatGptModelSource = modelSource,
                 chatGptManualModels = manualModels,
                 chatGptAdminUrl = adminUrl,
-                chatGptModelListUrl = modelListUrl
+                chatGptModelListUrl = modelListUrl,
+                chatGptParamsId = selectedParamsId
             ).withEndpoints(AiService.OPENAI, endpoints))
         },
         hasChanges = hasChanges,
@@ -105,6 +109,15 @@ fun ChatGptSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -147,6 +160,8 @@ fun ClaudeSettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.claudeAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.claudeModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.ANTHROPIC)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.claudeParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.claudeParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
@@ -156,6 +171,7 @@ fun ClaudeSettingsScreen(
             manualModels != aiSettings.claudeManualModels ||
             adminUrl != aiSettings.claudeAdminUrl ||
             modelListUrl != aiSettings.claudeModelListUrl ||
+            selectedParamsId != aiSettings.claudeParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.ANTHROPIC)
 
     AiServiceSettingsScreenTemplate(
@@ -170,7 +186,8 @@ fun ClaudeSettingsScreen(
                 claudeModelSource = modelSource,
                 claudeManualModels = manualModels,
                 claudeAdminUrl = adminUrl,
-                claudeModelListUrl = modelListUrl
+                claudeModelListUrl = modelListUrl,
+                claudeParamsId = selectedParamsId
             ).withEndpoints(AiService.ANTHROPIC, endpoints))
         },
         hasChanges = hasChanges,
@@ -188,6 +205,15 @@ fun ClaudeSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -233,6 +259,8 @@ fun GeminiSettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.geminiAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.geminiModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.GOOGLE)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.geminiParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.geminiParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -242,6 +270,7 @@ fun GeminiSettingsScreen(
             manualModels != aiSettings.geminiManualModels ||
             adminUrl != aiSettings.geminiAdminUrl ||
             modelListUrl != aiSettings.geminiModelListUrl ||
+            selectedParamsId != aiSettings.geminiParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.GOOGLE)
 
     // Auto-refresh model list on page load
@@ -263,7 +292,8 @@ fun GeminiSettingsScreen(
                 geminiModelSource = modelSource,
                 geminiManualModels = manualModels,
                 geminiAdminUrl = adminUrl,
-                geminiModelListUrl = modelListUrl
+                geminiModelListUrl = modelListUrl,
+                geminiParamsId = selectedParamsId
             ).withEndpoints(AiService.GOOGLE, endpoints))
         },
         hasChanges = hasChanges,
@@ -281,6 +311,15 @@ fun GeminiSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -326,6 +365,8 @@ fun GrokSettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.grokAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.grokModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.XAI)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.grokParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.grokParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -335,6 +376,7 @@ fun GrokSettingsScreen(
             manualModels != aiSettings.grokManualModels ||
             adminUrl != aiSettings.grokAdminUrl ||
             modelListUrl != aiSettings.grokModelListUrl ||
+            selectedParamsId != aiSettings.grokParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.XAI)
 
     // Auto-refresh model list on page load
@@ -356,7 +398,8 @@ fun GrokSettingsScreen(
                 grokModelSource = modelSource,
                 grokManualModels = manualModels,
                 grokAdminUrl = adminUrl,
-                grokModelListUrl = modelListUrl
+                grokModelListUrl = modelListUrl,
+                grokParamsId = selectedParamsId
             ).withEndpoints(AiService.XAI, endpoints))
         },
         hasChanges = hasChanges,
@@ -374,6 +417,15 @@ fun GrokSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -419,6 +471,8 @@ fun GroqSettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.groqAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.groqModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.GROQ)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.groqParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.groqParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -428,6 +482,7 @@ fun GroqSettingsScreen(
             manualModels != aiSettings.groqManualModels ||
             adminUrl != aiSettings.groqAdminUrl ||
             modelListUrl != aiSettings.groqModelListUrl ||
+            selectedParamsId != aiSettings.groqParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.GROQ)
 
     // Auto-refresh model list on page load
@@ -449,7 +504,8 @@ fun GroqSettingsScreen(
                 groqModelSource = modelSource,
                 groqManualModels = manualModels,
                 groqAdminUrl = adminUrl,
-                groqModelListUrl = modelListUrl
+                groqModelListUrl = modelListUrl,
+                groqParamsId = selectedParamsId
             ).withEndpoints(AiService.GROQ, endpoints))
         },
         hasChanges = hasChanges,
@@ -467,6 +523,15 @@ fun GroqSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -511,6 +576,8 @@ fun DeepSeekSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.deepSeekManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.deepSeekAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.deepSeekModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.deepSeekParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.deepSeekParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     // Default DeepSeek endpoints - Standard chat and Beta (FIM/prefix completion)
     val defaultDeepSeekEndpoints = listOf(
@@ -541,6 +608,7 @@ fun DeepSeekSettingsScreen(
             manualModels != aiSettings.deepSeekManualModels ||
             adminUrl != aiSettings.deepSeekAdminUrl ||
             modelListUrl != aiSettings.deepSeekModelListUrl ||
+            selectedParamsId != aiSettings.deepSeekParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.DEEPSEEK)
 
     // Auto-refresh model list on page load
@@ -562,7 +630,8 @@ fun DeepSeekSettingsScreen(
                 deepSeekModelSource = modelSource,
                 deepSeekManualModels = manualModels,
                 deepSeekAdminUrl = adminUrl,
-                deepSeekModelListUrl = modelListUrl
+                deepSeekModelListUrl = modelListUrl,
+                deepSeekParamsId = selectedParamsId
             ).withEndpoints(AiService.DEEPSEEK, endpoints))
         },
         hasChanges = hasChanges,
@@ -580,6 +649,15 @@ fun DeepSeekSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -624,6 +702,8 @@ fun MistralSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.mistralManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.mistralAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.mistralModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.mistralParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.mistralParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     // Default Mistral endpoints - Standard chat and Codestral for code generation
     val defaultMistralEndpoints = listOf(
@@ -654,6 +734,7 @@ fun MistralSettingsScreen(
             manualModels != aiSettings.mistralManualModels ||
             adminUrl != aiSettings.mistralAdminUrl ||
             modelListUrl != aiSettings.mistralModelListUrl ||
+            selectedParamsId != aiSettings.mistralParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.MISTRAL)
 
     // Auto-refresh model list on page load
@@ -675,7 +756,8 @@ fun MistralSettingsScreen(
                 mistralModelSource = modelSource,
                 mistralManualModels = manualModels,
                 mistralAdminUrl = adminUrl,
-                mistralModelListUrl = modelListUrl
+                mistralModelListUrl = modelListUrl,
+                mistralParamsId = selectedParamsId
             ).withEndpoints(AiService.MISTRAL, endpoints))
         },
         hasChanges = hasChanges,
@@ -693,6 +775,15 @@ fun MistralSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -735,6 +826,8 @@ fun PerplexitySettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.perplexityAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.perplexityModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.PERPLEXITY)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.perplexityParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.perplexityParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
@@ -744,6 +837,7 @@ fun PerplexitySettingsScreen(
             manualModels != aiSettings.perplexityManualModels ||
             adminUrl != aiSettings.perplexityAdminUrl ||
             modelListUrl != aiSettings.perplexityModelListUrl ||
+            selectedParamsId != aiSettings.perplexityParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.PERPLEXITY)
 
     AiServiceSettingsScreenTemplate(
@@ -758,7 +852,8 @@ fun PerplexitySettingsScreen(
                 perplexityModelSource = modelSource,
                 perplexityManualModels = manualModels,
                 perplexityAdminUrl = adminUrl,
-                perplexityModelListUrl = modelListUrl
+                perplexityModelListUrl = modelListUrl,
+                perplexityParamsId = selectedParamsId
             ).withEndpoints(AiService.PERPLEXITY, endpoints))
         },
         hasChanges = hasChanges,
@@ -776,6 +871,15 @@ fun PerplexitySettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -821,6 +925,8 @@ fun TogetherSettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.togetherAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.togetherModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.TOGETHER)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.togetherParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.togetherParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -830,6 +936,7 @@ fun TogetherSettingsScreen(
             manualModels != aiSettings.togetherManualModels ||
             adminUrl != aiSettings.togetherAdminUrl ||
             modelListUrl != aiSettings.togetherModelListUrl ||
+            selectedParamsId != aiSettings.togetherParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.TOGETHER)
 
     // Auto-refresh model list on page load
@@ -851,7 +958,8 @@ fun TogetherSettingsScreen(
                 togetherModelSource = modelSource,
                 togetherManualModels = manualModels,
                 togetherAdminUrl = adminUrl,
-                togetherModelListUrl = modelListUrl
+                togetherModelListUrl = modelListUrl,
+                togetherParamsId = selectedParamsId
             ).withEndpoints(AiService.TOGETHER, endpoints))
         },
         hasChanges = hasChanges,
@@ -869,6 +977,15 @@ fun TogetherSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -914,6 +1031,8 @@ fun OpenRouterSettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.openRouterAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.openRouterModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.OPENROUTER)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.openRouterParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.openRouterParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -923,6 +1042,7 @@ fun OpenRouterSettingsScreen(
             manualModels != aiSettings.openRouterManualModels ||
             adminUrl != aiSettings.openRouterAdminUrl ||
             modelListUrl != aiSettings.openRouterModelListUrl ||
+            selectedParamsId != aiSettings.openRouterParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.OPENROUTER)
 
     // Auto-refresh model list on page load
@@ -944,7 +1064,8 @@ fun OpenRouterSettingsScreen(
                 openRouterModelSource = modelSource,
                 openRouterManualModels = manualModels,
                 openRouterAdminUrl = adminUrl,
-                openRouterModelListUrl = modelListUrl
+                openRouterModelListUrl = modelListUrl,
+                openRouterParamsId = selectedParamsId
             ).withEndpoints(AiService.OPENROUTER, endpoints))
         },
         hasChanges = hasChanges,
@@ -962,6 +1083,15 @@ fun OpenRouterSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -1003,6 +1133,8 @@ fun SiliconFlowSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.siliconFlowManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.siliconFlowAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.siliconFlowModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.siliconFlowParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.siliconFlowParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     // Default SiliconFlow endpoints - Chat Completions (OpenAI) and Messages (Anthropic)
     val defaultSiliconFlowEndpoints = listOf(
@@ -1033,6 +1165,7 @@ fun SiliconFlowSettingsScreen(
             manualModels != aiSettings.siliconFlowManualModels ||
             adminUrl != aiSettings.siliconFlowAdminUrl ||
             modelListUrl != aiSettings.siliconFlowModelListUrl ||
+            selectedParamsId != aiSettings.siliconFlowParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.SILICONFLOW)
 
     AiServiceSettingsScreenTemplate(
@@ -1047,7 +1180,8 @@ fun SiliconFlowSettingsScreen(
                 siliconFlowModelSource = modelSource,
                 siliconFlowManualModels = manualModels,
                 siliconFlowAdminUrl = adminUrl,
-                siliconFlowModelListUrl = modelListUrl
+                siliconFlowModelListUrl = modelListUrl,
+                siliconFlowParamsId = selectedParamsId
             ).withEndpoints(AiService.SILICONFLOW, endpoints))
         },
         hasChanges = hasChanges,
@@ -1065,6 +1199,15 @@ fun SiliconFlowSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -1106,6 +1249,8 @@ fun ZaiSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.zaiManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.zaiAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.zaiModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.zaiParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.zaiParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     // Default Z.AI endpoints - General chat and Coding-specific
     val defaultZaiEndpoints = listOf(
@@ -1136,6 +1281,7 @@ fun ZaiSettingsScreen(
             manualModels != aiSettings.zaiManualModels ||
             adminUrl != aiSettings.zaiAdminUrl ||
             modelListUrl != aiSettings.zaiModelListUrl ||
+            selectedParamsId != aiSettings.zaiParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.ZAI)
 
     AiServiceSettingsScreenTemplate(
@@ -1150,7 +1296,8 @@ fun ZaiSettingsScreen(
                 zaiModelSource = modelSource,
                 zaiManualModels = manualModels,
                 zaiAdminUrl = adminUrl,
-                zaiModelListUrl = modelListUrl
+                zaiModelListUrl = modelListUrl,
+                zaiParamsId = selectedParamsId
             ).withEndpoints(AiService.ZAI, endpoints))
         },
         hasChanges = hasChanges,
@@ -1168,6 +1315,15 @@ fun ZaiSettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.ZAI, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,
@@ -1213,6 +1369,8 @@ fun DummySettingsScreen(
     var adminUrl by remember { mutableStateOf(aiSettings.dummyAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.dummyModelListUrl) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.DUMMY)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.dummyParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.dummyParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
@@ -1222,6 +1380,7 @@ fun DummySettingsScreen(
             manualModels != aiSettings.dummyManualModels ||
             adminUrl != aiSettings.dummyAdminUrl ||
             modelListUrl != aiSettings.dummyModelListUrl ||
+            selectedParamsId != aiSettings.dummyParamsId ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.DUMMY)
 
     // Auto-refresh model list on page load
@@ -1243,7 +1402,8 @@ fun DummySettingsScreen(
                 dummyModelSource = modelSource,
                 dummyManualModels = manualModels,
                 dummyAdminUrl = adminUrl,
-                dummyModelListUrl = modelListUrl
+                dummyModelListUrl = modelListUrl,
+                dummyParamsId = selectedParamsId
             ).withEndpoints(AiService.DUMMY, endpoints))
         },
         hasChanges = hasChanges,
@@ -1293,6 +1453,15 @@ fun DummySettingsScreen(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
         )
         EndpointsSection(
             endpoints = endpoints,

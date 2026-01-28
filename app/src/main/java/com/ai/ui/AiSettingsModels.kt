@@ -239,78 +239,91 @@ data class AiSettings(
     val chatGptManualModels: List<String> = emptyList(),
     val chatGptAdminUrl: String = AiService.OPENAI.adminUrl,
     val chatGptModelListUrl: String = "",  // Custom model list URL (empty = use default)
+    val chatGptParamsId: String? = null,   // Default parameters preset for this provider
     val claudeApiKey: String = "",
     val claudeModel: String = AiService.ANTHROPIC.defaultModel,
     val claudeModelSource: ModelSource = ModelSource.API,
     val claudeManualModels: List<String> = CLAUDE_MODELS,
     val claudeAdminUrl: String = AiService.ANTHROPIC.adminUrl,
     val claudeModelListUrl: String = "",
+    val claudeParamsId: String? = null,
     val geminiApiKey: String = "",
     val geminiModel: String = AiService.GOOGLE.defaultModel,
     val geminiModelSource: ModelSource = ModelSource.API,
     val geminiManualModels: List<String> = emptyList(),
     val geminiAdminUrl: String = AiService.GOOGLE.adminUrl,
     val geminiModelListUrl: String = "",
+    val geminiParamsId: String? = null,
     val grokApiKey: String = "",
     val grokModel: String = AiService.XAI.defaultModel,
     val grokModelSource: ModelSource = ModelSource.API,
     val grokManualModels: List<String> = emptyList(),
     val grokAdminUrl: String = AiService.XAI.adminUrl,
     val grokModelListUrl: String = "",
+    val grokParamsId: String? = null,
     val groqApiKey: String = "",
     val groqModel: String = AiService.GROQ.defaultModel,
     val groqModelSource: ModelSource = ModelSource.API,
     val groqManualModels: List<String> = emptyList(),
     val groqAdminUrl: String = AiService.GROQ.adminUrl,
     val groqModelListUrl: String = "",
+    val groqParamsId: String? = null,
     val deepSeekApiKey: String = "",
     val deepSeekModel: String = AiService.DEEPSEEK.defaultModel,
     val deepSeekModelSource: ModelSource = ModelSource.API,
     val deepSeekManualModels: List<String> = emptyList(),
     val deepSeekAdminUrl: String = AiService.DEEPSEEK.adminUrl,
     val deepSeekModelListUrl: String = "",
+    val deepSeekParamsId: String? = null,
     val mistralApiKey: String = "",
     val mistralModel: String = AiService.MISTRAL.defaultModel,
     val mistralModelSource: ModelSource = ModelSource.API,
     val mistralManualModels: List<String> = emptyList(),
     val mistralAdminUrl: String = AiService.MISTRAL.adminUrl,
     val mistralModelListUrl: String = "",
+    val mistralParamsId: String? = null,
     val perplexityApiKey: String = "",
     val perplexityModel: String = AiService.PERPLEXITY.defaultModel,
     val perplexityModelSource: ModelSource = ModelSource.MANUAL,
     val perplexityManualModels: List<String> = PERPLEXITY_MODELS,
     val perplexityAdminUrl: String = AiService.PERPLEXITY.adminUrl,
     val perplexityModelListUrl: String = "",
+    val perplexityParamsId: String? = null,
     val togetherApiKey: String = "",
     val togetherModel: String = AiService.TOGETHER.defaultModel,
     val togetherModelSource: ModelSource = ModelSource.API,
     val togetherManualModels: List<String> = emptyList(),
     val togetherAdminUrl: String = AiService.TOGETHER.adminUrl,
     val togetherModelListUrl: String = "",
+    val togetherParamsId: String? = null,
     val openRouterApiKey: String = "",
     val openRouterModel: String = AiService.OPENROUTER.defaultModel,
     val openRouterModelSource: ModelSource = ModelSource.API,
     val openRouterManualModels: List<String> = emptyList(),
     val openRouterAdminUrl: String = AiService.OPENROUTER.adminUrl,
     val openRouterModelListUrl: String = "",
+    val openRouterParamsId: String? = null,
     val siliconFlowApiKey: String = "",
     val siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
     val siliconFlowModelSource: ModelSource = ModelSource.API,
     val siliconFlowManualModels: List<String> = SILICONFLOW_MODELS,
     val siliconFlowAdminUrl: String = AiService.SILICONFLOW.adminUrl,
     val siliconFlowModelListUrl: String = "",
+    val siliconFlowParamsId: String? = null,
     val zaiApiKey: String = "",
     val zaiModel: String = AiService.ZAI.defaultModel,
     val zaiModelSource: ModelSource = ModelSource.API,
     val zaiManualModels: List<String> = ZAI_MODELS,
     val zaiAdminUrl: String = AiService.ZAI.adminUrl,
     val zaiModelListUrl: String = "",
+    val zaiParamsId: String? = null,
     val dummyApiKey: String = "",
     val dummyModel: String = AiService.DUMMY.defaultModel,
     val dummyModelSource: ModelSource = ModelSource.API,
     val dummyManualModels: List<String> = listOf("dummy-model"),
     val dummyAdminUrl: String = AiService.DUMMY.adminUrl,
     val dummyModelListUrl: String = "",
+    val dummyParamsId: String? = null,
     // AI Agents
     val agents: List<AiAgent> = emptyList(),
     // AI Swarms
@@ -627,6 +640,48 @@ data class AiSettings(
     fun getEffectiveModelListUrl(service: AiService): String {
         val customUrl = getModelListUrl(service)
         return if (customUrl.isNotBlank()) customUrl else getDefaultModelListUrl(service)
+    }
+
+    /**
+     * Get the default parameters preset ID for a provider.
+     */
+    fun getParamsId(service: AiService): String? {
+        return when (service) {
+            AiService.OPENAI -> chatGptParamsId
+            AiService.ANTHROPIC -> claudeParamsId
+            AiService.GOOGLE -> geminiParamsId
+            AiService.XAI -> grokParamsId
+            AiService.GROQ -> groqParamsId
+            AiService.DEEPSEEK -> deepSeekParamsId
+            AiService.MISTRAL -> mistralParamsId
+            AiService.PERPLEXITY -> perplexityParamsId
+            AiService.TOGETHER -> togetherParamsId
+            AiService.OPENROUTER -> openRouterParamsId
+            AiService.SILICONFLOW -> siliconFlowParamsId
+            AiService.ZAI -> zaiParamsId
+            AiService.DUMMY -> dummyParamsId
+        }
+    }
+
+    /**
+     * Set the default parameters preset ID for a provider.
+     */
+    fun withParamsId(service: AiService, paramsId: String?): AiSettings {
+        return when (service) {
+            AiService.OPENAI -> copy(chatGptParamsId = paramsId)
+            AiService.ANTHROPIC -> copy(claudeParamsId = paramsId)
+            AiService.GOOGLE -> copy(geminiParamsId = paramsId)
+            AiService.XAI -> copy(grokParamsId = paramsId)
+            AiService.GROQ -> copy(groqParamsId = paramsId)
+            AiService.DEEPSEEK -> copy(deepSeekParamsId = paramsId)
+            AiService.MISTRAL -> copy(mistralParamsId = paramsId)
+            AiService.PERPLEXITY -> copy(perplexityParamsId = paramsId)
+            AiService.TOGETHER -> copy(togetherParamsId = paramsId)
+            AiService.OPENROUTER -> copy(openRouterParamsId = paramsId)
+            AiService.SILICONFLOW -> copy(siliconFlowParamsId = paramsId)
+            AiService.ZAI -> copy(zaiParamsId = paramsId)
+            AiService.DUMMY -> copy(dummyParamsId = paramsId)
+        }
     }
 }
 
