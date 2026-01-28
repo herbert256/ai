@@ -29,16 +29,16 @@ fun AiServiceNavigationCard(
     title: String,
     accentColor: Color,
     hasApiKey: Boolean = false,
-    adminUrl: String = "",
+    @Suppress("UNUSED_PARAMETER") adminUrl: String = "",
     onEdit: () -> Unit
 ) {
-    val context = LocalContext.current
-
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onEdit() }
     ) {
         Row(
             modifier = Modifier
@@ -66,29 +66,6 @@ fun AiServiceNavigationCard(
                 text = if (hasApiKey) "🔑" else "❌",
                 fontSize = 14.sp
             )
-
-            // Edit link
-            Text(
-                text = "edit",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF6B9BFF),
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable { onEdit() }
-            )
-
-            // External link (Admin URL)
-            if (adminUrl.isNotBlank()) {
-                Text(
-                    text = "extern",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF6B9BFF),
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(adminUrl))
-                        context.startActivity(intent)
-                    }
-                )
-            }
         }
     }
 }

@@ -613,39 +613,55 @@ fun ParametersSelector(
     selectedParamsId: String?,
     selectedParamsName: String,
     onParamsSelected: (String?, String) -> Unit,
-    label: String = "Parameters (optional - select a preset)"
+    label: String = "Parameters"
 ) {
     var showParamsDialog by remember { mutableStateOf(false) }
 
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodySmall,
-        color = Color(0xFFAAAAAA)
-    )
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        OutlinedTextField(
-            value = selectedParamsName,
-            onValueChange = { /* Read-only - use Select button */ },
-            placeholder = { Text("No parameters selected", color = Color(0xFF666666)) },
-            modifier = Modifier.weight(1f),
-            singleLine = true,
-            readOnly = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444),
-                cursorColor = Color.White
-            )
-        )
-        Button(
-            onClick = { showParamsDialog = true },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Select", fontSize = 12.sp)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = selectedParamsName,
+                    onValueChange = { /* Read-only - use Select button */ },
+                    placeholder = { Text("No parameters selected", color = Color(0xFF666666)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    readOnly = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF8B5CF6),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        cursorColor = Color.White,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                Button(
+                    onClick = { showParamsDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
+                }
+            }
         }
     }
 

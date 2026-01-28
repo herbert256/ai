@@ -301,7 +301,7 @@ fun AiSetupScreen(
         AiSetupNavigationCard(
             title = "Swarms",
             description = "Group agents into swarms for report generation",
-            icon = "🦆",
+            icon = "🐝",
             count = "$configuredSwarms configured",
             onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) },
             enabled = hasApiKey
@@ -312,7 +312,7 @@ fun AiSetupScreen(
         AiSetupNavigationCard(
             title = "Flocks",
             description = "Group provider/model combinations for report generation",
-            icon = "🐝",
+            icon = "🦆",
             count = "$configuredFlocks configured",
             onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) },
             enabled = hasApiKey
