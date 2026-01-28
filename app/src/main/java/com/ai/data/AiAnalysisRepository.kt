@@ -1490,6 +1490,62 @@ class AiAnalysisRepository {
     }
 
     /**
+     * Test API connection with custom settings.
+     * Used by the API Test screen to test arbitrary API configurations.
+     */
+    suspend fun testApiConnection(
+        service: AiService,
+        apiKey: String,
+        model: String,
+        baseUrl: String,
+        prompt: String
+    ): AiAnalysisResponse = withContext(Dispatchers.IO) {
+        try {
+            // Create a custom API instance with the provided base URL
+            val api = AiApiFactory.createOpenAiApiWithBaseUrl(baseUrl)
+
+            val messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            val request = OpenAiRequest(
+                model = model,
+                messages = messages,
+                max_tokens = 1024
+            )
+
+            // Use appropriate auth header based on service
+            val authHeader = when (service) {
+                AiService.ANTHROPIC -> apiKey  // Anthropic uses x-api-key
+                else -> "Bearer $apiKey"
+            }
+
+            val response = api.createChatCompletion(authHeader, request)
+            val headers = formatHeaders(response.headers())
+            val statusCode = response.code()
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                val content = body?.choices?.firstOrNull()?.message?.content
+                val rawUsageJson = formatUsageJson(body?.usage)
+                val usage = body?.usage?.let {
+                    TokenUsage(
+                        inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
+                        outputTokens = it.completion_tokens ?: it.output_tokens ?: 0,
+                        apiCost = extractApiCost(it, service)
+                    )
+                }
+                if (content != null) {
+                    AiAnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+                } else {
+                    AiAnalysisResponse(service, null, "No response content", httpHeaders = headers, httpStatusCode = statusCode)
+                }
+            } else {
+                AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } catch (e: Exception) {
+            AiAnalysisResponse(service, null, "Error: ${e.message}")
+        }
+    }
+
+    /**
      * Fetch available Gemini models that support generateContent.
      */
     suspend fun fetchGeminiModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {

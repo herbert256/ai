@@ -104,6 +104,7 @@ fun SettingsScreen(
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
+    onNavigateToApiTest: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
@@ -349,6 +350,7 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
             onNavigateToCostConfig = onNavigateToCostConfig,
+            onNavigateToApiTest = onNavigateToApiTest,
             onSave = onSaveAi,
             onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey
         )

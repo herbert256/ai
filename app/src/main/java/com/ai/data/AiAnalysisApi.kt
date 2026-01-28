@@ -684,6 +684,10 @@ object AiApiFactory {
         return getRetrofit(AiService.OPENAI.baseUrl).create(OpenAiApi::class.java)
     }
 
+    fun createOpenAiApiWithBaseUrl(baseUrl: String): OpenAiApi {
+        return getRetrofit(baseUrl).create(OpenAiApi::class.java)
+    }
+
     fun createClaudeApi(): ClaudeApi {
         return getRetrofit(AiService.ANTHROPIC.baseUrl).create(ClaudeApi::class.java)
     }

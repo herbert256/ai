@@ -950,23 +950,21 @@ fun AiNewReportScreen(
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToAiReports: () -> Unit = {},
     initialTitle: String = "",
-    initialPrompt: String = "",
-    useLastSavedValues: Boolean = true
+    initialPrompt: String = ""
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-
-    // Load last used title and prompt from SharedPreferences (only if useLastSavedValues is true)
     val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    val lastTitle = if (useLastSavedValues) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" else ""
-    val lastPrompt = if (useLastSavedValues) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" else ""
 
+    // Load last prompt from SharedPreferences on first composition
     // Use initialTitle/initialPrompt if provided (from prompt history or external app),
-    // otherwise use last saved values (if enabled), otherwise start empty
-    var title by remember(initialTitle, initialPrompt, useLastSavedValues) {
+    // otherwise load from persistent "last prompt" storage
+    var title by remember {
+        val lastTitle = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: ""
         mutableStateOf(initialTitle.ifEmpty { lastTitle })
     }
-    var prompt by remember(initialTitle, initialPrompt, useLastSavedValues) {
+    var prompt by remember {
+        val lastPrompt = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: ""
         mutableStateOf(initialPrompt.ifEmpty { lastPrompt })
     }
 
@@ -992,30 +990,47 @@ fun AiNewReportScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Submit button at top
-        Button(
-            onClick = {
-                if (title.isNotBlank() && prompt.isNotBlank()) {
-                    // Save as last used title and prompt
-                    prefs.edit()
-                        .putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
-                        .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, prompt)
-                        .apply()
-
-                    // Save to prompt history
-                    val settingsPrefs = SettingsPreferences(prefs)
-                    settingsPrefs.savePromptToHistory(title, prompt)
-
-                    viewModel.showGenericAiAgentSelection(title, prompt)
-                }
-            },
-            enabled = title.isNotBlank() && prompt.isNotBlank(),
+        // Clear and Submit buttons side by side
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8B5CF6)
-            )
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Submit", fontSize = 16.sp)
+            // Clear button
+            OutlinedButton(
+                onClick = {
+                    title = ""
+                    prompt = ""
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Clear")
+            }
+
+            // Submit button
+            Button(
+                onClick = {
+                    if (title.isNotBlank() && prompt.isNotBlank()) {
+                        // Save as last prompt (persistent)
+                        prefs.edit()
+                            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
+                            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, prompt)
+                            .apply()
+
+                        // Save to prompt history
+                        val settingsPrefs = SettingsPreferences(prefs)
+                        settingsPrefs.savePromptToHistory(title, prompt)
+
+                        viewModel.showGenericAiAgentSelection(title, prompt)
+                    }
+                },
+                enabled = title.isNotBlank() && prompt.isNotBlank(),
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF8B5CF6)
+                )
+            ) {
+                Text("Submit", fontSize = 16.sp)
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1058,18 +1073,6 @@ fun AiNewReportScreen(
             )
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Clear button
-        OutlinedButton(
-            onClick = {
-                title = ""
-                prompt = ""
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Clear")
-        }
     }
 }
 

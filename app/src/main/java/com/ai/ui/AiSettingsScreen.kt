@@ -219,6 +219,7 @@ fun AiSetupScreen(
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onNavigateToCostConfig: () -> Unit = {},
+    onNavigateToApiTest: () -> Unit = {},
     onSave: (AiSettings) -> Unit = {},
     onSaveHuggingFaceApiKey: (String) -> Unit = {}
 ) {
@@ -326,6 +327,17 @@ fun AiSetupScreen(
             onClick = onNavigateToCostConfig,
             enabled = hasApiKey
         )
+
+        // API Test card (developer mode only)
+        if (developerMode) {
+            AiSetupNavigationCard(
+                title = "API Test",
+                description = "Test API calls with custom settings",
+                icon = "🧪",
+                count = "",
+                onClick = onNavigateToApiTest
+            )
+        }
 
     }
 }
@@ -2497,5 +2509,233 @@ private fun escapeCsvField(value: String): String {
         "\"${value.replace("\"", "\"\"")}\""
     } else {
         value
+    }
+}
+
+/**
+ * API Test screen for testing API calls with custom settings.
+ * Only available in developer mode.
+ */
+@Composable
+fun ApiTestScreen(
+    onBackClick: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceDetail: (String) -> Unit,
+    viewModel: AiViewModel
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+
+    // Load last test values from persistent storage
+    var selectedProvider by remember {
+        val lastProvider = prefs.getString("last_test_provider", null)
+        val provider = lastProvider?.let {
+            try { com.ai.data.AiService.valueOf(it) } catch (e: Exception) { null }
+        } ?: com.ai.data.AiService.OPENAI
+        mutableStateOf(provider)
+    }
+    var apiUrl by remember {
+        mutableStateOf(prefs.getString("last_test_api_url", null) ?: selectedProvider.baseUrl)
+    }
+    var apiKey by remember {
+        mutableStateOf(prefs.getString("last_test_api_key", null) ?: "")
+    }
+    var model by remember {
+        mutableStateOf(prefs.getString("last_test_model", null) ?: selectedProvider.defaultModel)
+    }
+    var prompt by remember {
+        mutableStateOf(prefs.getString("last_test_prompt", null) ?: "Hello, how are you?")
+    }
+    var isLoading by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    var isInitialized by remember { mutableStateOf(true) }
+
+    // Update URL and model when provider changes (only if user manually changes provider)
+    LaunchedEffect(selectedProvider) {
+        if (!isInitialized) {
+            apiUrl = selectedProvider.baseUrl
+            model = selectedProvider.defaultModel
+        }
+        isInitialized = false
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AiTitleBar(
+            title = "API Test",
+            onBackClick = onBackClick,
+            onAiClick = onNavigateHome
+        )
+
+        // Provider dropdown
+        Text("AI Provider", color = Color.Gray, fontSize = 14.sp)
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(selectedProvider.displayName)
+                Spacer(modifier = Modifier.weight(1f))
+                Text("▼")
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                com.ai.data.AiService.entries.forEach { provider ->
+                    DropdownMenuItem(
+                        text = { Text(provider.displayName) },
+                        onClick = {
+                            selectedProvider = provider
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // API URL field
+        OutlinedTextField(
+            value = apiUrl,
+            onValueChange = { apiUrl = it },
+            label = { Text("API URL") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF8B5CF6),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        // API Key field
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = { apiKey = it },
+            label = { Text("API Key") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF8B5CF6),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        // Model field
+        OutlinedTextField(
+            value = model,
+            onValueChange = { model = it },
+            label = { Text("Model") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF8B5CF6),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        // Prompt field
+        OutlinedTextField(
+            value = prompt,
+            onValueChange = { prompt = it },
+            label = { Text("Prompt") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF8B5CF6),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Submit button
+        Button(
+            onClick = {
+                if (prompt.isNotBlank()) {
+                    // Save to persistent storage as "last test"
+                    prefs.edit()
+                        .putString("last_test_provider", selectedProvider.name)
+                        .putString("last_test_api_url", apiUrl)
+                        .putString("last_test_api_key", apiKey)
+                        .putString("last_test_model", model)
+                        .putString("last_test_prompt", prompt)
+                        .apply()
+
+                    isLoading = true
+                    scope.launch {
+                        // Enable API tracing temporarily
+                        val wasTracingEnabled = com.ai.data.ApiTracer.isTracingEnabled
+                        com.ai.data.ApiTracer.isTracingEnabled = true
+
+                        // Get trace files before the call
+                        val traceDir = java.io.File(context.filesDir, "trace")
+                        val traceFilesBefore = traceDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
+
+                        try {
+                            // Make the API call using the repository
+                            val repository = com.ai.data.AiAnalysisRepository()
+                            val response = repository.testApiConnection(
+                                service = selectedProvider,
+                                apiKey = apiKey,
+                                model = model,
+                                baseUrl = apiUrl,
+                                prompt = prompt
+                            )
+
+                            // Find the new trace file
+                            val traceFilesAfter = traceDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
+                            val newTraceFile = (traceFilesAfter - traceFilesBefore).firstOrNull()
+
+                            // Restore tracing state
+                            com.ai.data.ApiTracer.isTracingEnabled = wasTracingEnabled
+
+                            isLoading = false
+
+                            // Navigate to trace detail if we found a new trace file
+                            if (newTraceFile != null) {
+                                onNavigateToTraceDetail(newTraceFile)
+                            } else {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (response.isSuccess) "Success but no trace file found" else "Error: ${response.error}",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        } catch (e: Exception) {
+                            com.ai.data.ApiTracer.isTracingEnabled = wasTracingEnabled
+                            isLoading = false
+                            android.widget.Toast.makeText(
+                                context,
+                                "Error: ${e.message}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            },
+            enabled = !isLoading && prompt.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Testing...")
+            } else {
+                Text("Submit")
+            }
+        }
     }
 }

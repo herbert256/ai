@@ -44,6 +44,7 @@ object NavRoutes {
     const val AI_CHAT_CONTINUE = "ai_chat_continue/{sessionId}"
     const val AI_MODEL_SEARCH = "ai_model_search"
     const val AI_MODEL_INFO = "ai_model_info/{provider}/{model}"
+    const val AI_API_TEST = "ai_api_test"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun aiModelInfo(provider: String, model: String): String {
@@ -136,7 +137,8 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToApiTest = { navController.navigate(NavRoutes.AI_API_TEST) }
             )
         }
 
@@ -199,8 +201,7 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
-                useLastSavedValues = false  // Start with empty fields from hub
+                onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) }
             )
         }
 
@@ -215,8 +216,7 @@ fun AiNavHost(
                 onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
                 initialTitle = title,
-                initialPrompt = prompt,
-                useLastSavedValues = false  // Use provided params, not last saved
+                initialPrompt = prompt
             )
         }
 
@@ -314,6 +314,18 @@ fun AiNavHost(
                 onNavigateToModelInfo = { provider, model ->
                     navController.navigate(NavRoutes.aiModelInfo(provider.name, model))
                 }
+            )
+        }
+
+        // API Test screen (developer mode)
+        composable(NavRoutes.AI_API_TEST) {
+            ApiTestScreen(
+                onBackClick = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onNavigateToTraceDetail = { filename ->
+                    navController.navigate(NavRoutes.traceDetail(filename))
+                },
+                viewModel = viewModel
             )
         }
 
@@ -612,6 +624,7 @@ fun SettingsScreenNav(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {},
+    onNavigateToApiTest: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -669,6 +682,7 @@ fun SettingsScreenNav(
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
         },
         onNavigateToCostConfig = onNavigateToCostConfig,
+        onNavigateToApiTest = onNavigateToApiTest,
         initialSubScreen = initialSubScreen
     )
 }
@@ -681,13 +695,15 @@ fun AiSetupScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateToCostConfig: () -> Unit = {}
+    onNavigateToCostConfig: () -> Unit = {},
+    onNavigateToApiTest: () -> Unit = {}
 ) {
     SettingsScreenNav(
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig,
+        onNavigateToApiTest = onNavigateToApiTest,
         initialSubScreen = SettingsSubScreen.AI_SETUP
     )
 }
