@@ -308,7 +308,7 @@ data class AiSettings(
             AiService.OPENROUTER -> copy(openRouterModel = model)
             AiService.SILICONFLOW -> copy(siliconFlowModel = model)
             AiService.ZAI -> copy(zaiModel = model)
-            AiService.DUMMY -> this
+            AiService.DUMMY -> copy(dummyModel = model)
         }
     }
 

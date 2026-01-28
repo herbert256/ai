@@ -96,10 +96,11 @@ fun AiServiceNavigationCard(
 /**
  * Template for AI service settings screens.
  */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun AiServiceSettingsScreenTemplate(
     title: String,
-    accentColor: Color,
+    accentColor: Color,  // Reserved for future theming
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: () -> Unit,
@@ -111,13 +112,12 @@ fun AiServiceSettingsScreenTemplate(
     adminUrl: String = "",
     onAdminUrlChange: (String) -> Unit = {},
     onTestApiKey: (suspend () -> String?)? = null,
-    onClearApiKey: (() -> Unit)? = null,
+    onClearApiKey: (() -> Unit)? = null,  // Reserved for future use
     onCreateAgent: (() -> Unit)? = null,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var isValidating by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var showModelDropdown by remember { mutableStateOf(false) }
 
@@ -636,52 +636,6 @@ fun ApiKeyInputSection(
 }
 
 /**
- * Default model input section for provider settings.
- */
-@Composable
-fun DefaultModelInputSection(
-    defaultModel: String,
-    onDefaultModelChange: (String) -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Default Model",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-
-            Text(
-                text = "Model used for API key testing",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
-            )
-
-            OutlinedTextField(
-                value = defaultModel,
-                onValueChange = onDefaultModelChange,
-                label = { Text("Model name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
-            )
-        }
-    }
-}
-
-/**
  * Unified model selection section with source toggle (API vs Manual).
  */
 @Composable
@@ -901,175 +855,6 @@ fun UnifiedModelSelectionSection(
             }
         )
     }
-}
-
-/**
- * Placeholder information card for prompts.
- */
-@Composable
-fun PromptPlaceholdersInfo() {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A3A4A)
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Placeholder Variables",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            Text(
-                text = "@FEN@ - Will be replaced by the chess position in FEN notation",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
-            )
-            Text(
-                text = "@PLAYER@ - Will be replaced by the player name",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
-            )
-            Text(
-                text = "@SERVER@ - Will be replaced by 'lichess.org' or 'chess.com'",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
-            )
-            Text(
-                text = "@DATE@ - Will be replaced by the current date (e.g., 'Friday, January 24th')",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
-            )
-        }
-    }
-}
-
-/**
- * Single prompt editing card.
- */
-@Composable
-fun SinglePromptCard(
-    title: String,
-    prompt: String,
-    onPromptChange: (String) -> Unit,
-    onResetToDefault: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-                TextButton(onClick = onResetToDefault) {
-                    Text(
-                        text = "Reset",
-                        color = Color(0xFF6B9BFF)
-                    )
-                }
-            }
-
-            OutlinedTextField(
-                value = prompt,
-                onValueChange = onPromptChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 150.dp, max = 300.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF555555)
-                ),
-                textStyle = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                )
-            )
-        }
-    }
-}
-
-/**
- * All prompts editing section for AI service settings.
- */
-@Composable
-fun AllPromptsSection(
-    gamePrompt: String,
-    serverPlayerPrompt: String,
-    otherPlayerPrompt: String,
-    onGamePromptChange: (String) -> Unit,
-    onServerPlayerPromptChange: (String) -> Unit,
-    onOtherPlayerPromptChange: (String) -> Unit,
-    onResetGamePrompt: () -> Unit,
-    onResetServerPlayerPrompt: () -> Unit,
-    onResetOtherPlayerPrompt: () -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Placeholder info card
-        PromptPlaceholdersInfo()
-
-        // Game prompt
-        SinglePromptCard(
-            title = "Game prompt",
-            prompt = gamePrompt,
-            onPromptChange = onGamePromptChange,
-            onResetToDefault = onResetGamePrompt
-        )
-
-        // Server player prompt
-        SinglePromptCard(
-            title = "Chess server player prompt",
-            prompt = serverPlayerPrompt,
-            onPromptChange = onServerPlayerPromptChange,
-            onResetToDefault = onResetServerPlayerPrompt
-        )
-
-        // Other player prompt
-        SinglePromptCard(
-            title = "Other player prompt",
-            prompt = otherPlayerPrompt,
-            onPromptChange = onOtherPlayerPromptChange,
-            onResetToDefault = onResetOtherPlayerPrompt
-        )
-    }
-}
-
-/**
- * Legacy prompt editing section for AI service settings.
- * @deprecated Use AllPromptsSection instead
- */
-@Composable
-fun PromptEditSection(
-    prompt: String,
-    onPromptChange: (String) -> Unit,
-    onResetToDefault: () -> Unit
-) {
-    SinglePromptCard(
-        title = "Game prompt",
-        prompt = prompt,
-        onPromptChange = onPromptChange,
-        onResetToDefault = onResetToDefault
-    )
 }
 
 /**

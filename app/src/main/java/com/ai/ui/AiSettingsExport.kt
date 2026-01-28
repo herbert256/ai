@@ -175,34 +175,29 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         "DUMMY" to ProviderConfigExport(aiSettings.dummyModelSource.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey, aiSettings.dummyModel, aiSettings.dummyAdminUrl, aiSettings.dummyModelListUrl.ifBlank { null })
     )
 
-    // Convert agents with parameters (handle null parameters for legacy agents)
+    // Convert agents with parameters
     val agents = aiSettings.agents.map { agent ->
-        val params = agent.parameters
         AgentExport(
             id = agent.id,
             name = agent.name,
             provider = agent.provider.name,
             model = agent.model,
             apiKey = agent.apiKey,
-            parameters = if (params != null) {
-                AgentParametersExport(
-                    temperature = params.temperature,
-                    maxTokens = params.maxTokens,
-                    topP = params.topP,
-                    topK = params.topK,
-                    frequencyPenalty = params.frequencyPenalty,
-                    presencePenalty = params.presencePenalty,
-                    systemPrompt = params.systemPrompt,
-                    stopSequences = params.stopSequences,
-                    seed = params.seed,
-                    responseFormatJson = params.responseFormatJson,
-                    searchEnabled = params.searchEnabled,
-                    returnCitations = params.returnCitations,
-                    searchRecency = params.searchRecency
-                )
-            } else {
-                AgentParametersExport()  // Default empty parameters
-            },
+            parameters = AgentParametersExport(
+                temperature = agent.parameters.temperature,
+                maxTokens = agent.parameters.maxTokens,
+                topP = agent.parameters.topP,
+                topK = agent.parameters.topK,
+                frequencyPenalty = agent.parameters.frequencyPenalty,
+                presencePenalty = agent.parameters.presencePenalty,
+                systemPrompt = agent.parameters.systemPrompt,
+                stopSequences = agent.parameters.stopSequences,
+                seed = agent.parameters.seed,
+                responseFormatJson = agent.parameters.responseFormatJson,
+                searchEnabled = agent.parameters.searchEnabled,
+                returnCitations = agent.parameters.returnCitations,
+                searchRecency = agent.parameters.searchRecency
+            ),
             endpointId = agent.endpointId
         )
     }
@@ -349,6 +344,264 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
 }
 
 /**
+ * Helper function to process imported AI configuration.
+ * Contains the common logic shared between clipboard and file import.
+ */
+private fun processImportedConfig(
+    context: Context,
+    export: AiConfigExport,
+    currentSettings: AiSettings
+): AiConfigImportResult {
+    // Import agents with parameters
+    val agents = export.agents.mapNotNull { agentExport ->
+        val provider = try {
+            AiService.valueOf(agentExport.provider)
+        } catch (e: IllegalArgumentException) {
+            null  // Skip agents with unknown providers
+        }
+        provider?.let {
+            AiAgent(
+                id = agentExport.id,
+                name = agentExport.name,
+                provider = it,
+                model = agentExport.model,
+                apiKey = agentExport.apiKey,
+                endpointId = agentExport.endpointId,
+                parameters = agentExport.parameters?.let { p ->
+                    AiAgentParameters(
+                        temperature = p.temperature,
+                        maxTokens = p.maxTokens,
+                        topP = p.topP,
+                        topK = p.topK,
+                        frequencyPenalty = p.frequencyPenalty,
+                        presencePenalty = p.presencePenalty,
+                        systemPrompt = p.systemPrompt,
+                        stopSequences = p.stopSequences,
+                        seed = p.seed,
+                        responseFormatJson = p.responseFormatJson,
+                        searchEnabled = p.searchEnabled,
+                        returnCitations = p.returnCitations,
+                        searchRecency = p.searchRecency
+                    )
+                } ?: AiAgentParameters()
+            )
+        }
+    }
+
+    // Import swarms
+    val swarms = export.swarms?.map { swarmExport ->
+        AiSwarm(
+            id = swarmExport.id,
+            name = swarmExport.name,
+            agentIds = swarmExport.agentIds
+        )
+    } ?: emptyList()
+
+    // Import AI prompts
+    val aiPrompts = export.aiPrompts?.map { promptExport ->
+        AiPrompt(
+            id = promptExport.id,
+            name = promptExport.name,
+            agentId = promptExport.agentId,
+            promptText = promptExport.promptText
+        )
+    } ?: emptyList()
+
+    // Import provider settings
+    var settings = currentSettings.copy(
+        agents = agents,
+        swarms = swarms,
+        prompts = aiPrompts
+    )
+
+    // Helper to import a single provider's settings
+    fun importProvider(
+        providerKey: String,
+        update: (ProviderConfigExport) -> AiSettings
+    ) {
+        export.providers[providerKey]?.let { p ->
+            settings = update(p)
+        }
+    }
+
+    // Update all provider settings
+    importProvider("OPENAI") { p ->
+        settings.copy(
+            chatGptModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            chatGptManualModels = p.manualModels,
+            chatGptApiKey = p.apiKey,
+            chatGptModel = p.defaultModel ?: settings.chatGptModel,
+            chatGptAdminUrl = p.adminUrl ?: settings.chatGptAdminUrl,
+            chatGptModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("ANTHROPIC") { p ->
+        settings.copy(
+            claudeModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            claudeManualModels = p.manualModels,
+            claudeApiKey = p.apiKey,
+            claudeModel = p.defaultModel ?: settings.claudeModel,
+            claudeAdminUrl = p.adminUrl ?: settings.claudeAdminUrl,
+            claudeModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("GOOGLE") { p ->
+        settings.copy(
+            geminiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            geminiManualModels = p.manualModels,
+            geminiApiKey = p.apiKey,
+            geminiModel = p.defaultModel ?: settings.geminiModel,
+            geminiAdminUrl = p.adminUrl ?: settings.geminiAdminUrl,
+            geminiModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("XAI") { p ->
+        settings.copy(
+            grokModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            grokManualModels = p.manualModels,
+            grokApiKey = p.apiKey,
+            grokModel = p.defaultModel ?: settings.grokModel,
+            grokAdminUrl = p.adminUrl ?: settings.grokAdminUrl,
+            grokModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("GROQ") { p ->
+        settings.copy(
+            groqModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            groqManualModels = p.manualModels,
+            groqApiKey = p.apiKey,
+            groqModel = p.defaultModel ?: settings.groqModel,
+            groqAdminUrl = p.adminUrl ?: settings.groqAdminUrl,
+            groqModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("DEEPSEEK") { p ->
+        settings.copy(
+            deepSeekModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            deepSeekManualModels = p.manualModels,
+            deepSeekApiKey = p.apiKey,
+            deepSeekModel = p.defaultModel ?: settings.deepSeekModel,
+            deepSeekAdminUrl = p.adminUrl ?: settings.deepSeekAdminUrl,
+            deepSeekModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("MISTRAL") { p ->
+        settings.copy(
+            mistralModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            mistralManualModels = p.manualModels,
+            mistralApiKey = p.apiKey,
+            mistralModel = p.defaultModel ?: settings.mistralModel,
+            mistralAdminUrl = p.adminUrl ?: settings.mistralAdminUrl,
+            mistralModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("PERPLEXITY") { p ->
+        settings.copy(
+            perplexityModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            perplexityManualModels = p.manualModels,
+            perplexityApiKey = p.apiKey,
+            perplexityModel = p.defaultModel ?: settings.perplexityModel,
+            perplexityAdminUrl = p.adminUrl ?: settings.perplexityAdminUrl,
+            perplexityModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("TOGETHER") { p ->
+        settings.copy(
+            togetherModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            togetherManualModels = p.manualModels,
+            togetherApiKey = p.apiKey,
+            togetherModel = p.defaultModel ?: settings.togetherModel,
+            togetherAdminUrl = p.adminUrl ?: settings.togetherAdminUrl,
+            togetherModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("OPENROUTER") { p ->
+        settings.copy(
+            openRouterModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
+            openRouterManualModels = p.manualModels,
+            openRouterApiKey = p.apiKey,
+            openRouterModel = p.defaultModel ?: settings.openRouterModel,
+            openRouterAdminUrl = p.adminUrl ?: settings.openRouterAdminUrl,
+            openRouterModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("SILICONFLOW") { p ->
+        settings.copy(
+            siliconFlowModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            siliconFlowManualModels = p.manualModels,
+            siliconFlowApiKey = p.apiKey,
+            siliconFlowModel = p.defaultModel ?: settings.siliconFlowModel,
+            siliconFlowAdminUrl = p.adminUrl ?: settings.siliconFlowAdminUrl,
+            siliconFlowModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("ZAI") { p ->
+        settings.copy(
+            zaiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            zaiManualModels = p.manualModels,
+            zaiApiKey = p.apiKey,
+            zaiModel = p.defaultModel ?: settings.zaiModel,
+            zaiAdminUrl = p.adminUrl ?: settings.zaiAdminUrl,
+            zaiModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("DUMMY") { p ->
+        settings.copy(
+            dummyModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            dummyManualModels = p.manualModels,
+            dummyApiKey = p.apiKey,
+            dummyModel = p.defaultModel ?: settings.dummyModel,
+            dummyAdminUrl = p.adminUrl ?: settings.dummyAdminUrl,
+            dummyModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+
+    // Import manual pricing overrides
+    export.manualPricing?.let { pricingList ->
+        val pricingMap = pricingList.associate { mp ->
+            mp.key to com.ai.data.PricingCache.ModelPricing(
+                modelId = mp.key.substringAfter(":"),
+                promptPrice = mp.promptPrice,
+                completionPrice = mp.completionPrice,
+                source = "manual"
+            )
+        }
+        com.ai.data.PricingCache.setAllManualPricing(context, pricingMap)
+    }
+
+    // Import endpoints
+    var settingsWithEndpoints = settings
+    export.providerEndpoints?.forEach { providerEndpoints ->
+        val provider = try {
+            AiService.valueOf(providerEndpoints.provider)
+        } catch (e: IllegalArgumentException) {
+            null  // Skip unknown providers
+        }
+        provider?.let {
+            val endpoints = providerEndpoints.endpoints.map { ep ->
+                AiEndpoint(
+                    id = ep.id,
+                    name = ep.name,
+                    url = ep.url,
+                    isDefault = ep.isDefault
+                )
+            }
+            settingsWithEndpoints = settingsWithEndpoints.withEndpoints(provider, endpoints)
+        }
+    }
+
+    // Show summary toast
+    val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
+    val importedPricing = export.manualPricing?.size ?: 0
+    val importedEndpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
+    val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
+    val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
+    Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
+
+    return AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey)
+}
+
+/**
  * Import AI configuration from clipboard JSON.
  * Only supports version 11.
  */
@@ -376,242 +629,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             return null
         }
 
-        // Import agents with parameters (prompt fields from version 3 are ignored)
-        val agents = export.agents.mapNotNull { agentExport ->
-            val provider = try {
-                AiService.valueOf(agentExport.provider)
-            } catch (e: IllegalArgumentException) {
-                null  // Skip agents with unknown providers
-            }
-            provider?.let {
-                AiAgent(
-                    id = agentExport.id,
-                    name = agentExport.name,
-                    provider = it,
-                    model = agentExport.model,
-                    apiKey = agentExport.apiKey,
-                    endpointId = agentExport.endpointId,
-                    parameters = agentExport.parameters?.let { p ->
-                        AiAgentParameters(
-                            temperature = p.temperature,
-                            maxTokens = p.maxTokens,
-                            topP = p.topP,
-                            topK = p.topK,
-                            frequencyPenalty = p.frequencyPenalty,
-                            presencePenalty = p.presencePenalty,
-                            systemPrompt = p.systemPrompt,
-                            stopSequences = p.stopSequences,
-                            seed = p.seed,
-                            responseFormatJson = p.responseFormatJson,
-                            searchEnabled = p.searchEnabled,
-                            returnCitations = p.returnCitations,
-                            searchRecency = p.searchRecency
-                        )
-                    } ?: AiAgentParameters()
-                )
-            }
-        }
-
-        // Import swarms (version 6+)
-        val swarms = export.swarms?.map { swarmExport ->
-            AiSwarm(
-                id = swarmExport.id,
-                name = swarmExport.name,
-                agentIds = swarmExport.agentIds
-            )
-        } ?: emptyList()
-
-        // Import AI prompts (version 8+)
-        val aiPrompts = export.aiPrompts?.map { promptExport ->
-            AiPrompt(
-                id = promptExport.id,
-                name = promptExport.name,
-                agentId = promptExport.agentId,
-                promptText = promptExport.promptText
-            )
-        } ?: emptyList()
-
-        // Import provider settings
-        var settings = currentSettings.copy(
-            agents = agents,
-            swarms = swarms,
-            prompts = aiPrompts
-        )
-
-        // Update provider model sources, manual models, API keys, default model, admin URL, model list URL
-        export.providers["OPENAI"]?.let { p ->
-            settings = settings.copy(
-                chatGptModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                chatGptManualModels = p.manualModels,
-                chatGptApiKey = p.apiKey,
-                chatGptModel = p.defaultModel ?: settings.chatGptModel,
-                chatGptAdminUrl = p.adminUrl ?: settings.chatGptAdminUrl,
-                chatGptModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["ANTHROPIC"]?.let { p ->
-            settings = settings.copy(
-                claudeModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                claudeManualModels = p.manualModels,
-                claudeApiKey = p.apiKey,
-                claudeModel = p.defaultModel ?: settings.claudeModel,
-                claudeAdminUrl = p.adminUrl ?: settings.claudeAdminUrl,
-                claudeModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["GOOGLE"]?.let { p ->
-            settings = settings.copy(
-                geminiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                geminiManualModels = p.manualModels,
-                geminiApiKey = p.apiKey,
-                geminiModel = p.defaultModel ?: settings.geminiModel,
-                geminiAdminUrl = p.adminUrl ?: settings.geminiAdminUrl,
-                geminiModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["XAI"]?.let { p ->
-            settings = settings.copy(
-                grokModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                grokManualModels = p.manualModels,
-                grokApiKey = p.apiKey,
-                grokModel = p.defaultModel ?: settings.grokModel,
-                grokAdminUrl = p.adminUrl ?: settings.grokAdminUrl,
-                grokModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["GROQ"]?.let { p ->
-            settings = settings.copy(
-                groqModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                groqManualModels = p.manualModels,
-                groqApiKey = p.apiKey,
-                groqModel = p.defaultModel ?: settings.groqModel,
-                groqAdminUrl = p.adminUrl ?: settings.groqAdminUrl,
-                groqModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["DEEPSEEK"]?.let { p ->
-            settings = settings.copy(
-                deepSeekModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                deepSeekManualModels = p.manualModels,
-                deepSeekApiKey = p.apiKey,
-                deepSeekModel = p.defaultModel ?: settings.deepSeekModel,
-                deepSeekAdminUrl = p.adminUrl ?: settings.deepSeekAdminUrl,
-                deepSeekModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["MISTRAL"]?.let { p ->
-            settings = settings.copy(
-                mistralModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                mistralManualModels = p.manualModels,
-                mistralApiKey = p.apiKey,
-                mistralModel = p.defaultModel ?: settings.mistralModel,
-                mistralAdminUrl = p.adminUrl ?: settings.mistralAdminUrl,
-                mistralModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["PERPLEXITY"]?.let { p ->
-            settings = settings.copy(
-                perplexityModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                perplexityManualModels = p.manualModels,
-                perplexityApiKey = p.apiKey,
-                perplexityModel = p.defaultModel ?: settings.perplexityModel,
-                perplexityAdminUrl = p.adminUrl ?: settings.perplexityAdminUrl,
-                perplexityModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["TOGETHER"]?.let { p ->
-            settings = settings.copy(
-                togetherModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                togetherManualModels = p.manualModels,
-                togetherApiKey = p.apiKey,
-                togetherModel = p.defaultModel ?: settings.togetherModel,
-                togetherAdminUrl = p.adminUrl ?: settings.togetherAdminUrl,
-                togetherModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["OPENROUTER"]?.let { p ->
-            settings = settings.copy(
-                openRouterModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                openRouterManualModels = p.manualModels,
-                openRouterApiKey = p.apiKey,
-                openRouterModel = p.defaultModel ?: settings.openRouterModel,
-                openRouterAdminUrl = p.adminUrl ?: settings.openRouterAdminUrl,
-                openRouterModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["SILICONFLOW"]?.let { p ->
-            settings = settings.copy(
-                siliconFlowModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                siliconFlowManualModels = p.manualModels,
-                siliconFlowApiKey = p.apiKey,
-                siliconFlowModel = p.defaultModel ?: settings.siliconFlowModel,
-                siliconFlowAdminUrl = p.adminUrl ?: settings.siliconFlowAdminUrl,
-                siliconFlowModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["ZAI"]?.let { p ->
-            settings = settings.copy(
-                zaiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                zaiManualModels = p.manualModels,
-                zaiApiKey = p.apiKey,
-                zaiModel = p.defaultModel ?: settings.zaiModel,
-                zaiAdminUrl = p.adminUrl ?: settings.zaiAdminUrl,
-                zaiModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["DUMMY"]?.let { p ->
-            settings = settings.copy(
-                dummyModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                dummyManualModels = p.manualModels,
-                dummyApiKey = p.apiKey,
-                dummyModel = p.defaultModel ?: settings.dummyModel,
-                dummyAdminUrl = p.adminUrl ?: settings.dummyAdminUrl,
-                dummyModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-
-        // Import manual pricing overrides (version 9+)
-        export.manualPricing?.let { pricingList ->
-            val pricingMap = pricingList.associate { mp ->
-                mp.key to com.ai.data.PricingCache.ModelPricing(
-                    modelId = mp.key.substringAfter(":"),
-                    promptPrice = mp.promptPrice,
-                    completionPrice = mp.completionPrice,
-                    source = "manual"
-                )
-            }
-            com.ai.data.PricingCache.setAllManualPricing(context, pricingMap)
-        }
-
-        // Import endpoints (version 10+)
-        var settingsWithEndpoints = settings
-        export.providerEndpoints?.forEach { providerEndpoints ->
-            val provider = try {
-                AiService.valueOf(providerEndpoints.provider)
-            } catch (e: IllegalArgumentException) {
-                null  // Skip unknown providers
-            }
-            provider?.let {
-                val endpoints = providerEndpoints.endpoints.map { ep ->
-                    AiEndpoint(
-                        id = ep.id,
-                        name = ep.name,
-                        url = ep.url,
-                        isDefault = ep.isDefault
-                    )
-                }
-                settingsWithEndpoints = settingsWithEndpoints.withEndpoints(provider, endpoints)
-            }
-        }
-
-        // Count imported API keys
-        val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-        val importedPricing = export.manualPricing?.size ?: 0
-        val importedEndpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
-        val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
-        val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
-        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
-        AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey)
+        processImportedConfig(context, export, currentSettings)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
         null
@@ -650,242 +668,7 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             return null
         }
 
-        // Import agents with parameters (prompt fields from version 3 are ignored)
-        val agents = export.agents.mapNotNull { agentExport ->
-            val provider = try {
-                AiService.valueOf(agentExport.provider)
-            } catch (e: IllegalArgumentException) {
-                null  // Skip agents with unknown providers
-            }
-            provider?.let {
-                AiAgent(
-                    id = agentExport.id,
-                    name = agentExport.name,
-                    provider = it,
-                    model = agentExport.model,
-                    apiKey = agentExport.apiKey,
-                    endpointId = agentExport.endpointId,
-                    parameters = agentExport.parameters?.let { p ->
-                        AiAgentParameters(
-                            temperature = p.temperature,
-                            maxTokens = p.maxTokens,
-                            topP = p.topP,
-                            topK = p.topK,
-                            frequencyPenalty = p.frequencyPenalty,
-                            presencePenalty = p.presencePenalty,
-                            systemPrompt = p.systemPrompt,
-                            stopSequences = p.stopSequences,
-                            seed = p.seed,
-                            responseFormatJson = p.responseFormatJson,
-                            searchEnabled = p.searchEnabled,
-                            returnCitations = p.returnCitations,
-                            searchRecency = p.searchRecency
-                        )
-                    } ?: AiAgentParameters()
-                )
-            }
-        }
-
-        // Import swarms (version 6+)
-        val swarms = export.swarms?.map { swarmExport ->
-            AiSwarm(
-                id = swarmExport.id,
-                name = swarmExport.name,
-                agentIds = swarmExport.agentIds
-            )
-        } ?: emptyList()
-
-        // Import AI prompts (version 8+)
-        val aiPrompts = export.aiPrompts?.map { promptExport ->
-            AiPrompt(
-                id = promptExport.id,
-                name = promptExport.name,
-                agentId = promptExport.agentId,
-                promptText = promptExport.promptText
-            )
-        } ?: emptyList()
-
-        // Import provider settings
-        var settings = currentSettings.copy(
-            agents = agents,
-            swarms = swarms,
-            prompts = aiPrompts
-        )
-
-        // Update provider model sources, manual models, API keys, default model, admin URL, model list URL
-        export.providers["OPENAI"]?.let { p ->
-            settings = settings.copy(
-                chatGptModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                chatGptManualModels = p.manualModels,
-                chatGptApiKey = p.apiKey,
-                chatGptModel = p.defaultModel ?: settings.chatGptModel,
-                chatGptAdminUrl = p.adminUrl ?: settings.chatGptAdminUrl,
-                chatGptModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["ANTHROPIC"]?.let { p ->
-            settings = settings.copy(
-                claudeModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                claudeManualModels = p.manualModels,
-                claudeApiKey = p.apiKey,
-                claudeModel = p.defaultModel ?: settings.claudeModel,
-                claudeAdminUrl = p.adminUrl ?: settings.claudeAdminUrl,
-                claudeModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["GOOGLE"]?.let { p ->
-            settings = settings.copy(
-                geminiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                geminiManualModels = p.manualModels,
-                geminiApiKey = p.apiKey,
-                geminiModel = p.defaultModel ?: settings.geminiModel,
-                geminiAdminUrl = p.adminUrl ?: settings.geminiAdminUrl,
-                geminiModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["XAI"]?.let { p ->
-            settings = settings.copy(
-                grokModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                grokManualModels = p.manualModels,
-                grokApiKey = p.apiKey,
-                grokModel = p.defaultModel ?: settings.grokModel,
-                grokAdminUrl = p.adminUrl ?: settings.grokAdminUrl,
-                grokModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["GROQ"]?.let { p ->
-            settings = settings.copy(
-                groqModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                groqManualModels = p.manualModels,
-                groqApiKey = p.apiKey,
-                groqModel = p.defaultModel ?: settings.groqModel,
-                groqAdminUrl = p.adminUrl ?: settings.groqAdminUrl,
-                groqModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["DEEPSEEK"]?.let { p ->
-            settings = settings.copy(
-                deepSeekModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                deepSeekManualModels = p.manualModels,
-                deepSeekApiKey = p.apiKey,
-                deepSeekModel = p.defaultModel ?: settings.deepSeekModel,
-                deepSeekAdminUrl = p.adminUrl ?: settings.deepSeekAdminUrl,
-                deepSeekModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["MISTRAL"]?.let { p ->
-            settings = settings.copy(
-                mistralModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                mistralManualModels = p.manualModels,
-                mistralApiKey = p.apiKey,
-                mistralModel = p.defaultModel ?: settings.mistralModel,
-                mistralAdminUrl = p.adminUrl ?: settings.mistralAdminUrl,
-                mistralModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["PERPLEXITY"]?.let { p ->
-            settings = settings.copy(
-                perplexityModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                perplexityManualModels = p.manualModels,
-                perplexityApiKey = p.apiKey,
-                perplexityModel = p.defaultModel ?: settings.perplexityModel,
-                perplexityAdminUrl = p.adminUrl ?: settings.perplexityAdminUrl,
-                perplexityModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["TOGETHER"]?.let { p ->
-            settings = settings.copy(
-                togetherModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                togetherManualModels = p.manualModels,
-                togetherApiKey = p.apiKey,
-                togetherModel = p.defaultModel ?: settings.togetherModel,
-                togetherAdminUrl = p.adminUrl ?: settings.togetherAdminUrl,
-                togetherModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["OPENROUTER"]?.let { p ->
-            settings = settings.copy(
-                openRouterModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.API },
-                openRouterManualModels = p.manualModels,
-                openRouterApiKey = p.apiKey,
-                openRouterModel = p.defaultModel ?: settings.openRouterModel,
-                openRouterAdminUrl = p.adminUrl ?: settings.openRouterAdminUrl,
-                openRouterModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["SILICONFLOW"]?.let { p ->
-            settings = settings.copy(
-                siliconFlowModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                siliconFlowManualModels = p.manualModels,
-                siliconFlowApiKey = p.apiKey,
-                siliconFlowModel = p.defaultModel ?: settings.siliconFlowModel,
-                siliconFlowAdminUrl = p.adminUrl ?: settings.siliconFlowAdminUrl,
-                siliconFlowModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["ZAI"]?.let { p ->
-            settings = settings.copy(
-                zaiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                zaiManualModels = p.manualModels,
-                zaiApiKey = p.apiKey,
-                zaiModel = p.defaultModel ?: settings.zaiModel,
-                zaiAdminUrl = p.adminUrl ?: settings.zaiAdminUrl,
-                zaiModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-        export.providers["DUMMY"]?.let { p ->
-            settings = settings.copy(
-                dummyModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-                dummyManualModels = p.manualModels,
-                dummyApiKey = p.apiKey,
-                dummyModel = p.defaultModel ?: settings.dummyModel,
-                dummyAdminUrl = p.adminUrl ?: settings.dummyAdminUrl,
-                dummyModelListUrl = p.modelListUrl ?: ""
-            )
-        }
-
-        // Import manual pricing overrides (version 9+)
-        export.manualPricing?.let { pricingList ->
-            val pricingMap = pricingList.associate { mp ->
-                mp.key to com.ai.data.PricingCache.ModelPricing(
-                    modelId = mp.key.substringAfter(":"),
-                    promptPrice = mp.promptPrice,
-                    completionPrice = mp.completionPrice,
-                    source = "manual"
-                )
-            }
-            com.ai.data.PricingCache.setAllManualPricing(context, pricingMap)
-        }
-
-        // Import endpoints (version 10+)
-        var settingsWithEndpoints = settings
-        export.providerEndpoints?.forEach { providerEndpoints ->
-            val provider = try {
-                AiService.valueOf(providerEndpoints.provider)
-            } catch (e: IllegalArgumentException) {
-                null  // Skip unknown providers
-            }
-            provider?.let {
-                val endpoints = providerEndpoints.endpoints.map { ep ->
-                    AiEndpoint(
-                        id = ep.id,
-                        name = ep.name,
-                        url = ep.url,
-                        isDefault = ep.isDefault
-                    )
-                }
-                settingsWithEndpoints = settingsWithEndpoints.withEndpoints(provider, endpoints)
-            }
-        }
-
-        // Count imported API keys
-        val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-        val importedPricing = export.manualPricing?.size ?: 0
-        val importedEndpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
-        val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
-        val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
-        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
-        AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey)
+        processImportedConfig(context, export, currentSettings)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
         null
