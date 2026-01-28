@@ -2357,11 +2357,13 @@ fun AiReportsScreenNav(
         savedAgentIds = viewModel.loadAiReportAgents(),
         savedSwarmIds = viewModel.loadAiReportSwarms(),
         savedFlockIds = viewModel.loadAiReportFlocks(),
-        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds, selectedFlockIds ->
+        savedModelIds = viewModel.loadAiReportModels(),
+        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds, selectedFlockIds, directModelIds ->
             viewModel.saveAiReportAgents(directAgentIds)
             viewModel.saveAiReportSwarms(selectedSwarmIds)
             viewModel.saveAiReportFlocks(selectedFlockIds)
-            viewModel.generateGenericAiReports(combinedAgentIds, selectedFlockIds)
+            viewModel.saveAiReportModels(directModelIds)
+            viewModel.generateGenericAiReports(combinedAgentIds, selectedFlockIds, directModelIds)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -2386,7 +2388,7 @@ fun AiReportsScreenNav(
  * Shows agent selection first, then progress and results.
  */
 // Selection mode for report generation
-private enum class ReportSelectionMode { SWARMS, AGENTS, FLOCKS }
+private enum class ReportSelectionMode { SWARMS, AGENTS, FLOCKS, MODELS }
 
 @Composable
 fun AiReportsScreen(
@@ -2394,7 +2396,8 @@ fun AiReportsScreen(
     savedAgentIds: Set<String>,
     savedSwarmIds: Set<String>,
     savedFlockIds: Set<String> = emptySet(),
-    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds, flockIds
+    savedModelIds: Set<String> = emptySet(),
+    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds, flockIds, directModelIds
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -2539,6 +2542,9 @@ fun AiReportsScreen(
     val validSavedFlocks = savedFlockIds.filter { it in validFlockIds }.toSet()
     var selectedFlockIds by remember { mutableStateOf(validSavedFlocks) }
 
+    // Direct model selection state (provider/model combinations selected directly, not via flock)
+    var directlySelectedModelIds by remember { mutableStateOf(savedModelIds) }
+
     // Direct agent selection state (separate from swarm-based selection)
     // Filter to only include agents that still exist (excluding DUMMY when not in dev mode)
     val validAgentIds = configuredAgents.map { it.id }.toSet()
@@ -2554,11 +2560,17 @@ fun AiReportsScreen(
     val flockMembers = uiState.aiSettings.getMembersForFlocks(selectedFlockIds)
         .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
 
+    // Get synthetic IDs for flock members (to check which models are already selected via flock)
+    val flockMemberIds = flockMembers.map { "flock:${it.provider.name}:${it.model}" }.toSet()
+
     // Combined unique agent IDs (from swarms + directly selected)
     val combinedAgentIds = swarmAgentIds + directlySelectedAgentIds
 
-    // Total worker count (agents + flock members)
-    val totalWorkers = combinedAgentIds.size + flockMembers.size
+    // Combined model IDs (from flocks + directly selected, avoiding duplicates)
+    val combinedModelIds = flockMemberIds + directlySelectedModelIds.filter { it !in flockMemberIds }
+
+    // Total worker count (agents + all model selections)
+    val totalWorkers = combinedAgentIds.size + combinedModelIds.size
 
     Column(
         modifier = Modifier
@@ -2572,7 +2584,8 @@ fun AiReportsScreen(
                 isGenerating -> "Generating Reports"
                 selectionMode == ReportSelectionMode.SWARMS -> "Select Swarm(s)"
                 selectionMode == ReportSelectionMode.AGENTS -> "Select Agent(s)"
-                else -> "Select Flock(s)"
+                selectionMode == ReportSelectionMode.FLOCKS -> "Select Flock(s)"
+                else -> "Select Model(s)"
             },
             onBackClick = onDismiss,
             onAiClick = onNavigateHome
@@ -2583,7 +2596,7 @@ fun AiReportsScreen(
         if (!isGenerating) {
             // Generate button at top
             Button(
-                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds, selectedFlockIds) },
+                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds, selectedFlockIds, directlySelectedModelIds) },
                 enabled = totalWorkers > 0,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
@@ -2600,34 +2613,47 @@ fun AiReportsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Button(
                     onClick = { selectionMode = ReportSelectionMode.SWARMS },
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selectionMode == ReportSelectionMode.SWARMS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
-                    Text("Swarms")
+                    Text("Swarms", fontSize = 13.sp)
                 }
                 Button(
                     onClick = { selectionMode = ReportSelectionMode.AGENTS },
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selectionMode == ReportSelectionMode.AGENTS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
-                    Text("Agents")
+                    Text("Agents", fontSize = 13.sp)
                 }
                 Button(
                     onClick = { selectionMode = ReportSelectionMode.FLOCKS },
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selectionMode == ReportSelectionMode.FLOCKS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
-                    Text("Flocks")
+                    Text("Flocks", fontSize = 13.sp)
+                }
+                Button(
+                    onClick = { selectionMode = ReportSelectionMode.MODELS },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectionMode == ReportSelectionMode.MODELS) Color(0xFF6B9BFF) else Color(0xFF444444)
+                    )
+                ) {
+                    Text("Models", fontSize = 13.sp)
                 }
             }
 
@@ -2642,6 +2668,7 @@ fun AiReportsScreen(
                     ReportSelectionMode.SWARMS -> "Search swarms..."
                     ReportSelectionMode.AGENTS -> "Search agents..."
                     ReportSelectionMode.FLOCKS -> "Search flocks..."
+                    ReportSelectionMode.MODELS -> "Search models..."
                 }) },
                 singleLine = true,
                 trailingIcon = {
@@ -2739,15 +2766,13 @@ fun AiReportsScreen(
                             }
                         }
                         ReportSelectionMode.AGENTS -> {
-                            // Agent selection mode - exclude agents already selected via swarm
+                            // Agent selection mode - show all agents, but swarm agents are locked
                             val filteredAgents = configuredAgents
                                 .filter { agent ->
-                                    agent.id !in swarmAgentIds && (
-                                        searchQuery.isBlank() ||
-                                        agent.name.contains(searchQuery, ignoreCase = true) ||
-                                        agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
-                                        agent.model.contains(searchQuery, ignoreCase = true)
-                                    )
+                                    searchQuery.isBlank() ||
+                                    agent.name.contains(searchQuery, ignoreCase = true) ||
+                                    agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+                                    agent.model.contains(searchQuery, ignoreCase = true)
                                 }
                                 .sortedBy { it.name.lowercase() }
                             if (configuredAgents.isEmpty()) {
@@ -2762,40 +2787,46 @@ fun AiReportsScreen(
                                 )
                             } else {
                                 filteredAgents.forEach { agent ->
+                                    val isFromSwarm = agent.id in swarmAgentIds
+                                    val isChecked = isFromSwarm || agent.id in directlySelectedAgentIds
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable {
-                                                directlySelectedAgentIds = if (agent.id in directlySelectedAgentIds) {
-                                                    directlySelectedAgentIds - agent.id
-                                                } else {
-                                                    directlySelectedAgentIds + agent.id
+                                            .then(
+                                                if (isFromSwarm) Modifier
+                                                else Modifier.clickable {
+                                                    directlySelectedAgentIds = if (agent.id in directlySelectedAgentIds) {
+                                                        directlySelectedAgentIds - agent.id
+                                                    } else {
+                                                        directlySelectedAgentIds + agent.id
+                                                    }
                                                 }
-                                            }
+                                            )
                                             .padding(vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
-                                            checked = agent.id in directlySelectedAgentIds,
-                                            onCheckedChange = { checked ->
+                                            checked = isChecked,
+                                            onCheckedChange = if (isFromSwarm) null else { checked ->
                                                 directlySelectedAgentIds = if (checked) {
                                                     directlySelectedAgentIds + agent.id
                                                 } else {
                                                     directlySelectedAgentIds - agent.id
                                                 }
-                                            }
+                                            },
+                                            enabled = !isFromSwarm
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
                                                 text = "${agent.name} / ${agent.model}",
                                                 fontWeight = FontWeight.Medium,
-                                                color = Color.White
+                                                color = if (isFromSwarm) Color(0xFF888888) else Color.White
                                             )
                                             Text(
-                                                text = agent.provider.displayName,
+                                                text = if (isFromSwarm) "${agent.provider.displayName} (via swarm)" else agent.provider.displayName,
                                                 fontSize = 12.sp,
-                                                color = Color(0xFFAAAAAA)
+                                                color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA)
                                             )
                                         }
                                     }
@@ -2865,6 +2896,103 @@ fun AiReportsScreen(
                                 }
                             }
                         }
+                        ReportSelectionMode.MODELS -> {
+                            // Models selection mode - select provider/model combinations directly
+                            // Build list of all available provider/model combinations
+                            val allProviderModels = com.ai.data.AiService.entries
+                                .filter { uiState.generalSettings.developerMode || it != com.ai.data.AiService.DUMMY }
+                                .flatMap { provider ->
+                                    val apiKey = uiState.aiSettings.getApiKey(provider)
+                                    if (apiKey.isBlank()) {
+                                        emptyList()
+                                    } else {
+                                        val models = when (provider) {
+                                            com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
+                                            com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
+                                            com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
+                                            com.ai.data.AiService.XAI -> uiState.availableGrokModels
+                                            com.ai.data.AiService.GROQ -> uiState.availableGroqModels
+                                            com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
+                                            com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
+                                            com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
+                                            com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
+                                            com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
+                                            com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
+                                            com.ai.data.AiService.ZAI -> uiState.availableZaiModels
+                                            com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
+                                        }
+                                        models.map { model -> provider to model }
+                                    }
+                                }
+
+                            val filteredModels = allProviderModels
+                                .filter { (provider, model) ->
+                                    searchQuery.isBlank() ||
+                                    provider.displayName.contains(searchQuery, ignoreCase = true) ||
+                                    model.contains(searchQuery, ignoreCase = true)
+                                }
+                                .sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
+
+                            if (allProviderModels.isEmpty()) {
+                                Text(
+                                    text = "No models available. Configure API keys in AI Setup > Providers.",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else if (filteredModels.isEmpty()) {
+                                Text(
+                                    text = "No models match \"$searchQuery\"",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else {
+                                filteredModels.forEach { (provider, model) ->
+                                    val syntheticId = "flock:${provider.name}:$model"
+                                    val isFromFlock = syntheticId in flockMemberIds
+                                    val isChecked = isFromFlock || syntheticId in directlySelectedModelIds
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .then(
+                                                if (isFromFlock) Modifier
+                                                else Modifier.clickable {
+                                                    directlySelectedModelIds = if (syntheticId in directlySelectedModelIds) {
+                                                        directlySelectedModelIds - syntheticId
+                                                    } else {
+                                                        directlySelectedModelIds + syntheticId
+                                                    }
+                                                }
+                                            )
+                                            .padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = isChecked,
+                                            onCheckedChange = if (isFromFlock) null else { checked ->
+                                                directlySelectedModelIds = if (checked) {
+                                                    directlySelectedModelIds + syntheticId
+                                                } else {
+                                                    directlySelectedModelIds - syntheticId
+                                                }
+                                            },
+                                            enabled = !isFromFlock
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = model,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (isFromFlock) Color(0xFF888888) else Color.White
+                                            )
+                                            Text(
+                                                text = if (isFromFlock) "${provider.displayName} (via flock)" else provider.displayName,
+                                                fontSize = 12.sp,
+                                                color = if (isFromFlock) Color(0xFF666666) else Color(0xFFAAAAAA)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2882,6 +3010,36 @@ fun AiReportsScreen(
                             ReportSelectionMode.SWARMS -> selectedSwarmIds = swarms.map { it.id }.toSet()
                             ReportSelectionMode.AGENTS -> directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
                             ReportSelectionMode.FLOCKS -> selectedFlockIds = flocks.map { it.id }.toSet()
+                            ReportSelectionMode.MODELS -> {
+                                // Select all models not already selected via flock
+                                val allModelIds = com.ai.data.AiService.entries
+                                    .filter { uiState.generalSettings.developerMode || it != com.ai.data.AiService.DUMMY }
+                                    .flatMap { provider ->
+                                        val apiKey = uiState.aiSettings.getApiKey(provider)
+                                        if (apiKey.isBlank()) emptyList()
+                                        else {
+                                            val models = when (provider) {
+                                                com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
+                                                com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
+                                                com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
+                                                com.ai.data.AiService.XAI -> uiState.availableGrokModels
+                                                com.ai.data.AiService.GROQ -> uiState.availableGroqModels
+                                                com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
+                                                com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
+                                                com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
+                                                com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
+                                                com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
+                                                com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
+                                                com.ai.data.AiService.ZAI -> uiState.availableZaiModels
+                                                com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
+                                            }
+                                            models.map { "flock:${provider.name}:$it" }
+                                        }
+                                    }
+                                    .filter { it !in flockMemberIds }
+                                    .toSet()
+                                directlySelectedModelIds = allModelIds
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -2894,6 +3052,7 @@ fun AiReportsScreen(
                             ReportSelectionMode.SWARMS -> selectedSwarmIds = emptySet()
                             ReportSelectionMode.AGENTS -> directlySelectedAgentIds = emptySet()
                             ReportSelectionMode.FLOCKS -> selectedFlockIds = emptySet()
+                            ReportSelectionMode.MODELS -> directlySelectedModelIds = emptySet()
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3184,16 +3343,16 @@ fun AiReportsScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(2.dp))
-                                // Flock member: Provider on line 1, Model on line 2
+                                // Flock member: Model on line 1, Provider on line 2
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = provider?.displayName ?: providerName,
+                                        text = modelName,
                                         fontWeight = FontWeight.Medium,
                                         color = Color.White,
                                         fontSize = 13.sp
                                     )
                                     Text(
-                                        text = modelName,
+                                        text = provider?.displayName ?: providerName,
                                         color = Color(0xFFAAAAAA),
                                         fontSize = 11.sp
                                     )
