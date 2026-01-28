@@ -76,7 +76,7 @@ data class OpenAiMessage(
 data class OpenAiRequest(
     val model: String = AiService.OPENAI.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val frequency_penalty: Float? = null,
@@ -182,7 +182,7 @@ data class ClaudeMessage(
 
 data class ClaudeRequest(
     val model: String = AiService.ANTHROPIC.defaultModel,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val messages: List<ClaudeMessage>,
     val temperature: Float? = null,
     val top_p: Float? = null,
@@ -281,7 +281,7 @@ data class GeminiError(
 data class GrokRequest(
     val model: String = AiService.XAI.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -296,7 +296,7 @@ data class GrokRequest(
 data class DeepSeekRequest(
     val model: String = AiService.DEEPSEEK.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -311,7 +311,7 @@ data class DeepSeekRequest(
 data class MistralRequest(
     val model: String = AiService.MISTRAL.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -326,7 +326,7 @@ data class MistralRequest(
 data class PerplexityRequest(
     val model: String = AiService.PERPLEXITY.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -343,7 +343,7 @@ data class PerplexityRequest(
 data class TogetherRequest(
     val model: String = AiService.TOGETHER.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -358,7 +358,7 @@ data class TogetherRequest(
 data class OpenRouterRequest(
     val model: String = AiService.OPENROUTER.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -373,7 +373,7 @@ data class OpenRouterRequest(
 data class SiliconFlowRequest(
     val model: String = AiService.SILICONFLOW.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
@@ -388,7 +388,7 @@ data class SiliconFlowRequest(
 data class GroqRequest(
     val model: String = AiService.GROQ.defaultModel,
     val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = 1024,
+    val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
     val top_k: Int? = null,
