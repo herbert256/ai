@@ -943,8 +943,8 @@ fun CostConfigurationScreen(
                                     editingKey = manualKey
                                     val inputPerMillion = pricing.promptPrice * 1_000_000
                                     val outputPerMillion = pricing.completionPrice * 1_000_000
-                                    editInputPrice = if (inputPerMillion > 0) String.format("%.4f", inputPerMillion) else ""
-                                    editOutputPrice = if (outputPerMillion > 0) String.format("%.4f", outputPerMillion) else ""
+                                    editInputPrice = if (inputPerMillion > 0) String.format("%.2f", inputPerMillion) else ""
+                                    editOutputPrice = if (outputPerMillion > 0) String.format("%.2f", outputPerMillion) else ""
                                 },
                                 onSaveClick = {
                                     val inputPerToken = editInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
@@ -1198,7 +1198,7 @@ private fun CostConfigCard(
                                 Text("Input", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
                                 Text(
                                     text = if (currentInputPrice != null)
-                                        String.format("$%.4f", currentInputPrice * 1_000_000)
+                                        String.format("$%.2f", currentInputPrice * 1_000_000)
                                     else "-",
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFFCCCCCC),
@@ -1209,7 +1209,7 @@ private fun CostConfigCard(
                                 Text("Output", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
                                 Text(
                                     text = if (currentOutputPrice != null)
-                                        String.format("$%.4f", currentOutputPrice * 1_000_000)
+                                        String.format("$%.2f", currentOutputPrice * 1_000_000)
                                     else "-",
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFFCCCCCC),
