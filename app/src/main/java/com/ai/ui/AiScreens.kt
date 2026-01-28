@@ -2808,13 +2808,14 @@ fun AiReportsScreen(
         } else {
             // Action buttons at top when complete
             if (isComplete) {
+                val compactButtonPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
                 ) {
                     Button(
                         onClick = { showViewer = true },
-                        modifier = Modifier.weight(1f),
+                        contentPadding = compactButtonPadding,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF2196F3)
                         )
@@ -2823,7 +2824,7 @@ fun AiReportsScreen(
                     }
                     Button(
                         onClick = { showShareDialog = true },
-                        modifier = Modifier.weight(1f),
+                        contentPadding = compactButtonPadding,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF4CAF50)
                         )
@@ -2832,7 +2833,7 @@ fun AiReportsScreen(
                     }
                     Button(
                         onClick = onOpenInBrowser,
-                        modifier = Modifier.weight(1f),
+                        contentPadding = compactButtonPadding,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF8B5CF6)
                         )
@@ -2843,7 +2844,7 @@ fun AiReportsScreen(
                     if (developerMode && currentReportId != null) {
                         Button(
                             onClick = { onNavigateToTrace(currentReportId) },
-                            modifier = Modifier.weight(1f),
+                            contentPadding = compactButtonPadding,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFFF9800)
                             )
@@ -2894,7 +2895,7 @@ fun AiReportsScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
@@ -3070,6 +3071,7 @@ fun AiReportsScreen(
 
             // STOP button while generating
             if (isGenerating && !isComplete) {
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = onStop,
                     modifier = Modifier.fillMaxWidth(),
