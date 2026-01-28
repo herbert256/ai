@@ -28,13 +28,15 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 
 ## Project Overview
 
-**AI** is an Android app for creating AI-powered reports and having conversations using 13 different AI services. Users can configure multiple AI agents with advanced parameters, organize them into swarms, submit custom prompts, generate comparative reports, search and explore models across all providers, chat with streaming responses, and track usage costs.
+**AI** is an Android app for creating AI-powered reports and having conversations using 13 different AI services. Users can configure multiple AI agents with advanced parameters and custom endpoints, organize them into swarms, submit custom prompts, generate comparative reports, search and explore models across all providers, chat with streaming responses, and track usage costs.
 
 **Key Features:**
 - Support for 13 AI services (OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI) + DUMMY for testing
 - AI Chat with streaming responses (real-time token-by-token) and auto-save
-- AI Agents with configurable parameters (temperature, max_tokens, system prompt, etc.)
+- AI Agents with configurable parameters, endpoints, and inheritance from providers
 - AI Swarms for organizing agents into named groups
+- AI Prompts for internal app features (model_info auto-descriptions)
+- Multiple API endpoints per provider (e.g., OpenAI Chat vs Responses API)
 - Parallel multi-agent report generation with persistent storage
 - AI Reports stored as JSON objects with View/Share/Browser actions
 - Model Search across all configured providers with one-tap chat or agent creation
@@ -46,7 +48,7 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 - Chat history with automatic conversation saving
 - Developer mode with comprehensive API tracing
 - HTML report export with markdown rendering, citations, and search results
-- Configuration export/import (JSON format, version 7)
+- Configuration export/import (JSON format, version 11)
 - External app integration via Intent (see CALL_AI.md)
 
 **Technical Stack:**
@@ -67,39 +69,38 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 com.ai/
 ├── MainActivity.kt                    # Entry point, sets up Compose theme
 ├── data/                              # Data layer
-│   ├── AiAnalysisApi.kt              # Retrofit interfaces, request/response models (~1,036 lines)
-│   ├── AiAnalysisRepository.kt       # API logic, streaming, retry handling (~2,402 lines)
-│   ├── AiReportStorage.kt            # Persistent report storage with thread-safe ops (~315 lines)
-│   ├── AiHistoryManager.kt           # Legacy HTML report storage (~160 lines)
-│   ├── ChatHistoryManager.kt         # Chat session file storage (~123 lines)
-│   ├── PricingCache.kt               # Four-tier pricing cache (~439 lines)
-│   ├── ApiTracer.kt                  # Debug API request/response logging (~308 lines)
-│   └── DummyApiServer.kt             # Local test HTTP server (~155 lines)
+│   ├── AiAnalysisApi.kt              # Retrofit interfaces, request/response models (~1,277 lines)
+│   ├── AiAnalysisRepository.kt       # API logic, streaming, retry handling (~2,939 lines)
+│   ├── AiReportStorage.kt            # Persistent report storage with thread-safe ops (~332 lines)
+│   ├── AiHistoryManager.kt           # Legacy HTML report storage (~159 lines)
+│   ├── ChatHistoryManager.kt         # Chat session file storage (~122 lines)
+│   ├── PricingCache.kt               # Four-tier pricing cache (~627 lines)
+│   ├── ApiTracer.kt                  # Debug API request/response logging (~309 lines)
+│   └── DummyApiServer.kt             # Local test HTTP server (~220 lines)
 └── ui/                                # UI layer
-    ├── AiViewModel.kt                # Central state management (~715 lines)
-    ├── AiModels.kt                   # Core UI state model (~63 lines)
-    ├── AiScreens.kt                  # Report screens: Hub, NewReport, History, Results (~3,780 lines)
-    ├── ChatScreens.kt                # AI Chat: conversation UI, streaming (~1,074 lines)
+    ├── AiViewModel.kt                # Central state management (~826 lines)
+    ├── AiModels.kt                   # Core UI state model (~70 lines)
+    ├── AiScreens.kt                  # Report screens: Hub, NewReport, History, Results (~3,981 lines)
+    ├── ChatScreens.kt                # AI Chat: conversation UI, streaming (~1,526 lines)
     ├── AiStatisticsScreen.kt         # Statistics and Costs screens (~1,069 lines)
-    ├── AiSettingsScreen.kt           # AI settings navigation (~1,714 lines)
-    ├── AiSettingsModels.kt           # AI settings data: agents, swarms, parameters (~542 lines)
-    ├── AiSettingsComponents.kt       # Reusable AI settings UI components (~1,073 lines)
-    ├── AiServiceSettingsScreens.kt   # Per-service config screens (~1,022 lines)
-    ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (~1,001 lines)
+    ├── AiSettingsScreen.kt           # AI settings navigation (~3,217 lines)
+    ├── AiSettingsModels.kt           # AI settings data: agents, swarms, endpoints (~540 lines)
+    ├── AiSettingsComponents.kt       # Reusable AI settings UI components (~1,146 lines)
+    ├── AiServiceSettingsScreens.kt   # Per-service config screens (~1,317 lines)
+    ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (~1,330 lines)
     ├── AiPromptsScreen.kt            # Prompt history screen (~391 lines)
-    ├── AiSwarmsScreen.kt             # Swarm management CRUD (~375 lines)
-    ├── AiSettingsExport.kt           # Configuration export/import v7 (~785 lines)
-    ├── SettingsScreen.kt             # Settings hub + Cost Configuration (~825 lines)
-    ├── GeneralSettingsScreen.kt      # General + Developer settings (~200 lines)
-    ├── HelpScreen.kt                 # In-app documentation (~497 lines)
-    ├── TraceScreen.kt                # API trace list and detail viewer (~575 lines)
-    ├── SettingsPreferences.kt        # SharedPreferences persistence (~552 lines)
-    ├── SharedComponents.kt           # AiTitleBar, common widgets (~127 lines)
-    ├── Navigation.kt                 # Jetpack Navigation routes (~569 lines)
+    ├── AiSwarmsScreen.kt             # Swarm management CRUD (~384 lines)
+    ├── AiSettingsExport.kt           # Configuration export/import v11 (~743 lines)
+    ├── SettingsScreen.kt             # Settings hub + Cost Configuration (~842 lines)
+    ├── HelpScreen.kt                 # In-app documentation (~577 lines)
+    ├── TraceScreen.kt                # API trace list and detail viewer (~612 lines)
+    ├── SettingsPreferences.kt        # SharedPreferences persistence (~662 lines)
+    ├── SharedComponents.kt           # AiTitleBar, common widgets (~121 lines)
+    ├── Navigation.kt                 # Jetpack Navigation routes (~750 lines)
     └── theme/Theme.kt                # Material3 dark theme (~32 lines)
 ```
 
-**Total:** ~22,000 lines of Kotlin code
+**Total:** ~26,000 lines of Kotlin code
 
 ### Key Data Classes
 
@@ -121,13 +122,22 @@ enum class AiService(val displayName: String, val baseUrl: String, val adminUrl:
     DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
 }
 
+// AI Endpoint - configurable API endpoint for a provider
+data class AiEndpoint(
+    val id: String,                    // UUID
+    val name: String,                  // User-defined name
+    val url: String,                   // API endpoint URL
+    val isDefault: Boolean = false     // Whether this is the default endpoint
+)
+
 // AI Agent configuration with advanced parameters
 data class AiAgent(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val provider: AiService,           // Service to use
-    val model: String,                 // Model name
-    val apiKey: String,                // API key for this agent
+    val model: String,                 // Model name (empty = use provider default)
+    val apiKey: String,                // API key (empty = use provider key)
+    val endpointId: String? = null,    // Endpoint ID (null = use provider default)
     val parameters: AiAgentParameters = AiAgentParameters()
 )
 
@@ -136,6 +146,14 @@ data class AiSwarm(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val agentIds: List<String>         // References to AiAgent IDs
+)
+
+// AI Prompt - internal prompts for app features (e.g., model_info)
+data class AiPrompt(
+    val id: String,                    // UUID
+    val name: String,                  // Unique name (e.g., "model_info")
+    val agentId: String,               // Reference to AiAgent ID
+    val promptText: String             // Template with @MODEL@, @PROVIDER@, @AGENT@, @SWARM@, @NOW@
 )
 
 // Agent parameters (all optional - null means use provider default)
@@ -212,12 +230,45 @@ data class ModelPricing(
 
 5. **Flow-based Streaming**: SSE parsing returns `Flow<String>` for real-time token emission
 
-6. **Thread Safety**:
-   - `ConcurrentHashMap` for Retrofit cache
+6. **Inheritance Pattern**: Agents inherit API key, model, and endpoint from provider when left empty
+
+7. **Thread Safety**:
+   - `ConcurrentHashMap` for Retrofit instance cache
    - `ReentrantLock` for AiReportStorage
    - Synchronized access to `isTracingEnabled` flag
    - Coroutines with `Dispatchers.IO` for network calls
    - StateFlow for thread-safe state updates
+
+## Provider Endpoints
+
+### Multiple Endpoints per Provider
+
+Providers can have multiple API endpoints configured. Default endpoints are provided for providers with multiple APIs:
+
+| Provider | Endpoints |
+|----------|-----------|
+| OpenAI | Chat Completions (gpt-4o, gpt-4, gpt-3.5), Responses API (gpt-5.x, o3, o4) |
+| DeepSeek | Standard (chat/completions), Beta (FIM/prefix completion) |
+| Mistral | Standard (api.mistral.ai), Codestral (codestral.mistral.ai) |
+| SiliconFlow | Chat Completions (OpenAI compatible), Messages (Anthropic compatible) |
+| Z.AI | General (chat completions), Coding (GLM Coding Plan) |
+
+### Endpoint Resolution
+
+```kotlin
+// Priority for agent endpoint resolution:
+// 1. Agent's specific endpointId
+// 2. Provider's default endpoint
+// 3. Provider's first endpoint
+// 4. Hardcoded baseUrl from AiService enum
+
+fun getEffectiveEndpointUrlForAgent(agent: AiAgent): String {
+    agent.endpointId?.let { endpointId ->
+        getEndpointById(agent.provider, endpointId)?.let { return it.url }
+    }
+    return getEffectiveEndpointUrl(agent.provider)
+}
+```
 
 ## Streaming Implementation
 
@@ -349,14 +400,15 @@ object AiReportStorage {
 
 ### Service-Specific Features
 
-- **OpenAI**: Supports Chat Completions API (gpt-4o, etc.) and Responses API (gpt-5.x, o3, o4). JSON response format option.
+- **OpenAI**: Supports Chat Completions API (gpt-4o, etc.) and Responses API (gpt-5.x, o3, o4). JSON response format option. Auto-routes based on model name.
 - **Anthropic**: Hardcoded model list (8 models - no list API), Anthropic-specific format with content blocks
 - **Google**: Uses generationConfig object for parameters, systemInstruction for system prompt
-- **DeepSeek**: Handles `reasoning_content` field for reasoning models, displayed in think sections
+- **DeepSeek**: Handles `reasoning_content` field for reasoning models, displayed in think sections. Has Beta endpoint for FIM.
 - **Perplexity**: Returns `citations`, `search_results`, `related_questions`. Supports search recency filter.
 - **xAI**: Optional web search via `search` parameter. May return `search_results`.
-- **SiliconFlow**: Cost-effective Chinese AI provider with Qwen and DeepSeek models
-- **Z.AI**: ZhipuAI GLM models (Chinese provider)
+- **Mistral**: Has separate Codestral endpoint for code generation
+- **SiliconFlow**: Cost-effective Chinese AI provider with Qwen and DeepSeek models. Supports OpenAI and Anthropic-compatible endpoints.
+- **Z.AI**: ZhipuAI GLM models (Chinese provider). Has separate Coding endpoint.
 - **DUMMY**: Local test server on port 54321, auto-starts in developer mode
 
 ### Hardcoded Models
@@ -446,7 +498,7 @@ AI Hub (Home)
 ├── Settings → General / Cost Config / AI Setup / Help
 │   ├── General: Username, Full screen, Developer mode, API tracing
 │   ├── Cost Config: Manual price overrides per model
-│   └── AI Setup → Providers / Agents / Swarms / Export / Refresh
+│   └── AI Setup → Providers / Agents / Swarms / Prompts / Export / Refresh
 └── Help → Comprehensive in-app documentation
 ```
 
@@ -468,10 +520,14 @@ AI Hub (Home)
 "ai_{service}_model"          // String
 "ai_{service}_model_source"   // Enum: API or MANUAL
 "ai_{service}_manual_models"  // JSON List<String>
+"ai_{service}_admin_url"      // String
+"ai_{service}_model_list_url" // String (custom model list URL)
 
-// Agents and Swarms (JSON)
+// Agents, Swarms, Prompts, Endpoints (JSON)
 "ai_agents"               // JSON List<AiAgent>
 "ai_swarms"               // JSON List<AiSwarm>
+"ai_prompts"              // JSON List<AiPrompt>
+"ai_endpoints"            // JSON Map<AiService, List<AiEndpoint>>
 
 // Report generation
 "ai_report_agents"        // Set<String> - last selected agent IDs
@@ -529,24 +585,51 @@ AI Hub (Home)
 5. Add analysis method in `AiAnalysisRepository.kt` (with parameter support)
 6. Add streaming method in `AiAnalysisRepository.kt`
 7. Add to `sendChatMessageStream()` switch statement
-8. Add to `PROVIDER_SUPPORTED_PARAMETERS` map in `AiSettingsModels.kt`
-9. Add settings fields to `AiSettings` in `AiSettingsModels.kt`
-10. Add UI in `AiServiceSettingsScreens.kt`
-11. Add SharedPreferences keys in `SettingsPreferences.kt`
-12. Update load/save methods
-13. Update export/import in `AiSettingsExport.kt`
-14. Update SettingsScreen.kt navigation enum and when block
-15. Add OpenRouter prefix mapping in `PricingCache.kt` if applicable
+8. Add settings fields to `AiSettings` in `AiSettingsModels.kt`
+9. Add UI in `AiServiceSettingsScreens.kt` (with default endpoints if applicable)
+10. Add SharedPreferences keys in `SettingsPreferences.kt`
+11. Update load/save methods
+12. Update export/import in `AiSettingsExport.kt`
+13. Update SettingsScreen.kt navigation enum and when block
+14. Add OpenRouter prefix mapping in `PricingCache.kt` if applicable
 
 ### Adding a New Agent Parameter
 
 1. Add to `AiParameter` enum in `AiSettingsModels.kt`
 2. Add field to `AiAgentParameters` data class
-3. Update `PROVIDER_SUPPORTED_PARAMETERS` for each provider that supports it
-4. Add UI control in `AgentEditScreen` in `AiPromptsAgentsScreens.kt`
+3. Add UI control in `AgentEditScreen` in `AiPromptsAgentsScreens.kt`
+4. Update `AgentParametersExport` in `AiSettingsExport.kt`
 5. Update request data class in `AiAnalysisApi.kt`
 6. Pass parameter in `analyzeWith*` method in `AiAnalysisRepository.kt`
 7. Pass parameter in streaming method if applicable
+
+### Adding Default Endpoints for a Provider
+
+1. In provider's settings screen (e.g., `DeepSeekSettingsScreen`), create list:
+```kotlin
+val defaultEndpoints = listOf(
+    AiEndpoint(
+        id = "provider-endpoint-1",
+        name = "Description (use case)",
+        url = "https://api.provider.com/v1/endpoint",
+        isDefault = true
+    ),
+    AiEndpoint(
+        id = "provider-endpoint-2",
+        name = "Alternative (use case)",
+        url = "https://api.provider.com/v2/endpoint",
+        isDefault = false
+    )
+)
+```
+2. Initialize endpoints state with fallback to defaults:
+```kotlin
+var endpoints by remember {
+    mutableStateOf(
+        aiSettings.getEndpointsForProvider(AiService.PROVIDER).ifEmpty { defaultEndpoints }
+    )
+}
+```
 
 ### Modifying HTML Reports
 
@@ -594,27 +677,35 @@ adb shell am start -a com.ai.ACTION_NEW_REPORT \
 
 ## Export/Import Configuration
 
-### Version 7 Format (Current)
+### Version 11 Format (Current)
 
 ```json
 {
-  "version": 7,
+  "version": 11,
   "huggingFaceApiKey": "hf_...",
   "providers": {
-    "CHATGPT": {
+    "OPENAI": {
       "modelSource": "API",
       "manualModels": [],
-      "apiKey": "sk-..."
+      "apiKey": "sk-...",
+      "defaultModel": "gpt-4o-mini",
+      "adminUrl": "https://platform.openai.com/usage",
+      "modelListUrl": null
     }
   },
   "agents": [
     {
       "id": "uuid",
       "name": "My Agent",
-      "provider": "CHATGPT",
+      "provider": "OPENAI",
       "model": "gpt-4o",
       "apiKey": "sk-...",
-      "parameters": { ... }
+      "endpointId": "openai-chat-completions",
+      "parameters": {
+        "temperature": 0.7,
+        "maxTokens": 2048,
+        "systemPrompt": "You are helpful."
+      }
     }
   ],
   "swarms": [
@@ -623,11 +714,39 @@ adb shell am start -a com.ai.ACTION_NEW_REPORT \
       "name": "Expert Team",
       "agentIds": ["agent-1-id", "agent-2-id"]
     }
+  ],
+  "aiPrompts": [
+    {
+      "id": "uuid",
+      "name": "model_info",
+      "agentId": "agent-uuid",
+      "promptText": "Describe @MODEL@ from @PROVIDER@"
+    }
+  ],
+  "manualPricing": [
+    {
+      "key": "OPENAI:gpt-4o",
+      "promptPrice": 0.0000025,
+      "completionPrice": 0.00001
+    }
+  ],
+  "providerEndpoints": [
+    {
+      "provider": "OPENAI",
+      "endpoints": [
+        {
+          "id": "openai-chat-completions",
+          "name": "Chat Completions (gpt-4o, gpt-4, gpt-3.5)",
+          "url": "https://api.openai.com/v1/chat/completions",
+          "isDefault": true
+        }
+      ]
+    }
   ]
 }
 ```
 
-**Backward Compatibility**: Imports versions 3, 4, 5, 6, and 7.
+**Import:** Only version 11 is supported.
 
 ## Testing Checklist
 
@@ -644,18 +763,22 @@ After making changes:
 - [ ] AI Statistics tracks usage correctly
 - [ ] AI Costs shows per-model costs with expandable groups
 - [ ] Agent parameters save and apply correctly
+- [ ] Agent endpoint selection works
+- [ ] Agent inherits provider values when fields empty
 - [ ] Swarm creation and selection works
 - [ ] Think sections collapse/expand properly
 - [ ] Prompt History shows entries and allows reuse
 - [ ] AI History lists reports, View/Share/Browser/Delete work
 - [ ] Settings navigation works (General, Cost Config, AI Setup)
 - [ ] Cost Configuration allows manual price overrides
+- [ ] Provider endpoints can be added/edited/deleted
 - [ ] Refresh model lists button works
 - [ ] API tracing captures requests when enabled
 - [ ] HTML reports render correctly in browser
-- [ ] Export/import configuration works (v7)
+- [ ] Export/import configuration works (v11)
 - [ ] DUMMY provider hidden when not in developer mode
 - [ ] All 13 providers show in provider list
+- [ ] Create default agents creates one per configured provider
 
 ## Code Quality Notes
 
