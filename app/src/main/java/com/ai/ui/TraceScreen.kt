@@ -298,7 +298,7 @@ fun TraceDetailScreen(
     val context = LocalContext.current
     val trace = remember { ApiTracer.readTraceFile(filename) }
     val rawJson = remember { ApiTracer.readTraceFileRaw(filename) ?: "" }
-    var currentView by remember { mutableStateOf(TraceContentView.ALL) }
+    var currentView by remember { mutableStateOf(TraceContentView.RESPONSE_DATA) }
 
     if (trace == null) {
         Box(
@@ -362,9 +362,9 @@ fun TraceDetailScreen(
             onAiClick = onNavigateHome
         )
 
-        // Centered filename display
+        // Centered endpoint URL display
         Text(
-            text = filename,
+            text = trace.request.url,
             color = Color(0xFFAAAAAA),
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,

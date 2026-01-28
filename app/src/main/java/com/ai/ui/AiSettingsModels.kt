@@ -390,7 +390,58 @@ data class AiSettings(
     fun getAgentForPrompt(prompt: AiPrompt): AiAgent? = getAgentById(prompt.agentId)
 
     // Helper methods for endpoints
-    fun getEndpointsForProvider(provider: AiService): List<AiEndpoint> = endpoints[provider] ?: emptyList()
+    fun getEndpointsForProvider(provider: AiService): List<AiEndpoint> =
+        endpoints[provider]?.ifEmpty { getBuiltInEndpoints(provider) } ?: getBuiltInEndpoints(provider)
+
+    /**
+     * Get built-in default endpoints for providers.
+     * These are used when no custom endpoints are configured.
+     */
+    private fun getBuiltInEndpoints(provider: AiService): List<AiEndpoint> = when (provider) {
+        AiService.OPENAI -> listOf(
+            AiEndpoint("openai-chat", "Chat Completions", "https://api.openai.com/v1/chat/completions", true),
+            AiEndpoint("openai-responses", "Responses API", "https://api.openai.com/v1/responses", false)
+        )
+        AiService.MISTRAL -> listOf(
+            AiEndpoint("mistral-chat", "Chat Completions", "https://api.mistral.ai/v1/chat/completions", true),
+            AiEndpoint("mistral-codestral", "Codestral", "https://codestral.mistral.ai/v1/chat/completions", false)
+        )
+        AiService.DEEPSEEK -> listOf(
+            AiEndpoint("deepseek-chat", "Chat Completions", "https://api.deepseek.com/chat/completions", true),
+            AiEndpoint("deepseek-beta", "Beta (FIM)", "https://api.deepseek.com/beta/completions", false)
+        )
+        AiService.ZAI -> listOf(
+            AiEndpoint("zai-chat", "Chat Completions", "https://api.z.ai/api/paas/v4/chat/completions", true),
+            AiEndpoint("zai-coding", "Coding", "https://api.z.ai/api/coding/paas/v4/chat/completions", false)
+        )
+        AiService.SILICONFLOW -> listOf(
+            AiEndpoint("siliconflow-chat", "Chat Completions", "https://api.siliconflow.com/v1/chat/completions", true)
+        )
+        AiService.GROQ -> listOf(
+            AiEndpoint("groq-chat", "Chat Completions", "https://api.groq.com/openai/v1/chat/completions", true)
+        )
+        AiService.XAI -> listOf(
+            AiEndpoint("xai-chat", "Chat Completions", "https://api.x.ai/v1/chat/completions", true)
+        )
+        AiService.TOGETHER -> listOf(
+            AiEndpoint("together-chat", "Chat Completions", "https://api.together.xyz/v1/chat/completions", true)
+        )
+        AiService.OPENROUTER -> listOf(
+            AiEndpoint("openrouter-chat", "Chat Completions", "https://openrouter.ai/api/v1/chat/completions", true)
+        )
+        AiService.PERPLEXITY -> listOf(
+            AiEndpoint("perplexity-chat", "Chat Completions", "https://api.perplexity.ai/chat/completions", true)
+        )
+        AiService.ANTHROPIC -> listOf(
+            AiEndpoint("anthropic-messages", "Messages API", "https://api.anthropic.com/v1/messages", true)
+        )
+        AiService.GOOGLE -> listOf(
+            AiEndpoint("google-generate", "Generate Content", "https://generativelanguage.googleapis.com/v1beta/models", true)
+        )
+        AiService.DUMMY -> listOf(
+            AiEndpoint("dummy-chat", "Chat Completions", "http://localhost:54321/v1/chat/completions", true)
+        )
+    }
 
     fun getEndpointById(provider: AiService, endpointId: String): AiEndpoint? =
         getEndpointsForProvider(provider).find { it.id == endpointId }

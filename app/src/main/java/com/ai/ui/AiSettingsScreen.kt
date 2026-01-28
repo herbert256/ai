@@ -2628,7 +2628,7 @@ fun ApiTestScreen(
             }
         }
 
-        // API URL field with Select Endpoint button
+        // API endpoint field with Select Endpoint button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2637,7 +2637,7 @@ fun ApiTestScreen(
             OutlinedTextField(
                 value = apiUrl,
                 onValueChange = { apiUrl = it },
-                label = { Text("API URL") },
+                label = { Text("API endpoint") },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -3005,8 +3005,6 @@ fun ApiTestScreen(
     // Endpoint Selection Dialog
     if (showEndpointDialog) {
         val endpoints = aiSettings.getEndpointsForProvider(selectedProvider)
-        val defaultBaseUrl = selectedProvider.baseUrl
-        val modelListUrl = aiSettings.getEffectiveModelListUrl(selectedProvider)
 
         AlertDialog(
             onDismissRequest = { showEndpointDialog = false },
@@ -3019,82 +3017,36 @@ fun ApiTestScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Default base URL
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                apiUrl = defaultBaseUrl
-                                showEndpointDialog = false
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (apiUrl == defaultBaseUrl) Color(0xFF6366F1).copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Default Base URL", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text(defaultBaseUrl, fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-
-                    // Model List URL
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                apiUrl = modelListUrl
-                                showEndpointDialog = false
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (apiUrl == modelListUrl) Color(0xFF6366F1).copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Model List URL", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text(modelListUrl, fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-
-                    // Custom endpoints
-                    if (endpoints.isNotEmpty()) {
-                        Text(
-                            "Custom Endpoints",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        endpoints.forEach { endpoint ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        apiUrl = endpoint.url
-                                        showEndpointDialog = false
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (apiUrl == endpoint.url) Color(0xFF6366F1).copy(alpha = 0.3f)
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(endpoint.name, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                        if (endpoint.isDefault) {
-                                            Text(
-                                                "DEFAULT",
-                                                fontSize = 10.sp,
-                                                color = Color(0xFF4CAF50),
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
+                    // Show endpoints only
+                    endpoints.forEach { endpoint ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    apiUrl = endpoint.url
+                                    showEndpointDialog = false
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (apiUrl == endpoint.url) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(endpoint.name, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    if (endpoint.isDefault) {
+                                        Text(
+                                            "DEFAULT",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF4CAF50),
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
-                                    Text(endpoint.url, fontSize = 12.sp, color = Color.Gray)
                                 }
+                                Text(endpoint.url, fontSize = 12.sp, color = Color.Gray)
                             }
                         }
                     }
