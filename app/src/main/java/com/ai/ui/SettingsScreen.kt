@@ -43,6 +43,9 @@ enum class SettingsSubScreen {
     AI_SWARMS,      // Swarms CRUD
     AI_ADD_SWARM,   // Add new swarm
     AI_EDIT_SWARM,  // Edit existing swarm
+    AI_FLOCKS,      // Flocks CRUD
+    AI_ADD_FLOCK,   // Add new flock
+    AI_EDIT_FLOCK,  // Edit existing flock
     AI_PROMPTS,     // AI Prompts CRUD
     AI_ADD_PROMPT,  // Add new prompt
     AI_EDIT_PROMPT  // Edit existing prompt
@@ -116,6 +119,9 @@ fun SettingsScreen(
 
     // State for swarm editing
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
+
+    // State for flock editing
+    var editingFlockId by remember { mutableStateOf<String?>(null) }
 
     // State for prompt editing
     var editingPromptId by remember { mutableStateOf<String?>(null) }
@@ -509,6 +515,81 @@ fun SettingsScreen(
                 onBack = {
                     editingSwarmId = null
                     currentSubScreen = SettingsSubScreen.AI_SWARMS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_FLOCKS -> AiFlocksScreen(
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddFlock = { currentSubScreen = SettingsSubScreen.AI_ADD_FLOCK },
+            onEditFlock = { flockId ->
+                editingFlockId = flockId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_FLOCK
+            }
+        )
+        SettingsSubScreen.AI_ADD_FLOCK -> FlockEditScreen(
+            flock = null,
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            existingNames = aiSettings.flocks.map { it.name }.toSet(),
+            availableModels = mapOf(
+                AiService.OPENAI to availableChatGptModels,
+                AiService.ANTHROPIC to availableClaudeModels,
+                AiService.GOOGLE to availableGeminiModels,
+                AiService.XAI to availableGrokModels,
+                AiService.GROQ to availableGroqModels,
+                AiService.DEEPSEEK to availableDeepSeekModels,
+                AiService.MISTRAL to availableMistralModels,
+                AiService.PERPLEXITY to availablePerplexityModels,
+                AiService.TOGETHER to availableTogetherModels,
+                AiService.OPENROUTER to availableOpenRouterModels,
+                AiService.SILICONFLOW to availableSiliconFlowModels,
+                AiService.ZAI to availableZaiModels,
+                AiService.DUMMY to availableDummyModels
+            ),
+            onSave = { newFlock ->
+                val newFlocks = aiSettings.flocks + newFlock
+                onSaveAi(aiSettings.copy(flocks = newFlocks))
+                currentSubScreen = SettingsSubScreen.AI_FLOCKS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_FLOCKS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_FLOCK -> {
+            val flock = editingFlockId?.let { aiSettings.getFlockById(it) }
+            FlockEditScreen(
+                flock = flock,
+                aiSettings = aiSettings,
+                developerMode = generalSettings.developerMode,
+                existingNames = aiSettings.flocks.filter { it.id != editingFlockId }.map { it.name }.toSet(),
+                availableModels = mapOf(
+                    AiService.OPENAI to availableChatGptModels,
+                    AiService.ANTHROPIC to availableClaudeModels,
+                    AiService.GOOGLE to availableGeminiModels,
+                    AiService.XAI to availableGrokModels,
+                    AiService.GROQ to availableGroqModels,
+                    AiService.DEEPSEEK to availableDeepSeekModels,
+                    AiService.MISTRAL to availableMistralModels,
+                    AiService.PERPLEXITY to availablePerplexityModels,
+                    AiService.TOGETHER to availableTogetherModels,
+                    AiService.OPENROUTER to availableOpenRouterModels,
+                    AiService.SILICONFLOW to availableSiliconFlowModels,
+                    AiService.ZAI to availableZaiModels,
+                    AiService.DUMMY to availableDummyModels
+                ),
+                onSave = { updatedFlock ->
+                    val newFlocks = aiSettings.flocks.map { if (it.id == updatedFlock.id) updatedFlock else it }
+                    onSaveAi(aiSettings.copy(flocks = newFlocks))
+                    editingFlockId = null
+                    currentSubScreen = SettingsSubScreen.AI_FLOCKS
+                },
+                onBack = {
+                    editingFlockId = null
+                    currentSubScreen = SettingsSubScreen.AI_FLOCKS
                 },
                 onNavigateHome = onNavigateHome
             )

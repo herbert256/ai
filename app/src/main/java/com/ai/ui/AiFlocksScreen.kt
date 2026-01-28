@@ -1,0 +1,400 @@
+package com.ai.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.AiService
+import java.util.UUID
+
+/**
+ * AI Flocks list screen - shows all flocks with add/edit/delete.
+ */
+@Composable
+fun AiFlocksScreen(
+    aiSettings: AiSettings,
+    developerMode: Boolean,
+    onBackToAiSetup: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onAddFlock: () -> Unit,
+    onEditFlock: (String) -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf<AiFlock?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "AI Flocks",
+            onBackClick = onBackToAiSetup,
+            onAiClick = onBackToHome
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Add flock button
+        Button(
+            onClick = onAddFlock,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+        ) {
+            Text("Add Flock")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (aiSettings.flocks.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No flocks configured.\nAdd a flock to group provider/model combinations.",
+                    color = Color(0xFF888888),
+                    fontSize = 16.sp
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { flock ->
+                    // Filter DUMMY members when not in developer mode
+                    val flockMembers = flock.members.filter { member ->
+                        developerMode || member.provider != AiService.DUMMY
+                    }
+                    FlockListItem(
+                        flock = flock,
+                        members = flockMembers,
+                        onClick = { onEditFlock(flock.id) },
+                        onDelete = { showDeleteDialog = flock }
+                    )
+                }
+            }
+        }
+    }
+
+    // Delete confirmation dialog
+    showDeleteDialog?.let { flock ->
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = null },
+            title = { Text("Delete Flock") },
+            text = { Text("Are you sure you want to delete \"${flock.name}\"?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val newFlocks = aiSettings.flocks.filter { it.id != flock.id }
+                        onSave(aiSettings.copy(flocks = newFlocks))
+                        showDeleteDialog = null
+                    }
+                ) {
+                    Text("Delete", color = Color(0xFFFF6B6B))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+/**
+ * List item for a flock showing name and member count.
+ */
+@Composable
+private fun FlockListItem(
+    flock: AiFlock,
+    members: List<AiFlockMember>,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF2A2A3A)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = flock.name,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (members.isEmpty()) {
+                        "No members"
+                    } else {
+                        "${members.size} member${if (members.size == 1) "" else "s"}: ${members.take(3).joinToString(", ") { "${it.provider.displayName}/${it.model.take(20)}" }}${if (members.size > 3) "..." else ""}"
+                    },
+                    fontSize = 14.sp,
+                    color = Color(0xFF888888)
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Text("X", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Flock edit screen for creating or editing a flock.
+ */
+@Composable
+fun FlockEditScreen(
+    flock: AiFlock?,
+    aiSettings: AiSettings,
+    developerMode: Boolean,
+    existingNames: Set<String>,
+    availableModels: Map<AiService, List<String>>,
+    onSave: (AiFlock) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val isEditing = flock != null
+
+    var name by remember { mutableStateOf(flock?.name ?: "") }
+    var selectedMembers by remember { mutableStateOf(flock?.members?.toSet() ?: emptySet()) }
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Get all available provider/model combinations
+    val allProviderModels = remember(aiSettings, availableModels, developerMode) {
+        val result = mutableListOf<AiFlockMember>()
+        AiService.entries.filter { developerMode || it != AiService.DUMMY }.forEach { provider ->
+            val apiKey = aiSettings.getApiKey(provider)
+            if (apiKey.isNotBlank()) {
+                // Get models for this provider (from availableModels or manual models)
+                val models = availableModels[provider]?.takeIf { it.isNotEmpty() }
+                    ?: aiSettings.getManualModels(provider).takeIf { it.isNotEmpty() }
+                    ?: listOf(aiSettings.getModel(provider))
+                models.forEach { model ->
+                    result.add(AiFlockMember(provider, model))
+                }
+            }
+        }
+        result
+    }
+
+    // Filter based on search query
+    val filteredProviderModels = if (searchQuery.isBlank()) {
+        allProviderModels
+    } else {
+        allProviderModels.filter { member ->
+            member.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+            member.model.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = if (isEditing) "Edit Flock" else "Add Flock",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Flock name field
+            OutlinedTextField(
+                value = name,
+                onValueChange = {
+                    name = it
+                    nameError = null
+                },
+                label = { Text("Flock Name") },
+                placeholder = { Text("Enter a name for this flock") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                isError = nameError != null,
+                supportingText = nameError?.let { { Text(it, color = Color(0xFFFF6B6B)) } },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF8B5CF6),
+                    unfocusedBorderColor = Color(0xFF444444),
+                    focusedLabelColor = Color(0xFF8B5CF6),
+                    unfocusedLabelColor = Color.Gray,
+                    cursorColor = Color.White
+                )
+            )
+
+            // Member selection section
+            Text(
+                text = "Select Provider/Model Combinations",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                color = Color(0xFF8B5CF6)
+            )
+
+            if (allProviderModels.isEmpty()) {
+                Text(
+                    text = "No providers configured with API keys. Configure providers first.",
+                    color = Color(0xFF888888),
+                    fontSize = 14.sp
+                )
+            } else {
+                // Search box
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search") },
+                    placeholder = { Text("Filter by provider or model") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF8B5CF6),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedLabelColor = Color(0xFF8B5CF6),
+                        unfocusedLabelColor = Color.Gray,
+                        cursorColor = Color.White
+                    )
+                )
+
+                // Select all / Select none buttons (operate on filtered items)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { selectedMembers = selectedMembers + filteredProviderModels.toSet() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Select all")
+                    }
+                    OutlinedButton(
+                        onClick = { selectedMembers = selectedMembers - filteredProviderModels.toSet() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Select none")
+                    }
+                }
+
+                // Show count of filtered vs total
+                if (searchQuery.isNotBlank()) {
+                    Text(
+                        text = "Showing ${filteredProviderModels.size} of ${allProviderModels.size} models",
+                        fontSize = 12.sp,
+                        color = Color(0xFF888888)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Group by provider for better organization
+                val groupedByProvider = filteredProviderModels.groupBy { it.provider }
+                groupedByProvider.toSortedMap(compareBy { it.displayName }).forEach { (provider, members) ->
+                    Text(
+                        text = provider.displayName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF8B5CF6),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+
+                    members.sortedBy { it.model.lowercase() }.forEach { member ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedMembers = if (member in selectedMembers) {
+                                        selectedMembers - member
+                                    } else {
+                                        selectedMembers + member
+                                    }
+                                }
+                                .padding(vertical = 8.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = member in selectedMembers,
+                                onCheckedChange = { checked ->
+                                    selectedMembers = if (checked) {
+                                        selectedMembers + member
+                                    } else {
+                                        selectedMembers - member
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = member.model,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Save button
+        Button(
+            onClick = {
+                // Validate
+                when {
+                    name.isBlank() -> {
+                        nameError = "Name is required"
+                    }
+                    name in existingNames -> {
+                        nameError = "A flock with this name already exists"
+                    }
+                    selectedMembers.isEmpty() -> {
+                        nameError = "Select at least one provider/model"
+                    }
+                    else -> {
+                        val newFlock = AiFlock(
+                            id = flock?.id ?: UUID.randomUUID().toString(),
+                            name = name.trim(),
+                            members = selectedMembers.toList()
+                        )
+                        onSave(newFlock)
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+        ) {
+            Text(if (isEditing) "Save Changes" else "Create Flock")
+        }
+    }
+}

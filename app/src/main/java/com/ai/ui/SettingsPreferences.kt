@@ -62,9 +62,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val baseSettings = loadAiSettings()
         val agents = loadAgents()
         val swarms = loadSwarms()
+        val flocks = loadFlocks()
         val prompts = loadPrompts()
         val endpoints = loadEndpoints()
-        return baseSettings.copy(agents = agents, swarms = swarms, prompts = prompts, endpoints = endpoints)
+        return baseSettings.copy(agents = agents, swarms = swarms, flocks = flocks, prompts = prompts, endpoints = endpoints)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -265,6 +266,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
             // Save swarms
             .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
+            // Save flocks
+            .putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
             // Save prompts
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             // Save endpoints (convert to Map<String, List<AiEndpoint>> for storage)
@@ -312,6 +315,20 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<AiSwarm>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // ============================================================================
+    // AI Flocks
+    // ============================================================================
+
+    private fun loadFlocks(): List<AiFlock> {
+        val json = prefs.getString(KEY_AI_FLOCKS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<AiFlock>>() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -508,6 +525,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         // AI swarms
         private const val KEY_AI_SWARMS = "ai_swarms"
 
+        // AI flocks
+        private const val KEY_AI_FLOCKS = "ai_flocks"
+
         // AI prompts (internal app prompts)
         private const val KEY_AI_PROMPTS = "ai_prompts"
 
@@ -524,6 +544,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // Selected swarm IDs for report generation
         private const val KEY_SELECTED_SWARM_IDS = "selected_swarm_ids"
+
+        // Selected flock IDs for report generation
+        private const val KEY_SELECTED_FLOCK_IDS = "selected_flock_ids"
 
         // AI usage statistics
         private const val KEY_AI_USAGE_STATS = "ai_usage_stats"
@@ -565,6 +588,26 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     fun saveSelectedSwarmIds(swarmIds: Set<String>) {
         val json = gson.toJson(swarmIds.toList())
         prefs.edit().putString(KEY_SELECTED_SWARM_IDS, json).apply()
+    }
+
+    // ============================================================================
+    // Selected Flock IDs (for report generation)
+    // ============================================================================
+
+    fun loadSelectedFlockIds(): Set<String> {
+        val json = prefs.getString(KEY_SELECTED_FLOCK_IDS, null) ?: return emptySet()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            val list: List<String>? = gson.fromJson(json, type)
+            list?.toSet() ?: emptySet()
+        } catch (e: Exception) {
+            emptySet()
+        }
+    }
+
+    fun saveSelectedFlockIds(flockIds: Set<String>) {
+        val json = gson.toJson(flockIds.toList())
+        prefs.edit().putString(KEY_SELECTED_FLOCK_IDS, json).apply()
     }
 
     // ============================================================================

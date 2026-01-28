@@ -308,6 +308,17 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
+        // Flocks card
+        val configuredFlocks = aiSettings.flocks.size
+        AiSetupNavigationCard(
+            title = "Flocks",
+            description = "Group provider/model combinations for report generation",
+            icon = "🦆",
+            count = "$configuredFlocks configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) },
+            enabled = hasApiKey
+        )
+
         // Prompts card
         val configuredPrompts = aiSettings.prompts.size
         AiSetupNavigationCard(

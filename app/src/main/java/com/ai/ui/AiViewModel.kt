@@ -161,6 +161,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putStringSet(AI_REPORT_SWARMS_KEY, swarmIds).apply()
     }
 
+    fun loadAiReportFlocks(): Set<String> {
+        val stored = prefs.getStringSet(AI_REPORT_FLOCKS_KEY, emptySet()) ?: emptySet()
+        return stored.toSet()
+    }
+
+    fun saveAiReportFlocks(flockIds: Set<String>) {
+        prefs.edit().putStringSet(AI_REPORT_FLOCKS_KEY, flockIds).apply()
+    }
+
     // ========== Generic AI Reports ==========
 
     fun showGenericAiAgentSelection(title: String, prompt: String) {
@@ -184,7 +193,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun generateGenericAiReports(selectedAgentIds: Set<String>) {
+    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedFlockIds: Set<String> = emptySet()) {
         viewModelScope.launch {
             val context = getApplication<Application>()
             val aiSettings = _uiState.value.aiSettings
@@ -192,22 +201,28 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val title = _uiState.value.genericAiPromptTitle
             val overrideParams = _uiState.value.reportAdvancedParameters
 
+            // Get actual agents from settings
+            val agents = selectedAgentIds.mapNotNull { agentId ->
+                aiSettings.getAgentById(agentId)
+            }
+
+            // Get flock members from selected flocks
+            val flockMembers = aiSettings.getMembersForFlocks(selectedFlockIds)
+
+            // Total worker count
+            val totalWorkers = agents.size + flockMembers.size
+
             _uiState.value = _uiState.value.copy(
                 showGenericAiAgentSelection = false,
                 showGenericAiReportsDialog = true,
                 genericAiReportsProgress = 0,
-                genericAiReportsTotal = selectedAgentIds.size,
+                genericAiReportsTotal = totalWorkers,
                 genericAiReportsSelectedAgents = selectedAgentIds,
                 genericAiReportsAgentResults = emptyMap(),
                 currentReportId = null  // Will be set after report creation
             )
 
-            // Get the actual agents from settings
-            val agents = selectedAgentIds.mapNotNull { agentId ->
-                aiSettings.getAgentById(agentId)
-            }
-
-            // Create AI Report object with all agents in PENDING state
+            // Create AI Report objects for agents
             val reportAgents = agents.map { agent ->
                 AiReportAgent(
                     agentId = agent.id,
@@ -217,11 +232,25 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     reportStatus = ReportStatus.PENDING
                 )
             }
+
+            // Create AI Report objects for flock members (using synthetic IDs)
+            val reportFlockMembers = flockMembers.map { member ->
+                val syntheticId = "flock:${member.provider.name}:${member.model}"
+                AiReportAgent(
+                    agentId = syntheticId,
+                    agentName = "${member.provider.displayName} / ${member.model}",
+                    provider = member.provider.name,
+                    model = member.model,
+                    reportStatus = ReportStatus.PENDING
+                )
+            }
+
+            val allReportAgents = reportAgents + reportFlockMembers
             val report = AiReportStorage.createReport(
                 context = context,
                 title = title.ifBlank { "AI Report" },
                 prompt = prompt,
-                agents = reportAgents
+                agents = allReportAgents
             )
             val reportId = report.id
 
@@ -232,7 +261,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             ApiTracer.currentReportId = reportId
 
             // Make all API calls in parallel, but update state as each completes
-            agents.map { agent ->
+            val agentJobs = agents.map { agent ->
                 async {
                     // Mark agent as running
                     AiReportStorage.markAgentRunning(
@@ -326,7 +355,112 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         genericAiReportsAgentResults = _uiState.value.genericAiReportsAgentResults + (agent.id to response)
                     )
                 }
-            }.awaitAll()
+            }
+
+            // Process flock members in parallel (using provider defaults)
+            val flockJobs = flockMembers.map { member ->
+                async {
+                    val syntheticId = "flock:${member.provider.name}:${member.model}"
+
+                    // Mark as running
+                    AiReportStorage.markAgentRunning(
+                        context = context,
+                        reportId = reportId,
+                        agentId = syntheticId,
+                        requestBody = prompt
+                    )
+
+                    // Get provider's API key
+                    val providerApiKey = aiSettings.getApiKey(member.provider)
+
+                    // Create a temporary agent with provider defaults
+                    val tempAgent = AiAgent(
+                        id = syntheticId,
+                        name = "${member.provider.displayName} / ${member.model}",
+                        provider = member.provider,
+                        model = member.model,
+                        apiKey = providerApiKey
+                    )
+
+                    val response = try {
+                        aiAnalysisRepository.analyzePositionWithAgent(
+                            agent = tempAgent,
+                            fen = "",  // No FEN for generic prompts
+                            prompt = prompt,
+                            overrideParams = overrideParams,
+                            context = context
+                        )
+                    } catch (e: Exception) {
+                        AiAnalysisResponse(
+                            service = member.provider,
+                            analysis = null,
+                            error = e.message ?: "Unknown error"
+                        )
+                    }
+
+                    // Calculate cost
+                    val cost: Double? = if (response.tokenUsage != null) {
+                        if (member.provider == AiService.DUMMY) {
+                            0.0
+                        } else {
+                            response.tokenUsage.apiCost ?: run {
+                                val pricing = PricingCache.getPricing(context, member.provider, member.model)
+                                val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
+                                val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
+                                inputCost + outputCost
+                            }
+                        }
+                    } else null
+
+                    // Update report storage with result
+                    if (response.isSuccess) {
+                        AiReportStorage.markAgentSuccess(
+                            context = context,
+                            reportId = reportId,
+                            agentId = syntheticId,
+                            httpStatus = 200,
+                            responseHeaders = response.httpHeaders,
+                            responseBody = response.analysis,
+                            tokenUsage = response.tokenUsage,
+                            cost = cost,
+                            citations = response.citations,
+                            searchResults = response.searchResults,
+                            relatedQuestions = response.relatedQuestions
+                        )
+                    } else {
+                        AiReportStorage.markAgentError(
+                            context = context,
+                            reportId = reportId,
+                            agentId = syntheticId,
+                            httpStatus = response.httpStatusCode,
+                            errorMessage = response.error,
+                            responseHeaders = response.httpHeaders,
+                            responseBody = response.analysis
+                        )
+                    }
+
+                    // Update usage statistics if successful
+                    if (response.error == null && response.tokenUsage != null) {
+                        val usage = response.tokenUsage
+                        settingsPrefs.updateUsageStats(
+                            provider = member.provider,
+                            model = member.model,
+                            inputTokens = usage.inputTokens,
+                            outputTokens = usage.outputTokens,
+                            totalTokens = usage.totalTokens
+                        )
+                    }
+
+                    // Update state immediately when this flock member completes
+                    _uiState.value = _uiState.value.copy(
+                        genericAiReportsProgress = _uiState.value.genericAiReportsProgress + 1,
+                        genericAiReportsAgentResults = _uiState.value.genericAiReportsAgentResults + (syntheticId to response)
+                    )
+                }
+            }
+
+            // Wait for all jobs to complete
+            (agentJobs + flockJobs).awaitAll()
 
             // Clear the current report ID for API tracing
             ApiTracer.currentReportId = null
@@ -887,5 +1021,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val AI_REPORT_AGENTS_KEY = "ai_report_agents"
         private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms"
+        private const val AI_REPORT_FLOCKS_KEY = "ai_report_flocks"
     }
 }

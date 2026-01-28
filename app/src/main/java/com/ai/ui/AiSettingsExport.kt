@@ -82,6 +82,23 @@ data class SwarmExport(
 )
 
 /**
+ * Data class for flock member in JSON export/import (version 13+).
+ */
+data class FlockMemberExport(
+    val provider: String,  // Provider enum name
+    val model: String
+)
+
+/**
+ * Data class for flock in JSON export/import (version 13+).
+ */
+data class FlockExport(
+    val id: String,
+    val name: String,
+    val members: List<FlockMemberExport>
+)
+
+/**
  * Data class for prompt in JSON export/import (version 8+).
  */
 data class PromptExport(
@@ -125,10 +142,11 @@ data class ProviderEndpointsExport(
  *             endpoints, agents with parameters, swarms, AI prompts, manual pricing.
  */
 data class AiConfigExport(
-    val version: Int = 12,
+    val version: Int = 13,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
+    val flocks: List<FlockExport>? = null,  // Version 13+
     val huggingFaceApiKey: String? = null,  // Version 7+
     val aiPrompts: List<PromptExport>? = null,  // Version 8+
     val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
@@ -213,6 +231,20 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         )
     }
 
+    // Convert flocks
+    val flocks = aiSettings.flocks.map { flock ->
+        FlockExport(
+            id = flock.id,
+            name = flock.name,
+            members = flock.members.map { member ->
+                FlockMemberExport(
+                    provider = member.provider.name,
+                    model = member.model
+                )
+            }
+        )
+    }
+
     // Convert prompts
     val aiPrompts = aiSettings.prompts.map { prompt ->
         PromptExport(
@@ -254,6 +286,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         providers = providers,
         agents = agents,
         swarms = swarms,
+        flocks = flocks.ifEmpty { null },
         huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
         aiPrompts = aiPrompts.ifEmpty { null },
         manualPricing = manualPricing.ifEmpty { null },
@@ -400,6 +433,28 @@ private fun processImportedConfig(
         )
     } ?: emptyList()
 
+    // Import flocks
+    val flocks = export.flocks?.mapNotNull { flockExport ->
+        try {
+            AiFlock(
+                id = flockExport.id,
+                name = flockExport.name,
+                members = flockExport.members.mapNotNull { memberExport ->
+                    try {
+                        AiFlockMember(
+                            provider = AiService.valueOf(memberExport.provider),
+                            model = memberExport.model
+                        )
+                    } catch (e: Exception) {
+                        null  // Skip invalid provider
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            null
+        }
+    } ?: emptyList()
+
     // Import AI prompts
     val aiPrompts = export.aiPrompts?.map { promptExport ->
         AiPrompt(
@@ -414,6 +469,7 @@ private fun processImportedConfig(
     var settings = currentSettings.copy(
         agents = agents,
         swarms = swarms,
+        flocks = flocks,
         prompts = aiPrompts
     )
 

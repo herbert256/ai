@@ -139,6 +139,25 @@ data class AiSwarm(
 )
 
 /**
+ * AI Flock Member - a provider/model combination within a flock.
+ * Unlike agents, flock members have no custom settings - they use provider defaults.
+ */
+data class AiFlockMember(
+    val provider: AiService,           // Provider enum
+    val model: String                  // Model name
+)
+
+/**
+ * AI Flock - a named group of provider/model combinations.
+ * Unlike swarms which reference agents, flocks contain lightweight provider/model pairs.
+ */
+data class AiFlock(
+    val id: String,                    // UUID
+    val name: String,                  // User-defined name
+    val members: List<AiFlockMember> = emptyList()  // List of provider/model combinations
+)
+
+/**
  * AI Prompt - internal prompts used by the app for AI-powered features.
  * Supports variable replacement: @MODEL@, @PROVIDER@, @AGENT@, @SWARM@, @NOW@
  */
@@ -253,6 +272,8 @@ data class AiSettings(
     val agents: List<AiAgent> = emptyList(),
     // AI Swarms
     val swarms: List<AiSwarm> = emptyList(),
+    // AI Flocks
+    val flocks: List<AiFlock> = emptyList(),
     // AI Prompts (internal app prompts)
     val prompts: List<AiPrompt> = emptyList(),
     // API Endpoints per provider (multiple endpoints allowed, one can be default)
@@ -398,6 +419,16 @@ data class AiSettings(
         swarmIds.flatMap { swarmId ->
             getSwarmById(swarmId)?.let { getAgentsForSwarm(it) } ?: emptyList()
         }.distinctBy { it.id }
+
+    // Helper methods for flocks
+    fun getFlockById(id: String): AiFlock? = flocks.find { it.id == id }
+
+    fun getMembersForFlock(flock: AiFlock): List<AiFlockMember> = flock.members
+
+    fun getMembersForFlocks(flockIds: Set<String>): List<AiFlockMember> =
+        flockIds.flatMap { flockId ->
+            getFlockById(flockId)?.members ?: emptyList()
+        }.distinctBy { "${it.provider.name}:${it.model}" }
 
     // Helper methods for prompts
     fun getPromptByName(name: String): AiPrompt? = prompts.find { it.name.equals(name, ignoreCase = true) }

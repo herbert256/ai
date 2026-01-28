@@ -2351,10 +2351,12 @@ fun AiReportsScreenNav(
         uiState = uiState,
         savedAgentIds = viewModel.loadAiReportAgents(),
         savedSwarmIds = viewModel.loadAiReportSwarms(),
-        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds ->
+        savedFlockIds = viewModel.loadAiReportFlocks(),
+        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds, selectedFlockIds ->
             viewModel.saveAiReportAgents(directAgentIds)
             viewModel.saveAiReportSwarms(selectedSwarmIds)
-            viewModel.generateGenericAiReports(combinedAgentIds)
+            viewModel.saveAiReportFlocks(selectedFlockIds)
+            viewModel.generateGenericAiReports(combinedAgentIds, selectedFlockIds)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -2378,12 +2380,16 @@ fun AiReportsScreenNav(
  * Full-screen AI Reports generation and results screen.
  * Shows agent selection first, then progress and results.
  */
+// Selection mode for report generation
+private enum class ReportSelectionMode { SWARMS, AGENTS, FLOCKS }
+
 @Composable
 fun AiReportsScreen(
     uiState: AiUiState,
     savedAgentIds: Set<String>,
     savedSwarmIds: Set<String>,
-    onGenerate: (Set<String>, Set<String>, Set<String>) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds
+    savedFlockIds: Set<String> = emptySet(),
+    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds, flockIds
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -2497,8 +2503,8 @@ fun AiReportsScreen(
         return
     }
 
-    // Selection mode: true = Swarms, false = Agents
-    var isSwarmMode by remember { mutableStateOf(true) }
+    // Selection mode: Swarms, Agents, or Flocks
+    var selectionMode by remember { mutableStateOf(ReportSelectionMode.SWARMS) }
 
     // Search query
     var searchQuery by remember { mutableStateOf("") }
@@ -2522,6 +2528,12 @@ fun AiReportsScreen(
         )
     }
 
+    // Flock selection state
+    val flocks = uiState.aiSettings.flocks
+    val validFlockIds = flocks.map { it.id }.toSet()
+    val validSavedFlocks = savedFlockIds.filter { it in validFlockIds }.toSet()
+    var selectedFlockIds by remember { mutableStateOf(validSavedFlocks) }
+
     // Direct agent selection state (separate from swarm-based selection)
     // Filter to only include agents that still exist (excluding DUMMY when not in dev mode)
     val validAgentIds = configuredAgents.map { it.id }.toSet()
@@ -2533,8 +2545,15 @@ fun AiReportsScreen(
         .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
         .map { it.id }.toSet()
 
+    // Get members from selected flocks (excluding DUMMY when not in dev mode)
+    val flockMembers = uiState.aiSettings.getMembersForFlocks(selectedFlockIds)
+        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+
     // Combined unique agent IDs (from swarms + directly selected)
     val combinedAgentIds = swarmAgentIds + directlySelectedAgentIds
+
+    // Total worker count (agents + flock members)
+    val totalWorkers = combinedAgentIds.size + flockMembers.size
 
     Column(
         modifier = Modifier
@@ -2546,8 +2565,9 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Reports Ready"
                 isGenerating -> "Generating Reports"
-                isSwarmMode -> "Select Swarm(s)"
-                else -> "Select Agent(s)"
+                selectionMode == ReportSelectionMode.SWARMS -> "Select Swarm(s)"
+                selectionMode == ReportSelectionMode.AGENTS -> "Select Agent(s)"
+                else -> "Select Flock(s)"
             },
             onBackClick = onDismiss,
             onAiClick = onNavigateHome
@@ -2558,14 +2578,14 @@ fun AiReportsScreen(
         if (!isGenerating) {
             // Generate button at top
             Button(
-                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds) },
-                enabled = combinedAgentIds.isNotEmpty(),
+                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds, selectedFlockIds) },
+                enabled = totalWorkers > 0,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF8B5CF6)
                 )
             ) {
-                Text("Generate Reports (${combinedAgentIds.size} agent${if (combinedAgentIds.size == 1) "" else "s"})")
+                Text("Generate Reports ($totalWorkers worker${if (totalWorkers == 1) "" else "s"})")
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -2578,22 +2598,31 @@ fun AiReportsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { isSwarmMode = true },
+                    onClick = { selectionMode = ReportSelectionMode.SWARMS },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSwarmMode) Color(0xFF6B9BFF) else Color(0xFF444444)
+                        containerColor = if (selectionMode == ReportSelectionMode.SWARMS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
                     Text("Swarms")
                 }
                 Button(
-                    onClick = { isSwarmMode = false },
+                    onClick = { selectionMode = ReportSelectionMode.AGENTS },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (!isSwarmMode) Color(0xFF6B9BFF) else Color(0xFF444444)
+                        containerColor = if (selectionMode == ReportSelectionMode.AGENTS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
                     Text("Agents")
+                }
+                Button(
+                    onClick = { selectionMode = ReportSelectionMode.FLOCKS },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectionMode == ReportSelectionMode.FLOCKS) Color(0xFF6B9BFF) else Color(0xFF444444)
+                    )
+                ) {
+                    Text("Flocks")
                 }
             }
 
@@ -2604,7 +2633,11 @@ fun AiReportsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-                placeholder = { Text(if (isSwarmMode) "Search swarms..." else "Search agents...") },
+                placeholder = { Text(when (selectionMode) {
+                    ReportSelectionMode.SWARMS -> "Search swarms..."
+                    ReportSelectionMode.AGENTS -> "Search agents..."
+                    ReportSelectionMode.FLOCKS -> "Search flocks..."
+                }) },
                 singleLine = true,
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -2633,132 +2666,196 @@ fun AiReportsScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (isSwarmMode) {
-                        // Swarm selection mode
-                        val filteredSwarms = swarms
-                            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
-                            .sortedBy { it.name.lowercase() }
-                        if (swarms.isEmpty()) {
-                            Text(
-                                text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > AI Swarms.",
-                                color = Color(0xFFAAAAAA)
-                            )
-                        } else if (filteredSwarms.isEmpty()) {
-                            Text(
-                                text = "No swarms match \"$searchQuery\"",
-                                color = Color(0xFFAAAAAA)
-                            )
-                        } else {
-                            filteredSwarms.forEach { swarm ->
-                                val swarmAgentsList = uiState.aiSettings.getAgentsForSwarm(swarm)
-                                    .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
-                                val swarmAgentIdsList = swarmAgentsList.map { it.id }.toSet()
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            if (swarm.id in selectedSwarmIds) {
-                                                // Deselecting: remove swarm and its agents from direct selection
-                                                selectedSwarmIds = selectedSwarmIds - swarm.id
-                                                directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
-                                            } else {
-                                                selectedSwarmIds = selectedSwarmIds + swarm.id
+                    when (selectionMode) {
+                        ReportSelectionMode.SWARMS -> {
+                            // Swarm selection mode
+                            val filteredSwarms = swarms
+                                .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+                                .sortedBy { it.name.lowercase() }
+                            if (swarms.isEmpty()) {
+                                Text(
+                                    text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > Swarms.",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else if (filteredSwarms.isEmpty()) {
+                                Text(
+                                    text = "No swarms match \"$searchQuery\"",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else {
+                                filteredSwarms.forEach { swarm ->
+                                    val swarmAgentsList = uiState.aiSettings.getAgentsForSwarm(swarm)
+                                        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+                                    val swarmAgentIdsList = swarmAgentsList.map { it.id }.toSet()
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                if (swarm.id in selectedSwarmIds) {
+                                                    selectedSwarmIds = selectedSwarmIds - swarm.id
+                                                    directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
+                                                } else {
+                                                    selectedSwarmIds = selectedSwarmIds + swarm.id
+                                                }
                                             }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = swarm.id in selectedSwarmIds,
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                selectedSwarmIds = selectedSwarmIds + swarm.id
-                                            } else {
-                                                // Deselecting: remove swarm and its agents from direct selection
-                                                selectedSwarmIds = selectedSwarmIds - swarm.id
-                                                directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
+                                            .padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = swarm.id in selectedSwarmIds,
+                                            onCheckedChange = { checked ->
+                                                if (checked) {
+                                                    selectedSwarmIds = selectedSwarmIds + swarm.id
+                                                } else {
+                                                    selectedSwarmIds = selectedSwarmIds - swarm.id
+                                                    directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
+                                                }
                                             }
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = swarm.name,
+                                                fontWeight = FontWeight.Medium,
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = if (swarmAgentsList.isEmpty()) {
+                                                    "No agents"
+                                                } else {
+                                                    "${swarmAgentsList.size} agent${if (swarmAgentsList.size == 1) "" else "s"}: ${swarmAgentsList.take(3).joinToString(", ") { it.name }}${if (swarmAgentsList.size > 3) "..." else ""}"
+                                                },
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFAAAAAA)
+                                            )
                                         }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = swarm.name,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = if (swarmAgentsList.isEmpty()) {
-                                                "No agents"
-                                            } else {
-                                                "${swarmAgentsList.size} agent${if (swarmAgentsList.size == 1) "" else "s"}: ${swarmAgentsList.take(3).joinToString(", ") { it.name }}${if (swarmAgentsList.size > 3) "..." else ""}"
-                                            },
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFAAAAAA)
-                                        )
                                     }
                                 }
                             }
                         }
-                    } else {
-                        // Agent selection mode - exclude agents already selected via swarm
-                        val filteredAgents = configuredAgents
-                            .filter { agent ->
-                                agent.id !in swarmAgentIds && (
-                                    searchQuery.isBlank() ||
-                                    agent.name.contains(searchQuery, ignoreCase = true) ||
-                                    agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
-                                    agent.model.contains(searchQuery, ignoreCase = true)
-                                )
-                            }
-                            .sortedBy { it.name.lowercase() }
-                        if (configuredAgents.isEmpty()) {
-                            Text(
-                                text = "No AI agents configured. Please configure agents in Settings > AI Setup > AI Agents.",
-                                color = Color(0xFFAAAAAA)
-                            )
-                        } else if (filteredAgents.isEmpty()) {
-                            Text(
-                                text = "No agents match \"$searchQuery\"",
-                                color = Color(0xFFAAAAAA)
-                            )
-                        } else {
-                            filteredAgents.forEach { agent ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            directlySelectedAgentIds = if (agent.id in directlySelectedAgentIds) {
-                                                directlySelectedAgentIds - agent.id
-                                            } else {
-                                                directlySelectedAgentIds + agent.id
-                                            }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = agent.id in directlySelectedAgentIds,
-                                        onCheckedChange = { checked ->
-                                            directlySelectedAgentIds = if (checked) {
-                                                directlySelectedAgentIds + agent.id
-                                            } else {
-                                                directlySelectedAgentIds - agent.id
-                                            }
-                                        }
+                        ReportSelectionMode.AGENTS -> {
+                            // Agent selection mode - exclude agents already selected via swarm
+                            val filteredAgents = configuredAgents
+                                .filter { agent ->
+                                    agent.id !in swarmAgentIds && (
+                                        searchQuery.isBlank() ||
+                                        agent.name.contains(searchQuery, ignoreCase = true) ||
+                                        agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+                                        agent.model.contains(searchQuery, ignoreCase = true)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = agent.name,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.White
+                                }
+                                .sortedBy { it.name.lowercase() }
+                            if (configuredAgents.isEmpty()) {
+                                Text(
+                                    text = "No AI agents configured. Please configure agents in Settings > AI Setup > Agents.",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else if (filteredAgents.isEmpty()) {
+                                Text(
+                                    text = "No agents match \"$searchQuery\"",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else {
+                                filteredAgents.forEach { agent ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                directlySelectedAgentIds = if (agent.id in directlySelectedAgentIds) {
+                                                    directlySelectedAgentIds - agent.id
+                                                } else {
+                                                    directlySelectedAgentIds + agent.id
+                                                }
+                                            }
+                                            .padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = agent.id in directlySelectedAgentIds,
+                                            onCheckedChange = { checked ->
+                                                directlySelectedAgentIds = if (checked) {
+                                                    directlySelectedAgentIds + agent.id
+                                                } else {
+                                                    directlySelectedAgentIds - agent.id
+                                                }
+                                            }
                                         )
-                                        Text(
-                                            text = "${agent.provider.displayName} / ${agent.model}",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFFAAAAAA)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = agent.name,
+                                                fontWeight = FontWeight.Medium,
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = "${agent.provider.displayName} / ${agent.model}",
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFAAAAAA)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ReportSelectionMode.FLOCKS -> {
+                            // Flock selection mode
+                            val filteredFlocks = flocks
+                                .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+                                .sortedBy { it.name.lowercase() }
+                            if (flocks.isEmpty()) {
+                                Text(
+                                    text = "No AI flocks configured. Please configure flocks in Settings > AI Setup > Flocks.",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else if (filteredFlocks.isEmpty()) {
+                                Text(
+                                    text = "No flocks match \"$searchQuery\"",
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            } else {
+                                filteredFlocks.forEach { flock ->
+                                    val flockMembersList = flock.members
+                                        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selectedFlockIds = if (flock.id in selectedFlockIds) {
+                                                    selectedFlockIds - flock.id
+                                                } else {
+                                                    selectedFlockIds + flock.id
+                                                }
+                                            }
+                                            .padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = flock.id in selectedFlockIds,
+                                            onCheckedChange = { checked ->
+                                                selectedFlockIds = if (checked) {
+                                                    selectedFlockIds + flock.id
+                                                } else {
+                                                    selectedFlockIds - flock.id
+                                                }
+                                            }
                                         )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = flock.name,
+                                                fontWeight = FontWeight.Medium,
+                                                color = Color.White
+                                            )
+                                            Text(
+                                                text = if (flockMembersList.isEmpty()) {
+                                                    "No members"
+                                                } else {
+                                                    "${flockMembersList.size} member${if (flockMembersList.size == 1) "" else "s"}: ${flockMembersList.take(2).joinToString(", ") { "${it.provider.displayName}/${it.model.take(15)}" }}${if (flockMembersList.size > 2) "..." else ""}"
+                                                },
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFAAAAAA)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -2776,10 +2873,10 @@ fun AiReportsScreen(
             ) {
                 OutlinedButton(
                     onClick = {
-                        if (isSwarmMode) {
-                            selectedSwarmIds = swarms.map { it.id }.toSet()
-                        } else {
-                            directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
+                        when (selectionMode) {
+                            ReportSelectionMode.SWARMS -> selectedSwarmIds = swarms.map { it.id }.toSet()
+                            ReportSelectionMode.AGENTS -> directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
+                            ReportSelectionMode.FLOCKS -> selectedFlockIds = flocks.map { it.id }.toSet()
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -2788,10 +2885,10 @@ fun AiReportsScreen(
                 }
                 OutlinedButton(
                     onClick = {
-                        if (isSwarmMode) {
-                            selectedSwarmIds = emptySet()
-                        } else {
-                            directlySelectedAgentIds = emptySet()
+                        when (selectionMode) {
+                            ReportSelectionMode.SWARMS -> selectedSwarmIds = emptySet()
+                            ReportSelectionMode.AGENTS -> directlySelectedAgentIds = emptySet()
+                            ReportSelectionMode.FLOCKS -> selectedFlockIds = emptySet()
                         }
                     },
                     modifier = Modifier.weight(1f)
