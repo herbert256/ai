@@ -1510,9 +1510,7 @@ fun HousekeepingScreen(
                             val isWorking = testResult == null
 
                             if (isWorking) {
-                                // Get the default endpoint for this provider (if any)
-                                val defaultEndpoint = importedSettings.getDefaultEndpoint(provider)
-
+                                // Create/update agent with empty values - uses provider settings at runtime
                                 val existingAgentIndex = updatedAgents.indexOfFirst {
                                     it.name == provider.displayName
                                 }
@@ -1520,19 +1518,19 @@ fun HousekeepingScreen(
                                 if (existingAgentIndex >= 0) {
                                     val existingAgent = updatedAgents[existingAgentIndex]
                                     updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                        model = model,
-                                        apiKey = apiKey,
+                                        model = "",
+                                        apiKey = "",
                                         provider = provider,
-                                        endpointId = defaultEndpoint?.id
+                                        endpointId = null
                                     )
                                 } else {
                                     val newAgent = AiAgent(
                                         id = java.util.UUID.randomUUID().toString(),
                                         name = provider.displayName,
                                         provider = provider,
-                                        model = model,
-                                        apiKey = apiKey,
-                                        endpointId = defaultEndpoint?.id,
+                                        model = "",
+                                        apiKey = "",
+                                        endpointId = null,
                                         parameters = AiAgentParameters()
                                     )
                                     updatedAgents.add(newAgent)
@@ -1743,29 +1741,27 @@ fun HousekeepingScreen(
                         val isWorking = testResult == null
 
                         if (isWorking) {
+                            // Create/update agent with empty values - uses provider settings at runtime
                             val existingAgentIndex = updatedAgents.indexOfFirst {
                                 it.name == provider.displayName
                             }
 
-                            // Get the default endpoint for this provider (if any)
-                            val defaultEndpoint = aiSettings.getDefaultEndpoint(provider)
-
                             if (existingAgentIndex >= 0) {
                                 val existingAgent = updatedAgents[existingAgentIndex]
                                 updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                    model = model,
-                                    apiKey = apiKey,
+                                    model = "",
+                                    apiKey = "",
                                     provider = provider,
-                                    endpointId = defaultEndpoint?.id
+                                    endpointId = null
                                 )
                             } else {
                                 val newAgent = AiAgent(
                                     id = java.util.UUID.randomUUID().toString(),
                                     name = provider.displayName,
                                     provider = provider,
-                                    model = model,
-                                    apiKey = apiKey,
-                                    endpointId = defaultEndpoint?.id,
+                                    model = "",
+                                    apiKey = "",
+                                    endpointId = null,
                                     parameters = AiAgentParameters()
                                 )
                                 updatedAgents.add(newAgent)

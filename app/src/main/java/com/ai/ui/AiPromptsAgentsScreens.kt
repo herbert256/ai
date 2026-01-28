@@ -437,7 +437,8 @@ internal fun AgentEditScreen(
     val defaultProvider = agent?.provider ?: prefillProvider ?: availableProviders.firstOrNull() ?: AiService.OPENAI
     var name by remember { mutableStateOf(agent?.name ?: prefillName) }
     var selectedProvider by remember { mutableStateOf(defaultProvider) }
-    var model by remember { mutableStateOf(agent?.model ?: prefillModel.ifBlank { getDefaultModelForProvider(defaultProvider) }) }
+    var model by remember { mutableStateOf(agent?.model ?: prefillModel) }
+    var showModelDialog by remember { mutableStateOf(false) }
     var apiKey by remember { mutableStateOf(agent?.apiKey ?: prefillApiKey) }
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
@@ -568,13 +569,9 @@ internal fun AgentEditScreen(
             onFetchModelsForProvider(selectedProvider, effectiveApiKey)
         }
 
-        // Update model when provider changes
+        // Reset endpoint when provider changes (unless editing and same provider)
         if (!isEditing || agent?.provider != selectedProvider) {
-            model = modelsForProvider.firstOrNull() ?: getDefaultModelForProvider(selectedProvider)
-            // Reset endpoint when provider changes (unless editing and same provider)
-            if (!isEditing || agent?.provider != selectedProvider) {
-                selectedEndpointId = aiSettings.getDefaultEndpoint(selectedProvider)?.id
-            }
+            selectedEndpointId = aiSettings.getDefaultEndpoint(selectedProvider)?.id
         }
     }
 
@@ -727,40 +724,33 @@ internal fun AgentEditScreen(
                 }
             }
 
-            // Model dropdown
+            // Model input field with Select button
             Text(
-                text = "Model",
+                text = "Model (optional - uses provider default if empty)",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFFAAAAAA)
             )
-            var modelExpanded by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(
-                    onClick = { modelExpanded = true },
-                    modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = model,
+                    onValueChange = {
+                        model = it
+                        testResult = null
+                    },
+                    placeholder = { Text("Default: ${aiSettings.getModel(selectedProvider)}", color = Color(0xFF666666)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                Button(
+                    onClick = { showModelDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text = model,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1
-                    )
-                    Text(if (modelExpanded) "^" else "v")
-                }
-                DropdownMenu(
-                    expanded = modelExpanded,
-                    onDismissRequest = { modelExpanded = false }
-                ) {
-                    modelsForProvider.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m) },
-                            onClick = {
-                                model = m
-                                modelExpanded = false
-                                // Clear test result when model changes
-                                testResult = null
-                            }
-                        )
-                    }
+                    Text("Select", fontSize = 12.sp)
                 }
             }
 
@@ -820,8 +810,9 @@ internal fun AgentEditScreen(
                 }
             }
 
-            // Test API Key button - uses provider key if agent key is empty
+            // Test API Key button - uses provider key/model if agent values are empty
             val effectiveApiKey = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
+            val effectiveModel = model.ifBlank { aiSettings.getModel(selectedProvider) }
             Button(
                 onClick = {
                     testResult = null
@@ -830,7 +821,7 @@ internal fun AgentEditScreen(
                         val error = if (effectiveApiKey.isBlank()) {
                             "No API key available (agent or provider)"
                         } else {
-                            onTestAiModel(selectedProvider, effectiveApiKey.trim(), model)
+                            onTestAiModel(selectedProvider, effectiveApiKey.trim(), effectiveModel)
                         }
                         isTesting = false
                         if (error != null) {
@@ -1251,6 +1242,79 @@ internal fun AgentEditScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showEndpointDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Model Selection Dialog
+    if (showModelDialog) {
+        val defaultModel = aiSettings.getModel(selectedProvider)
+
+        AlertDialog(
+            onDismissRequest = { showModelDialog = false },
+            title = { Text("Select Model (${modelsForProvider.size})", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Default option (clears model, uses provider's default at runtime)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                model = ""
+                                showModelDialog = false
+                                testResult = null
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (model.isBlank()) Color(0xFF6366F1).copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Default (use provider setting)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text(defaultModel, fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+
+                    // Available models
+                    if (modelsForProvider.isNotEmpty()) {
+                        Text(
+                            "Available Models",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        modelsForProvider.forEach { m ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        model = m
+                                        showModelDialog = false
+                                        testResult = null
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (model == m) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(m, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showModelDialog = false }) {
                     Text("Cancel")
                 }
             }
