@@ -68,10 +68,12 @@ fun AiHubScreen(
 
     // Count cards that will be shown (all cards always shown, some may be disabled)
     var cardCount = 9  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Housekeeping, Settings, Help
+    val extraSpacing = if (uiState.generalSettings.developerMode) 64.dp else 32.dp  // 32dp before Settings + 32dp before Developer Options
+
     if (uiState.generalSettings.developerMode) cardCount += 1  // Developer Options
 
     // Calculate total height needed for cards
-    val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp  // 32.dp extra spacing before Settings
+    val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + extraSpacing
 
     BoxWithConstraints(
         modifier = Modifier
@@ -87,6 +89,8 @@ fun AiHubScreen(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
             // App logo with dynamic size (offset to remove built-in padding)
             Image(
                 painter = painterResource(id = R.drawable.ic_launcher_foreground),
@@ -124,7 +128,7 @@ fun AiHubScreen(
 
             // Developer Options card (developer mode only)
             if (uiState.generalSettings.developerMode) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(32.dp))
                 HubCard(icon = "\uD83D\uDC1E", title = "Developer Options", onClick = onNavigateToDeveloperOptions)
             }
         }
