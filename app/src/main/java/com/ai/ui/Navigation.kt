@@ -20,6 +20,7 @@ object NavRoutes {
     const val SETTINGS = "settings"
     const val HELP = "help"
     const val TRACE_LIST = "trace_list"
+    const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
     const val TRACE_DETAIL = "trace_detail/{filename}"
     const val AI_HISTORY = "ai_history"
     const val AI_REPORTS_HUB = "ai_reports_hub"
@@ -47,6 +48,7 @@ object NavRoutes {
     const val AI_API_TEST = "ai_api_test"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
+    fun traceListForReport(reportId: String) = "trace_list/$reportId"
     fun aiModelInfo(provider: String, model: String): String {
         val encodedModel = java.net.URLEncoder.encode(model, "UTF-8")
         return "ai_model_info/$provider/$encodedModel"
@@ -168,6 +170,19 @@ fun AiNavHost(
             )
         }
 
+        composable(NavRoutes.TRACE_LIST_FOR_REPORT) { backStackEntry ->
+            val reportId = backStackEntry.arguments?.getString("reportId") ?: ""
+            TraceListScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onSelectTrace = { filename ->
+                    navController.navigate(NavRoutes.traceDetail(filename))
+                },
+                onClearTraces = { viewModel.clearTraces() },
+                reportId = reportId
+            )
+        }
+
         composable(NavRoutes.TRACE_DETAIL) { backStackEntry ->
             val filename = backStackEntry.arguments?.getString("filename") ?: ""
             TraceDetailScreen(
@@ -231,10 +246,15 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_REPORTS) {
+            val uiState by viewModel.uiState.collectAsState()
             AiReportsScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                onNavigateToTrace = { reportId ->
+                    navController.navigate(NavRoutes.traceListForReport(reportId))
+                },
+                developerMode = uiState.generalSettings.developerMode
             )
         }
 

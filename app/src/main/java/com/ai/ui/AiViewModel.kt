@@ -228,6 +228,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             // Store reportId in state for tracking
             _uiState.value = _uiState.value.copy(currentReportId = reportId)
 
+            // Set the current report ID for API tracing (if enabled)
+            ApiTracer.currentReportId = reportId
+
             // Make all API calls in parallel, but update state as each completes
             agents.map { agent ->
                 async {
@@ -318,6 +321,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }.awaitAll()
+
+            // Clear the current report ID for API tracing
+            ApiTracer.currentReportId = null
         }
     }
 
@@ -353,6 +359,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // Clear the current report ID for API tracing
+        ApiTracer.currentReportId = null
+
         _uiState.value = currentState.copy(
             genericAiReportsProgress = currentState.genericAiReportsTotal,
             genericAiReportsAgentResults = updatedResults
@@ -360,6 +369,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissGenericAiReportsDialog() {
+        // Clear the current report ID for API tracing
+        ApiTracer.currentReportId = null
         _uiState.value = _uiState.value.copy(
             showGenericAiReportsDialog = false,
             genericAiPromptTitle = "",

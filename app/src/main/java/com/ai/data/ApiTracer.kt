@@ -37,6 +37,7 @@ data class TraceResponse(
 data class ApiTrace(
     val timestamp: Long,
     val hostname: String,
+    val reportId: String? = null,
     val request: TraceRequest,
     val response: TraceResponse
 )
@@ -48,7 +49,8 @@ data class TraceFileInfo(
     val filename: String,
     val hostname: String,
     val timestamp: Long,
-    val statusCode: Int
+    val statusCode: Int,
+    val reportId: String? = null
 )
 
 /**
@@ -64,6 +66,11 @@ object ApiTracer {
 
     @Volatile
     var isTracingEnabled: Boolean = false
+        get() = synchronized(tracingLock) { field }
+        set(value) = synchronized(tracingLock) { field = value }
+
+    @Volatile
+    var currentReportId: String? = null
         get() = synchronized(tracingLock) { field }
         set(value) = synchronized(tracingLock) { field = value }
 
@@ -117,7 +124,8 @@ object ApiTracer {
                         filename = file.name,
                         hostname = trace.hostname,
                         timestamp = trace.timestamp,
-                        statusCode = trace.response.statusCode
+                        statusCode = trace.response.statusCode,
+                        reportId = trace.reportId
                     )
                 } catch (e: Exception) {
                     null
@@ -125,6 +133,13 @@ object ApiTracer {
             }
             ?.sortedByDescending { it.timestamp }
             ?: emptyList()
+    }
+
+    /**
+     * Get list of trace files for a specific report, sorted by timestamp (most recent first).
+     */
+    fun getTraceFilesForReport(reportId: String): List<TraceFileInfo> {
+        return getTraceFiles().filter { it.reportId == reportId }
     }
 
     /**
@@ -288,6 +303,7 @@ class TracingInterceptor : Interceptor {
         val trace = ApiTrace(
             timestamp = timestamp,
             hostname = hostname,
+            reportId = ApiTracer.currentReportId,
             request = traceRequest,
             response = traceResponse
         )

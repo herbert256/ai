@@ -2311,7 +2311,9 @@ private fun PromptHistoryRow(
 fun AiReportsScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit = onNavigateBack
+    onNavigateHome: () -> Unit = onNavigateBack,
+    onNavigateToTrace: (String) -> Unit = {},
+    developerMode: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -2348,7 +2350,9 @@ fun AiReportsScreenNav(
         onDismiss = handleDismiss,
         onNavigateHome = handleNavigateHome,
         advancedParameters = uiState.reportAdvancedParameters,
-        onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) }
+        onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
+        onNavigateToTrace = onNavigateToTrace,
+        developerMode = developerMode
     )
 }
 
@@ -2368,7 +2372,9 @@ fun AiReportsScreen(
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss,
     advancedParameters: AiAgentParameters? = null,
-    onAdvancedParametersChange: (AiAgentParameters?) -> Unit = {}
+    onAdvancedParametersChange: (AiAgentParameters?) -> Unit = {},
+    onNavigateToTrace: (String) -> Unit = {},
+    developerMode: Boolean = false
 ) {
     val reportsTotal = uiState.genericAiReportsTotal
     val reportsProgress = uiState.genericAiReportsProgress
@@ -2826,6 +2832,18 @@ fun AiReportsScreen(
                         )
                     ) {
                         Text("Browser")
+                    }
+                    // Trace button - only shown in developer mode
+                    if (developerMode && currentReportId != null) {
+                        Button(
+                            onClick = { onNavigateToTrace(currentReportId) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF9800)
+                            )
+                        ) {
+                            Text("Trace")
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
