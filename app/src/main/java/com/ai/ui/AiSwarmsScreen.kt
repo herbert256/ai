@@ -30,6 +30,7 @@ fun AiSwarmsScreen(
     onEditSwarm: (String) -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf<AiSwarm?>(null) }
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -86,6 +87,19 @@ fun AiSwarmsScreen(
                         onDelete = { showDeleteDialog = swarm }
                     )
                 }
+
+                // Delete all swarms button
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedButton(
+                    onClick = { showDeleteAllDialog = true },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFFF5252)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF5252))
+                ) {
+                    Text("Delete all swarms")
+                }
             }
         }
     }
@@ -109,6 +123,31 @@ fun AiSwarmsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete all confirmation dialog
+    if (showDeleteAllDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAllDialog = false },
+            title = { Text("Delete All Swarms", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete all ${aiSettings.swarms.size} swarms? This cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSave(aiSettings.copy(swarms = emptyList()))
+                        showDeleteAllDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                ) {
+                    Text("Delete All")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAllDialog = false }) {
                     Text("Cancel")
                 }
             }

@@ -242,9 +242,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         requestBody = prompt
                     )
 
-                    // Use effective API key (agent's key or provider's key)
+                    // Use effective API key and model (agent's or provider's)
                     val effectiveAgent = agent.copy(
-                        apiKey = aiSettings.getEffectiveApiKeyForAgent(agent)
+                        apiKey = aiSettings.getEffectiveApiKeyForAgent(agent),
+                        model = aiSettings.getEffectiveModelForAgent(agent)
                     )
 
                     val response = try {
@@ -272,7 +273,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             // First check if API provided the cost directly
                             response.tokenUsage.apiCost ?: run {
                                 // Otherwise calculate from pricing cache (always returns a value)
-                                val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                                val pricing = PricingCache.getPricing(context, effectiveAgent.provider, effectiveAgent.model)
                                 val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
                                 val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
                                 inputCost + outputCost

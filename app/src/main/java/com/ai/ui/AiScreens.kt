@@ -51,6 +51,11 @@ fun AiHubScreen(
     // Check if at least one AI Agent is configured
     val hasAnyAgent = uiState.aiSettings.agents.isNotEmpty()
 
+    // Check if at least one AI Provider (excluding DUMMY) has an API key configured
+    val hasAnyProviderApiKey = com.ai.data.AiService.entries
+        .filter { it != com.ai.data.AiService.DUMMY }
+        .any { uiState.aiSettings.getApiKey(it).isNotBlank() }
+
     // Check if there is any statistics data
     val hasStatisticsData = remember {
         val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE))
@@ -63,7 +68,8 @@ fun AiHubScreen(
 
     // Count cards that will be shown
     var cardCount = 3  // AI Setup, Settings, Help (always shown)
-    if (hasAnyAgent) cardCount += 4  // AI Reports, AI Chat, AI Models, AI Housekeeping
+    if (hasAnyAgent) cardCount += 3  // AI Reports, AI Chat, AI Models
+    if (hasAnyProviderApiKey) cardCount += 1  // AI Housekeeping
     if (hasStatisticsData) cardCount += 2  // AI Statistics, AI Costs
     if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
 
@@ -114,8 +120,8 @@ fun AiHubScreen(
             // AI Setup always shown
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
 
-            // AI Housekeeping requires at least 1 AI Agent
-            if (hasAnyAgent) {
+            // AI Housekeeping requires at least 1 provider with API key (excluding DUMMY)
+            if (hasAnyProviderApiKey) {
                 Spacer(modifier = Modifier.height(12.dp))
                 HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
             }

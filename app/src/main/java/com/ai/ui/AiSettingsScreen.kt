@@ -1078,9 +1078,10 @@ fun ModelInfoScreen(
                             provider = provider.displayName,
                             agent = modelInfoAgent.name
                         )
-                        // Use effective API key (agent's key or provider's key)
+                        // Use effective API key and model (agent's or provider's)
                         val effectiveAgent = modelInfoAgent.copy(
-                            apiKey = aiSettings.getEffectiveApiKeyForAgent(modelInfoAgent)
+                            apiKey = aiSettings.getEffectiveApiKeyForAgent(modelInfoAgent),
+                            model = aiSettings.getEffectiveModelForAgent(modelInfoAgent)
                         )
                         val repository = com.ai.data.AiAnalysisRepository()
                         val result = repository.analyzePlayerWithAgent(effectiveAgent, resolvedPrompt)

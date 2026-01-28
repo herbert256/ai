@@ -437,24 +437,25 @@ fun AiNavHost(
                     searchRecency = agent.parameters.searchRecency
                 )
 
-                // Get the effective endpoint URL and API key for this agent
+                // Get the effective endpoint URL, API key, and model for this agent
                 val endpointUrl = uiState.aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val customBaseUrl = if (endpointUrl != agent.provider.baseUrl) endpointUrl else null
                 val effectiveApiKey = uiState.aiSettings.getEffectiveApiKeyForAgent(agent)
+                val effectiveModel = uiState.aiSettings.getEffectiveModelForAgent(agent)
 
                 ChatSessionScreen(
                     provider = agent.provider,
-                    model = agent.model,
+                    model = effectiveModel,
                     apiKey = effectiveApiKey,
                     parameters = chatParams,
                     userName = uiState.generalSettings.userName,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
-                        viewModel.sendChatMessage(agent.provider, effectiveApiKey, agent.model, messages)
+                        viewModel.sendChatMessage(agent.provider, effectiveApiKey, effectiveModel, messages)
                     },
                     onSendMessageStream = { messages ->
-                        viewModel.sendChatMessageStream(agent.provider, effectiveApiKey, agent.model, messages, customBaseUrl)
+                        viewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl)
                     }
                 )
             } else {

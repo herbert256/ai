@@ -60,6 +60,7 @@ fun AiAgentsScreen(
     var editingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var copyingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<AiAgent?>(null) }
+    var showDeleteAllConfirm by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     // Helper to fetch models for a provider
@@ -284,14 +285,18 @@ fun AiAgentsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Delete all agents button (only show if there are agents)
+            if (aiSettings.agents.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
 
-            // Back buttons
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(onClick = onBackToAiSetup) {
-                    Text("< AI Setup")
+                OutlinedButton(
+                    onClick = { showDeleteAllConfirm = true },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFFF5252)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF5252))
+                ) {
+                    Text("Delete all agents")
                 }
             }
         }
@@ -316,6 +321,31 @@ fun AiAgentsScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteConfirm = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Delete all confirmation
+        if (showDeleteAllConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteAllConfirm = false },
+                title = { Text("Delete All Agents", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete all ${aiSettings.agents.size} agents? This cannot be undone.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onSave(aiSettings.copy(agents = emptyList()))
+                            showDeleteAllConfirm = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Delete All")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteAllConfirm = false }) {
                         Text("Cancel")
                     }
                 }

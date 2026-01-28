@@ -377,6 +377,10 @@ data class AiSettings(
         return agent.apiKey.ifBlank { getApiKey(agent.provider) }
     }
 
+    fun getEffectiveModelForAgent(agent: AiAgent): String {
+        return agent.model.ifBlank { getModel(agent.provider) }
+    }
+
     /**
      * Get agents that have an effective API key (either their own or from provider).
      */
