@@ -541,6 +541,10 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_API_MODELS_CLAUDE = "api_models_claude"
         private const val KEY_API_MODELS_SILICONFLOW = "api_models_siliconflow"
         private const val KEY_API_MODELS_ZAI = "api_models_zai"
+
+        // Model lists cache timestamps (24-hour cache per provider)
+        private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"
+        private const val MODEL_LISTS_CACHE_DURATION_MS = 24 * 60 * 60 * 1000L  // 24 hours
     }
 
     // ============================================================================
@@ -662,4 +666,28 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun loadZaiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_ZAI)
     fun saveZaiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_ZAI, models)
+
+    // ============================================================================
+    // Model Lists Cache (24-hour validity per provider)
+    // ============================================================================
+
+    fun isModelListCacheValid(provider: com.ai.data.AiService): Boolean {
+        val key = KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.name
+        val timestamp = prefs.getLong(key, 0L)
+        return System.currentTimeMillis() - timestamp < MODEL_LISTS_CACHE_DURATION_MS
+    }
+
+    fun updateModelListTimestamp(provider: com.ai.data.AiService) {
+        val key = KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.name
+        prefs.edit().putLong(key, System.currentTimeMillis()).apply()
+    }
+
+    fun clearModelListsCache() {
+        val editor = prefs.edit()
+        com.ai.data.AiService.entries.forEach { provider ->
+            editor.remove(KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.name)
+        }
+        editor.apply()
+        android.util.Log.d("SettingsPreferences", "All model list caches cleared")
+    }
 }

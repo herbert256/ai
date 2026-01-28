@@ -617,155 +617,203 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Refresh model lists for all providers with API as model source.
      * Returns a map of provider display name to model count.
+     * Uses 24-hour cache per provider unless forceRefresh is true.
      */
-    suspend fun refreshAllModelLists(settings: AiSettings): Map<String, Int> {
+    suspend fun refreshAllModelLists(settings: AiSettings, forceRefresh: Boolean = false): Map<String, Int> {
         val results = mutableMapOf<String, Int>()
 
         // OpenAI
         if (settings.chatGptModelSource == ModelSource.API && settings.chatGptApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchChatGptModels(settings.chatGptApiKey)
-                _uiState.value = _uiState.value.copy(availableChatGptModels = models)
-                settingsPrefs.saveChatGptApiModels(models)
-                results["OpenAI"] = models.size
-            } catch (e: Exception) {
-                results["OpenAI"] = -1  // -1 indicates error
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.OPENAI)) {
+                try {
+                    val models = aiAnalysisRepository.fetchChatGptModels(settings.chatGptApiKey)
+                    _uiState.value = _uiState.value.copy(availableChatGptModels = models)
+                    settingsPrefs.saveChatGptApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.OPENAI)
+                    results["OpenAI"] = models.size
+                } catch (e: Exception) {
+                    results["OpenAI"] = -1  // -1 indicates error
+                }
             }
         }
 
         // Google
         if (settings.geminiModelSource == ModelSource.API && settings.geminiApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchGeminiModels(settings.geminiApiKey)
-                _uiState.value = _uiState.value.copy(availableGeminiModels = models)
-                settingsPrefs.saveGeminiApiModels(models)
-                results["Google"] = models.size
-            } catch (e: Exception) {
-                results["Google"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.GOOGLE)) {
+                try {
+                    val models = aiAnalysisRepository.fetchGeminiModels(settings.geminiApiKey)
+                    _uiState.value = _uiState.value.copy(availableGeminiModels = models)
+                    settingsPrefs.saveGeminiApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.GOOGLE)
+                    results["Google"] = models.size
+                } catch (e: Exception) {
+                    results["Google"] = -1
+                }
             }
         }
 
         // xAI
         if (settings.grokModelSource == ModelSource.API && settings.grokApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchGrokModels(settings.grokApiKey)
-                _uiState.value = _uiState.value.copy(availableGrokModels = models)
-                settingsPrefs.saveGrokApiModels(models)
-                results["xAI"] = models.size
-            } catch (e: Exception) {
-                results["xAI"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.XAI)) {
+                try {
+                    val models = aiAnalysisRepository.fetchGrokModels(settings.grokApiKey)
+                    _uiState.value = _uiState.value.copy(availableGrokModels = models)
+                    settingsPrefs.saveGrokApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.XAI)
+                    results["xAI"] = models.size
+                } catch (e: Exception) {
+                    results["xAI"] = -1
+                }
             }
         }
 
         // Groq
         if (settings.groqModelSource == ModelSource.API && settings.groqApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchGroqModels(settings.groqApiKey)
-                _uiState.value = _uiState.value.copy(availableGroqModels = models)
-                settingsPrefs.saveGroqApiModels(models)
-                results["Groq"] = models.size
-            } catch (e: Exception) {
-                results["Groq"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.GROQ)) {
+                try {
+                    val models = aiAnalysisRepository.fetchGroqModels(settings.groqApiKey)
+                    _uiState.value = _uiState.value.copy(availableGroqModels = models)
+                    settingsPrefs.saveGroqApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.GROQ)
+                    results["Groq"] = models.size
+                } catch (e: Exception) {
+                    results["Groq"] = -1
+                }
             }
         }
 
         // DeepSeek
         if (settings.deepSeekModelSource == ModelSource.API && settings.deepSeekApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchDeepSeekModels(settings.deepSeekApiKey)
-                _uiState.value = _uiState.value.copy(availableDeepSeekModels = models)
-                settingsPrefs.saveDeepSeekApiModels(models)
-                results["DeepSeek"] = models.size
-            } catch (e: Exception) {
-                results["DeepSeek"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DEEPSEEK)) {
+                try {
+                    val models = aiAnalysisRepository.fetchDeepSeekModels(settings.deepSeekApiKey)
+                    _uiState.value = _uiState.value.copy(availableDeepSeekModels = models)
+                    settingsPrefs.saveDeepSeekApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.DEEPSEEK)
+                    results["DeepSeek"] = models.size
+                } catch (e: Exception) {
+                    results["DeepSeek"] = -1
+                }
             }
         }
 
         // Mistral
         if (settings.mistralModelSource == ModelSource.API && settings.mistralApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchMistralModels(settings.mistralApiKey)
-                _uiState.value = _uiState.value.copy(availableMistralModels = models)
-                settingsPrefs.saveMistralApiModels(models)
-                results["Mistral"] = models.size
-            } catch (e: Exception) {
-                results["Mistral"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.MISTRAL)) {
+                try {
+                    val models = aiAnalysisRepository.fetchMistralModels(settings.mistralApiKey)
+                    _uiState.value = _uiState.value.copy(availableMistralModels = models)
+                    settingsPrefs.saveMistralApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.MISTRAL)
+                    results["Mistral"] = models.size
+                } catch (e: Exception) {
+                    results["Mistral"] = -1
+                }
             }
         }
 
         // Together
         if (settings.togetherModelSource == ModelSource.API && settings.togetherApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchTogetherModels(settings.togetherApiKey)
-                _uiState.value = _uiState.value.copy(availableTogetherModels = models)
-                settingsPrefs.saveTogetherApiModels(models)
-                results["Together"] = models.size
-            } catch (e: Exception) {
-                results["Together"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.TOGETHER)) {
+                try {
+                    val models = aiAnalysisRepository.fetchTogetherModels(settings.togetherApiKey)
+                    _uiState.value = _uiState.value.copy(availableTogetherModels = models)
+                    settingsPrefs.saveTogetherApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.TOGETHER)
+                    results["Together"] = models.size
+                } catch (e: Exception) {
+                    results["Together"] = -1
+                }
             }
         }
 
         // OpenRouter
         if (settings.openRouterModelSource == ModelSource.API && settings.openRouterApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchOpenRouterModels(settings.openRouterApiKey)
-                _uiState.value = _uiState.value.copy(availableOpenRouterModels = models)
-                settingsPrefs.saveOpenRouterApiModels(models)
-                results["OpenRouter"] = models.size
-            } catch (e: Exception) {
-                results["OpenRouter"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.OPENROUTER)) {
+                try {
+                    val models = aiAnalysisRepository.fetchOpenRouterModels(settings.openRouterApiKey)
+                    _uiState.value = _uiState.value.copy(availableOpenRouterModels = models)
+                    settingsPrefs.saveOpenRouterApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.OPENROUTER)
+                    results["OpenRouter"] = models.size
+                } catch (e: Exception) {
+                    results["OpenRouter"] = -1
+                }
             }
         }
 
         // Dummy (if in developer mode, we'd need to check that separately)
         if (settings.dummyModelSource == ModelSource.API && settings.dummyApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchDummyModels(settings.dummyApiKey)
-                _uiState.value = _uiState.value.copy(availableDummyModels = models)
-                settingsPrefs.saveDummyApiModels(models)
-                results["Dummy"] = models.size
-            } catch (e: Exception) {
-                results["Dummy"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DUMMY)) {
+                try {
+                    val models = aiAnalysisRepository.fetchDummyModels(settings.dummyApiKey)
+                    _uiState.value = _uiState.value.copy(availableDummyModels = models)
+                    settingsPrefs.saveDummyApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.DUMMY)
+                    results["Dummy"] = models.size
+                } catch (e: Exception) {
+                    results["Dummy"] = -1
+                }
             }
         }
 
         // Anthropic/Claude
         if (settings.claudeModelSource == ModelSource.API && settings.claudeApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchClaudeModels(settings.claudeApiKey)
-                _uiState.value = _uiState.value.copy(availableClaudeModels = models)
-                settingsPrefs.saveClaudeApiModels(models)
-                results["Anthropic"] = models.size
-            } catch (e: Exception) {
-                results["Anthropic"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.ANTHROPIC)) {
+                try {
+                    val models = aiAnalysisRepository.fetchClaudeModels(settings.claudeApiKey)
+                    _uiState.value = _uiState.value.copy(availableClaudeModels = models)
+                    settingsPrefs.saveClaudeApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.ANTHROPIC)
+                    results["Anthropic"] = models.size
+                } catch (e: Exception) {
+                    results["Anthropic"] = -1
+                }
             }
         }
 
         // SiliconFlow
         if (settings.siliconFlowModelSource == ModelSource.API && settings.siliconFlowApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchSiliconFlowModels(settings.siliconFlowApiKey)
-                _uiState.value = _uiState.value.copy(availableSiliconFlowModels = models)
-                settingsPrefs.saveSiliconFlowApiModels(models)
-                results["SiliconFlow"] = models.size
-            } catch (e: Exception) {
-                results["SiliconFlow"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.SILICONFLOW)) {
+                try {
+                    val models = aiAnalysisRepository.fetchSiliconFlowModels(settings.siliconFlowApiKey)
+                    _uiState.value = _uiState.value.copy(availableSiliconFlowModels = models)
+                    settingsPrefs.saveSiliconFlowApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.SILICONFLOW)
+                    results["SiliconFlow"] = models.size
+                } catch (e: Exception) {
+                    results["SiliconFlow"] = -1
+                }
             }
         }
 
         // Z.AI
         if (settings.zaiModelSource == ModelSource.API && settings.zaiApiKey.isNotBlank()) {
-            try {
-                val models = aiAnalysisRepository.fetchZaiModels(settings.zaiApiKey)
-                _uiState.value = _uiState.value.copy(availableZaiModels = models)
-                settingsPrefs.saveZaiApiModels(models)
-                results["Z.AI"] = models.size
-            } catch (e: Exception) {
-                results["Z.AI"] = -1
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.ZAI)) {
+                try {
+                    val models = aiAnalysisRepository.fetchZaiModels(settings.zaiApiKey)
+                    _uiState.value = _uiState.value.copy(availableZaiModels = models)
+                    settingsPrefs.saveZaiApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.ZAI)
+                    results["Z.AI"] = models.size
+                } catch (e: Exception) {
+                    results["Z.AI"] = -1
+                }
             }
         }
 
+        if (results.isNotEmpty()) {
+            android.util.Log.d("AiViewModel", "Model lists refreshed for ${results.size} providers")
+        }
+
         return results
+    }
+
+    /**
+     * Clear the model lists cache, forcing a refresh on next startup or manual refresh.
+     */
+    fun clearModelListsCache() {
+        settingsPrefs.clearModelListsCache()
     }
 
     // ========== AI Model Testing ==========

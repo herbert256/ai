@@ -1524,7 +1524,7 @@ fun HousekeepingScreen(
     availableDummyModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
+    onRefreshAllModels: suspend (AiSettings, Boolean) -> Map<String, Int> = { _, _ -> emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {}
@@ -1581,9 +1581,9 @@ fun HousekeepingScreen(
                 // Automatically refresh model lists and generate default agents after import
                 if (importedSettings.hasAnyApiKey()) {
                     scope.launch {
-                        // 1. Refresh model lists
+                        // 1. Refresh model lists (force refresh after import)
                         isRefreshing = true
-                        onRefreshAllModels(importedSettings)
+                        onRefreshAllModels(importedSettings, true)
                         isRefreshing = false
 
                         // 2. Generate default agents
@@ -1809,7 +1809,7 @@ fun HousekeepingScreen(
                         onClick = {
                             scope.launch {
                                 isRefreshing = true
-                                refreshResults = onRefreshAllModels(aiSettings)
+                                refreshResults = onRefreshAllModels(aiSettings, true)
                                 isRefreshing = false
                                 showResultsDialog = true
                             }

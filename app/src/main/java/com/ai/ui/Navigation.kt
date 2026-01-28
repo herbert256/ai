@@ -784,7 +784,7 @@ fun HousekeepingScreenNav(
         availableDummyModels = uiState.availableDummyModels,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },
-        onRefreshAllModels = { settings -> viewModel.refreshAllModelLists(settings) },
+        onRefreshAllModels = { settings, forceRefresh -> viewModel.refreshAllModelLists(settings, forceRefresh) },
         onTestApiKey = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onSaveHuggingFaceApiKey = { key ->
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
