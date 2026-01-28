@@ -297,37 +297,13 @@ class TracingInterceptor : Interceptor {
         return response
     }
 
-    private val sensitiveHeaders = setOf(
-        "authorization",
-        "x-api-key",
-        "x-goog-api-key",
-        "api-key",
-        "api_key",
-        "apikey",
-        "bearer",
-        "token",
-        "secret",
-        "password",
-        "anthropic-api-key"
-    )
-
     private fun headersToMap(headers: Headers): Map<String, String> {
         val map = mutableMapOf<String, String>()
         for (i in 0 until headers.size) {
             val name = headers.name(i)
-            // Mask sensitive headers
-            val value = if (sensitiveHeaders.contains(name.lowercase())) {
-                maskSensitiveValue(headers.value(i))
-            } else {
-                headers.value(i)
-            }
+            val value = headers.value(i)
             map[name] = value
         }
         return map
-    }
-
-    private fun maskSensitiveValue(value: String): String {
-        if (value.length <= 8) return "****"
-        return value.take(4) + "****" + value.takeLast(4)
     }
 }

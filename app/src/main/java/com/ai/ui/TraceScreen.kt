@@ -38,6 +38,7 @@ enum class TraceDetailSubScreen {
     MAIN,
     POST_DATA,
     RESPONSE_DATA,
+    REQUEST_HEADERS,
     RESPONSE_HEADERS
 }
 
@@ -309,11 +310,13 @@ fun TraceDetailScreen(
                 rawJson = rawJson,
                 hasPostData = !trace.request.body.isNullOrBlank(),
                 hasResponseData = !trace.response.body.isNullOrBlank(),
+                hasRequestHeaders = trace.request.headers.isNotEmpty(),
                 hasResponseHeaders = trace.response.headers.isNotEmpty(),
                 onBack = onBack,
                 onNavigateHome = onNavigateHome,
                 onShowPostData = { currentSubScreen = TraceDetailSubScreen.POST_DATA },
                 onShowResponseData = { currentSubScreen = TraceDetailSubScreen.RESPONSE_DATA },
+                onShowRequestHeaders = { currentSubScreen = TraceDetailSubScreen.REQUEST_HEADERS },
                 onShowResponseHeaders = { currentSubScreen = TraceDetailSubScreen.RESPONSE_HEADERS },
                 onShare = {
                     try {
@@ -358,6 +361,17 @@ fun TraceDetailScreen(
                 onBack = { currentSubScreen = TraceDetailSubScreen.MAIN }
             )
         }
+        TraceDetailSubScreen.REQUEST_HEADERS -> {
+            val headersText = trace.request.headers.entries
+                .sortedBy { it.key.lowercase() }
+                .joinToString("\n") { "${it.key}: ${it.value}" }
+            DataViewScreen(
+                title = "Request Headers",
+                filename = filename,
+                content = headersText,
+                onBack = { currentSubScreen = TraceDetailSubScreen.MAIN }
+            )
+        }
         TraceDetailSubScreen.RESPONSE_HEADERS -> {
             val headersText = trace.response.headers.entries
                 .sortedBy { it.key.lowercase() }
@@ -378,11 +392,13 @@ private fun TraceDetailMainScreen(
     rawJson: String,
     hasPostData: Boolean,
     hasResponseData: Boolean,
+    hasRequestHeaders: Boolean,
     hasResponseHeaders: Boolean,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onShowPostData: () -> Unit,
     onShowResponseData: () -> Unit,
+    onShowRequestHeaders: () -> Unit,
     onShowResponseHeaders: () -> Unit,
     onShare: () -> Unit
 ) {
@@ -440,15 +456,36 @@ private fun TraceDetailMainScreen(
                     Text("Response data", fontSize = 12.sp)
                 }
             }
-            if (hasResponseHeaders) {
-                Button(
-                    onClick = onShowResponseHeaders,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF3366BB)
-                    ),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Response headers", fontSize = 12.sp)
+        }
+
+        // Action buttons row 2: Request headers and Response headers
+        if (hasRequestHeaders || hasResponseHeaders) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (hasRequestHeaders) {
+                    Button(
+                        onClick = onShowRequestHeaders,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF3366BB)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Request headers", fontSize = 12.sp)
+                    }
+                }
+                if (hasResponseHeaders) {
+                    Button(
+                        onClick = onShowResponseHeaders,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF3366BB)
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Response headers", fontSize = 12.sp)
+                    }
                 }
             }
         }
