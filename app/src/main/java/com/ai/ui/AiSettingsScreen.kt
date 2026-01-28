@@ -2536,6 +2536,8 @@ fun ApiTestScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    val uiState by viewModel.uiState.collectAsState()
+    val aiSettings = uiState.aiSettings
 
     // Load last test values from persistent storage
     var selectedProvider by remember {
@@ -2546,13 +2548,13 @@ fun ApiTestScreen(
         mutableStateOf(provider)
     }
     var apiUrl by remember {
-        mutableStateOf(prefs.getString("last_test_api_url", null) ?: selectedProvider.baseUrl)
+        mutableStateOf(prefs.getString("last_test_api_url", null) ?: aiSettings.getEffectiveEndpointUrl(selectedProvider))
     }
     var apiKey by remember {
-        mutableStateOf(prefs.getString("last_test_api_key", null) ?: "")
+        mutableStateOf(prefs.getString("last_test_api_key", null) ?: aiSettings.getApiKey(selectedProvider))
     }
     var model by remember {
-        mutableStateOf(prefs.getString("last_test_model", null) ?: selectedProvider.defaultModel)
+        mutableStateOf(prefs.getString("last_test_model", null) ?: aiSettings.getModel(selectedProvider))
     }
     var prompt by remember {
         mutableStateOf(prefs.getString("last_test_prompt", null) ?: "Hello, how are you?")
@@ -2561,11 +2563,12 @@ fun ApiTestScreen(
     var expanded by remember { mutableStateOf(false) }
     var isInitialized by remember { mutableStateOf(true) }
 
-    // Update URL and model when provider changes (only if user manually changes provider)
+    // Update URL, model, and API key when provider changes (only if user manually changes provider)
     LaunchedEffect(selectedProvider) {
         if (!isInitialized) {
-            apiUrl = selectedProvider.baseUrl
-            model = selectedProvider.defaultModel
+            apiUrl = aiSettings.getEffectiveEndpointUrl(selectedProvider)
+            model = aiSettings.getModel(selectedProvider)
+            apiKey = aiSettings.getApiKey(selectedProvider)
         }
         isInitialized = false
     }
