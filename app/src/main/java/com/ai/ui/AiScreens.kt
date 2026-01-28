@@ -2358,12 +2358,12 @@ fun AiReportsScreenNav(
         savedSwarmIds = viewModel.loadAiReportSwarms(),
         savedFlockIds = viewModel.loadAiReportFlocks(),
         savedModelIds = viewModel.loadAiReportModels(),
-        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds, selectedFlockIds, directModelIds ->
+        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds, selectedFlockIds, directModelIds, paramsId ->
             viewModel.saveAiReportAgents(directAgentIds)
             viewModel.saveAiReportSwarms(selectedSwarmIds)
             viewModel.saveAiReportFlocks(selectedFlockIds)
             viewModel.saveAiReportModels(directModelIds)
-            viewModel.generateGenericAiReports(combinedAgentIds, selectedFlockIds, directModelIds)
+            viewModel.generateGenericAiReports(combinedAgentIds, selectedFlockIds, directModelIds, paramsId)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -2397,7 +2397,7 @@ fun AiReportsScreen(
     savedSwarmIds: Set<String>,
     savedFlockIds: Set<String> = emptySet(),
     savedModelIds: Set<String> = emptySet(),
-    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds, flockIds, directModelIds
+    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, String?) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds, flockIds, directModelIds, paramsId
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -2572,6 +2572,10 @@ fun AiReportsScreen(
     // Total worker count (agents + all model selections)
     val totalWorkers = combinedAgentIds.size + combinedModelIds.size
 
+    // Parameters preset selection for the report
+    var selectedParamsId by remember { mutableStateOf<String?>(null) }
+    var selectedParamsName by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -2594,9 +2598,23 @@ fun AiReportsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (!isGenerating) {
+            // Parameters selector for the report
+            ParametersSelector(
+                aiSettings = uiState.aiSettings,
+                selectedParamsId = selectedParamsId,
+                selectedParamsName = selectedParamsName,
+                onParamsSelected = { id, name ->
+                    selectedParamsId = id
+                    selectedParamsName = name
+                },
+                label = "Report Parameters (optional - applies to all workers)"
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Generate button at top
             Button(
-                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds, selectedFlockIds, directlySelectedModelIds) },
+                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds, selectedFlockIds, directlySelectedModelIds, selectedParamsId) },
                 enabled = totalWorkers > 0,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(

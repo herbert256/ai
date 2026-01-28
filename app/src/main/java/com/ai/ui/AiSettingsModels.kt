@@ -135,7 +135,8 @@ data class AiAgent(
 data class AiSwarm(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
-    val agentIds: List<String> = emptyList()  // List of agent IDs in this swarm
+    val agentIds: List<String> = emptyList(),  // List of agent IDs in this swarm
+    val paramsId: String? = null       // Reference to AiParams ID (optional parameter preset)
 )
 
 /**
@@ -154,7 +155,8 @@ data class AiFlockMember(
 data class AiFlock(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
-    val members: List<AiFlockMember> = emptyList()  // List of provider/model combinations
+    val members: List<AiFlockMember> = emptyList(),  // List of provider/model combinations
+    val paramsId: String? = null       // Reference to AiParams ID (optional parameter preset)
 )
 
 /**

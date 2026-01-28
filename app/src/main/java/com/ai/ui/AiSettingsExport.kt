@@ -74,11 +74,13 @@ data class AgentExport(
 
 /**
  * Data class for swarm in JSON export/import (version 6+).
+ * Version 14+: Added paramsId.
  */
 data class SwarmExport(
     val id: String,
     val name: String,
-    val agentIds: List<String>
+    val agentIds: List<String>,
+    val paramsId: String? = null  // Version 14+
 )
 
 /**
@@ -91,11 +93,13 @@ data class FlockMemberExport(
 
 /**
  * Data class for flock in JSON export/import (version 13+).
+ * Version 14+: Added paramsId.
  */
 data class FlockExport(
     val id: String,
     val name: String,
-    val members: List<FlockMemberExport>
+    val members: List<FlockMemberExport>,
+    val paramsId: String? = null  // Version 14+
 )
 
 /**
@@ -250,7 +254,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         SwarmExport(
             id = swarm.id,
             name = swarm.name,
-            agentIds = swarm.agentIds
+            agentIds = swarm.agentIds,
+            paramsId = swarm.paramsId
         )
     }
 
@@ -264,7 +269,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
                     provider = member.provider.name,
                     model = member.model
                 )
-            }
+            },
+            paramsId = flock.paramsId
         )
     }
 
@@ -474,7 +480,8 @@ private fun processImportedConfig(
         AiSwarm(
             id = swarmExport.id,
             name = swarmExport.name,
-            agentIds = swarmExport.agentIds
+            agentIds = swarmExport.agentIds,
+            paramsId = swarmExport.paramsId
         )
     } ?: emptyList()
 
@@ -493,7 +500,8 @@ private fun processImportedConfig(
                     } catch (e: Exception) {
                         null  // Skip invalid provider
                     }
-                }
+                },
+                paramsId = flockExport.paramsId
             )
         } catch (e: Exception) {
             null

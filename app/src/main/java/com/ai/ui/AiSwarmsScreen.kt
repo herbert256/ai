@@ -186,6 +186,10 @@ fun SwarmEditScreen(
     var nameError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
+    // Parameters preset selection
+    var selectedParamsId by remember { mutableStateOf(swarm?.paramsId) }
+    var selectedParamsName by remember { mutableStateOf(swarm?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
     // Get all configured agents (filter DUMMY when not in developer mode)
     val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
         developerMode || agent.provider != AiService.DUMMY
@@ -242,6 +246,17 @@ fun SwarmEditScreen(
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
+            )
+
+            // Parameters preset selection
+            ParametersSelector(
+                aiSettings = aiSettings,
+                selectedParamsId = selectedParamsId,
+                selectedParamsName = selectedParamsName,
+                onParamsSelected = { id, name ->
+                    selectedParamsId = id
+                    selectedParamsName = name
+                }
             )
 
             // Agent selection section
@@ -369,7 +384,8 @@ fun SwarmEditScreen(
                         val newSwarm = AiSwarm(
                             id = swarm?.id ?: UUID.randomUUID().toString(),
                             name = name.trim(),
-                            agentIds = selectedAgentIds.toList()
+                            agentIds = selectedAgentIds.toList(),
+                            paramsId = selectedParamsId
                         )
                         onSave(newSwarm)
                     }

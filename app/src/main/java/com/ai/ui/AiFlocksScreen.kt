@@ -187,6 +187,10 @@ fun FlockEditScreen(
     var nameError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
+    // Parameters preset selection
+    var selectedParamsId by remember { mutableStateOf(flock?.paramsId) }
+    var selectedParamsName by remember { mutableStateOf(flock?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
     // Get all available provider/model combinations
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
         val result = mutableListOf<AiFlockMember>()
@@ -255,6 +259,17 @@ fun FlockEditScreen(
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
+            )
+
+            // Parameters preset selection
+            ParametersSelector(
+                aiSettings = aiSettings,
+                selectedParamsId = selectedParamsId,
+                selectedParamsName = selectedParamsName,
+                onParamsSelected = { id, name ->
+                    selectedParamsId = id
+                    selectedParamsName = name
+                }
             )
 
             // Member selection section
@@ -384,7 +399,8 @@ fun FlockEditScreen(
                         val newFlock = AiFlock(
                             id = flock?.id ?: UUID.randomUUID().toString(),
                             name = name.trim(),
-                            members = selectedMembers.toList()
+                            members = selectedMembers.toList(),
+                            paramsId = selectedParamsId
                         )
                         onSave(newFlock)
                     }
