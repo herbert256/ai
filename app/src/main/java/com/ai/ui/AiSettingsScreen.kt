@@ -2563,6 +2563,10 @@ fun ApiTestScreen(
     var expanded by remember { mutableStateOf(false) }
     var isInitialized by remember { mutableStateOf(true) }
     var showParameters by remember { mutableStateOf(false) }
+    var showEndpointDialog by remember { mutableStateOf(false) }
+    var showModelDialog by remember { mutableStateOf(false) }
+    var availableModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoadingModels by remember { mutableStateOf(false) }
 
     // API Parameters (all strings, empty = not set)
     var systemPrompt by remember { mutableStateOf("") }
@@ -2628,18 +2632,31 @@ fun ApiTestScreen(
             }
         }
 
-        // API URL field
-        OutlinedTextField(
-            value = apiUrl,
-            onValueChange = { apiUrl = it },
-            label = { Text("API URL") },
+        // API URL field with Select Endpoint button
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = apiUrl,
+                onValueChange = { apiUrl = it },
+                label = { Text("API URL") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF8B5CF6),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
             )
-        )
+            Button(
+                onClick = { showEndpointDialog = true },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text("Select", fontSize = 12.sp)
+            }
+        }
 
         // API Key field
         OutlinedTextField(
@@ -2654,18 +2671,75 @@ fun ApiTestScreen(
             )
         )
 
-        // Model field
-        OutlinedTextField(
-            value = model,
-            onValueChange = { model = it },
-            label = { Text("Model") },
+        // Model field with Select button
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = model,
+                onValueChange = { model = it },
+                label = { Text("Model") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF8B5CF6),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
             )
-        )
+            Button(
+                onClick = {
+                    if (apiKey.isNotBlank()) {
+                        isLoadingModels = true
+                        scope.launch {
+                            try {
+                                val repository = com.ai.data.AiAnalysisRepository()
+                                availableModels = when (selectedProvider) {
+                                    com.ai.data.AiService.OPENAI -> repository.fetchChatGptModels(apiKey)
+                                    com.ai.data.AiService.ANTHROPIC -> repository.fetchClaudeModels(apiKey)
+                                    com.ai.data.AiService.GOOGLE -> repository.fetchGeminiModels(apiKey)
+                                    com.ai.data.AiService.XAI -> repository.fetchGrokModels(apiKey)
+                                    com.ai.data.AiService.GROQ -> repository.fetchGroqModels(apiKey)
+                                    com.ai.data.AiService.DEEPSEEK -> repository.fetchDeepSeekModels(apiKey)
+                                    com.ai.data.AiService.MISTRAL -> repository.fetchMistralModels(apiKey)
+                                    com.ai.data.AiService.PERPLEXITY -> repository.fetchPerplexityModels(apiKey)
+                                    com.ai.data.AiService.TOGETHER -> repository.fetchTogetherModels(apiKey)
+                                    com.ai.data.AiService.OPENROUTER -> repository.fetchOpenRouterModels(apiKey)
+                                    com.ai.data.AiService.SILICONFLOW -> repository.fetchSiliconFlowModels(apiKey)
+                                    com.ai.data.AiService.ZAI -> repository.fetchZaiModels(apiKey)
+                                    com.ai.data.AiService.DUMMY -> repository.fetchDummyModels(apiKey)
+                                }
+                                isLoadingModels = false
+                                if (availableModels.isNotEmpty()) {
+                                    showModelDialog = true
+                                } else {
+                                    android.widget.Toast.makeText(context, "No models found", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                isLoadingModels = false
+                                android.widget.Toast.makeText(context, "Error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else {
+                        android.widget.Toast.makeText(context, "Enter API key first", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                enabled = !isLoadingModels,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                if (isLoadingModels) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Select", fontSize = 12.sp)
+                }
+            }
+        }
 
         // Prompt field
         OutlinedTextField(
@@ -2993,5 +3067,155 @@ fun ApiTestScreen(
                 Text("Submit")
             }
         }
+    }
+
+    // Endpoint Selection Dialog
+    if (showEndpointDialog) {
+        val endpoints = aiSettings.getEndpointsForProvider(selectedProvider)
+        val defaultBaseUrl = selectedProvider.baseUrl
+        val modelListUrl = aiSettings.getEffectiveModelListUrl(selectedProvider)
+
+        AlertDialog(
+            onDismissRequest = { showEndpointDialog = false },
+            title = { Text("Select Endpoint", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Default base URL
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                apiUrl = defaultBaseUrl
+                                showEndpointDialog = false
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (apiUrl == defaultBaseUrl) Color(0xFF6366F1).copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Default Base URL", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text(defaultBaseUrl, fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+
+                    // Model List URL
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                apiUrl = modelListUrl
+                                showEndpointDialog = false
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (apiUrl == modelListUrl) Color(0xFF6366F1).copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Model List URL", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text(modelListUrl, fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+
+                    // Custom endpoints
+                    if (endpoints.isNotEmpty()) {
+                        Text(
+                            "Custom Endpoints",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        endpoints.forEach { endpoint ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        apiUrl = endpoint.url
+                                        showEndpointDialog = false
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (apiUrl == endpoint.url) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(endpoint.name, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        if (endpoint.isDefault) {
+                                            Text(
+                                                "DEFAULT",
+                                                fontSize = 10.sp,
+                                                color = Color(0xFF4CAF50),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Text(endpoint.url, fontSize = 12.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showEndpointDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Model Selection Dialog
+    if (showModelDialog) {
+        AlertDialog(
+            onDismissRequest = { showModelDialog = false },
+            title = { Text("Select Model (${availableModels.size})", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    availableModels.forEach { modelName ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    model = modelName
+                                    showModelDialog = false
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (model == modelName) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Text(
+                                text = modelName,
+                                modifier = Modifier.padding(12.dp),
+                                color = Color.White,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showModelDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
