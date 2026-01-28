@@ -345,14 +345,19 @@ fun TraceDetailScreen(
     val activeButtonColor = Color(0xFF666666)  // Gray for active
     val inactiveButtonColor = Color(0xFF3366BB)  // Blue for inactive
 
+    // Determine background color based on status code
+    val statusCode = trace.response.statusCode
+    val isSuccess = statusCode in 200..299
+    val backgroundColor = if (isSuccess) MaterialTheme.colorScheme.background else Color(0xFF4A1515)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(backgroundColor)
             .padding(16.dp)
     ) {
         AiTitleBar(
-            title = "Trace Detail",
+            title = "Trace Detail - $statusCode",
             onBackClick = onBack,
             onAiClick = onNavigateHome
         )
