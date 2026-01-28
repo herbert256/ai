@@ -369,7 +369,20 @@ data class AiSettings(
     // Helper methods for agents
     fun getAgentById(id: String): AiAgent? = agents.find { it.id == id }
 
-    fun getConfiguredAgents(): List<AiAgent> = agents.filter { it.apiKey.isNotBlank() }
+    /**
+     * Get the effective API key for an agent.
+     * Priority: agent's API key > provider's API key
+     */
+    fun getEffectiveApiKeyForAgent(agent: AiAgent): String {
+        return agent.apiKey.ifBlank { getApiKey(agent.provider) }
+    }
+
+    /**
+     * Get agents that have an effective API key (either their own or from provider).
+     */
+    fun getConfiguredAgents(): List<AiAgent> = agents.filter {
+        it.apiKey.isNotBlank() || getApiKey(it.provider).isNotBlank()
+    }
 
     // Helper methods for swarms
     fun getSwarmById(id: String): AiSwarm? = swarms.find { it.id == id }

@@ -756,8 +756,12 @@ internal fun AgentEditScreen(
 
             // Endpoint input field with Select button
             val endpointsForProvider = aiSettings.getEndpointsForProvider(selectedProvider)
+            val defaultEndpoint = aiSettings.getDefaultEndpoint(selectedProvider)
             val selectedEndpoint = endpointsForProvider.find { it.id == selectedEndpointId }
-            val displayEndpointUrl = selectedEndpoint?.url ?: ""
+            // Show URL only if a non-default endpoint is selected
+            val hasCustomEndpoint = selectedEndpointId != null && selectedEndpointId != defaultEndpoint?.id
+            val displayEndpointUrl = if (hasCustomEndpoint) selectedEndpoint?.url ?: "" else ""
+            val defaultEndpointUrl = defaultEndpoint?.url ?: aiSettings.getEffectiveEndpointUrl(selectedProvider)
 
             Text(
                 text = "Endpoint (optional - uses provider default if empty)",
@@ -772,7 +776,7 @@ internal fun AgentEditScreen(
                 OutlinedTextField(
                     value = displayEndpointUrl,
                     onValueChange = { /* Read-only - use Select button */ },
-                    placeholder = { Text("Default: ${selectedProvider.baseUrl}", color = Color(0xFF666666)) },
+                    placeholder = { Text("Default: $defaultEndpointUrl", color = Color(0xFF666666)) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     readOnly = true

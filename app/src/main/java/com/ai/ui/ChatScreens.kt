@@ -1089,9 +1089,9 @@ fun AiChatsHubScreen(
     onNavigateToChatHistory: () -> Unit,
     onNavigateToChatSearch: () -> Unit
 ) {
-    // Check if there are any agents configured
+    // Check if there are any agents configured (with their own or provider's API key)
     val hasAgents = aiSettings.agents.any { agent ->
-        agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
     }
 
     // Check if there are any chat sessions
@@ -1223,9 +1223,9 @@ fun ChatAgentSelectScreen(
     onNavigateHome: () -> Unit,
     onSelectAgent: (String) -> Unit
 ) {
-    // Filter agents - only show those with API keys configured
+    // Filter agents - only show those with API keys configured (their own or provider's)
     val availableAgents = aiSettings.agents.filter { agent ->
-        agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
     }
 
     Column(

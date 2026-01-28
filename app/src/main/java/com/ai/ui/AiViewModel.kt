@@ -242,9 +242,14 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         requestBody = prompt
                     )
 
+                    // Use effective API key (agent's key or provider's key)
+                    val effectiveAgent = agent.copy(
+                        apiKey = aiSettings.getEffectiveApiKeyForAgent(agent)
+                    )
+
                     val response = try {
                         aiAnalysisRepository.analyzePositionWithAgent(
-                            agent = agent,
+                            agent = effectiveAgent,
                             fen = "",  // No FEN for generic prompts
                             prompt = prompt,
                             overrideParams = overrideParams,

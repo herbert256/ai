@@ -14,8 +14,10 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -784,28 +786,64 @@ private fun formatCurrency(value: Double): String {
 }
 
 /**
- * Cost Configuration Screen - allows manual price overrides per model.
+ * Cost Configuration Screen - CRUD for manual price overrides per model.
  */
 @Composable
 fun CostConfigurationScreen(
+    aiSettings: AiSettings,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack
 ) {
     BackHandler { onBack() }
 
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs) }
 
-    // Load stats to get models that have been used (exclude DUMMY)
-    val stats = remember {
-        settingsPrefs.loadUsageStats().filterValues { it.provider != com.ai.data.AiService.DUMMY }
-    }
-
-    // State for editing
+    // State for editing existing entries
     var editingKey by remember { mutableStateOf<String?>(null) }
     var editInputPrice by remember { mutableStateOf("") }
     var editOutputPrice by remember { mutableStateOf("") }
+
+    // State for adding new entries
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newProvider by remember { mutableStateOf(com.ai.data.AiService.OPENAI) }
+    var newModel by remember { mutableStateOf("") }
+    var newInputPrice by remember { mutableStateOf("") }
+    var newOutputPrice by remember { mutableStateOf("") }
+
+    // Get models for the selected provider
+    fun getModelsForProvider(provider: com.ai.data.AiService): List<String> {
+        return when (provider) {
+            com.ai.data.AiService.OPENAI -> aiSettings.chatGptManualModels.ifEmpty {
+                listOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo", "o1", "o1-mini", "o1-preview", "o3-mini")
+            }
+            com.ai.data.AiService.ANTHROPIC -> CLAUDE_MODELS
+            com.ai.data.AiService.GOOGLE -> aiSettings.geminiManualModels.ifEmpty {
+                listOf("gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro")
+            }
+            com.ai.data.AiService.XAI -> aiSettings.grokManualModels.ifEmpty {
+                listOf("grok-3", "grok-3-mini", "grok-2", "grok-2-mini", "grok-beta")
+            }
+            com.ai.data.AiService.GROQ -> aiSettings.groqManualModels.ifEmpty {
+                listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768")
+            }
+            com.ai.data.AiService.DEEPSEEK -> aiSettings.deepSeekManualModels.ifEmpty {
+                listOf("deepseek-chat", "deepseek-reasoner")
+            }
+            com.ai.data.AiService.MISTRAL -> aiSettings.mistralManualModels.ifEmpty {
+                listOf("mistral-small-latest", "mistral-medium-latest", "mistral-large-latest", "codestral-latest")
+            }
+            com.ai.data.AiService.PERPLEXITY -> PERPLEXITY_MODELS
+            com.ai.data.AiService.TOGETHER -> aiSettings.togetherManualModels.ifEmpty {
+                listOf("meta-llama/Llama-3.3-70B-Instruct-Turbo", "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo")
+            }
+            com.ai.data.AiService.OPENROUTER -> aiSettings.openRouterManualModels.ifEmpty {
+                listOf("anthropic/claude-3.5-sonnet", "openai/gpt-4o", "google/gemini-pro")
+            }
+            com.ai.data.AiService.SILICONFLOW -> SILICONFLOW_MODELS
+            com.ai.data.AiService.ZAI -> ZAI_MODELS
+            com.ai.data.AiService.DUMMY -> listOf("dummy-model")
+        }
+    }
 
     // Force recomposition when manual pricing changes
     var refreshTrigger by remember { mutableStateOf(0) }
@@ -829,79 +867,234 @@ fun CostConfigurationScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Add button
+        Button(
+            onClick = {
+                newProvider = com.ai.data.AiService.OPENAI
+                newModel = ""
+                newInputPrice = ""
+                newOutputPrice = ""
+                showAddDialog = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("+ Add Manual Override")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         Text(
-            text = "Manual price overrides (per 1M tokens)",
+            text = "Manual price overrides (per 1M tokens): ${manualPricing.size}",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFFAAAAAA)
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        if (stats.isEmpty()) {
+        if (manualPricing.isEmpty()) {
             Text(
-                text = "No models with usage statistics yet. Use AI Chat or Reports to generate statistics.",
+                text = "No manual price overrides configured.\nTap '+ Add Manual Override' to add one.",
                 color = Color(0xFF888888)
             )
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Sort by provider name, then model name
-                val sortedStats = stats.entries.sortedWith(
-                    compareBy({ it.value.provider.displayName }, { it.value.model })
-                )
-
-                items(sortedStats, key = { it.key }) { (_, stat) ->
-                    val manualKey = "${stat.provider.name}:${stat.model}"
-                    val manualPrice = manualPricing[manualKey]
-                    val isEditing = editingKey == manualKey
-
-                    // Get current pricing (from any tier - always returns a value)
-                    val currentPricing = com.ai.data.PricingCache.getPricing(context, stat.provider, stat.model)
-
-                    CostConfigCard(
-                        provider = stat.provider,
-                        model = stat.model,
-                        currentInputPrice = currentPricing.promptPrice,
-                        currentOutputPrice = currentPricing.completionPrice,
-                        pricingSource = currentPricing.source,
-                        hasManualOverride = manualPrice != null,
-                        isEditing = isEditing,
-                        editInputPrice = if (isEditing) editInputPrice else "",
-                        editOutputPrice = if (isEditing) editOutputPrice else "",
-                        onEditInputPriceChange = { editInputPrice = it },
-                        onEditOutputPriceChange = { editOutputPrice = it },
-                        onOverrideClick = {
-                            editingKey = manualKey
-                            // Pre-fill with current prices converted to per-million
-                            val inputPerMillion = currentPricing.promptPrice * 1_000_000
-                            val outputPerMillion = currentPricing.completionPrice * 1_000_000
-                            editInputPrice = if (inputPerMillion > 0) String.format("%.4f", inputPerMillion) else ""
-                            editOutputPrice = if (outputPerMillion > 0) String.format("%.4f", outputPerMillion) else ""
+                // Sort manual pricing entries by provider name, then model name
+                val sortedEntries = manualPricing.entries.sortedWith(
+                    compareBy(
+                        { entry ->
+                            val parts = entry.key.split(":", limit = 2)
+                            parts.getOrNull(0) ?: ""
                         },
-                        onSaveClick = {
-                            val inputPerToken = editInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
-                            val outputPerToken = editOutputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
-                            if (inputPerToken != null && outputPerToken != null) {
-                                com.ai.data.PricingCache.setManualPricing(
-                                    context, stat.provider, stat.model,
-                                    inputPerToken, outputPerToken
-                                )
-                                editingKey = null
-                                refreshTrigger++
-                            }
-                        },
-                        onCancelClick = {
-                            editingKey = null
-                        },
-                        onRemoveOverrideClick = {
-                            com.ai.data.PricingCache.removeManualPricing(context, stat.provider, stat.model)
-                            refreshTrigger++
+                        { entry ->
+                            val parts = entry.key.split(":", limit = 2)
+                            parts.getOrNull(1) ?: ""
                         }
                     )
+                )
+
+                items(sortedEntries, key = { it.key }) { (manualKey, pricing) ->
+                    val parts = manualKey.split(":", limit = 2)
+                    if (parts.size == 2) {
+                        val providerName = parts[0]
+                        val modelName = parts[1]
+                        val provider = try {
+                            com.ai.data.AiService.valueOf(providerName)
+                        } catch (e: Exception) {
+                            null
+                        }
+
+                        if (provider != null) {
+                            val isEditing = editingKey == manualKey
+
+                            CostConfigCard(
+                                provider = provider,
+                                model = modelName,
+                                currentInputPrice = pricing.promptPrice,
+                                currentOutputPrice = pricing.completionPrice,
+                                isEditing = isEditing,
+                                editInputPrice = if (isEditing) editInputPrice else "",
+                                editOutputPrice = if (isEditing) editOutputPrice else "",
+                                onEditInputPriceChange = { editInputPrice = it },
+                                onEditOutputPriceChange = { editOutputPrice = it },
+                                onEditClick = {
+                                    editingKey = manualKey
+                                    val inputPerMillion = pricing.promptPrice * 1_000_000
+                                    val outputPerMillion = pricing.completionPrice * 1_000_000
+                                    editInputPrice = if (inputPerMillion > 0) String.format("%.4f", inputPerMillion) else ""
+                                    editOutputPrice = if (outputPerMillion > 0) String.format("%.4f", outputPerMillion) else ""
+                                },
+                                onSaveClick = {
+                                    val inputPerToken = editInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                                    val outputPerToken = editOutputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                                    if (inputPerToken != null && outputPerToken != null) {
+                                        com.ai.data.PricingCache.setManualPricing(
+                                            context, provider, modelName,
+                                            inputPerToken, outputPerToken
+                                        )
+                                        editingKey = null
+                                        refreshTrigger++
+                                    }
+                                },
+                                onCancelClick = {
+                                    editingKey = null
+                                },
+                                onRemoveClick = {
+                                    com.ai.data.PricingCache.removeManualPricing(context, provider, modelName)
+                                    refreshTrigger++
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    // Add Manual Override Dialog
+    if (showAddDialog) {
+        var providerExpanded by remember { mutableStateOf(false) }
+        var modelExpanded by remember { mutableStateOf(false) }
+        val availableModels = remember(newProvider) { getModelsForProvider(newProvider) }
+
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Add Manual Override", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Provider dropdown
+                    Text("Provider", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+                    Box {
+                        OutlinedButton(
+                            onClick = { providerExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(newProvider.displayName, modifier = Modifier.weight(1f))
+                            Text(if (providerExpanded) "▲" else "▼")
+                        }
+                        DropdownMenu(
+                            expanded = providerExpanded,
+                            onDismissRequest = { providerExpanded = false }
+                        ) {
+                            com.ai.data.AiService.entries
+                                .filter { it != com.ai.data.AiService.DUMMY }
+                                .forEach { provider ->
+                                    DropdownMenuItem(
+                                        text = { Text(provider.displayName) },
+                                        onClick = {
+                                            newProvider = provider
+                                            newModel = ""  // Reset model when provider changes
+                                            providerExpanded = false
+                                        }
+                                    )
+                                }
+                        }
+                    }
+
+                    // Model dropdown
+                    Text("Model", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+                    Box {
+                        OutlinedButton(
+                            onClick = { modelExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = newModel.ifBlank { "Select model..." },
+                                modifier = Modifier.weight(1f),
+                                color = if (newModel.isBlank()) Color(0xFF888888) else Color.White
+                            )
+                            Text(if (modelExpanded) "▲" else "▼")
+                        }
+                        DropdownMenu(
+                            expanded = modelExpanded,
+                            onDismissRequest = { modelExpanded = false },
+                            modifier = Modifier.heightIn(max = 300.dp)
+                        ) {
+                            availableModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model, fontSize = 14.sp) },
+                                    onClick = {
+                                        newModel = model
+                                        modelExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Prices
+                    Text("Prices (per 1M tokens)", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = newInputPrice,
+                            onValueChange = { newInputPrice = it },
+                            label = { Text("Input $") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                        OutlinedTextField(
+                            value = newOutputPrice,
+                            onValueChange = { newOutputPrice = it },
+                            label = { Text("Output $") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val inputPerToken = newInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                        val outputPerToken = newOutputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                        if (newModel.isNotBlank() && inputPerToken != null && outputPerToken != null) {
+                            com.ai.data.PricingCache.setManualPricing(
+                                context, newProvider, newModel,
+                                inputPerToken, outputPerToken
+                            )
+                            showAddDialog = false
+                            refreshTrigger++
+                        }
+                    },
+                    enabled = newModel.isNotBlank() &&
+                            newInputPrice.toDoubleOrNull() != null &&
+                            newOutputPrice.toDoubleOrNull() != null
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -911,17 +1104,15 @@ private fun CostConfigCard(
     model: String,
     currentInputPrice: Double?,
     currentOutputPrice: Double?,
-    pricingSource: String?,
-    hasManualOverride: Boolean,
     isEditing: Boolean,
     editInputPrice: String,
     editOutputPrice: String,
     onEditInputPriceChange: (String) -> Unit,
     onEditOutputPriceChange: (String) -> Unit,
-    onOverrideClick: () -> Unit,
+    onEditClick: () -> Unit,
     onSaveClick: () -> Unit,
     onCancelClick: () -> Unit,
-    onRemoveOverrideClick: () -> Unit
+    onRemoveClick: () -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(
@@ -933,43 +1124,18 @@ private fun CostConfigCard(
             modifier = Modifier.padding(12.dp)
         ) {
             // Provider and model name
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = provider.displayName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFF6B9BFF)
-                    )
-                    Text(
-                        text = model,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
-                }
-                if (hasManualOverride) {
-                    Text(
-                        text = "MANUAL",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF4CAF50),
-                        fontWeight = FontWeight.Bold
-                    )
-                } else if (pricingSource != null) {
-                    Text(
-                        text = pricingSource.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = when (pricingSource) {
-                            "openrouter" -> Color(0xFF64B5F6)
-                            "litellm" -> Color(0xFFBA68C8)
-                            "fallback" -> Color(0xFFFFB74D)
-                            else -> Color(0xFF888888)
-                        }
-                    )
-                }
+            Column {
+                Text(
+                    text = provider.displayName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFF6B9BFF)
+                )
+                Text(
+                    text = model,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1053,13 +1219,11 @@ private fun CostConfigCard(
                         }
                     }
                     Row {
-                        if (hasManualOverride) {
-                            TextButton(onClick = onRemoveOverrideClick) {
-                                Text("Remove", color = Color(0xFFFF5252), fontSize = 12.sp)
-                            }
+                        TextButton(onClick = onRemoveClick) {
+                            Text("Remove", color = Color(0xFFFF5252), fontSize = 12.sp)
                         }
-                        TextButton(onClick = onOverrideClick) {
-                            Text("Override", color = Color(0xFF64B5F6), fontSize = 12.sp)
+                        TextButton(onClick = onEditClick) {
+                            Text("Edit", color = Color(0xFF64B5F6), fontSize = 12.sp)
                         }
                     }
                 }

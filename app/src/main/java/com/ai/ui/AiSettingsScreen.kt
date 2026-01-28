@@ -269,7 +269,7 @@ fun AiSetupScreen(
 
         // Summary info (exclude DUMMY agents when not in developer mode)
         val configuredAgents = aiSettings.agents.count { agent ->
-            agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+            aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
         }
 
         // Providers card (exclude DUMMY when not in developer mode)
@@ -1078,8 +1078,12 @@ fun ModelInfoScreen(
                             provider = provider.displayName,
                             agent = modelInfoAgent.name
                         )
+                        // Use effective API key (agent's key or provider's key)
+                        val effectiveAgent = modelInfoAgent.copy(
+                            apiKey = aiSettings.getEffectiveApiKeyForAgent(modelInfoAgent)
+                        )
                         val repository = com.ai.data.AiAnalysisRepository()
-                        val result = repository.analyzePlayerWithAgent(modelInfoAgent, resolvedPrompt)
+                        val result = repository.analyzePlayerWithAgent(effectiveAgent, resolvedPrompt)
                         if (result.error == null && !result.analysis.isNullOrBlank()) {
                             aiDescription = result.analysis
                         }

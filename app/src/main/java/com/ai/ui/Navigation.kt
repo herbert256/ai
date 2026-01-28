@@ -276,7 +276,9 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_COST_CONFIG) {
+            val uiState by viewModel.uiState.collectAsState()
             CostConfigurationScreen(
+                aiSettings = uiState.aiSettings,
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -435,23 +437,24 @@ fun AiNavHost(
                     searchRecency = agent.parameters.searchRecency
                 )
 
-                // Get the effective endpoint URL for this agent
+                // Get the effective endpoint URL and API key for this agent
                 val endpointUrl = uiState.aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val customBaseUrl = if (endpointUrl != agent.provider.baseUrl) endpointUrl else null
+                val effectiveApiKey = uiState.aiSettings.getEffectiveApiKeyForAgent(agent)
 
                 ChatSessionScreen(
                     provider = agent.provider,
                     model = agent.model,
-                    apiKey = agent.apiKey,
+                    apiKey = effectiveApiKey,
                     parameters = chatParams,
                     userName = uiState.generalSettings.userName,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
-                        viewModel.sendChatMessage(agent.provider, agent.apiKey, agent.model, messages)
+                        viewModel.sendChatMessage(agent.provider, effectiveApiKey, agent.model, messages)
                     },
                     onSendMessageStream = { messages ->
-                        viewModel.sendChatMessageStream(agent.provider, agent.apiKey, agent.model, messages, customBaseUrl)
+                        viewModel.sendChatMessageStream(agent.provider, effectiveApiKey, agent.model, messages, customBaseUrl)
                     }
                 )
             } else {
