@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import okhttp3.Headers
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import java.io.BufferedReader
 import java.time.LocalDate
@@ -1557,6 +1560,77 @@ class AiAnalysisRepository {
                 }
             } else {
                 AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } catch (e: Exception) {
+            AiAnalysisResponse(service, null, "Error: ${e.message}")
+        }
+    }
+
+    /**
+     * Test API connection with a raw JSON body.
+     * Used by the Edit API Request screen to send user-edited JSON.
+     */
+    suspend fun testApiConnectionWithJson(
+        service: AiService,
+        apiKey: String,
+        baseUrl: String,
+        jsonBody: String
+    ): AiAnalysisResponse = withContext(Dispatchers.IO) {
+        try {
+            // Create a custom OkHttp client with tracing interceptor
+            val client = OkHttpClient.Builder()
+                .addInterceptor(TracingInterceptor())
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            // Build the request
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val body = jsonBody.toRequestBody(mediaType)
+
+            // Use appropriate auth header based on service
+            val authHeader = when (service) {
+                AiService.ANTHROPIC -> apiKey  // Anthropic uses x-api-key
+                else -> "Bearer $apiKey"
+            }
+
+            val request = okhttp3.Request.Builder()
+                .url(baseUrl)
+                .post(body)
+                .addHeader("Authorization", authHeader)
+                .addHeader("Content-Type", "application/json")
+                .build()
+
+            val response = client.newCall(request).execute()
+            val headers = formatHeaders(response.headers)
+            val statusCode = response.code
+
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                val gson = com.google.gson.Gson()
+                try {
+                    val openAiResponse = gson.fromJson(responseBody, OpenAiResponse::class.java)
+                    val content = openAiResponse?.choices?.firstOrNull()?.message?.content
+                    val usage = openAiResponse?.usage?.let {
+                        TokenUsage(
+                            inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
+                            outputTokens = it.completion_tokens ?: it.output_tokens ?: 0,
+                            apiCost = extractApiCost(it, service)
+                        )
+                    }
+                    if (content != null) {
+                        AiAnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
+                    } else {
+                        AiAnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
+                    }
+                } catch (e: Exception) {
+                    // If we can't parse as OpenAI format, just return the raw response
+                    AiAnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
+                }
+            } else {
+                val errorBody = response.body?.string()
+                AiAnalysisResponse(service, null, "API error: $statusCode - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
             }
         } catch (e: Exception) {
             AiAnalysisResponse(service, null, "Error: ${e.message}")

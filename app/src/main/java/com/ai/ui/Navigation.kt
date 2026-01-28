@@ -46,6 +46,7 @@ object NavRoutes {
     const val AI_MODEL_SEARCH = "ai_model_search"
     const val AI_MODEL_INFO = "ai_model_info/{provider}/{model}"
     const val AI_API_TEST = "ai_api_test"
+    const val AI_API_TEST_EDIT = "ai_api_test_edit"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
@@ -342,10 +343,20 @@ fun AiNavHost(
             ApiTestScreen(
                 onBackClick = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onNavigateToTraceDetail = { filename ->
-                    navController.navigate(NavRoutes.traceDetail(filename))
+                onNavigateToEditRequest = {
+                    navController.navigate(NavRoutes.AI_API_TEST_EDIT)
                 },
                 viewModel = viewModel
+            )
+        }
+
+        composable(NavRoutes.AI_API_TEST_EDIT) {
+            EditApiRequestScreen(
+                onBackClick = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onNavigateToTraceDetail = { filename ->
+                    navController.navigate(NavRoutes.traceDetail(filename))
+                }
             )
         }
 

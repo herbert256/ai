@@ -272,20 +272,20 @@ fun AiSetupScreen(
             agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
         }
 
-        // AI Providers card (exclude DUMMY when not in developer mode)
+        // Providers card (exclude DUMMY when not in developer mode)
         val providerCount = if (developerMode) AiService.entries.size else AiService.entries.size - 1
         AiSetupNavigationCard(
-            title = "AI Providers",
+            title = "Providers",
             description = "Configure model sources for each AI service",
             icon = "⚙",
             count = "$providerCount providers",
             onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) }
         )
 
-        // AI Agents card
+        // Agents card
         val hasApiKey = aiSettings.hasAnyApiKey()
         AiSetupNavigationCard(
-            title = "AI Agents",
+            title = "Agents",
             description = "Configure agents with provider, model, and API key",
             icon = "🤖",
             count = "$configuredAgents configured",
@@ -293,10 +293,10 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
-        // AI Swarms card
+        // Swarms card
         val configuredSwarms = aiSettings.swarms.size
         AiSetupNavigationCard(
-            title = "AI Swarms",
+            title = "Swarms",
             description = "Group agents into swarms for report generation",
             icon = "🐝",
             count = "$configuredSwarms configured",
@@ -304,10 +304,10 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
-        // AI Prompts card
+        // Prompts card
         val configuredPrompts = aiSettings.prompts.size
         AiSetupNavigationCard(
-            title = "AI Prompts",
+            title = "Prompts",
             description = "Internal prompts for AI-powered features",
             icon = "📝",
             count = "$configuredPrompts configured",
@@ -315,12 +315,12 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
-        // AI Costs card - use aiSettings as key to refresh after import
+        // Costs card - use aiSettings as key to refresh after import
         val manualPricingCount = remember(aiSettings) {
             com.ai.data.PricingCache.getAllManualPricing(context).size
         }
         AiSetupNavigationCard(
-            title = "AI Costs",
+            title = "Costs",
             description = "Configure manual price overrides per model",
             icon = "💰",
             count = "$manualPricingCount configured",
@@ -2526,7 +2526,7 @@ private fun escapeCsvField(value: String): String {
 fun ApiTestScreen(
     onBackClick: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateToTraceDetail: (String) -> Unit,
+    onNavigateToEditRequest: () -> Unit,
     viewModel: AiViewModel
 ) {
     val context = LocalContext.current
@@ -2966,102 +2966,39 @@ fun ApiTestScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Submit button
+        // Submit button - navigates to Edit API Request screen
         Button(
             onClick = {
                 if (prompt.isNotBlank()) {
-                    // Save to persistent storage as "last test"
+                    // Save all test configuration to persistent storage
                     prefs.edit()
                         .putString("last_test_provider", selectedProvider.name)
                         .putString("last_test_api_url", apiUrl)
                         .putString("last_test_api_key", apiKey)
                         .putString("last_test_model", model)
                         .putString("last_test_prompt", prompt)
+                        .putString("last_test_system_prompt", systemPrompt)
+                        .putString("last_test_temperature", temperature)
+                        .putString("last_test_max_tokens", maxTokens)
+                        .putString("last_test_top_p", topP)
+                        .putString("last_test_top_k", topK)
+                        .putString("last_test_frequency_penalty", frequencyPenalty)
+                        .putString("last_test_presence_penalty", presencePenalty)
+                        .putString("last_test_seed", seed)
+                        .putString("last_test_stop_sequences", stopSequences)
+                        .putBoolean("last_test_response_format_json", responseFormatJson)
+                        .putBoolean("last_test_search_enabled", searchEnabled)
                         .apply()
 
-                    isLoading = true
-                    scope.launch {
-                        // Enable API tracing temporarily
-                        val wasTracingEnabled = com.ai.data.ApiTracer.isTracingEnabled
-                        com.ai.data.ApiTracer.isTracingEnabled = true
-
-                        // Get trace files before the call
-                        val traceDir = java.io.File(context.filesDir, "trace")
-                        val traceFilesBefore = traceDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
-
-                        try {
-                            // Build parameters only if any are set
-                            val params = AiAgentParameters(
-                                systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
-                                temperature = temperature.toFloatOrNull(),
-                                maxTokens = maxTokens.toIntOrNull(),
-                                topP = topP.toFloatOrNull(),
-                                topK = topK.toIntOrNull(),
-                                frequencyPenalty = frequencyPenalty.toFloatOrNull(),
-                                presencePenalty = presencePenalty.toFloatOrNull(),
-                                seed = seed.toIntOrNull(),
-                                stopSequences = stopSequences.takeIf { it.isNotBlank() }?.split(",")?.map { it.trim() },
-                                responseFormatJson = responseFormatJson,
-                                searchEnabled = searchEnabled
-                            )
-
-                            // Make the API call using the repository
-                            val repository = com.ai.data.AiAnalysisRepository()
-                            val response = repository.testApiConnection(
-                                service = selectedProvider,
-                                apiKey = apiKey,
-                                model = model,
-                                baseUrl = apiUrl,
-                                prompt = prompt,
-                                params = params
-                            )
-
-                            // Find the new trace file
-                            val traceFilesAfter = traceDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
-                            val newTraceFile = (traceFilesAfter - traceFilesBefore).firstOrNull()
-
-                            // Restore tracing state
-                            com.ai.data.ApiTracer.isTracingEnabled = wasTracingEnabled
-
-                            isLoading = false
-
-                            // Navigate to trace detail if we found a new trace file
-                            if (newTraceFile != null) {
-                                onNavigateToTraceDetail(newTraceFile)
-                            } else {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    if (response.isSuccess) "Success but no trace file found" else "Error: ${response.error}",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        } catch (e: Exception) {
-                            com.ai.data.ApiTracer.isTracingEnabled = wasTracingEnabled
-                            isLoading = false
-                            android.widget.Toast.makeText(
-                                context,
-                                "Error: ${e.message}",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
+                    // Navigate to Edit API Request screen
+                    onNavigateToEditRequest()
                 }
             },
-            enabled = !isLoading && prompt.isNotBlank(),
+            enabled = prompt.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Testing...")
-            } else {
-                Text("Submit")
-            }
+            Text("Submit")
         }
     }
 
@@ -3213,5 +3150,204 @@ fun ApiTestScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * Edit API Request screen - allows editing the generated JSON request before sending.
+ */
+@Composable
+fun EditApiRequestScreen(
+    onBackClick: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceDetail: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+
+    // Load test configuration from SharedPreferences
+    val provider = remember {
+        val providerName = prefs.getString("last_test_provider", null)
+        providerName?.let {
+            try { com.ai.data.AiService.valueOf(it) } catch (e: Exception) { null }
+        } ?: com.ai.data.AiService.OPENAI
+    }
+    val apiUrl = remember { prefs.getString("last_test_api_url", "") ?: "" }
+    val apiKey = remember { prefs.getString("last_test_api_key", "") ?: "" }
+    val model = remember { prefs.getString("last_test_model", "") ?: "" }
+    val prompt = remember { prefs.getString("last_test_prompt", "") ?: "" }
+    val systemPrompt = remember { prefs.getString("last_test_system_prompt", "") ?: "" }
+    val temperature = remember { prefs.getString("last_test_temperature", "")?.toFloatOrNull() }
+    val maxTokens = remember { prefs.getString("last_test_max_tokens", "")?.toIntOrNull() }
+    val topP = remember { prefs.getString("last_test_top_p", "")?.toFloatOrNull() }
+    val topK = remember { prefs.getString("last_test_top_k", "")?.toIntOrNull() }
+    val frequencyPenalty = remember { prefs.getString("last_test_frequency_penalty", "")?.toFloatOrNull() }
+    val presencePenalty = remember { prefs.getString("last_test_presence_penalty", "")?.toFloatOrNull() }
+    val seed = remember { prefs.getString("last_test_seed", "")?.toIntOrNull() }
+    val stopSequences = remember {
+        prefs.getString("last_test_stop_sequences", "")?.takeIf { it.isNotBlank() }?.split(",")?.map { it.trim() }
+    }
+    val responseFormatJson = remember { prefs.getBoolean("last_test_response_format_json", false) }
+    val searchEnabled = remember { prefs.getBoolean("last_test_search_enabled", false) }
+
+    // Generate the JSON request body
+    val generatedJson = remember {
+        val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+        val messages = buildList {
+            if (systemPrompt.isNotBlank()) {
+                add(mapOf("role" to "system", "content" to systemPrompt))
+            }
+            add(mapOf("role" to "user", "content" to prompt))
+        }
+        val requestMap = mutableMapOf<String, Any?>(
+            "model" to model,
+            "messages" to messages
+        )
+        temperature?.let { requestMap["temperature"] = it }
+        maxTokens?.let { requestMap["max_tokens"] = it }
+        topP?.let { requestMap["top_p"] = it }
+        topK?.let { requestMap["top_k"] = it }
+        frequencyPenalty?.let { requestMap["frequency_penalty"] = it }
+        presencePenalty?.let { requestMap["presence_penalty"] = it }
+        seed?.let { requestMap["seed"] = it }
+        stopSequences?.let { requestMap["stop"] = it }
+        if (responseFormatJson) {
+            requestMap["response_format"] = mapOf("type" to "json_object")
+        }
+        if (searchEnabled) {
+            requestMap["search"] = true
+        }
+        gson.toJson(requestMap)
+    }
+
+    var editableJson by remember { mutableStateOf(generatedJson) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AiTitleBar(
+            title = "Edit API Request",
+            onBackClick = onBackClick,
+            onAiClick = onNavigateHome
+        )
+
+        // Info about the request
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = "${provider.displayName} • $model",
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = apiUrl,
+                    color = Color.Gray,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // Large editable JSON text field
+        OutlinedTextField(
+            value = editableJson,
+            onValueChange = { editableJson = it },
+            label = { Text("Request Body (JSON)") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color.White
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF8B5CF6),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        // Submit button
+        Button(
+            onClick = {
+                isLoading = true
+                scope.launch {
+                    // Enable API tracing temporarily
+                    val wasTracingEnabled = com.ai.data.ApiTracer.isTracingEnabled
+                    com.ai.data.ApiTracer.isTracingEnabled = true
+
+                    // Get trace files before the call
+                    val traceDir = java.io.File(context.filesDir, "trace")
+                    val traceFilesBefore = traceDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
+
+                    try {
+                        // Make the API call with the edited JSON
+                        val repository = com.ai.data.AiAnalysisRepository()
+                        val response = repository.testApiConnectionWithJson(
+                            service = provider,
+                            apiKey = apiKey,
+                            baseUrl = apiUrl,
+                            jsonBody = editableJson
+                        )
+
+                        // Find the new trace file
+                        val traceFilesAfter = traceDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
+                        val newTraceFile = (traceFilesAfter - traceFilesBefore).firstOrNull()
+
+                        // Restore tracing state
+                        com.ai.data.ApiTracer.isTracingEnabled = wasTracingEnabled
+
+                        isLoading = false
+
+                        // Navigate to trace detail if we found a new trace file
+                        if (newTraceFile != null) {
+                            onNavigateToTraceDetail(newTraceFile)
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                if (response.isSuccess) "Success but no trace file found" else "Error: ${response.error}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } catch (e: Exception) {
+                        com.ai.data.ApiTracer.isTracingEnabled = wasTracingEnabled
+                        isLoading = false
+                        android.widget.Toast.makeText(
+                            context,
+                            "Error: ${e.message}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            },
+            enabled = !isLoading && editableJson.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Sending...")
+            } else {
+                Text("Submit")
+            }
+        }
     }
 }
