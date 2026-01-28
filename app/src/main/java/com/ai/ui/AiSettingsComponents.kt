@@ -1071,3 +1071,237 @@ fun PromptEditSection(
         onResetToDefault = onResetToDefault
     )
 }
+
+/**
+ * Endpoints section for provider settings - allows CRUD for API endpoints.
+ * Uses the provider's hardcoded baseUrl as the default when no endpoints are configured.
+ */
+@Composable
+fun EndpointsSection(
+    endpoints: List<AiEndpoint>,
+    defaultEndpointUrl: String,  // The hardcoded URL from AiService.baseUrl
+    onEndpointsChange: (List<AiEndpoint>) -> Unit
+) {
+    var showAddDialog by remember { mutableStateOf(false) }
+    var editingEndpoint by remember { mutableStateOf<AiEndpoint?>(null) }
+    var endpointName by remember { mutableStateOf("") }
+    var endpointUrl by remember { mutableStateOf("") }
+
+    // Effective endpoints list - if empty, show a virtual "Default" endpoint
+    val effectiveEndpoints = if (endpoints.isEmpty()) {
+        listOf(AiEndpoint(
+            id = "default",
+            name = "Default",
+            url = defaultEndpointUrl,
+            isDefault = true
+        ))
+    } else {
+        endpoints
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "API Endpoints",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+
+            Text(
+                text = "Configure custom API endpoints for this provider",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
+
+            // Add endpoint button
+            Button(
+                onClick = {
+                    endpointName = ""
+                    endpointUrl = defaultEndpointUrl
+                    editingEndpoint = null
+                    showAddDialog = true
+                }
+            ) {
+                Text("+ Add Endpoint")
+            }
+
+            // Endpoint list
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                effectiveEndpoints.forEach { endpoint ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (endpoint.isDefault) Color(0xFF2A4A3A) else Color(0xFF2A3A4A),
+                                shape = MaterialTheme.shapes.small
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Default indicator
+                        if (endpoint.isDefault) {
+                            Text(
+                                text = "★",
+                                color = Color(0xFF4CAF50),
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = endpoint.name,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (endpoint.isDefault) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(
+                                text = endpoint.url,
+                                color = Color(0xFFAAAAAA),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        // Only show action buttons for real endpoints (not the virtual default)
+                        if (endpoints.isNotEmpty() || endpoint.id != "default") {
+                            // Set as default button (only if not already default)
+                            if (!endpoint.isDefault) {
+                                IconButton(
+                                    onClick = {
+                                        val newList = endpoints.map { it.copy(isDefault = it.id == endpoint.id) }
+                                        onEndpointsChange(newList)
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Text("☆", color = Color(0xFFAAAAAA))
+                                }
+                            }
+
+                            // Edit button
+                            IconButton(
+                                onClick = {
+                                    editingEndpoint = endpoint
+                                    endpointName = endpoint.name
+                                    endpointUrl = endpoint.url
+                                    showAddDialog = true
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("✎", color = Color(0xFFAAAAAA))
+                            }
+
+                            // Delete button (only if more than one endpoint or not the only one)
+                            if (endpoints.size > 1 || !endpoint.isDefault) {
+                                IconButton(
+                                    onClick = {
+                                        var newList = endpoints.filter { it.id != endpoint.id }
+                                        // If we deleted the default, make the first one default
+                                        if (endpoint.isDefault && newList.isNotEmpty()) {
+                                            newList = listOf(newList.first().copy(isDefault = true)) + newList.drop(1).map { it.copy(isDefault = false) }
+                                        }
+                                        onEndpointsChange(newList)
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Text("✕", color = Color(0xFFFF6666))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add/Edit endpoint dialog
+    if (showAddDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddDialog = false
+                editingEndpoint = null
+            },
+            title = {
+                Text(
+                    if (editingEndpoint != null) "Edit Endpoint" else "Add Endpoint",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = endpointName,
+                        onValueChange = { endpointName = it },
+                        label = { Text("Name") },
+                        placeholder = { Text("e.g., Custom Server") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = endpointUrl,
+                        onValueChange = { endpointUrl = it },
+                        label = { Text("URL") },
+                        placeholder = { Text("https://api.example.com/") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (endpointName.isNotBlank() && endpointUrl.isNotBlank()) {
+                            val newList = if (editingEndpoint != null) {
+                                // Editing existing endpoint
+                                endpoints.map {
+                                    if (it.id == editingEndpoint!!.id) {
+                                        it.copy(name = endpointName.trim(), url = endpointUrl.trim())
+                                    } else {
+                                        it
+                                    }
+                                }
+                            } else {
+                                // Adding new endpoint
+                                val newEndpoint = AiEndpoint(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = endpointName.trim(),
+                                    url = endpointUrl.trim(),
+                                    isDefault = endpoints.isEmpty()  // First endpoint is default
+                                )
+                                endpoints + newEndpoint
+                            }
+                            onEndpointsChange(newList)
+                        }
+                        showAddDialog = false
+                        editingEndpoint = null
+                    },
+                    enabled = endpointName.isNotBlank() && endpointUrl.isNotBlank()
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddDialog = false
+                    editingEndpoint = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}

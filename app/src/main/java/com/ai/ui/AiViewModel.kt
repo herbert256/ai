@@ -800,19 +800,22 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Send a chat message with streaming response.
      * Returns a Flow that emits content chunks as they arrive.
+     * @param baseUrl Optional custom endpoint URL. If null, uses the provider's default URL.
      */
     fun sendChatMessageStream(
         service: AiService,
         apiKey: String,
         model: String,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        baseUrl: String? = null
     ): Flow<String> {
         return aiAnalysisRepository.sendChatMessageStream(
             service = service,
             apiKey = apiKey,
             model = model,
             messages = messages,
-            params = _uiState.value.chatParameters
+            params = _uiState.value.chatParameters,
+            baseUrl = baseUrl
         ).flowOn(Dispatchers.IO)
     }
 

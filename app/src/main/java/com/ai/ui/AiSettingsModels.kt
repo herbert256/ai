@@ -107,6 +107,16 @@ val ZAI_MODELS = listOf(
 )
 
 /**
+ * AI Endpoint - configurable API endpoint for a provider.
+ */
+data class AiEndpoint(
+    val id: String,                    // UUID
+    val name: String,                  // User-defined name (e.g., "Default", "Custom Server")
+    val url: String,                   // API base URL
+    val isDefault: Boolean = false     // Whether this is the default endpoint for the provider
+)
+
+/**
  * AI Agent - user-created configuration combining provider, model, API key, and parameters.
  */
 data class AiAgent(
@@ -115,6 +125,7 @@ data class AiAgent(
     val provider: AiService,           // Reference to provider enum
     val model: String,                 // Model name
     val apiKey: String,                // API key for this agent
+    val endpointId: String? = null,    // Reference to AiEndpoint ID (null = use default/hardcoded)
     val parameters: AiAgentParameters = AiAgentParameters()  // Optional parameters
 )
 
@@ -230,7 +241,9 @@ data class AiSettings(
     // AI Swarms
     val swarms: List<AiSwarm> = emptyList(),
     // AI Prompts (internal app prompts)
-    val prompts: List<AiPrompt> = emptyList()
+    val prompts: List<AiPrompt> = emptyList(),
+    // API Endpoints per provider (multiple endpoints allowed, one can be default)
+    val endpoints: Map<AiService, List<AiEndpoint>> = emptyMap()
 ) {
     fun getApiKey(service: AiService): String {
         return when (service) {
@@ -362,6 +375,45 @@ data class AiSettings(
     fun getPromptById(id: String): AiPrompt? = prompts.find { it.id == id }
 
     fun getAgentForPrompt(prompt: AiPrompt): AiAgent? = getAgentById(prompt.agentId)
+
+    // Helper methods for endpoints
+    fun getEndpointsForProvider(provider: AiService): List<AiEndpoint> = endpoints[provider] ?: emptyList()
+
+    fun getEndpointById(provider: AiService, endpointId: String): AiEndpoint? =
+        getEndpointsForProvider(provider).find { it.id == endpointId }
+
+    fun getDefaultEndpoint(provider: AiService): AiEndpoint? =
+        getEndpointsForProvider(provider).find { it.isDefault }
+            ?: getEndpointsForProvider(provider).firstOrNull()
+
+    /**
+     * Get the effective endpoint URL for a provider.
+     * Priority: default endpoint > first endpoint > hardcoded URL
+     */
+    fun getEffectiveEndpointUrl(provider: AiService): String {
+        val endpoint = getDefaultEndpoint(provider)
+        return endpoint?.url ?: provider.baseUrl
+    }
+
+    /**
+     * Get the effective endpoint URL for an agent.
+     * Priority: agent's endpoint > provider's default endpoint > first endpoint > hardcoded URL
+     */
+    fun getEffectiveEndpointUrlForAgent(agent: AiAgent): String {
+        // If agent has a specific endpoint, use it
+        agent.endpointId?.let { endpointId ->
+            getEndpointById(agent.provider, endpointId)?.let { return it.url }
+        }
+        // Otherwise use provider's effective endpoint
+        return getEffectiveEndpointUrl(agent.provider)
+    }
+
+    /**
+     * Add or update endpoints for a provider, ensuring only one default.
+     */
+    fun withEndpoints(provider: AiService, newEndpoints: List<AiEndpoint>): AiSettings {
+        return copy(endpoints = endpoints + (provider to newEndpoints))
+    }
 }
 
 /**

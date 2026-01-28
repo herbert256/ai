@@ -2251,28 +2251,32 @@ class AiAnalysisRepository {
     /**
      * Send a chat message with streaming response.
      * Returns a Flow that emits content chunks as they arrive.
+     * @param baseUrl Optional custom API endpoint URL (uses provider default if null)
      */
     fun sendChatMessageStream(
         service: AiService,
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String? = null
     ): Flow<String> = flow {
+        // Use custom URL or fall back to provider default
+        val effectiveUrl = baseUrl ?: service.baseUrl
         when (service) {
-            AiService.OPENAI -> streamChatOpenAi(apiKey, model, messages, params).collect { emit(it) }
-            AiService.ANTHROPIC -> streamChatClaude(apiKey, model, messages, params).collect { emit(it) }
-            AiService.GOOGLE -> streamChatGemini(apiKey, model, messages, params).collect { emit(it) }
-            AiService.XAI -> streamChatGrok(apiKey, model, messages, params).collect { emit(it) }
-            AiService.GROQ -> streamChatGroq(apiKey, model, messages, params).collect { emit(it) }
-            AiService.DEEPSEEK -> streamChatDeepSeek(apiKey, model, messages, params).collect { emit(it) }
-            AiService.MISTRAL -> streamChatMistral(apiKey, model, messages, params).collect { emit(it) }
-            AiService.PERPLEXITY -> streamChatPerplexity(apiKey, model, messages, params).collect { emit(it) }
-            AiService.TOGETHER -> streamChatTogether(apiKey, model, messages, params).collect { emit(it) }
-            AiService.OPENROUTER -> streamChatOpenRouter(apiKey, model, messages, params).collect { emit(it) }
-            AiService.SILICONFLOW -> streamChatSiliconFlow(apiKey, model, messages, params).collect { emit(it) }
-            AiService.ZAI -> streamChatZai(apiKey, model, messages, params).collect { emit(it) }
-            AiService.DUMMY -> streamChatDummy(apiKey, model, messages, params).collect { emit(it) }
+            AiService.OPENAI -> streamChatOpenAi(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.ANTHROPIC -> streamChatClaude(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.GOOGLE -> streamChatGemini(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.XAI -> streamChatGrok(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.GROQ -> streamChatGroq(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.DEEPSEEK -> streamChatDeepSeek(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.MISTRAL -> streamChatMistral(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.PERPLEXITY -> streamChatPerplexity(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.TOGETHER -> streamChatTogether(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.OPENROUTER -> streamChatOpenRouter(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.SILICONFLOW -> streamChatSiliconFlow(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.ZAI -> streamChatZai(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.DUMMY -> streamChatDummy(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         }
     }
 
@@ -2403,7 +2407,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2417,8 +2422,15 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        // Use custom URL if different from default
+        val api = if (baseUrl != AiService.OPENAI.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            openAiStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            openAiStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2434,7 +2446,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val claudeMessages = messages
             .filter { it.role != "system" }
@@ -2452,8 +2465,15 @@ class AiAnalysisRepository {
             system = systemPrompt
         )
 
+        // Use custom URL if different from default
+        val api = if (baseUrl != AiService.ANTHROPIC.baseUrl) {
+            AiApiFactory.createClaudeStreamApiWithBaseUrl(baseUrl)
+        } else {
+            claudeStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            claudeStreamApi.createMessageStream(apiKey, request = request)
+            api.createMessageStream(apiKey, request = request)
         }
 
         if (response.isSuccessful) {
@@ -2469,7 +2489,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val contents = messages
             .filter { it.role != "system" }
@@ -2495,8 +2516,15 @@ class AiAnalysisRepository {
             systemInstruction = systemInstruction
         )
 
+        // Use custom URL if different from default
+        val api = if (baseUrl != AiService.GOOGLE.baseUrl) {
+            AiApiFactory.createGeminiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            geminiStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            geminiStreamApi.streamGenerateContent(model, apiKey, request = request)
+            api.streamGenerateContent(model, apiKey, request = request)
         }
 
         if (response.isSuccessful) {
@@ -2512,7 +2540,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2526,8 +2555,15 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        // Use custom URL if different from default
+        val api = if (baseUrl != AiService.XAI.baseUrl) {
+            AiApiFactory.createGrokStreamApiWithBaseUrl(baseUrl)
+        } else {
+            grokStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            grokStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2543,7 +2579,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2557,8 +2594,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.GROQ.baseUrl) {
+            AiApiFactory.createGroqStreamApiWithBaseUrl(baseUrl)
+        } else {
+            groqStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            groqStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2574,7 +2617,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2588,8 +2632,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.DEEPSEEK.baseUrl) {
+            AiApiFactory.createDeepSeekStreamApiWithBaseUrl(baseUrl)
+        } else {
+            deepSeekStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            deepSeekStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2605,7 +2655,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2617,8 +2668,14 @@ class AiAnalysisRepository {
             top_p = params.topP
         )
 
+        val api = if (baseUrl != AiService.MISTRAL.baseUrl) {
+            AiApiFactory.createMistralStreamApiWithBaseUrl(baseUrl)
+        } else {
+            mistralStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            mistralStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2634,7 +2691,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2648,8 +2706,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.PERPLEXITY.baseUrl) {
+            AiApiFactory.createPerplexityStreamApiWithBaseUrl(baseUrl)
+        } else {
+            perplexityStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            perplexityStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2665,7 +2729,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2679,8 +2744,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.TOGETHER.baseUrl) {
+            AiApiFactory.createTogetherStreamApiWithBaseUrl(baseUrl)
+        } else {
+            togetherStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            togetherStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2696,7 +2767,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2710,8 +2782,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.OPENROUTER.baseUrl) {
+            AiApiFactory.createOpenRouterStreamApiWithBaseUrl(baseUrl)
+        } else {
+            openRouterStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            openRouterStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2727,7 +2805,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2741,8 +2820,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.SILICONFLOW.baseUrl) {
+            AiApiFactory.createSiliconFlowStreamApiWithBaseUrl(baseUrl)
+        } else {
+            siliconFlowStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            siliconFlowStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2758,7 +2843,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         val openAiMessages = convertToOpenAiMessages(messages)
         val request = OpenAiStreamRequest(
@@ -2772,8 +2858,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.ZAI.baseUrl) {
+            AiApiFactory.createZaiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            zaiStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            zaiStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {
@@ -2789,7 +2881,8 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         messages: List<com.ai.ui.ChatMessage>,
-        params: com.ai.ui.ChatParameters
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
     ): Flow<String> = flow {
         // Ensure Dummy server is running
         DummyApiServer.start()
@@ -2806,8 +2899,14 @@ class AiAnalysisRepository {
             presence_penalty = params.presencePenalty
         )
 
+        val api = if (baseUrl != AiService.DUMMY.baseUrl) {
+            AiApiFactory.createDummyStreamApiWithBaseUrl(baseUrl)
+        } else {
+            dummyStreamApi
+        }
+
         val response = withContext(Dispatchers.IO) {
-            dummyStreamApi.createChatCompletionStream("Bearer $apiKey", request)
+            api.createChatCompletionStream("Bearer $apiKey", request)
         }
 
         if (response.isSuccessful) {

@@ -61,7 +61,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val agents = loadAgents()
         val swarms = loadSwarms()
         val prompts = loadPrompts()
-        return baseSettings.copy(agents = agents, swarms = swarms, prompts = prompts)
+        val endpoints = loadEndpoints()
+        return baseSettings.copy(agents = agents, swarms = swarms, prompts = prompts, endpoints = endpoints)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -238,6 +239,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             // Save prompts
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
+            // Save endpoints (convert to Map<String, List<AiEndpoint>> for storage)
+            .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.name }))
             .apply()
     }
 
@@ -299,6 +302,35 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    // ============================================================================
+    // AI Endpoints
+    // ============================================================================
+
+    private fun loadEndpoints(): Map<AiService, List<AiEndpoint>> {
+        val json = prefs.getString(KEY_AI_ENDPOINTS, null) ?: return emptyMap()
+        return try {
+            // Stored as Map<String, List<AiEndpoint>> where key is provider name
+            val type = object : TypeToken<Map<String, List<AiEndpoint>>>() {}.type
+            val rawMap: Map<String, List<AiEndpoint>>? = gson.fromJson(json, type)
+            rawMap?.mapKeys { entry ->
+                try {
+                    AiService.valueOf(entry.key)
+                } catch (e: IllegalArgumentException) {
+                    null
+                }
+            }?.filterKeys { it != null }?.mapKeys { it.key!! } ?: emptyMap()
+        } catch (e: Exception) {
+            android.util.Log.w("SettingsPreferences", "Failed to load endpoints: ${e.message}")
+            emptyMap()
+        }
+    }
+
+    private fun saveEndpoints(endpoints: Map<AiService, List<AiEndpoint>>) {
+        // Convert to Map<String, List<AiEndpoint>> for storage
+        val rawMap = endpoints.mapKeys { it.key.name }
+        prefs.edit().putString(KEY_AI_ENDPOINTS, gson.toJson(rawMap)).apply()
     }
 
     // ============================================================================
@@ -434,6 +466,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // AI prompts (internal app prompts)
         private const val KEY_AI_PROMPTS = "ai_prompts"
+
+        // AI endpoints per provider
+        private const val KEY_AI_ENDPOINTS = "ai_endpoints"
 
         // Prompt history for New AI Report
         private const val KEY_PROMPT_HISTORY = "prompt_history"

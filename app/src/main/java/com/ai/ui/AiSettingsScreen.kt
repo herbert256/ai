@@ -1510,6 +1510,9 @@ fun HousekeepingScreen(
                             val isWorking = testResult == null
 
                             if (isWorking) {
+                                // Get the default endpoint for this provider (if any)
+                                val defaultEndpoint = importedSettings.getDefaultEndpoint(provider)
+
                                 val existingAgentIndex = updatedAgents.indexOfFirst {
                                     it.name == provider.displayName
                                 }
@@ -1519,7 +1522,8 @@ fun HousekeepingScreen(
                                     updatedAgents[existingAgentIndex] = existingAgent.copy(
                                         model = model,
                                         apiKey = apiKey,
-                                        provider = provider
+                                        provider = provider,
+                                        endpointId = defaultEndpoint?.id
                                     )
                                 } else {
                                     val newAgent = AiAgent(
@@ -1528,6 +1532,7 @@ fun HousekeepingScreen(
                                         provider = provider,
                                         model = model,
                                         apiKey = apiKey,
+                                        endpointId = defaultEndpoint?.id,
                                         parameters = AiAgentParameters()
                                     )
                                     updatedAgents.add(newAgent)
@@ -1742,12 +1747,16 @@ fun HousekeepingScreen(
                                 it.name == provider.displayName
                             }
 
+                            // Get the default endpoint for this provider (if any)
+                            val defaultEndpoint = aiSettings.getDefaultEndpoint(provider)
+
                             if (existingAgentIndex >= 0) {
                                 val existingAgent = updatedAgents[existingAgentIndex]
                                 updatedAgents[existingAgentIndex] = existingAgent.copy(
                                     model = model,
                                     apiKey = apiKey,
-                                    provider = provider
+                                    provider = provider,
+                                    endpointId = defaultEndpoint?.id
                                 )
                             } else {
                                 val newAgent = AiAgent(
@@ -1756,6 +1765,7 @@ fun HousekeepingScreen(
                                     provider = provider,
                                     model = model,
                                     apiKey = apiKey,
+                                    endpointId = defaultEndpoint?.id,
                                     parameters = AiAgentParameters()
                                 )
                                 updatedAgents.add(newAgent)

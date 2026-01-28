@@ -60,6 +60,8 @@ data class AgentExport(
     val apiKey: String,
     // Parameters (version 5+)
     val parameters: AgentParametersExport? = null,
+    // Endpoint ID (version 9+) - references a custom endpoint for this provider
+    val endpointId: String? = null,
     // Legacy fields from version 3 (ignored on import, included for compatibility)
     val gamePromptId: String? = null,
     val serverPlayerPromptId: String? = null,
@@ -96,7 +98,26 @@ data class ManualPricingExport(
 )
 
 /**
+ * Data class for endpoint in JSON export/import (version 10+).
+ */
+data class EndpointExport(
+    val id: String,
+    val name: String,
+    val url: String,
+    val isDefault: Boolean = false
+)
+
+/**
+ * Data class for endpoints grouped by provider (version 10+).
+ */
+data class ProviderEndpointsExport(
+    val provider: String,  // Provider enum name
+    val endpoints: List<EndpointExport>
+)
+
+/**
  * Data class for the complete AI configuration export.
+ * Version 10: Added configurable endpoints per provider.
  * Version 9: Added manual pricing overrides.
  * Version 8: Added AI prompts (internal app prompts).
  * Version 7: Added huggingFaceApiKey.
@@ -104,13 +125,14 @@ data class ManualPricingExport(
  * Also supports importing version 3/4/5 (legacy formats - prompts ignored, parameters/swarms default).
  */
 data class AiConfigExport(
-    val version: Int = 9,
+    val version: Int = 10,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
     val huggingFaceApiKey: String? = null,  // Version 7+
     val aiPrompts: List<PromptExport>? = null,  // Version 8+
     val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
+    val providerEndpoints: List<ProviderEndpointsExport>? = null,  // Version 10+
     // Legacy field from version 3 (ignored on import)
     val prompts: List<Any>? = null
 )
@@ -180,7 +202,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
                 )
             } else {
                 AgentParametersExport()  // Default empty parameters
-            }
+            },
+            endpointId = agent.endpointId
         )
     }
 
@@ -213,13 +236,31 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         )
     }
 
+    // Convert endpoints
+    val providerEndpoints = aiSettings.endpoints.mapNotNull { (provider, endpoints) ->
+        if (endpoints.isNotEmpty()) {
+            ProviderEndpointsExport(
+                provider = provider.name,
+                endpoints = endpoints.map { endpoint ->
+                    EndpointExport(
+                        id = endpoint.id,
+                        name = endpoint.name,
+                        url = endpoint.url,
+                        isDefault = endpoint.isDefault
+                    )
+                }
+            )
+        } else null
+    }
+
     val export = AiConfigExport(
         providers = providers,
         agents = agents,
         swarms = swarms,
         huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
         aiPrompts = aiPrompts.ifEmpty { null },
-        manualPricing = manualPricing.ifEmpty { null }
+        manualPricing = manualPricing.ifEmpty { null },
+        providerEndpoints = providerEndpoints.ifEmpty { null }
     )
 
     val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
@@ -309,7 +350,7 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
 
 /**
  * Import AI configuration from clipboard JSON.
- * Supports version 3-7.
+ * Supports version 3-10.
  * Prompts from version 3 are ignored.
  */
 fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiConfigImportResult? {
@@ -331,8 +372,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..9) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-9.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..10) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-10.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -350,6 +391,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
                     provider = it,
                     model = agentExport.model,
                     apiKey = agentExport.apiKey,
+                    endpointId = agentExport.endpointId,
                     parameters = agentExport.parameters?.let { p ->
                         AiAgentParameters(
                             temperature = p.temperature,
@@ -498,12 +540,35 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             com.ai.data.PricingCache.setAllManualPricing(context, pricingMap)
         }
 
+        // Import endpoints (version 10+)
+        var settingsWithEndpoints = settings
+        export.providerEndpoints?.forEach { providerEndpoints ->
+            val provider = try {
+                AiService.valueOf(providerEndpoints.provider)
+            } catch (e: IllegalArgumentException) {
+                null  // Skip unknown providers
+            }
+            provider?.let {
+                val endpoints = providerEndpoints.endpoints.map { ep ->
+                    AiEndpoint(
+                        id = ep.id,
+                        name = ep.name,
+                        url = ep.url,
+                        isDefault = ep.isDefault
+                    )
+                }
+                settingsWithEndpoints = settingsWithEndpoints.withEndpoints(provider, endpoints)
+            }
+        }
+
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
         val importedPricing = export.manualPricing?.size ?: 0
+        val importedEndpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
         val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
-        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg", Toast.LENGTH_SHORT).show()
-        AiConfigImportResult(settings, export.huggingFaceApiKey)
+        val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
+        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
+        AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
         null
@@ -515,7 +580,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Supports version 3-9.
+ * Supports version 3-10.
  * Prompts from version 3 are ignored.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
@@ -538,8 +603,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version !in 3..9) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-9.", Toast.LENGTH_LONG).show()
+        if (export.version !in 3..10) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 3-10.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -557,6 +622,7 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
                     provider = it,
                     model = agentExport.model,
                     apiKey = agentExport.apiKey,
+                    endpointId = agentExport.endpointId,
                     parameters = agentExport.parameters?.let { p ->
                         AiAgentParameters(
                             temperature = p.temperature,
@@ -705,12 +771,35 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             com.ai.data.PricingCache.setAllManualPricing(context, pricingMap)
         }
 
+        // Import endpoints (version 10+)
+        var settingsWithEndpoints = settings
+        export.providerEndpoints?.forEach { providerEndpoints ->
+            val provider = try {
+                AiService.valueOf(providerEndpoints.provider)
+            } catch (e: IllegalArgumentException) {
+                null  // Skip unknown providers
+            }
+            provider?.let {
+                val endpoints = providerEndpoints.endpoints.map { ep ->
+                    AiEndpoint(
+                        id = ep.id,
+                        name = ep.name,
+                        url = ep.url,
+                        isDefault = ep.isDefault
+                    )
+                }
+                settingsWithEndpoints = settingsWithEndpoints.withEndpoints(provider, endpoints)
+            }
+        }
+
         // Count imported API keys
         val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
         val importedPricing = export.manualPricing?.size ?: 0
+        val importedEndpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
         val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
-        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg", Toast.LENGTH_SHORT).show()
-        AiConfigImportResult(settings, export.huggingFaceApiKey)
+        val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
+        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
+        AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey)
     } catch (e: JsonSyntaxException) {
         Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
         null

@@ -462,6 +462,9 @@ internal fun AgentEditScreen(
     var returnCitations by remember { mutableStateOf(existingParams.returnCitations) }
     var searchRecency by remember { mutableStateOf(existingParams.searchRecency ?: "") }
 
+    // Endpoint state - tracks the selected endpoint ID for the agent
+    var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
+
     // All parameters available for every agent
     val supportedParams = ALL_AGENT_PARAMETERS
 
@@ -573,6 +576,10 @@ internal fun AgentEditScreen(
             if (!isEditing) {
                 apiKey = aiSettings.getApiKey(selectedProvider)
             }
+            // Reset endpoint when provider changes (unless editing and same provider)
+            if (!isEditing || agent?.provider != selectedProvider) {
+                selectedEndpointId = aiSettings.getDefaultEndpoint(selectedProvider)?.id
+            }
         }
     }
 
@@ -638,6 +645,7 @@ internal fun AgentEditScreen(
                             provider = selectedProvider,
                             model = model,
                             apiKey = apiKey.trim(),
+                            endpointId = selectedEndpointId,
                             parameters = params
                         )
                         isSaving = false
@@ -757,6 +765,66 @@ internal fun AgentEditScreen(
                                 testResult = null
                             }
                         )
+                    }
+                }
+            }
+
+            // Endpoint dropdown (only show if provider has custom endpoints)
+            val endpointsForProvider = aiSettings.getEndpointsForProvider(selectedProvider)
+            if (endpointsForProvider.isNotEmpty()) {
+                Text(
+                    text = "Endpoint",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFAAAAAA)
+                )
+                var endpointExpanded by remember { mutableStateOf(false) }
+                val selectedEndpoint = endpointsForProvider.find { it.id == selectedEndpointId }
+                val displayName = selectedEndpoint?.name ?: "Default (${selectedProvider.baseUrl})"
+                Box {
+                    OutlinedButton(
+                        onClick = { endpointExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = displayName,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1
+                        )
+                        Text(if (endpointExpanded) "^" else "v")
+                    }
+                    DropdownMenu(
+                        expanded = endpointExpanded,
+                        onDismissRequest = { endpointExpanded = false }
+                    ) {
+                        // Default endpoint option (uses provider's baseUrl)
+                        DropdownMenuItem(
+                            text = { Text("Default (${selectedProvider.baseUrl})") },
+                            onClick = {
+                                selectedEndpointId = null
+                                endpointExpanded = false
+                                testResult = null
+                            }
+                        )
+                        // Custom endpoints
+                        endpointsForProvider.forEach { endpoint ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(endpoint.name)
+                                        Text(
+                                            text = endpoint.url,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF888888)
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    selectedEndpointId = endpoint.id
+                                    endpointExpanded = false
+                                    testResult = null
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -1100,6 +1168,7 @@ internal fun AgentEditScreen(
                             provider = selectedProvider,
                             model = model,
                             apiKey = apiKey.trim(),
+                            endpointId = selectedEndpointId,
                             parameters = params
                         )
                         isSaving = false

@@ -688,6 +688,112 @@ object AiApiFactory {
         return getRetrofit(baseUrl).create(OpenAiApi::class.java)
     }
 
+    /**
+     * Create OpenAI-compatible streaming API with a custom base URL.
+     * Works for: OpenAI, xAI, Groq, DeepSeek, Mistral, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI, DUMMY
+     */
+    fun createOpenAiStreamApiWithBaseUrl(baseUrl: String): OpenAiStreamApi {
+        return getRetrofit(baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    /**
+     * Create Claude API with a custom base URL.
+     */
+    fun createClaudeApiWithBaseUrl(baseUrl: String): ClaudeApi {
+        return getRetrofit(baseUrl).create(ClaudeApi::class.java)
+    }
+
+    /**
+     * Create Claude streaming API with a custom base URL.
+     */
+    fun createClaudeStreamApiWithBaseUrl(baseUrl: String): ClaudeStreamApi {
+        return getRetrofit(baseUrl).create(ClaudeStreamApi::class.java)
+    }
+
+    /**
+     * Create Gemini API with a custom base URL.
+     */
+    fun createGeminiApiWithBaseUrl(baseUrl: String): GeminiApi {
+        return getRetrofit(baseUrl).create(GeminiApi::class.java)
+    }
+
+    /**
+     * Create Gemini streaming API with a custom base URL.
+     */
+    fun createGeminiStreamApiWithBaseUrl(baseUrl: String): GeminiStreamApi {
+        return getRetrofit(baseUrl).create(GeminiStreamApi::class.java)
+    }
+
+    /**
+     * Create DeepSeek streaming API with a custom base URL.
+     */
+    fun createDeepSeekStreamApiWithBaseUrl(baseUrl: String): DeepSeekStreamApi {
+        return getRetrofit(baseUrl).create(DeepSeekStreamApi::class.java)
+    }
+
+    /**
+     * Create Perplexity streaming API with a custom base URL.
+     */
+    fun createPerplexityStreamApiWithBaseUrl(baseUrl: String): PerplexityStreamApi {
+        return getRetrofit(baseUrl).create(PerplexityStreamApi::class.java)
+    }
+
+    /**
+     * Create Z.AI streaming API with a custom base URL.
+     */
+    fun createZaiStreamApiWithBaseUrl(baseUrl: String): ZaiStreamApi {
+        return getRetrofit(baseUrl).create(ZaiStreamApi::class.java)
+    }
+
+    /**
+     * Create SiliconFlow streaming API with a custom base URL.
+     */
+    fun createSiliconFlowStreamApiWithBaseUrl(baseUrl: String): SiliconFlowStreamApi {
+        return getRetrofit(baseUrl).create(SiliconFlowStreamApi::class.java)
+    }
+
+    /**
+     * Create Dummy streaming API with a custom base URL.
+     */
+    fun createDummyStreamApiWithBaseUrl(baseUrl: String): DummyStreamApi {
+        return getRetrofit(baseUrl).create(DummyStreamApi::class.java)
+    }
+
+    /**
+     * Create Grok streaming API with a custom base URL.
+     */
+    fun createGrokStreamApiWithBaseUrl(baseUrl: String): GrokStreamApi {
+        return getRetrofit(baseUrl).create(GrokStreamApi::class.java)
+    }
+
+    /**
+     * Create Groq streaming API with a custom base URL.
+     */
+    fun createGroqStreamApiWithBaseUrl(baseUrl: String): GroqStreamApi {
+        return getRetrofit(baseUrl).create(GroqStreamApi::class.java)
+    }
+
+    /**
+     * Create Mistral streaming API with a custom base URL.
+     */
+    fun createMistralStreamApiWithBaseUrl(baseUrl: String): MistralStreamApi {
+        return getRetrofit(baseUrl).create(MistralStreamApi::class.java)
+    }
+
+    /**
+     * Create Together streaming API with a custom base URL.
+     */
+    fun createTogetherStreamApiWithBaseUrl(baseUrl: String): TogetherStreamApi {
+        return getRetrofit(baseUrl).create(TogetherStreamApi::class.java)
+    }
+
+    /**
+     * Create OpenRouter streaming API with a custom base URL.
+     */
+    fun createOpenRouterStreamApiWithBaseUrl(baseUrl: String): OpenRouterStreamApi {
+        return getRetrofit(baseUrl).create(OpenRouterStreamApi::class.java)
+    }
+
     fun createClaudeApi(): ClaudeApi {
         return getRetrofit(AiService.ANTHROPIC.baseUrl).create(ClaudeApi::class.java)
     }
