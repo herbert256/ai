@@ -2562,6 +2562,20 @@ fun ApiTestScreen(
     var isLoading by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var isInitialized by remember { mutableStateOf(true) }
+    var showParameters by remember { mutableStateOf(false) }
+
+    // API Parameters (all strings, empty = not set)
+    var systemPrompt by remember { mutableStateOf("") }
+    var temperature by remember { mutableStateOf("") }
+    var maxTokens by remember { mutableStateOf("") }
+    var topP by remember { mutableStateOf("") }
+    var topK by remember { mutableStateOf("") }
+    var frequencyPenalty by remember { mutableStateOf("") }
+    var presencePenalty by remember { mutableStateOf("") }
+    var seed by remember { mutableStateOf("") }
+    var stopSequences by remember { mutableStateOf("") }
+    var responseFormatJson by remember { mutableStateOf(false) }
+    var searchEnabled by remember { mutableStateOf(false) }
 
     // Update URL, model, and API key when provider changes (only if user manually changes provider)
     LaunchedEffect(selectedProvider) {
@@ -2667,6 +2681,219 @@ fun ApiTestScreen(
             )
         )
 
+        // Parameters section (expandable)
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showParameters = !showParameters },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "API Parameters (optional)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (showParameters) "▲" else "▼",
+                        color = Color(0xFF8B5CF6)
+                    )
+                }
+
+                if (showParameters) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // System Prompt
+                    OutlinedTextField(
+                        value = systemPrompt,
+                        onValueChange = { systemPrompt = it },
+                        label = { Text("System Prompt") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF8B5CF6),
+                            unfocusedBorderColor = Color(0xFF444444)
+                        ),
+                        minLines = 2,
+                        maxLines = 4
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Temperature and Max Tokens row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = temperature,
+                            onValueChange = { temperature = it },
+                            label = { Text("Temperature") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("0.0-2.0", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF444444)
+                            )
+                        )
+                        OutlinedTextField(
+                            value = maxTokens,
+                            onValueChange = { maxTokens = it },
+                            label = { Text("Max Tokens") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("e.g. 1024", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF444444)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Top P and Top K row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = topP,
+                            onValueChange = { topP = it },
+                            label = { Text("Top P") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("0.0-1.0", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF444444)
+                            )
+                        )
+                        OutlinedTextField(
+                            value = topK,
+                            onValueChange = { topK = it },
+                            label = { Text("Top K") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("e.g. 40", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF444444)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Frequency and Presence Penalty row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = frequencyPenalty,
+                            onValueChange = { frequencyPenalty = it },
+                            label = { Text("Freq Penalty") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("-2.0 to 2.0", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF444444)
+                            )
+                        )
+                        OutlinedTextField(
+                            value = presencePenalty,
+                            onValueChange = { presencePenalty = it },
+                            label = { Text("Pres Penalty") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("-2.0 to 2.0", color = Color.Gray) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8B5CF6),
+                                unfocusedBorderColor = Color(0xFF444444)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Seed
+                    OutlinedTextField(
+                        value = seed,
+                        onValueChange = { seed = it },
+                        label = { Text("Seed") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("For reproducibility", color = Color.Gray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF8B5CF6),
+                            unfocusedBorderColor = Color(0xFF444444)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Stop Sequences
+                    OutlinedTextField(
+                        value = stopSequences,
+                        onValueChange = { stopSequences = it },
+                        label = { Text("Stop Sequences") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("Comma-separated", color = Color.Gray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF8B5CF6),
+                            unfocusedBorderColor = Color(0xFF444444)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Checkboxes row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { responseFormatJson = !responseFormatJson }
+                        ) {
+                            Checkbox(
+                                checked = responseFormatJson,
+                                onCheckedChange = { responseFormatJson = it },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = Color(0xFF8B5CF6)
+                                )
+                            )
+                            Text("JSON Mode", color = Color.White, fontSize = 14.sp)
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { searchEnabled = !searchEnabled }
+                        ) {
+                            Checkbox(
+                                checked = searchEnabled,
+                                onCheckedChange = { searchEnabled = it },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = Color(0xFF8B5CF6)
+                                )
+                            )
+                            Text("Web Search", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         // Submit button
@@ -2693,6 +2920,21 @@ fun ApiTestScreen(
                         val traceFilesBefore = traceDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
 
                         try {
+                            // Build parameters only if any are set
+                            val params = AiAgentParameters(
+                                systemPrompt = systemPrompt.takeIf { it.isNotBlank() },
+                                temperature = temperature.toFloatOrNull(),
+                                maxTokens = maxTokens.toIntOrNull(),
+                                topP = topP.toFloatOrNull(),
+                                topK = topK.toIntOrNull(),
+                                frequencyPenalty = frequencyPenalty.toFloatOrNull(),
+                                presencePenalty = presencePenalty.toFloatOrNull(),
+                                seed = seed.toIntOrNull(),
+                                stopSequences = stopSequences.takeIf { it.isNotBlank() }?.split(",")?.map { it.trim() },
+                                responseFormatJson = responseFormatJson,
+                                searchEnabled = searchEnabled
+                            )
+
                             // Make the API call using the repository
                             val repository = com.ai.data.AiAnalysisRepository()
                             val response = repository.testApiConnection(
@@ -2700,7 +2942,8 @@ fun ApiTestScreen(
                                 apiKey = apiKey,
                                 model = model,
                                 baseUrl = apiUrl,
-                                prompt = prompt
+                                prompt = prompt,
+                                params = params
                             )
 
                             // Find the new trace file

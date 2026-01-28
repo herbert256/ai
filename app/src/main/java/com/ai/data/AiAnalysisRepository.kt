@@ -1498,17 +1498,35 @@ class AiAnalysisRepository {
         apiKey: String,
         model: String,
         baseUrl: String,
-        prompt: String
+        prompt: String,
+        params: AiAgentParameters? = null
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         try {
             // Create a custom API instance with the provided base URL
             val api = AiApiFactory.createOpenAiApiWithBaseUrl(baseUrl)
 
-            val messages = listOf(OpenAiMessage(role = "user", content = prompt))
+            // Build messages with optional system prompt
+            val messages = buildList {
+                params?.systemPrompt?.let { systemPrompt ->
+                    if (systemPrompt.isNotBlank()) {
+                        add(OpenAiMessage(role = "system", content = systemPrompt))
+                    }
+                }
+                add(OpenAiMessage(role = "user", content = prompt))
+            }
+
             val request = OpenAiRequest(
                 model = model,
                 messages = messages,
-                max_tokens = 1024
+                max_tokens = params?.maxTokens,
+                temperature = params?.temperature,
+                top_p = params?.topP,
+                frequency_penalty = params?.frequencyPenalty,
+                presence_penalty = params?.presencePenalty,
+                stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+                seed = params?.seed,
+                response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat(type = "json_object") else null,
+                search = if (params?.searchEnabled == true) true else null
             )
 
             // Use appropriate auth header based on service
