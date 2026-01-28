@@ -1,6 +1,7 @@
 package com.ai.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -437,7 +438,7 @@ internal fun AgentEditScreen(
     var name by remember { mutableStateOf(agent?.name ?: prefillName) }
     var selectedProvider by remember { mutableStateOf(defaultProvider) }
     var model by remember { mutableStateOf(agent?.model ?: prefillModel.ifBlank { getDefaultModelForProvider(defaultProvider) }) }
-    var apiKey by remember { mutableStateOf(agent?.apiKey ?: prefillApiKey.ifBlank { aiSettings.getApiKey(defaultProvider) }) }
+    var apiKey by remember { mutableStateOf(agent?.apiKey ?: prefillApiKey) }
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
@@ -462,8 +463,9 @@ internal fun AgentEditScreen(
     var returnCitations by remember { mutableStateOf(existingParams.returnCitations) }
     var searchRecency by remember { mutableStateOf(existingParams.searchRecency ?: "") }
 
-    // Endpoint state - tracks the selected endpoint ID for the agent
+    // Endpoint state - tracks the selected endpoint ID and URL for the agent
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
+    var showEndpointDialog by remember { mutableStateOf(false) }
 
     // All parameters available for every agent
     val supportedParams = ALL_AGENT_PARAMETERS
@@ -558,24 +560,17 @@ internal fun AgentEditScreen(
 
     // Fetch models on initial load (for edit mode) and when provider changes
     LaunchedEffect(selectedProvider) {
-        val currentApiKey = if (isEditing && agent?.provider == selectedProvider) {
-            agent.apiKey
-        } else {
-            aiSettings.getApiKey(selectedProvider)
-        }
+        // Use agent's API key if set, otherwise fall back to provider's API key
+        val effectiveApiKey = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
 
         // Fetch if using API model source and API key is available
-        if (getModelSourceForProvider(selectedProvider) == ModelSource.API && currentApiKey.isNotBlank()) {
-            onFetchModelsForProvider(selectedProvider, currentApiKey)
+        if (getModelSourceForProvider(selectedProvider) == ModelSource.API && effectiveApiKey.isNotBlank()) {
+            onFetchModelsForProvider(selectedProvider, effectiveApiKey)
         }
 
-        // Update model and API key when provider changes
+        // Update model when provider changes
         if (!isEditing || agent?.provider != selectedProvider) {
             model = modelsForProvider.firstOrNull() ?: getDefaultModelForProvider(selectedProvider)
-            // For new agents, also update API key from provider settings
-            if (!isEditing) {
-                apiKey = aiSettings.getApiKey(selectedProvider)
-            }
             // Reset endpoint when provider changes (unless editing and same provider)
             if (!isEditing || agent?.provider != selectedProvider) {
                 selectedEndpointId = aiSettings.getDefaultEndpoint(selectedProvider)?.id
@@ -769,63 +764,35 @@ internal fun AgentEditScreen(
                 }
             }
 
-            // Endpoint dropdown (only show if provider has custom endpoints)
+            // Endpoint input field with Select button
             val endpointsForProvider = aiSettings.getEndpointsForProvider(selectedProvider)
-            if (endpointsForProvider.isNotEmpty()) {
-                Text(
-                    text = "Endpoint",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
+            val selectedEndpoint = endpointsForProvider.find { it.id == selectedEndpointId }
+            val displayEndpointUrl = selectedEndpoint?.url ?: ""
+
+            Text(
+                text = "Endpoint (optional - uses provider default if empty)",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = displayEndpointUrl,
+                    onValueChange = { /* Read-only - use Select button */ },
+                    placeholder = { Text("Default: ${selectedProvider.baseUrl}", color = Color(0xFF666666)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    readOnly = true
                 )
-                var endpointExpanded by remember { mutableStateOf(false) }
-                val selectedEndpoint = endpointsForProvider.find { it.id == selectedEndpointId }
-                val displayName = selectedEndpoint?.name ?: "Default (${selectedProvider.baseUrl})"
-                Box {
-                    OutlinedButton(
-                        onClick = { endpointExpanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = displayName,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1
-                        )
-                        Text(if (endpointExpanded) "^" else "v")
-                    }
-                    DropdownMenu(
-                        expanded = endpointExpanded,
-                        onDismissRequest = { endpointExpanded = false }
-                    ) {
-                        // Default endpoint option (uses provider's baseUrl)
-                        DropdownMenuItem(
-                            text = { Text("Default (${selectedProvider.baseUrl})") },
-                            onClick = {
-                                selectedEndpointId = null
-                                endpointExpanded = false
-                                testResult = null
-                            }
-                        )
-                        // Custom endpoints
-                        endpointsForProvider.forEach { endpoint ->
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(endpoint.name)
-                                        Text(
-                                            text = endpoint.url,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color(0xFF888888)
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    selectedEndpointId = endpoint.id
-                                    endpointExpanded = false
-                                    testResult = null
-                                }
-                            )
-                        }
-                    }
+                Button(
+                    onClick = { showEndpointDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
                 }
             }
 
@@ -842,7 +809,8 @@ internal fun AgentEditScreen(
                         // Clear test result when API key changes
                         testResult = null
                     },
-                    label = { Text("API Key") },
+                    label = { Text("API Key (optional - uses provider key if empty)") },
+                    placeholder = { Text("Uses provider API key", color = Color(0xFF666666)) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation()
@@ -852,16 +820,17 @@ internal fun AgentEditScreen(
                 }
             }
 
-            // Test API Key button
+            // Test API Key button - uses provider key if agent key is empty
+            val effectiveApiKey = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
             Button(
                 onClick = {
                     testResult = null
                     isTesting = true
                     coroutineScope.launch {
-                        val error = if (apiKey.isBlank()) {
-                            "API key is empty"
+                        val error = if (effectiveApiKey.isBlank()) {
+                            "No API key available (agent or provider)"
                         } else {
-                            onTestAiModel(selectedProvider, apiKey.trim(), model)
+                            onTestAiModel(selectedProvider, effectiveApiKey.trim(), model)
                         }
                         isTesting = false
                         if (error != null) {
@@ -874,7 +843,7 @@ internal fun AgentEditScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isTesting && apiKey.isNotBlank(),
+                enabled = !isTesting && effectiveApiKey.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF2196F3)
                 )
@@ -1198,6 +1167,94 @@ internal fun AgentEditScreen(
                 }
             }
         }
+    }
+
+    // Endpoint Selection Dialog
+    if (showEndpointDialog) {
+        val endpoints = aiSettings.getEndpointsForProvider(selectedProvider)
+        val defaultBaseUrl = selectedProvider.baseUrl
+
+        AlertDialog(
+            onDismissRequest = { showEndpointDialog = false },
+            title = { Text("Select Endpoint", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Default option (clears endpoint, uses provider's baseUrl at runtime)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedEndpointId = null
+                                showEndpointDialog = false
+                                testResult = null
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selectedEndpointId == null) Color(0xFF6366F1).copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Default (use provider setting)", fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text(defaultBaseUrl, fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+
+                    // Custom endpoints
+                    if (endpoints.isNotEmpty()) {
+                        Text(
+                            "Custom Endpoints",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        endpoints.forEach { endpoint ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedEndpointId = endpoint.id
+                                        showEndpointDialog = false
+                                        testResult = null
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selectedEndpointId == endpoint.id) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(endpoint.name, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                        if (endpoint.isDefault) {
+                                            Text(
+                                                "DEFAULT",
+                                                fontSize = 10.sp,
+                                                color = Color(0xFF4CAF50),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Text(endpoint.url, fontSize = 12.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showEndpointDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

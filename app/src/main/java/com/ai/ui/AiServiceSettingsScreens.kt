@@ -34,7 +34,27 @@ fun ChatGptSettingsScreen(
     var manualModels by remember { mutableStateOf(aiSettings.chatGptManualModels) }
     var adminUrl by remember { mutableStateOf(aiSettings.chatGptAdminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.chatGptModelListUrl) }
-    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.OPENAI)) }
+
+    // Default OpenAI endpoints - Chat Completions for gpt-4o etc, Responses for gpt-5.x/o3/o4
+    val defaultOpenAiEndpoints = listOf(
+        AiEndpoint(
+            id = "openai-chat-completions",
+            name = "Chat Completions (gpt-4o, gpt-4, gpt-3.5)",
+            url = "https://api.openai.com/v1/chat/completions",
+            isDefault = true
+        ),
+        AiEndpoint(
+            id = "openai-responses",
+            name = "Responses (gpt-5.x, o3, o4)",
+            url = "https://api.openai.com/v1/responses",
+            isDefault = false
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.OPENAI).ifEmpty { defaultOpenAiEndpoints }
+        )
+    }
 
     // Effective model list for dropdown
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
@@ -86,6 +106,16 @@ fun ChatGptSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.OPENAI.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.OPENAI),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -94,16 +124,6 @@ fun ChatGptSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.OPENAI),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.OPENAI.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -169,6 +189,16 @@ fun ClaudeSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.ANTHROPIC.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.ANTHROPIC),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -177,16 +207,6 @@ fun ClaudeSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.ANTHROPIC),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.ANTHROPIC.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -262,6 +282,16 @@ fun GeminiSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.GOOGLE.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.GOOGLE),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -270,16 +300,6 @@ fun GeminiSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.GOOGLE),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.GOOGLE.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -355,6 +375,16 @@ fun GrokSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.XAI.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.XAI),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -363,16 +393,6 @@ fun GrokSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.XAI),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.XAI.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -448,6 +468,16 @@ fun GroqSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.GROQ.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.GROQ),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -456,16 +486,6 @@ fun GroqSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.GROQ),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.GROQ.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -541,6 +561,16 @@ fun DeepSeekSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.DEEPSEEK.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DEEPSEEK),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -549,16 +579,6 @@ fun DeepSeekSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DEEPSEEK),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.DEEPSEEK.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -634,6 +654,16 @@ fun MistralSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.MISTRAL.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.MISTRAL),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -642,16 +672,6 @@ fun MistralSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.MISTRAL),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.MISTRAL.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -717,6 +737,16 @@ fun PerplexitySettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.PERPLEXITY.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.PERPLEXITY),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -725,16 +755,6 @@ fun PerplexitySettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.PERPLEXITY),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.PERPLEXITY.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -810,6 +830,16 @@ fun TogetherSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.TOGETHER.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.TOGETHER),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -818,16 +848,6 @@ fun TogetherSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.TOGETHER),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.TOGETHER.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -903,6 +923,16 @@ fun OpenRouterSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.OPENROUTER.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.OPENROUTER),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -911,16 +941,6 @@ fun OpenRouterSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.OPENROUTER),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.OPENROUTER.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -986,6 +1006,16 @@ fun SiliconFlowSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.SILICONFLOW.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.SILICONFLOW),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -994,16 +1024,6 @@ fun SiliconFlowSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.SILICONFLOW),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.SILICONFLOW.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -1069,6 +1089,16 @@ fun ZaiSettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.ZAI, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.ZAI.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.ZAI),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -1077,16 +1107,6 @@ fun ZaiSettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.ZAI),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.ZAI.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
@@ -1194,6 +1214,16 @@ fun DummySettingsScreen(
             onApiKeyChange = { apiKey = it },
             onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, defaultModel) }
         )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.DUMMY.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DUMMY),
+            onModelListUrlChange = { modelListUrl = it }
+        )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
             manualModels = manualModels,
@@ -1202,16 +1232,6 @@ fun DummySettingsScreen(
             onModelSourceChange = { modelSource = it },
             onManualModelsChange = { manualModels = it },
             onFetchModels = { onFetchModels(apiKey) }
-        )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DUMMY),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        EndpointsSection(
-            endpoints = endpoints,
-            defaultEndpointUrl = AiService.DUMMY.baseUrl,
-            onEndpointsChange = { endpoints = it }
         )
     }
 }
