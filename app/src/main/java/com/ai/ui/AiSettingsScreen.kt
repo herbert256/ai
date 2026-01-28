@@ -1404,6 +1404,19 @@ fun HousekeepingScreen(
     aiSettings: AiSettings,
     huggingFaceApiKey: String = "",
     developerMode: Boolean = false,
+    availableChatGptModels: List<String> = emptyList(),
+    availableClaudeModels: List<String> = emptyList(),
+    availableGeminiModels: List<String> = emptyList(),
+    availableGrokModels: List<String> = emptyList(),
+    availableGroqModels: List<String> = emptyList(),
+    availableDeepSeekModels: List<String> = emptyList(),
+    availableMistralModels: List<String> = emptyList(),
+    availablePerplexityModels: List<String> = emptyList(),
+    availableTogetherModels: List<String> = emptyList(),
+    availableOpenRouterModels: List<String> = emptyList(),
+    availableSiliconFlowModels: List<String> = emptyList(),
+    availableZaiModels: List<String> = emptyList(),
+    availableDummyModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
@@ -1431,6 +1444,21 @@ fun HousekeepingScreen(
     // State for refresh OpenRouter pricing
     var isRefreshingPricing by remember { mutableStateOf(false) }
     var pricingRefreshCount by remember { mutableStateOf(0) }
+
+    // State for import model costs
+    var importCostsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }  // (imported, skipped)
+    var showImportCostsResultDialog by remember { mutableStateOf(false) }
+
+    // File picker launcher for importing model costs CSV
+    val costsCsvPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            val result = importModelCostsFromCsv(context, it)
+            importCostsResult = result
+            showImportCostsResultDialog = true
+        }
+    }
 
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -1540,17 +1568,18 @@ fun HousekeepingScreen(
 
     // Results dialog for refresh model lists
     if (showResultsDialog && refreshResults != null) {
+        // Only show providers that are set to MANUAL model source
         val manualProviders = buildList {
-            if (aiSettings.claudeApiKey.isNotBlank()) {
+            if (aiSettings.claudeApiKey.isNotBlank() && aiSettings.claudeModelSource == ModelSource.MANUAL) {
                 add("Anthropic" to aiSettings.claudeManualModels.size)
             }
-            if (aiSettings.perplexityApiKey.isNotBlank()) {
+            if (aiSettings.perplexityApiKey.isNotBlank() && aiSettings.perplexityModelSource == ModelSource.MANUAL) {
                 add("Perplexity" to aiSettings.perplexityManualModels.size)
             }
-            if (aiSettings.siliconFlowApiKey.isNotBlank()) {
+            if (aiSettings.siliconFlowApiKey.isNotBlank() && aiSettings.siliconFlowModelSource == ModelSource.MANUAL) {
                 add("SiliconFlow" to aiSettings.siliconFlowManualModels.size)
             }
-            if (aiSettings.zaiApiKey.isNotBlank()) {
+            if (aiSettings.zaiApiKey.isNotBlank() && aiSettings.zaiModelSource == ModelSource.MANUAL) {
                 add("Z.AI" to aiSettings.zaiManualModels.size)
             }
         }
@@ -1885,12 +1914,62 @@ fun HousekeepingScreen(
         // Export model costs button
         Button(
             onClick = {
-                exportModelCostsToCsv(context)
+                exportModelCostsToCsv(
+                    context = context,
+                    aiSettings = aiSettings,
+                    developerMode = developerMode,
+                    availableChatGptModels = availableChatGptModels,
+                    availableClaudeModels = availableClaudeModels,
+                    availableGeminiModels = availableGeminiModels,
+                    availableGrokModels = availableGrokModels,
+                    availableGroqModels = availableGroqModels,
+                    availableDeepSeekModels = availableDeepSeekModels,
+                    availableMistralModels = availableMistralModels,
+                    availablePerplexityModels = availablePerplexityModels,
+                    availableTogetherModels = availableTogetherModels,
+                    availableOpenRouterModels = availableOpenRouterModels,
+                    availableSiliconFlowModels = availableSiliconFlowModels,
+                    availableZaiModels = availableZaiModels,
+                    availableDummyModels = availableDummyModels
+                )
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
         ) {
             Text("Export model costs")
+        }
+
+        // Import model costs button
+        Button(
+            onClick = {
+                costsCsvPickerLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("Import model costs")
+        }
+
+        // Import costs result dialog
+        if (showImportCostsResultDialog && importCostsResult != null) {
+            val (imported, skipped) = importCostsResult!!
+            AlertDialog(
+                onDismissRequest = { showImportCostsResultDialog = false },
+                title = { Text("Import Model Costs", color = Color.White) },
+                text = {
+                    Text(
+                        "Imported $imported model price overrides.\n" +
+                        if (skipped > 0) "Skipped $skipped rows (empty or invalid)." else "",
+                        color = Color(0xFFAAAAAA)
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { showImportCostsResultDialog = false }) {
+                        Text("OK")
+                    }
+                },
+                containerColor = Color(0xFF2A2A2A)
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -2072,9 +2151,27 @@ fun HousekeepingScreen(
 
 /**
  * Export model costs to CSV file.
+ * Only includes models that can be used for agents (matching Model Search).
  * Prices are in USD ticks (one millionth of a dollar) per million tokens.
  */
-private fun exportModelCostsToCsv(context: android.content.Context) {
+private fun exportModelCostsToCsv(
+    context: android.content.Context,
+    aiSettings: AiSettings,
+    developerMode: Boolean,
+    availableChatGptModels: List<String>,
+    availableClaudeModels: List<String>,
+    availableGeminiModels: List<String>,
+    availableGrokModels: List<String>,
+    availableGroqModels: List<String>,
+    availableDeepSeekModels: List<String>,
+    availableMistralModels: List<String>,
+    availablePerplexityModels: List<String>,
+    availableTogetherModels: List<String>,
+    availableOpenRouterModels: List<String>,
+    availableSiliconFlowModels: List<String>,
+    availableZaiModels: List<String>,
+    availableDummyModels: List<String>
+) {
     val pricingCache = com.ai.data.PricingCache
 
     // Get all pricing sources
@@ -2083,66 +2180,70 @@ private fun exportModelCostsToCsv(context: android.content.Context) {
     val litellmPricing = pricingCache.getLiteLLMPricing(context)
     val fallbackPricing = pricingCache.getFallbackPricing()
 
-    // Collect all unique provider/model combinations
+    // Build model list the same way as Model Search - only models that can be used for agents
     data class ProviderModel(val provider: String, val model: String)
-    val allModels = mutableSetOf<ProviderModel>()
+    val allModels = mutableListOf<ProviderModel>()
 
-    // From override pricing (key format: "PROVIDER:model")
-    overridePricing.keys.forEach { key ->
-        val parts = key.split(":", limit = 2)
-        if (parts.size == 2) {
-            allModels.add(ProviderModel(parts[0], parts[1]))
-        }
-    }
+    // OpenAI models (API or fallback to manual)
+    val chatGptModels = availableChatGptModels.ifEmpty { aiSettings.chatGptManualModels }
+    chatGptModels.forEach { allModels.add(ProviderModel("OPENAI", it)) }
 
-    // From OpenRouter pricing (key format: "provider/model" or just "model")
-    openRouterPricing.keys.forEach { key ->
-        if (key.contains("/")) {
-            val parts = key.split("/", limit = 2)
-            // Map OpenRouter provider prefix to our provider name
-            val providerName = mapOpenRouterPrefixToProvider(parts[0])
-            if (providerName != null) {
-                allModels.add(ProviderModel(providerName, parts[1]))
-            }
-            // Also add as OPENROUTER provider with full model ID
-            allModels.add(ProviderModel("OPENROUTER", key))
-        } else {
-            allModels.add(ProviderModel("UNKNOWN", key))
-        }
-    }
+    // Anthropic models (API or fallback to manual)
+    val claudeModels = availableClaudeModels.ifEmpty { aiSettings.claudeManualModels }
+    claudeModels.forEach { allModels.add(ProviderModel("ANTHROPIC", it)) }
 
-    // From LiteLLM pricing (key format varies: "provider/model" or "model")
-    litellmPricing.keys.forEach { key ->
-        if (key.contains("/")) {
-            val parts = key.split("/", limit = 2)
-            val providerName = mapLiteLLMPrefixToProvider(parts[0])
-            if (providerName != null) {
-                allModels.add(ProviderModel(providerName, parts[1]))
-            }
-        } else {
-            allModels.add(ProviderModel("UNKNOWN", key))
-        }
-    }
+    // Google models
+    availableGeminiModels.forEach { allModels.add(ProviderModel("GOOGLE", it)) }
 
-    // From fallback pricing (model names only)
-    fallbackPricing.keys.forEach { key ->
-        allModels.add(ProviderModel("FALLBACK", key))
+    // xAI models
+    availableGrokModels.forEach { allModels.add(ProviderModel("XAI", it)) }
+
+    // Groq models
+    availableGroqModels.forEach { allModels.add(ProviderModel("GROQ", it)) }
+
+    // DeepSeek models
+    availableDeepSeekModels.forEach { allModels.add(ProviderModel("DEEPSEEK", it)) }
+
+    // Mistral models
+    availableMistralModels.forEach { allModels.add(ProviderModel("MISTRAL", it)) }
+
+    // Perplexity models (hardcoded - no API, use manual models)
+    val perplexityModels = availablePerplexityModels.ifEmpty { aiSettings.perplexityManualModels }
+    perplexityModels.forEach { allModels.add(ProviderModel("PERPLEXITY", it)) }
+
+    // Together models
+    availableTogetherModels.forEach { allModels.add(ProviderModel("TOGETHER", it)) }
+
+    // OpenRouter models
+    availableOpenRouterModels.forEach { allModels.add(ProviderModel("OPENROUTER", it)) }
+
+    // SiliconFlow models (API or fallback to manual)
+    val siliconFlowModels = availableSiliconFlowModels.ifEmpty { aiSettings.siliconFlowManualModels }
+    siliconFlowModels.forEach { allModels.add(ProviderModel("SILICONFLOW", it)) }
+
+    // Z.AI models (API or fallback to manual)
+    val zaiModels = availableZaiModels.ifEmpty { aiSettings.zaiManualModels }
+    zaiModels.forEach { allModels.add(ProviderModel("ZAI", it)) }
+
+    // Dummy models (only in developer mode)
+    if (developerMode) {
+        availableDummyModels.forEach { allModels.add(ProviderModel("DUMMY", it)) }
     }
 
     // Sort by provider then model
     val sortedModels = allModels.sortedWith(compareBy({ it.provider }, { it.model }))
 
-    // Helper to convert price per token to USD ticks per million tokens
-    // Price per token * 1,000,000 (for million tokens) * 1,000,000 (for ticks) = price * 1e12
-    fun toUsdTicks(pricePerToken: Double?): String {
+    // Helper to convert price per token to USD per million tokens
+    // Price per token * 1,000,000 (for million tokens) = dollars per million
+    fun toDollarsPerMillion(pricePerToken: Double?): String {
         if (pricePerToken == null) return ""
-        val ticks = (pricePerToken * 1e12).toLong()
-        return ticks.toString()
+        val dollars = pricePerToken * 1e6
+        return String.format(java.util.Locale.US, "%.2f", dollars)
     }
 
-    // Build CSV
+    // Build CSV - prices in USD per million tokens
     val csv = StringBuilder()
-    csv.appendLine("Provider,Model,Override Input,Override Output,OpenRouter Input,OpenRouter Output,LiteLLM Input,LiteLLM Output,Fallback Input,Fallback Output")
+    csv.appendLine("Provider,Model,Override $/M In,Override $/M Out,OpenRouter $/M In,OpenRouter $/M Out,LiteLLM $/M In,LiteLLM $/M Out,Fallback $/M In,Fallback $/M Out")
 
     for (pm in sortedModels) {
         val overrideKey = "${pm.provider}:${pm.model}"
@@ -2163,21 +2264,21 @@ private fun exportModelCostsToCsv(context: android.content.Context) {
             append(",")
             append(escapeCsvField(pm.model))
             append(",")
-            append(toUsdTicks(override?.promptPrice))
+            append(toDollarsPerMillion(override?.promptPrice))
             append(",")
-            append(toUsdTicks(override?.completionPrice))
+            append(toDollarsPerMillion(override?.completionPrice))
             append(",")
-            append(toUsdTicks(openRouter?.promptPrice))
+            append(toDollarsPerMillion(openRouter?.promptPrice))
             append(",")
-            append(toUsdTicks(openRouter?.completionPrice))
+            append(toDollarsPerMillion(openRouter?.completionPrice))
             append(",")
-            append(toUsdTicks(litellm?.promptPrice))
+            append(toDollarsPerMillion(litellm?.promptPrice))
             append(",")
-            append(toUsdTicks(litellm?.completionPrice))
+            append(toDollarsPerMillion(litellm?.completionPrice))
             append(",")
-            append(toUsdTicks(fallback?.promptPrice))
+            append(toDollarsPerMillion(fallback?.promptPrice))
             append(",")
-            append(toUsdTicks(fallback?.completionPrice))
+            append(toDollarsPerMillion(fallback?.completionPrice))
         })
     }
 
@@ -2206,6 +2307,115 @@ private fun exportModelCostsToCsv(context: android.content.Context) {
         android.util.Log.e("HousekeepingScreen", "Failed to export model costs: ${e.message}")
         android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
     }
+}
+
+/**
+ * Import model costs from CSV file.
+ * Reads the Override $/M In and Override $/M Out columns and sets them as manual pricing overrides.
+ * CSV format: Provider,Model,Override $/M In,Override $/M Out,...
+ * Returns (imported count, skipped count).
+ */
+private fun importModelCostsFromCsv(context: android.content.Context, uri: android.net.Uri): Pair<Int, Int> {
+    var imported = 0
+    var skipped = 0
+
+    try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val reader = inputStream?.bufferedReader() ?: return Pair(0, 0)
+
+        val lines = reader.readLines()
+        reader.close()
+
+        if (lines.isEmpty()) return Pair(0, 0)
+
+        // Skip header row
+        for (i in 1 until lines.size) {
+            val line = lines[i]
+            if (line.isBlank()) {
+                skipped++
+                continue
+            }
+
+            // Parse CSV line (handling quoted fields)
+            val fields = parseCsvLine(line)
+            if (fields.size < 4) {
+                skipped++
+                continue
+            }
+
+            val providerName = fields[0].trim()
+            val model = fields[1].trim()
+            val overrideInputStr = fields[2].trim()
+            val overrideOutputStr = fields[3].trim()
+
+            // Skip if override columns are empty
+            if (overrideInputStr.isBlank() || overrideOutputStr.isBlank()) {
+                skipped++
+                continue
+            }
+
+            // Parse prices (in dollars per million tokens)
+            val overrideInputDollarsPerM = overrideInputStr.toDoubleOrNull()
+            val overrideOutputDollarsPerM = overrideOutputStr.toDoubleOrNull()
+
+            if (overrideInputDollarsPerM == null || overrideOutputDollarsPerM == null) {
+                skipped++
+                continue
+            }
+
+            // Convert from dollars per million to price per token
+            val promptPricePerToken = overrideInputDollarsPerM / 1_000_000.0
+            val completionPricePerToken = overrideOutputDollarsPerM / 1_000_000.0
+
+            // Map provider name to AiService
+            val provider = try {
+                com.ai.data.AiService.valueOf(providerName)
+            } catch (e: IllegalArgumentException) {
+                skipped++
+                continue
+            }
+
+            // Set manual pricing
+            com.ai.data.PricingCache.setManualPricing(
+                context = context,
+                provider = provider,
+                model = model,
+                promptPrice = promptPricePerToken,
+                completionPrice = completionPricePerToken
+            )
+            imported++
+        }
+
+        android.util.Log.d("HousekeepingScreen", "Imported $imported model cost overrides, skipped $skipped")
+    } catch (e: Exception) {
+        android.util.Log.e("HousekeepingScreen", "Failed to import model costs: ${e.message}")
+        android.widget.Toast.makeText(context, "Import failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    return Pair(imported, skipped)
+}
+
+/**
+ * Parse a CSV line handling quoted fields.
+ */
+private fun parseCsvLine(line: String): List<String> {
+    val fields = mutableListOf<String>()
+    var current = StringBuilder()
+    var inQuotes = false
+
+    for (char in line) {
+        when {
+            char == '"' -> inQuotes = !inQuotes
+            char == ',' && !inQuotes -> {
+                fields.add(current.toString())
+                current = StringBuilder()
+            }
+            else -> current.append(char)
+        }
+    }
+    fields.add(current.toString())
+
+    return fields
 }
 
 private fun mapOpenRouterPrefixToProvider(prefix: String): String? {

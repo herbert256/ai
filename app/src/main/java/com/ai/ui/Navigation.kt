@@ -32,6 +32,10 @@ object NavRoutes {
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
+    const val AI_CHATS_HUB = "ai_chats_hub"
+    const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
+    const val AI_CHAT_WITH_AGENT = "ai_chat_with_agent/{agentId}"
+    const val AI_CHAT_SEARCH = "ai_chat_search"
     const val AI_CHAT_PROVIDER = "ai_chat_provider"
     const val AI_CHAT_MODEL = "ai_chat_model/{provider}"
     const val AI_CHAT_PARAMS = "ai_chat_params/{provider}/{model}"
@@ -47,6 +51,7 @@ object NavRoutes {
         return "ai_model_info/$provider/$encodedModel"
     }
     fun aiChatContinue(sessionId: String) = "ai_chat_continue/$sessionId"
+    fun aiChatWithAgent(agentId: String) = "ai_chat_with_agent/$agentId"
     fun aiChatModel(provider: String) = "ai_chat_model/$provider"
     fun aiChatParams(provider: String, model: String): String {
         val encodedModel = java.net.URLEncoder.encode(model, "UTF-8")
@@ -109,8 +114,7 @@ fun AiNavHost(
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS) },
-                onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
-                onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
+                onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
@@ -334,6 +338,92 @@ fun AiNavHost(
                     onNavigateHome = navigateHome
                 )
             }
+        }
+
+        // AI Chats Hub
+        composable(NavRoutes.AI_CHATS_HUB) {
+            val uiState by viewModel.uiState.collectAsState()
+            AiChatsHubScreen(
+                aiSettings = uiState.aiSettings,
+                developerMode = uiState.generalSettings.developerMode,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onNavigateToAgentSelect = { navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT) },
+                onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
+                onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
+                onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) }
+            )
+        }
+
+        // Chat agent select screen
+        composable(NavRoutes.AI_CHAT_AGENT_SELECT) {
+            val uiState by viewModel.uiState.collectAsState()
+            ChatAgentSelectScreen(
+                aiSettings = uiState.aiSettings,
+                developerMode = uiState.generalSettings.developerMode,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onSelectAgent = { agentId ->
+                    navController.navigate(NavRoutes.aiChatWithAgent(agentId))
+                }
+            )
+        }
+
+        // Chat with agent screen
+        composable(NavRoutes.AI_CHAT_WITH_AGENT) { backStackEntry ->
+            val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
+            val uiState by viewModel.uiState.collectAsState()
+            val agent = remember(agentId, uiState.aiSettings.agents) {
+                uiState.aiSettings.agents.find { it.id == agentId }
+            }
+
+            if (agent != null) {
+                // Convert agent parameters to chat parameters
+                val chatParams = ChatParameters(
+                    temperature = agent.parameters.temperature,
+                    maxTokens = agent.parameters.maxTokens,
+                    topP = agent.parameters.topP,
+                    topK = agent.parameters.topK,
+                    frequencyPenalty = agent.parameters.frequencyPenalty,
+                    presencePenalty = agent.parameters.presencePenalty,
+                    systemPrompt = agent.parameters.systemPrompt ?: "",
+                    searchEnabled = agent.parameters.searchEnabled,
+                    returnCitations = agent.parameters.returnCitations,
+                    searchRecency = agent.parameters.searchRecency
+                )
+
+                ChatSessionScreen(
+                    provider = agent.provider,
+                    model = agent.model,
+                    apiKey = agent.apiKey,
+                    parameters = chatParams,
+                    userName = uiState.generalSettings.userName,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateHome = navigateHome,
+                    onSendMessage = { messages, _ ->
+                        viewModel.sendChatMessage(agent.provider, agent.apiKey, agent.model, messages)
+                    },
+                    onSendMessageStream = { messages ->
+                        viewModel.sendChatMessageStream(agent.provider, agent.apiKey, agent.model, messages)
+                    }
+                )
+            } else {
+                // Agent not found - navigate back
+                LaunchedEffect(Unit) {
+                    navController.popBackStack()
+                }
+            }
+        }
+
+        // Chat search screen
+        composable(NavRoutes.AI_CHAT_SEARCH) {
+            ChatSearchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onSelectSession = { sessionId ->
+                    navController.navigate(NavRoutes.aiChatContinue(sessionId))
+                }
+            )
         }
 
         // Chat screens
@@ -616,6 +706,19 @@ fun HousekeepingScreenNav(
         aiSettings = uiState.aiSettings,
         huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
         developerMode = uiState.generalSettings.developerMode,
+        availableChatGptModels = uiState.availableChatGptModels,
+        availableClaudeModels = uiState.availableClaudeModels,
+        availableGeminiModels = uiState.availableGeminiModels,
+        availableGrokModels = uiState.availableGrokModels,
+        availableGroqModels = uiState.availableGroqModels,
+        availableDeepSeekModels = uiState.availableDeepSeekModels,
+        availableMistralModels = uiState.availableMistralModels,
+        availablePerplexityModels = uiState.availablePerplexityModels,
+        availableTogetherModels = uiState.availableTogetherModels,
+        availableOpenRouterModels = uiState.availableOpenRouterModels,
+        availableSiliconFlowModels = uiState.availableSiliconFlowModels,
+        availableZaiModels = uiState.availableZaiModels,
+        availableDummyModels = uiState.availableDummyModels,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },
         onRefreshAllModels = { settings -> viewModel.refreshAllModelLists(settings) },

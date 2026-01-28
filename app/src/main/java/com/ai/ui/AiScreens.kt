@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -38,30 +39,36 @@ fun AiHubScreen(
     onNavigateToReportsHub: () -> Unit,
     onNavigateToStatistics: () -> Unit,
     onNavigateToCosts: () -> Unit,
-    onNavigateToNewChat: () -> Unit,
-    onNavigateToChatHistory: () -> Unit,
+    onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
     onNavigateToModelSearch: () -> Unit,
     viewModel: AiViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
-    // Chat choice dialog state
-    var showChatChoiceDialog by remember { mutableStateOf(false) }
-    val hasChatHistory = remember { ChatHistoryManager.getSessionCount() > 0 }
+    // Check if at least one AI Agent is configured
+    val hasAnyAgent = uiState.aiSettings.agents.isNotEmpty()
+
+    // Check if there is any statistics data
+    val hasStatisticsData = remember {
+        val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE))
+        settingsPrefs.loadUsageStats().isNotEmpty()
+    }
 
     // Calculate number of cards and required height
     val cardHeight = 50.dp  // HubCard height (icon 34sp + padding)
-    val cardSpacing = 7.dp
-    val largeSpacing = 28.dp
+    val cardSpacing = 12.dp
 
-    // Count cards that will be shown (all cards always shown now, except API Traces)
-    var cardCount = 9  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Housekeeping, Settings, Help
+    // Count cards that will be shown
+    var cardCount = 3  // AI Setup, Settings, Help (always shown)
+    if (hasAnyAgent) cardCount += 4  // AI Reports, AI Chat, AI Models, AI Housekeeping
+    if (hasStatisticsData) cardCount += 2  // AI Statistics, AI Costs
     if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
 
     // Calculate total height needed for cards
-    val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + largeSpacing
+    val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp  // 32.dp extra spacing before Settings
 
     BoxWithConstraints(
         modifier = Modifier
@@ -86,57 +93,33 @@ fun AiHubScreen(
                     .offset(y = (-20).dp)
             )
 
-            // All cards shown always
-            HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
-            Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = {
-                if (hasChatHistory) {
-                    showChatChoiceDialog = true
-                } else {
-                    onNavigateToNewChat()
-                }
-            })
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Chat choice dialog
-            if (showChatChoiceDialog) {
-                AlertDialog(
-                    onDismissRequest = { showChatChoiceDialog = false },
-                    title = { Text("AI Chat", color = Color.White) },
-                    text = {
-                        Text(
-                            "Would you like to start a new chat or continue with a previous chat?",
-                            color = Color(0xFFAAAAAA)
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showChatChoiceDialog = false
-                            onNavigateToNewChat()
-                        }) {
-                            Text("Start new chat", color = Color(0xFF6B9BFF))
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = {
-                            showChatChoiceDialog = false
-                            onNavigateToChatHistory()
-                        }) {
-                            Text("Continue with previous chat", color = Color(0xFF8B5CF6))
-                        }
-                    },
-                    containerColor = Color(0xFF2A2A2A)
-                )
+            // Cards that require at least 1 AI Agent
+            if (hasAnyAgent) {
+                HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
+                Spacer(modifier = Modifier.height(12.dp))
+                HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub)
+                Spacer(modifier = Modifier.height(12.dp))
+                HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
+                Spacer(modifier = Modifier.height(12.dp))
             }
-            HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
-            Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
-            Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts)
-            Spacer(modifier = Modifier.height(12.dp))
+
+            // Cards that require statistics data
+            if (hasStatisticsData) {
+                HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
+                Spacer(modifier = Modifier.height(12.dp))
+                HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // AI Setup always shown
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
-            Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
+
+            // AI Housekeeping requires at least 1 AI Agent
+            if (hasAnyAgent) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))

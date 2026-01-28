@@ -1,5 +1,11 @@
 package com.ai.data
 
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonDeserializationContext
+import com.google.gson.JsonDeserializer
+import com.google.gson.JsonElement
+import com.google.gson.annotations.JsonAdapter
 import com.google.gson.annotations.SerializedName
 import okhttp3.OkHttpClient
 import retrofit2.Response
@@ -11,8 +17,28 @@ import retrofit2.http.Header
 import retrofit2.http.Path
 import retrofit2.http.POST
 import retrofit2.http.Query
+import java.lang.reflect.Type
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+
+/**
+ * Custom deserializer for cost field that can be either a Double (OpenRouter)
+ * or an object with total_cost (Perplexity).
+ */
+class FlexibleCostDeserializer : JsonDeserializer<Double?> {
+    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): Double? {
+        if (json == null || json.isJsonNull) return null
+        return try {
+            when {
+                json.isJsonPrimitive && json.asJsonPrimitive.isNumber -> json.asDouble
+                json.isJsonObject -> json.asJsonObject.get("total_cost")?.asDouble
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
 
 /**
  * Enum representing the supported AI services for chess position analysis.
@@ -34,7 +60,7 @@ enum class AiService(
     PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api", "sonar", "perplexity"),
     TOGETHER("Together", "https://api.together.xyz/", "https://api.together.xyz/settings/api-keys", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys", "anthropic/claude-3.5-sonnet"),
-    SILICONFLOW("SiliconFlow", "https://api.siliconflow.com/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
+    SILICONFLOW("SiliconFlow", "https://api.siliconflow.cn/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
     ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash", "z-ai"),
     DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
 }
@@ -84,9 +110,11 @@ data class OpenAiUsage(
     val input_tokens: Int? = null,
     val output_tokens: Int? = null,
     // Cost variations from different providers
-    val cost: Double? = null,              // Standard: direct cost in USD
-    val cost_in_usd_ticks: Long? = null,   // xAI: cost in millionths of a dollar
-    val cost_usd: UsageCost? = null        // Perplexity: cost object with total_cost
+    // cost can be a Double (OpenRouter) or object with total_cost (Perplexity) - use custom deserializer
+    @JsonAdapter(FlexibleCostDeserializer::class)
+    val cost: Double? = null,
+    val cost_in_usd_ticks: Long? = null,   // xAI: cost in billionths of a dollar (despite the name)
+    val cost_usd: UsageCost? = null        // Alternative Perplexity cost field
 )
 
 // Search result from AI services that perform web searches
@@ -596,7 +624,7 @@ interface ZaiApi {
         @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
-    @GET("model")
+    @GET("models")
     suspend fun listModels(
         @Header("Authorization") authorization: String
     ): Response<ZaiModelsResponse>

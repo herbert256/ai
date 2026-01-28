@@ -30,14 +30,20 @@ data class TokenUsage(
  * Extract cost from OpenAiUsage, checking all variations.
  * Returns the cost in USD, or null if not available.
  */
-fun extractApiCost(usage: OpenAiUsage?): Double? {
+fun extractApiCost(usage: OpenAiUsage?, provider: AiService? = null): Double? {
     if (usage == null) return null
-    // Check standard cost field
-    usage.cost?.let { return it }
-    // Check xAI cost_in_usd_ticks (millionths of a dollar)
-    usage.cost_in_usd_ticks?.let { return it / 1_000_000.0 }
-    // Check Perplexity cost object
-    usage.cost_usd?.total_cost?.let { return it }
+
+    // OpenRouter: use cost from API response
+    if (provider == AiService.OPENROUTER) {
+        usage.cost?.let { return it }
+    }
+    // Note: Perplexity's 'cost' field is intentionally ignored because their API
+    // returns costs ~6x higher than published pricing ($6/M vs $1/M).
+
+    // Check xAI cost_in_usd_ticks (empirically determined divisor is 1e10)
+    usage.cost_in_usd_ticks?.let { ticks ->
+        return ticks / 10_000_000_000.0  // 1e10
+    }
     return null
 }
 
@@ -47,7 +53,7 @@ fun extractApiCost(usage: OpenAiUsage?): Double? {
 fun extractApiCost(usage: ClaudeUsage?): Double? {
     if (usage == null) return null
     usage.cost?.let { return it }
-    usage.cost_in_usd_ticks?.let { return it / 1_000_000.0 }
+    usage.cost_in_usd_ticks?.let { return it / 10_000_000_000.0 }  // 1e10
     usage.cost_usd?.total_cost?.let { return it }
     return null
 }
@@ -58,7 +64,7 @@ fun extractApiCost(usage: ClaudeUsage?): Double? {
 fun extractApiCost(usage: GeminiUsageMetadata?): Double? {
     if (usage == null) return null
     usage.cost?.let { return it }
-    usage.cost_in_usd_ticks?.let { return it / 1_000_000.0 }
+    usage.cost_in_usd_ticks?.let { return it / 10_000_000_000.0 }  // 1e10
     usage.cost_usd?.total_cost?.let { return it }
     return null
 }
@@ -1077,14 +1083,18 @@ class AiAnalysisRepository {
 
         val headers = formatHeaders(response.headers())
         val statusCode = response.code()
+        android.util.Log.d("PerplexityAPI", "Response code: $statusCode, isSuccessful: ${response.isSuccessful}")
         return if (response.isSuccessful) {
             val body = response.body()
+            android.util.Log.d("PerplexityAPI", "Body: choices=${body?.choices?.size}, error=${body?.error?.message}")
             // Try multiple parsing strategies for content extraction
             val content = body?.choices?.let { choices ->
+                android.util.Log.d("PerplexityAPI", "First choice message: ${choices.firstOrNull()?.message}")
                 choices.firstOrNull()?.message?.content
                     ?: choices.firstOrNull()?.message?.reasoning_content
                     ?: choices.firstNotNullOfOrNull { it.message?.content }
             }
+            android.util.Log.d("PerplexityAPI", "Extracted content: ${content?.take(100) ?: "NULL"}")
             val citations = body?.citations  // Extract citations from Perplexity response
             val searchResults = body?.search_results  // Extract search results
             val relatedQuestions = body?.related_questions  // Extract related questions
@@ -1100,9 +1110,11 @@ class AiAnalysisRepository {
                 AiAnalysisResponse(AiService.PERPLEXITY, content, null, usage, citations = citations, searchResults = searchResults, relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
             } else {
                 val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                android.util.Log.e("PerplexityAPI", "No content found, error: $errorMsg")
                 AiAnalysisResponse(AiService.PERPLEXITY, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
             }
         } else {
+            android.util.Log.e("PerplexityAPI", "API error: ${response.code()} ${response.message()}")
             AiAnalysisResponse(AiService.PERPLEXITY, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
         }
     }
@@ -1211,7 +1223,7 @@ class AiAnalysisRepository {
                 TokenUsage(
                     inputTokens = it.prompt_tokens ?: 0,
                     outputTokens = it.completion_tokens ?: 0,
-                    apiCost = extractApiCost(it)
+                    apiCost = extractApiCost(it, AiService.OPENROUTER)
                 )
             }
             if (content != null) {
@@ -1681,56 +1693,77 @@ class AiAnalysisRepository {
 
     suspend fun fetchClaudeModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
         try {
+            android.util.Log.d("ClaudeAPI", "Fetching models from Anthropic API...")
             val response = claudeApi.listModels(apiKey)
+            android.util.Log.d("ClaudeAPI", "Response code: ${response.code()}")
             if (response.isSuccessful) {
-                val models = response.body()?.data ?: emptyList()
-                models
+                val body = response.body()
+                android.util.Log.d("ClaudeAPI", "Response body: $body")
+                val models = body?.data ?: emptyList()
+                val result = models
                     .mapNotNull { it.id }
                     .filter { it.startsWith("claude") }  // Only include Claude models
                     .sorted()
+                android.util.Log.d("ClaudeAPI", "Found ${result.size} Claude models")
+                result
             } else {
-                android.util.Log.e("ClaudeAPI", "Failed to fetch models: ${response.code()}")
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("ClaudeAPI", "Failed to fetch models: ${response.code()} - $errorBody")
                 emptyList()
             }
         } catch (e: Exception) {
-            android.util.Log.e("ClaudeAPI", "Error fetching models: ${e.message}")
+            android.util.Log.e("ClaudeAPI", "Error fetching models: ${e.message}", e)
             emptyList()
         }
     }
 
     suspend fun fetchSiliconFlowModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
         try {
+            android.util.Log.d("SiliconFlowAPI", "Fetching models from SiliconFlow API...")
             val response = siliconFlowApi.listModels("Bearer $apiKey")
+            android.util.Log.d("SiliconFlowAPI", "Response code: ${response.code()}")
             if (response.isSuccessful) {
-                val models = response.body()?.data ?: emptyList()
-                models
+                val body = response.body()
+                android.util.Log.d("SiliconFlowAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
                     .mapNotNull { it.id }
                     .sorted()
+                android.util.Log.d("SiliconFlowAPI", "Found ${result.size} SiliconFlow models")
+                result
             } else {
-                android.util.Log.e("SiliconFlowAPI", "Failed to fetch models: ${response.code()}")
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("SiliconFlowAPI", "Failed to fetch models: ${response.code()} - $errorBody")
                 emptyList()
             }
         } catch (e: Exception) {
-            android.util.Log.e("SiliconFlowAPI", "Error fetching models: ${e.message}")
+            android.util.Log.e("SiliconFlowAPI", "Error fetching models: ${e.message}", e)
             emptyList()
         }
     }
 
     suspend fun fetchZaiModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
         try {
+            android.util.Log.d("ZaiAPI", "Fetching models from Z.AI API...")
             val response = zaiApi.listModels("Bearer $apiKey")
+            android.util.Log.d("ZaiAPI", "Response code: ${response.code()}")
             if (response.isSuccessful) {
-                val models = response.body()?.data ?: emptyList()
-                models
+                val body = response.body()
+                android.util.Log.d("ZaiAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
                     .mapNotNull { it.id }
                     .filter { it.startsWith("glm") || it.startsWith("codegeex") || it.startsWith("charglm") }  // Only include GLM models
                     .sorted()
+                android.util.Log.d("ZaiAPI", "Found ${result.size} Z.AI models")
+                result
             } else {
-                android.util.Log.e("ZaiAPI", "Failed to fetch models: ${response.code()}")
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("ZaiAPI", "Failed to fetch models: ${response.code()} - $errorBody")
                 emptyList()
             }
         } catch (e: Exception) {
-            android.util.Log.e("ZaiAPI", "Error fetching models: ${e.message}")
+            android.util.Log.e("ZaiAPI", "Error fetching models: ${e.message}", e)
             emptyList()
         }
     }

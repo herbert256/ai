@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
@@ -1072,3 +1074,453 @@ private data class Quadruple<A, B, C, D>(
     val third: C,
     val fourth: D
 )
+
+/**
+ * AI Chats Hub screen - shows options for starting or continuing chats.
+ */
+@Composable
+fun AiChatsHubScreen(
+    aiSettings: AiSettings,
+    developerMode: Boolean,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToAgentSelect: () -> Unit,
+    onNavigateToNewChat: () -> Unit,
+    onNavigateToChatHistory: () -> Unit,
+    onNavigateToChatSearch: () -> Unit
+) {
+    // Check if there are any agents configured
+    val hasAgents = aiSettings.agents.any { agent ->
+        agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+    }
+
+    // Check if there are any chat sessions
+    val hasChatHistory = remember { ChatHistoryManager.getSessionCount() > 0 }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        AiTitleBar(
+            title = "AI Chat",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // New chat based on an AI Agent
+            ChatHubCard(
+                icon = "\uD83E\uDD16",
+                title = "New chat based on an AI Agent",
+                description = "Start a chat using a pre-configured agent",
+                onClick = onNavigateToAgentSelect,
+                enabled = hasAgents
+            )
+
+            // New chat - configure on the fly
+            ChatHubCard(
+                icon = "\u2699\uFE0F",
+                title = "New chat – configure on the fly",
+                description = "Select provider, model, and parameters",
+                onClick = onNavigateToNewChat,
+                enabled = true
+            )
+
+            // Continue with an existing chat
+            ChatHubCard(
+                icon = "\uD83D\uDCAC",
+                title = "Continue with an existing chat",
+                description = "Resume a previous conversation",
+                onClick = onNavigateToChatHistory,
+                enabled = hasChatHistory
+            )
+
+            // Search in existing chats
+            ChatHubCard(
+                icon = "\uD83D\uDD0D",
+                title = "Search in existing chats",
+                description = "Find messages in your chat history",
+                onClick = onNavigateToChatSearch,
+                enabled = hasChatHistory
+            )
+        }
+    }
+}
+
+/**
+ * Card component for the AI Chats Hub screen.
+ */
+@Composable
+private fun ChatHubCard(
+    icon: String,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (enabled) Modifier.clickable { onClick() }
+                else Modifier
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (enabled) Color(0xFF2A3A4A) else Color(0xFF3A3A3A)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = icon,
+                fontSize = 32.sp,
+                modifier = if (enabled) Modifier else Modifier.alpha(0.5f)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (enabled) Color.White else Color(0xFF888888)
+                )
+                Text(
+                    text = description,
+                    fontSize = 13.sp,
+                    color = if (enabled) Color(0xFFAAAAAA) else Color(0xFF666666)
+                )
+            }
+            if (enabled) {
+                Text(
+                    text = ">",
+                    color = Color(0xFF6B9BFF),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Screen to select an AI Agent for chat.
+ */
+@Composable
+fun ChatAgentSelectScreen(
+    aiSettings: AiSettings,
+    developerMode: Boolean,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSelectAgent: (String) -> Unit
+) {
+    // Filter agents - only show those with API keys configured
+    val availableAgents = aiSettings.agents.filter { agent ->
+        agent.apiKey.isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        AiTitleBar(
+            title = "Select Agent",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        if (availableAgents.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No agents configured.\nGo to AI Setup > Agents to create one.",
+                    color = Color(0xFF888888),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(availableAgents) { agent ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectAgent(agent.id) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF2A3A4A)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = agent.name,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row {
+                                    Text(
+                                        text = agent.provider.displayName,
+                                        color = Color(0xFF6B9BFF),
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = " • ${agent.model}",
+                                        color = Color(0xFF888888),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                // Show system prompt preview if configured
+                                agent.parameters.systemPrompt?.takeIf { it.isNotBlank() }?.let { prompt ->
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = prompt.take(80) + if (prompt.length > 80) "..." else "",
+                                        color = Color(0xFF666666),
+                                        fontSize = 12.sp,
+                                        maxLines = 2
+                                    )
+                                }
+                            }
+                            Text(
+                                text = ">",
+                                color = Color(0xFF6B9BFF),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Screen to search in existing chats.
+ */
+@Composable
+fun ChatSearchScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSelectSession: (String) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<ChatSearchResult>>(emptyList()) }
+    var hasSearched by remember { mutableStateOf(false) }
+    val dateFormat = remember { SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()) }
+    val focusRequester = remember { FocusRequester() }
+
+    // Auto-focus the search field
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        AiTitleBar(
+            title = "Search Chats",
+            onBackClick = onNavigateBack,
+            onAiClick = onNavigateHome
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // Search input
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                placeholder = { Text("Search in messages...", color = Color(0xFF888888)) },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF555555),
+                    cursorColor = Color(0xFF6B9BFF)
+                ),
+                trailingIcon = {
+                    TextButton(
+                        onClick = {
+                            if (searchQuery.isNotBlank()) {
+                                searchResults = searchInChats(searchQuery)
+                                hasSearched = true
+                            }
+                        },
+                        enabled = searchQuery.isNotBlank()
+                    ) {
+                        Text("Search", color = if (searchQuery.isNotBlank()) Color(0xFF6B9BFF) else Color(0xFF555555))
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Results
+            if (!hasSearched) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Enter a search term to find messages",
+                        color = Color(0xFF888888)
+                    )
+                }
+            } else if (searchResults.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No matches found for \"$searchQuery\"",
+                        color = Color(0xFF888888)
+                    )
+                }
+            } else {
+                Text(
+                    text = "${searchResults.size} match${if (searchResults.size != 1) "es" else ""} found",
+                    color = Color(0xFF888888),
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(searchResults) { result ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectSession(result.sessionId) },
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF2A3A4A)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                            ) {
+                                // Session info
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = result.sessionTitle,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = dateFormat.format(Date(result.messageTimestamp)),
+                                        color = Color(0xFF666666),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                // Message role
+                                Text(
+                                    text = result.messageRole.replaceFirstChar { it.uppercase() },
+                                    color = if (result.messageRole == "user") Color(0xFF6B9BFF) else Color(0xFF4CAF50),
+                                    fontSize = 12.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                // Message preview with highlighted search term
+                                Text(
+                                    text = result.messagePreview,
+                                    color = Color(0xFFAAAAAA),
+                                    fontSize = 13.sp,
+                                    maxLines = 3
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Search result for chat search.
+ */
+private data class ChatSearchResult(
+    val sessionId: String,
+    val sessionTitle: String,
+    val messageRole: String,
+    val messagePreview: String,
+    val messageTimestamp: Long
+)
+
+/**
+ * Search in all chat sessions for a query.
+ */
+private fun searchInChats(query: String): List<ChatSearchResult> {
+    val results = mutableListOf<ChatSearchResult>()
+    val sessions = ChatHistoryManager.getAllSessions()
+    val lowerQuery = query.lowercase()
+
+    for (session in sessions) {
+        val fullSession = ChatHistoryManager.loadSession(session.id) ?: continue
+        for (message in fullSession.messages) {
+            if (message.content.lowercase().contains(lowerQuery)) {
+                // Create a preview with context around the match
+                val content = message.content
+                val matchIndex = content.lowercase().indexOf(lowerQuery)
+                val start = (matchIndex - 40).coerceAtLeast(0)
+                val end = (matchIndex + query.length + 40).coerceAtMost(content.length)
+                val preview = (if (start > 0) "..." else "") +
+                        content.substring(start, end) +
+                        (if (end < content.length) "..." else "")
+
+                results.add(
+                    ChatSearchResult(
+                        sessionId = session.id,
+                        sessionTitle = fullSession.preview.ifBlank { "Chat with ${session.provider.displayName}" },
+                        messageRole = message.role,
+                        messagePreview = preview,
+                        messageTimestamp = session.updatedAt
+                    )
+                )
+            }
+        }
+    }
+
+    return results.sortedByDescending { it.messageTimestamp }
+}

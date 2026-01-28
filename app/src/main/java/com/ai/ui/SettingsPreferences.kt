@@ -42,8 +42,21 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     /**
      * Load AI settings with agents, swarms, and prompts.
+     * Also runs migrations for settings changes.
      */
     fun loadAiSettingsWithMigration(): AiSettings {
+        // Migration: Update Claude, SiliconFlow, Z.AI to use API model source
+        val migrationVersion = prefs.getInt("settings_migration_version", 0)
+        if (migrationVersion < 1) {
+            prefs.edit()
+                .putString(KEY_AI_ANTHROPIC_MODEL_SOURCE, ModelSource.API.name)
+                .putString(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.API.name)
+                .putString(KEY_AI_ZAI_MODEL_SOURCE, ModelSource.API.name)
+                .putInt("settings_migration_version", 1)
+                .apply()
+            android.util.Log.d("SettingsPreferences", "Migrated Claude, SiliconFlow, Z.AI to API model source")
+        }
+
         val baseSettings = loadAiSettings()
         val agents = loadAgents()
         val swarms = loadSwarms()
@@ -60,7 +73,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             chatGptAdminUrl = prefs.getString(KEY_AI_OPENAI_ADMIN_URL, AiService.OPENAI.adminUrl) ?: AiService.OPENAI.adminUrl,
             claudeApiKey = prefs.getString(KEY_AI_ANTHROPIC_API_KEY, "") ?: "",
             claudeModel = prefs.getString(KEY_AI_ANTHROPIC_MODEL, AiService.ANTHROPIC.defaultModel) ?: AiService.ANTHROPIC.defaultModel,
-            claudeModelSource = loadModelSource(KEY_AI_ANTHROPIC_MODEL_SOURCE, ModelSource.MANUAL),
+            claudeModelSource = loadModelSource(KEY_AI_ANTHROPIC_MODEL_SOURCE, ModelSource.API),
             claudeManualModels = loadManualModelsWithDefault(KEY_AI_ANTHROPIC_MANUAL_MODELS, CLAUDE_MODELS),
             claudeAdminUrl = prefs.getString(KEY_AI_ANTHROPIC_ADMIN_URL, AiService.ANTHROPIC.adminUrl) ?: AiService.ANTHROPIC.adminUrl,
             geminiApiKey = prefs.getString(KEY_AI_GOOGLE_API_KEY, "") ?: "",
@@ -105,12 +118,12 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             openRouterAdminUrl = prefs.getString(KEY_AI_OPENROUTER_ADMIN_URL, AiService.OPENROUTER.adminUrl) ?: AiService.OPENROUTER.adminUrl,
             siliconFlowApiKey = prefs.getString(KEY_AI_SILICONFLOW_API_KEY, "") ?: "",
             siliconFlowModel = prefs.getString(KEY_AI_SILICONFLOW_MODEL, AiService.SILICONFLOW.defaultModel) ?: AiService.SILICONFLOW.defaultModel,
-            siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.MANUAL),
+            siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.API),
             siliconFlowManualModels = loadManualModelsWithDefault(KEY_AI_SILICONFLOW_MANUAL_MODELS, SILICONFLOW_MODELS),
             siliconFlowAdminUrl = prefs.getString(KEY_AI_SILICONFLOW_ADMIN_URL, AiService.SILICONFLOW.adminUrl) ?: AiService.SILICONFLOW.adminUrl,
             zaiApiKey = prefs.getString(KEY_AI_ZAI_API_KEY, "") ?: "",
             zaiModel = prefs.getString(KEY_AI_ZAI_MODEL, AiService.ZAI.defaultModel) ?: AiService.ZAI.defaultModel,
-            zaiModelSource = loadModelSource(KEY_AI_ZAI_MODEL_SOURCE, ModelSource.MANUAL),
+            zaiModelSource = loadModelSource(KEY_AI_ZAI_MODEL_SOURCE, ModelSource.API),
             zaiManualModels = loadManualModelsWithDefault(KEY_AI_ZAI_MANUAL_MODELS, ZAI_MODELS),
             zaiAdminUrl = prefs.getString(KEY_AI_ZAI_ADMIN_URL, AiService.ZAI.adminUrl) ?: AiService.ZAI.adminUrl,
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
