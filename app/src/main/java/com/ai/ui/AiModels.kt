@@ -8,6 +8,7 @@ data class GeneralSettings(
     val developerMode: Boolean = false,
     val trackApiCalls: Boolean = false,
     val huggingFaceApiKey: String = "",
+    val openRouterApiKey: String = "",
     val fullScreenMode: Boolean = false
 )
 

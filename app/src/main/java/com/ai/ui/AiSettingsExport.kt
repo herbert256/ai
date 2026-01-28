@@ -125,7 +125,7 @@ data class ProviderEndpointsExport(
  *             endpoints, agents with parameters, swarms, AI prompts, manual pricing.
  */
 data class AiConfigExport(
-    val version: Int = 11,
+    val version: Int = 12,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val swarms: List<SwarmExport>? = null,  // Version 6+
@@ -133,6 +133,7 @@ data class AiConfigExport(
     val aiPrompts: List<PromptExport>? = null,  // Version 8+
     val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
     val providerEndpoints: List<ProviderEndpointsExport>? = null,  // Version 10+
+    val openRouterApiKey: String? = null,  // Version 12+
     // Legacy field from version 3 (ignored on import)
     val prompts: List<Any>? = null
 )
@@ -150,14 +151,15 @@ data class ApiKeyEntry(
  */
 data class AiConfigImportResult(
     val aiSettings: AiSettings,
-    val huggingFaceApiKey: String? = null
+    val huggingFaceApiKey: String? = null,
+    val openRouterApiKey: String? = null
 )
 
 /**
  * Export AI configuration to a file and share via Android share sheet.
- * Exports providers (model config), agents, swarms, and huggingFaceApiKey.
+ * Exports providers (model config), agents, swarms, huggingFaceApiKey, and openRouterApiKey.
  */
-fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "") {
+fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "", openRouterApiKey: String = "") {
     // Build providers map (model source, manual models, API key, default model, admin URL, model list URL per provider)
     val providers = mapOf(
         "OPENAI" to ProviderConfigExport(aiSettings.chatGptModelSource.name, aiSettings.chatGptManualModels, aiSettings.chatGptApiKey, aiSettings.chatGptModel, aiSettings.chatGptAdminUrl, aiSettings.chatGptModelListUrl.ifBlank { null }),
@@ -255,7 +257,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
         aiPrompts = aiPrompts.ifEmpty { null },
         manualPricing = manualPricing.ifEmpty { null },
-        providerEndpoints = providerEndpoints.ifEmpty { null }
+        providerEndpoints = providerEndpoints.ifEmpty { null },
+        openRouterApiKey = openRouterApiKey.ifBlank { null }
     )
 
     val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
@@ -598,7 +601,7 @@ private fun processImportedConfig(
     val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
     Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
 
-    return AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey)
+    return AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey)
 }
 
 /**
@@ -624,8 +627,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version != 11) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11.", Toast.LENGTH_LONG).show()
+        if (export.version !in listOf(11, 12)) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11 or 12.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -641,7 +644,7 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
 
 /**
  * Import AI configuration from a file URI.
- * Only supports version 11.
+ * Supports version 11 and 12.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
     return try {
@@ -663,8 +666,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = Gson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version != 11) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11.", Toast.LENGTH_LONG).show()
+        if (export.version !in listOf(11, 12)) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11 or 12.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -709,7 +712,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 11).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 11 or 12).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )

@@ -82,7 +82,7 @@ fun HelpScreen(
                     "• AI Setup - Configure providers, agents, swarms\n" +
                     "• Settings - App preferences and cost configuration\n" +
                     "• Help - This documentation\n" +
-                    "• API Traces - Debug API calls (developer mode)\n\n" +
+                    "• Developer Options - API Test and Traces (developer mode)\n\n" +
                     "Cards appear based on your setup status. Warnings guide you through initial configuration."
             )
 
@@ -466,10 +466,10 @@ fun HelpScreen(
                     "• API call tracing option\n" +
                     "• Token usage in reports\n" +
                     "• HTTP headers in reports\n" +
-                    "• API Traces card on home screen\n\n" +
-                    "API Tracing:\n" +
-                    "• Logs all API requests/responses\n" +
-                    "• Access via API Traces on home screen\n" +
+                    "• Developer Options on home screen\n\n" +
+                    "Developer Options:\n" +
+                    "• API Test - Test API calls with custom settings\n" +
+                    "• API Traces - View logged API requests/responses\n" +
                     "• Color-coded HTTP status codes\n" +
                     "• API keys are masked for security"
             )

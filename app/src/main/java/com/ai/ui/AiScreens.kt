@@ -34,7 +34,7 @@ import com.ai.data.ChatHistoryManager
 @Composable
 fun AiHubScreen(
     onNavigateToSettings: () -> Unit,
-    onNavigateToTrace: () -> Unit,
+    onNavigateToDeveloperOptions: () -> Unit,
     onNavigateToHelp: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
     onNavigateToStatistics: () -> Unit,
@@ -66,12 +66,9 @@ fun AiHubScreen(
     val cardHeight = 50.dp  // HubCard height (icon 34sp + padding)
     val cardSpacing = 12.dp
 
-    // Count cards that will be shown
-    var cardCount = 3  // AI Setup, Settings, Help (always shown)
-    if (hasAnyAgent) cardCount += 3  // AI Reports, AI Chat, AI Models
-    if (hasAnyProviderApiKey) cardCount += 1  // AI Housekeeping
-    if (hasStatisticsData) cardCount += 2  // AI Statistics, AI Costs
-    if (uiState.generalSettings.developerMode) cardCount += 1  // API Traces
+    // Count cards that will be shown (all cards always shown, some may be disabled)
+    var cardCount = 9  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Housekeeping, Settings, Help
+    if (uiState.generalSettings.developerMode) cardCount += 1  // Developer Options
 
     // Calculate total height needed for cards
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp  // 32.dp extra spacing before Settings
@@ -99,42 +96,36 @@ fun AiHubScreen(
                     .offset(y = (-20).dp)
             )
 
-            // Cards that require at least 1 AI Agent
-            if (hasAnyAgent) {
-                HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
-                Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub)
-                Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
+            // Cards that require at least 1 AI Agent (shown grayed out if no agents)
+            HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub, enabled = hasAnyAgent)
+            Spacer(modifier = Modifier.height(12.dp))
+            HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub, enabled = hasAnyAgent)
+            Spacer(modifier = Modifier.height(12.dp))
+            HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch, enabled = hasAnyAgent)
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Cards that require statistics data
-            if (hasStatisticsData) {
-                HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics)
-                Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
+            // Cards that require statistics data (shown grayed out if no data)
+            HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics, enabled = hasStatisticsData)
+            Spacer(modifier = Modifier.height(12.dp))
+            HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts, enabled = hasStatisticsData)
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // AI Setup always shown
+            // AI Setup always shown and enabled
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
+            Spacer(modifier = Modifier.height(12.dp))
 
             // AI Housekeeping requires at least 1 provider with API key (excluding DUMMY)
-            if (hasAnyProviderApiKey) {
-                Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
-            }
+            HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping, enabled = hasAnyProviderApiKey)
 
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
 
-            // API Traces card (developer mode only)
+            // Developer Options card (developer mode only)
             if (uiState.generalSettings.developerMode) {
                 Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83D\uDC1E", title = "API Traces", onClick = onNavigateToTrace)
+                HubCard(icon = "\uD83D\uDC1E", title = "Developer Options", onClick = onNavigateToDeveloperOptions)
             }
         }
     }
@@ -147,14 +138,15 @@ fun AiHubScreen(
 private fun HubCard(
     icon: String,
     title: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A3A4A)
+            containerColor = if (enabled) Color(0xFF2A3A4A) else Color(0xFF1A2A3A)
         )
     ) {
         Row(
@@ -165,14 +157,15 @@ private fun HubCard(
         ) {
             Text(
                 text = icon,
-                fontSize = 26.sp
+                fontSize = 26.sp,
+                modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                color = if (enabled) Color.White else Color(0xFF666666)
             )
         }
     }
@@ -904,6 +897,19 @@ fun AiReportsHubScreen(
     onNavigateToPromptHistory: () -> Unit,
     onNavigateToHistory: () -> Unit
 ) {
+    val context = LocalContext.current
+
+    // Check if there are any stored prompts
+    val hasPromptHistory = remember {
+        val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE))
+        settingsPrefs.loadPromptHistory().isNotEmpty()
+    }
+
+    // Check if there are any previous reports
+    val hasPreviousReports = remember {
+        com.ai.data.AiReportStorage.getAllReports(context).isNotEmpty()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -931,7 +937,8 @@ fun AiReportsHubScreen(
         HubCard(
             icon = "\uD83D\uDD04",
             title = "Start with a previous prompt",
-            onClick = onNavigateToPromptHistory
+            onClick = onNavigateToPromptHistory,
+            enabled = hasPromptHistory
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -940,7 +947,8 @@ fun AiReportsHubScreen(
         HubCard(
             icon = "\uD83D\uDCDA",
             title = "View previous reports",
-            onClick = onNavigateToHistory
+            onClick = onNavigateToHistory,
+            enabled = hasPreviousReports
         )
     }
 }
@@ -2689,13 +2697,15 @@ fun AiReportsScreen(
                             }
                         }
                     } else {
-                        // Agent selection mode
+                        // Agent selection mode - exclude agents already selected via swarm
                         val filteredAgents = configuredAgents
                             .filter { agent ->
-                                searchQuery.isBlank() ||
-                                agent.name.contains(searchQuery, ignoreCase = true) ||
-                                agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
-                                agent.model.contains(searchQuery, ignoreCase = true)
+                                agent.id !in swarmAgentIds && (
+                                    searchQuery.isBlank() ||
+                                    agent.name.contains(searchQuery, ignoreCase = true) ||
+                                    agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+                                    agent.model.contains(searchQuery, ignoreCase = true)
+                                )
                             }
                             .sortedBy { it.name.lowercase() }
                         if (configuredAgents.isEmpty()) {
@@ -2710,7 +2720,6 @@ fun AiReportsScreen(
                             )
                         } else {
                             filteredAgents.forEach { agent ->
-                                val isFromSwarm = agent.id in swarmAgentIds
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2725,29 +2734,24 @@ fun AiReportsScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Checkbox(
-                                        checked = agent.id in directlySelectedAgentIds || isFromSwarm,
+                                        checked = agent.id in directlySelectedAgentIds,
                                         onCheckedChange = { checked ->
                                             directlySelectedAgentIds = if (checked) {
                                                 directlySelectedAgentIds + agent.id
                                             } else {
                                                 directlySelectedAgentIds - agent.id
                                             }
-                                        },
-                                        enabled = !isFromSwarm  // Disable if already included via swarm
+                                        }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
                                             text = agent.name,
                                             fontWeight = FontWeight.Medium,
-                                            color = if (isFromSwarm) Color(0xFF6B9BFF) else Color.White
+                                            color = Color.White
                                         )
                                         Text(
-                                            text = if (isFromSwarm) {
-                                                "${agent.provider.displayName} / ${agent.model} (via swarm)"
-                                            } else {
-                                                "${agent.provider.displayName} / ${agent.model}"
-                                            },
+                                            text = "${agent.provider.displayName} / ${agent.model}",
                                             fontSize = 12.sp,
                                             color = Color(0xFFAAAAAA)
                                         )

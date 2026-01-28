@@ -103,8 +103,8 @@ fun SettingsScreen(
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
+    onSaveOpenRouterApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
-    onNavigateToApiTest: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
@@ -198,10 +198,14 @@ fun SettingsScreen(
         SettingsSubScreen.AI_SETTINGS -> AiSettingsScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
+            huggingFaceApiKey = generalSettings.huggingFaceApiKey,
+            openRouterApiKey = generalSettings.openRouterApiKey,
             onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
-            onSave = onSaveAi
+            onSave = onSaveAi,
+            onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
+            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey
         )
         SettingsSubScreen.AI_OPENAI -> ChatGptSettingsScreen(
             aiSettings = aiSettings,
@@ -350,9 +354,9 @@ fun SettingsScreen(
             onBackToHome = onNavigateHome,
             onNavigate = { currentSubScreen = it },
             onNavigateToCostConfig = onNavigateToCostConfig,
-            onNavigateToApiTest = onNavigateToApiTest,
             onSave = onSaveAi,
-            onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey
+            onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
+            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,
@@ -572,6 +576,7 @@ private fun SettingsMainScreen(
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
     var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
     var huggingFaceApiKey by remember { mutableStateOf(generalSettings.huggingFaceApiKey) }
+    var openRouterApiKey by remember { mutableStateOf(generalSettings.openRouterApiKey) }
     var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
 
     fun saveSettings() {
@@ -580,6 +585,7 @@ private fun SettingsMainScreen(
             developerMode = developerMode,
             trackApiCalls = trackApiCalls,
             huggingFaceApiKey = huggingFaceApiKey,
+            openRouterApiKey = openRouterApiKey,
             fullScreenMode = fullScreenMode
         ))
     }
@@ -672,6 +678,27 @@ private fun SettingsMainScreen(
                 )
                 Text(
                     text = "Used for fetching model info. Get your token at huggingface.co/settings/tokens",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFAAAAAA)
+                )
+
+                OutlinedTextField(
+                    value = openRouterApiKey,
+                    onValueChange = {
+                        openRouterApiKey = it
+                        saveSettings()
+                    },
+                    label = { Text("OpenRouter API Key") },
+                    placeholder = { Text("sk-or-...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFF9800),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+                Text(
+                    text = "Used for AI Housekeeping. Get your key at openrouter.ai/settings/keys",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFAAAAAA)
                 )

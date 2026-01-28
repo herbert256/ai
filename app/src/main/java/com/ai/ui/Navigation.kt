@@ -47,6 +47,7 @@ object NavRoutes {
     const val AI_MODEL_INFO = "ai_model_info/{provider}/{model}"
     const val AI_API_TEST = "ai_api_test"
     const val AI_API_TEST_EDIT = "ai_api_test_edit"
+    const val DEVELOPER_OPTIONS = "developer_options"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
@@ -113,7 +114,7 @@ fun AiNavHost(
         composable(NavRoutes.AI) {
             AiHubScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
-                onNavigateToTrace = { navController.navigate(NavRoutes.TRACE_LIST) },
+                onNavigateToDeveloperOptions = { navController.navigate(NavRoutes.DEVELOPER_OPTIONS) },
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
@@ -140,8 +141,7 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
-                onNavigateToApiTest = { navController.navigate(NavRoutes.AI_API_TEST) }
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
             )
         }
 
@@ -150,6 +150,14 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
+            )
+        }
+
+        composable(NavRoutes.DEVELOPER_OPTIONS) {
+            DeveloperOptionsScreen(
+                onBackToHome = navigateHome,
+                onNavigateToApiTest = { navController.navigate(NavRoutes.AI_API_TEST) },
+                onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) }
             )
         }
 
@@ -663,7 +671,6 @@ fun SettingsScreenNav(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {},
-    onNavigateToApiTest: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -720,8 +727,10 @@ fun SettingsScreenNav(
         onSaveHuggingFaceApiKey = { key ->
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
         },
+        onSaveOpenRouterApiKey = { key ->
+            viewModel.updateGeneralSettings(uiState.generalSettings.copy(openRouterApiKey = key))
+        },
         onNavigateToCostConfig = onNavigateToCostConfig,
-        onNavigateToApiTest = onNavigateToApiTest,
         initialSubScreen = initialSubScreen
     )
 }
@@ -734,15 +743,13 @@ fun AiSetupScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateToCostConfig: () -> Unit = {},
-    onNavigateToApiTest: () -> Unit = {}
+    onNavigateToCostConfig: () -> Unit = {}
 ) {
     SettingsScreenNav(
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig,
-        onNavigateToApiTest = onNavigateToApiTest,
         initialSubScreen = SettingsSubScreen.AI_SETUP
     )
 }
@@ -760,6 +767,7 @@ fun HousekeepingScreenNav(
     HousekeepingScreen(
         aiSettings = uiState.aiSettings,
         huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
+        openRouterApiKey = uiState.generalSettings.openRouterApiKey,
         developerMode = uiState.generalSettings.developerMode,
         availableChatGptModels = uiState.availableChatGptModels,
         availableClaudeModels = uiState.availableClaudeModels,
@@ -780,6 +788,9 @@ fun HousekeepingScreenNav(
         onTestApiKey = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onSaveHuggingFaceApiKey = { key ->
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
+        },
+        onSaveOpenRouterApiKey = { key ->
+            viewModel.updateGeneralSettings(uiState.generalSettings.copy(openRouterApiKey = key))
         }
     )
 }

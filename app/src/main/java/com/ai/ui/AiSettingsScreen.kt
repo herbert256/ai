@@ -31,11 +31,13 @@ fun AiSettingsScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     huggingFaceApiKey: String = "",
+    openRouterApiKey: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (AiSettings) -> Unit,
-    onSaveHuggingFaceApiKey: (String) -> Unit = {}
+    onSaveHuggingFaceApiKey: (String) -> Unit = {},
+    onSaveOpenRouterApiKey: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -48,6 +50,7 @@ fun AiSettingsScreen(
             if (result != null) {
                 onSave(result.aiSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+                result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
             }
         }
     }
@@ -164,7 +167,7 @@ fun AiSettingsScreen(
         if (aiSettings.hasAnyApiKey()) {
             Button(
                 onClick = {
-                    exportAiConfigToFile(context, aiSettings, huggingFaceApiKey)
+                    exportAiConfigToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
@@ -219,9 +222,9 @@ fun AiSetupScreen(
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onNavigateToCostConfig: () -> Unit = {},
-    onNavigateToApiTest: () -> Unit = {},
     onSave: (AiSettings) -> Unit = {},
-    onSaveHuggingFaceApiKey: (String) -> Unit = {}
+    onSaveHuggingFaceApiKey: (String) -> Unit = {},
+    onSaveOpenRouterApiKey: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -234,6 +237,7 @@ fun AiSetupScreen(
             if (result != null) {
                 onSave(result.aiSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+                result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
             }
         }
     }
@@ -327,17 +331,6 @@ fun AiSetupScreen(
             onClick = onNavigateToCostConfig,
             enabled = hasApiKey
         )
-
-        // API Test card (developer mode only)
-        if (developerMode) {
-            AiSetupNavigationCard(
-                title = "API Test",
-                description = "Test API calls with custom settings",
-                icon = "🧪",
-                count = "",
-                onClick = onNavigateToApiTest
-            )
-        }
 
     }
 }
@@ -1414,12 +1407,107 @@ private fun formatPricing(pricePerToken: Double): String {
 }
 
 /**
+ * Developer Options screen with developer tools like API Test and API Traces.
+ * Only accessible in developer mode.
+ */
+@Composable
+fun DeveloperOptionsScreen(
+    onBackToHome: () -> Unit,
+    onNavigateToApiTest: () -> Unit,
+    onNavigateToTraces: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AiTitleBar(
+            title = "Developer Options",
+            onBackClick = onBackToHome,
+            onAiClick = onBackToHome
+        )
+
+        // API Test card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onNavigateToApiTest),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🧪",
+                    fontSize = 24.sp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "API Test",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Test API calls with custom settings",
+                        fontSize = 12.sp,
+                        color = Color(0xFF888888)
+                    )
+                }
+            }
+        }
+
+        // API Traces card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onNavigateToTraces),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🐞",
+                    fontSize = 24.sp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "API Traces",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "View logged API requests and responses",
+                        fontSize = 12.sp,
+                        color = Color(0xFF888888)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * AI Housekeeping screen with maintenance actions like refresh models, generate agents, import/export.
  */
 @Composable
 fun HousekeepingScreen(
     aiSettings: AiSettings,
     huggingFaceApiKey: String = "",
+    openRouterApiKey: String = "",
     developerMode: Boolean = false,
     availableChatGptModels: List<String> = emptyList(),
     availableClaudeModels: List<String> = emptyList(),
@@ -1438,7 +1526,8 @@ fun HousekeepingScreen(
     onSave: (AiSettings) -> Unit,
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onSaveHuggingFaceApiKey: (String) -> Unit = {}
+    onSaveHuggingFaceApiKey: (String) -> Unit = {},
+    onSaveOpenRouterApiKey: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1453,18 +1542,18 @@ fun HousekeepingScreen(
     var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
     var showGenerationResultsDialog by remember { mutableStateOf(false) }
 
-    // State for fetch model specs
-    var isFetchingSpecs by remember { mutableStateOf(false) }
-    var specsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var showSpecsResultDialog by remember { mutableStateOf(false) }
-
-    // State for refresh OpenRouter pricing
-    var isRefreshingPricing by remember { mutableStateOf(false) }
-    var pricingRefreshCount by remember { mutableStateOf(0) }
+    // State for refresh OpenRouter data (specs + pricing)
+    var isRefreshingOpenRouter by remember { mutableStateOf(false) }
+    var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }  // (pricing, specs pricing, specs params)
+    var showOpenRouterResultDialog by remember { mutableStateOf(false) }
 
     // State for import model costs
     var importCostsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }  // (imported, skipped)
     var showImportCostsResultDialog by remember { mutableStateOf(false) }
+
+    // State for delete all confirmations
+    var showDeleteAllAgentsConfirm by remember { mutableStateOf(false) }
+    var showDeleteAllSwarmsConfirm by remember { mutableStateOf(false) }
 
     // File picker launcher for importing model costs CSV
     val costsCsvPickerLauncher = rememberLauncherForActivityResult(
@@ -1487,6 +1576,7 @@ fun HousekeepingScreen(
                 val importedSettings = result.aiSettings
                 onSave(importedSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+                result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
 
                 // Automatically refresh model lists and generate default agents after import
                 if (importedSettings.hasAnyApiKey()) {
@@ -1661,20 +1751,20 @@ fun HousekeepingScreen(
         )
     }
 
-    // Specs result dialog
-    if (showSpecsResultDialog) {
+    // OpenRouter refresh result dialog
+    if (showOpenRouterResultDialog) {
         AlertDialog(
-            onDismissRequest = { showSpecsResultDialog = false },
-            title = { Text("Model Specifications") },
+            onDismissRequest = { showOpenRouterResultDialog = false },
+            title = { Text("OpenRouter Data Refreshed") },
             text = {
-                if (specsResult != null) {
-                    Text("Successfully saved:\n• ${specsResult!!.first} pricing entries\n• ${specsResult!!.second} parameter entries\n\nFiles saved to app storage.")
+                if (openRouterResult != null) {
+                    Text("Successfully refreshed:\n• ${openRouterResult!!.first} model prices\n• ${openRouterResult!!.second} pricing entries\n• ${openRouterResult!!.third} parameter entries")
                 } else {
-                    Text("Failed to fetch model specifications.\nPlease check your OpenRouter API key.")
+                    Text("Failed to fetch OpenRouter data.\nPlease check your OpenRouter API key.")
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showSpecsResultDialog = false }) {
+                TextButton(onClick = { showOpenRouterResultDialog = false }) {
                     Text("OK")
                 }
             }
@@ -1695,205 +1785,225 @@ fun HousekeepingScreen(
             onAiClick = onBackToHome
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Refresh model lists button
-        Button(
-            onClick = {
-                scope.launch {
-                    isRefreshing = true
-                    refreshResults = onRefreshAllModels(aiSettings)
-                    isRefreshing = false
-                    showResultsDialog = true
-                }
-            },
+        // Refresh card
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !isRefreshing,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
         ) {
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Refresh",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Refreshing...")
-            } else {
-                Text("Refresh model lists")
-            }
-        }
 
-        // Generate default agents button
-        Button(
-            onClick = {
-                scope.launch {
-                    isGenerating = true
-                    val results = mutableListOf<Pair<String, Boolean>>()
-
-                    val providersToTest = AiService.entries.filter { provider ->
-                        val apiKey = aiSettings.getApiKey(provider)
-                        apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
-                    }
-
-                    var updatedAgents = aiSettings.agents.toMutableList()
-
-                    for (provider in providersToTest) {
-                        val apiKey = aiSettings.getApiKey(provider)
-                        val model = provider.defaultModel
-
-                        val testResult = onTestApiKey(provider, apiKey, model)
-                        val isWorking = testResult == null
-
-                        if (isWorking) {
-                            // Create/update agent with empty values - uses provider settings at runtime
-                            val existingAgentIndex = updatedAgents.indexOfFirst {
-                                it.name == provider.displayName
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isRefreshing = true
+                                refreshResults = onRefreshAllModels(aiSettings)
+                                isRefreshing = false
+                                showResultsDialog = true
                             }
-
-                            if (existingAgentIndex >= 0) {
-                                val existingAgent = updatedAgents[existingAgentIndex]
-                                updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                    model = "",
-                                    apiKey = "",
-                                    provider = provider,
-                                    endpointId = null
-                                )
-                            } else {
-                                val newAgent = AiAgent(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = provider.displayName,
-                                    provider = provider,
-                                    model = "",
-                                    apiKey = "",
-                                    endpointId = null,
-                                    parameters = AiAgentParameters()
-                                )
-                                updatedAgents.add(newAgent)
-                            }
-                        }
-
-                        results.add(provider.displayName to isWorking)
-                    }
-
-                    val successCount = results.count { it.second }
-                    if (successCount > 0) {
-                        val defaultAgentIds = updatedAgents
-                            .filter { agent ->
-                                AiService.entries.any { it.displayName == agent.name }
-                            }
-                            .map { it.id }
-
-                        val updatedSwarms = aiSettings.swarms.toMutableList()
-                        val existingSwarmIndex = updatedSwarms.indexOfFirst {
-                            it.name == "default agents"
-                        }
-
-                        if (existingSwarmIndex >= 0) {
-                            updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
-                                agentIds = defaultAgentIds
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isRefreshing,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
                             )
                         } else {
-                            val newSwarm = AiSwarm(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = "default agents",
-                                agentIds = defaultAgentIds
-                            )
-                            updatedSwarms.add(newSwarm)
+                            Text("Model lists", fontSize = 12.sp)
                         }
-
-                        onSave(aiSettings.copy(
-                            agents = updatedAgents,
-                            swarms = updatedSwarms
-                        ))
                     }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isRefreshingOpenRouter = true
+                                var pricingCount = 0
+                                var specsPricing = 0
+                                var specsParams = 0
 
-                    generationResults = results
-                    isGenerating = false
-                    showGenerationResultsDialog = true
+                                // Fetch and save pricing data
+                                val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                                if (pricing.isNotEmpty()) {
+                                    com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
+                                    pricingCount = pricing.size
+                                }
+
+                                // Fetch and save model specifications
+                                val specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(
+                                    context,
+                                    openRouterApiKey
+                                )
+                                if (specsResult != null) {
+                                    specsPricing = specsResult.first
+                                    specsParams = specsResult.second
+                                }
+
+                                openRouterResult = if (pricingCount > 0 || specsPricing > 0) {
+                                    Triple(pricingCount, specsPricing, specsParams)
+                                } else {
+                                    null
+                                }
+                                isRefreshingOpenRouter = false
+                                showOpenRouterResultDialog = true
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isRefreshingOpenRouter && openRouterApiKey.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        if (isRefreshingOpenRouter) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("OpenRouter data", fontSize = 12.sp)
+                        }
+                    }
                 }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isGenerating,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            if (isGenerating) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Testing API keys...")
-            } else {
-                Text("Generate default agents")
             }
         }
 
-        // Get model specifications from OpenRouter button
-        Button(
-            onClick = {
-                scope.launch {
-                    isFetchingSpecs = true
-                    specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(
-                        context,
-                        aiSettings.openRouterApiKey
-                    )
-                    isFetchingSpecs = false
-                    showSpecsResultDialog = true
-                }
-            },
+        // Generate card
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !isFetchingSpecs && aiSettings.openRouterApiKey.isNotBlank(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
         ) {
-            if (isFetchingSpecs) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Generate",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Fetching specifications...")
-            } else {
-                Text("Get model specifications from OpenRouter")
-            }
-        }
 
-        // Refresh OpenRouter model cost cached data button
-        Button(
-            onClick = {
-                scope.launch {
-                    isRefreshingPricing = true
-                    val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(aiSettings.openRouterApiKey)
-                    if (pricing.isNotEmpty()) {
-                        com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
-                        pricingRefreshCount = pricing.size
-                        android.widget.Toast.makeText(context, "Refreshed ${pricing.size} model prices", android.widget.Toast.LENGTH_SHORT).show()
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isGenerating = true
+                            val results = mutableListOf<Pair<String, Boolean>>()
+
+                            val providersToTest = AiService.entries.filter { provider ->
+                                val apiKey = aiSettings.getApiKey(provider)
+                                apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
+                            }
+
+                            var updatedAgents = aiSettings.agents.toMutableList()
+
+                            for (provider in providersToTest) {
+                                val apiKey = aiSettings.getApiKey(provider)
+                                val model = provider.defaultModel
+
+                                val testResult = onTestApiKey(provider, apiKey, model)
+                                val isWorking = testResult == null
+
+                                if (isWorking) {
+                                    // Create/update agent with empty values - uses provider settings at runtime
+                                    val existingAgentIndex = updatedAgents.indexOfFirst {
+                                        it.name == provider.displayName
+                                    }
+
+                                    if (existingAgentIndex >= 0) {
+                                        val existingAgent = updatedAgents[existingAgentIndex]
+                                        updatedAgents[existingAgentIndex] = existingAgent.copy(
+                                            model = "",
+                                            apiKey = "",
+                                            provider = provider,
+                                            endpointId = null
+                                        )
+                                    } else {
+                                        val newAgent = AiAgent(
+                                            id = java.util.UUID.randomUUID().toString(),
+                                            name = provider.displayName,
+                                            provider = provider,
+                                            model = "",
+                                            apiKey = "",
+                                            endpointId = null,
+                                            parameters = AiAgentParameters()
+                                        )
+                                        updatedAgents.add(newAgent)
+                                    }
+                                }
+
+                                results.add(provider.displayName to isWorking)
+                            }
+
+                            val successCount = results.count { it.second }
+                            if (successCount > 0) {
+                                val defaultAgentIds = updatedAgents
+                                    .filter { agent ->
+                                        AiService.entries.any { it.displayName == agent.name }
+                                    }
+                                    .map { it.id }
+
+                                val updatedSwarms = aiSettings.swarms.toMutableList()
+                                val existingSwarmIndex = updatedSwarms.indexOfFirst {
+                                    it.name == "default agents"
+                                }
+
+                                if (existingSwarmIndex >= 0) {
+                                    updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
+                                        agentIds = defaultAgentIds
+                                    )
+                                } else {
+                                    val newSwarm = AiSwarm(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = "default agents",
+                                        agentIds = defaultAgentIds
+                                    )
+                                    updatedSwarms.add(newSwarm)
+                                }
+
+                                onSave(aiSettings.copy(
+                                    agents = updatedAgents,
+                                    swarms = updatedSwarms
+                                ))
+                            }
+
+                            generationResults = results
+                            isGenerating = false
+                            showGenerationResultsDialog = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isGenerating,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) {
+                    if (isGenerating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Testing API keys...", fontSize = 12.sp)
                     } else {
-                        android.widget.Toast.makeText(context, "Failed to fetch pricing data", android.widget.Toast.LENGTH_SHORT).show()
+                        Text("Default agents", fontSize = 12.sp)
                     }
-                    isRefreshingPricing = false
                 }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isRefreshingPricing && aiSettings.openRouterApiKey.isNotBlank(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            if (isRefreshingPricing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Refreshing pricing...")
-            } else {
-                Text("Refresh OpenRouter model cost cached data")
             }
         }
 
-        // Export AI configuration button
+        // Export card
         val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||
                 aiSettings.claudeApiKey.isNotBlank() ||
                 aiSettings.geminiApiKey.isNotBlank() ||
@@ -1907,70 +2017,109 @@ fun HousekeepingScreen(
                 aiSettings.siliconFlowApiKey.isNotBlank() ||
                 aiSettings.zaiApiKey.isNotBlank()
         val visibleAgentsForExport = if (developerMode) aiSettings.agents else aiSettings.agents.filter { it.provider != AiService.DUMMY }
-        val canExport = hasApiKeyForExport &&
+        val canExportConfig = hasApiKeyForExport &&
                 visibleAgentsForExport.isNotEmpty() &&
                 aiSettings.swarms.isNotEmpty()
 
-        if (canExport) {
-            Button(
-                onClick = {
-                    exportAiConfigToFile(context, aiSettings, huggingFaceApiKey)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Export AI configuration")
+                Text(
+                    text = "Export",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            exportAiConfigToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = canExportConfig,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("AI configuration", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = {
+                            exportModelCostsToCsv(
+                                context = context,
+                                aiSettings = aiSettings,
+                                developerMode = developerMode,
+                                availableChatGptModels = availableChatGptModels,
+                                availableClaudeModels = availableClaudeModels,
+                                availableGeminiModels = availableGeminiModels,
+                                availableGrokModels = availableGrokModels,
+                                availableGroqModels = availableGroqModels,
+                                availableDeepSeekModels = availableDeepSeekModels,
+                                availableMistralModels = availableMistralModels,
+                                availablePerplexityModels = availablePerplexityModels,
+                                availableTogetherModels = availableTogetherModels,
+                                availableOpenRouterModels = availableOpenRouterModels,
+                                availableSiliconFlowModels = availableSiliconFlowModels,
+                                availableZaiModels = availableZaiModels,
+                                availableDummyModels = availableDummyModels
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("Model costs", fontSize = 12.sp)
+                    }
+                }
             }
         }
 
-        // Import AI configuration button
-        Button(
-            onClick = {
-                filePickerLauncher.launch(arrayOf("application/json", "*/*"))
-            },
+        // Import card
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
         ) {
-            Text("Import AI configuration")
-        }
-
-        // Export model costs button
-        Button(
-            onClick = {
-                exportModelCostsToCsv(
-                    context = context,
-                    aiSettings = aiSettings,
-                    developerMode = developerMode,
-                    availableChatGptModels = availableChatGptModels,
-                    availableClaudeModels = availableClaudeModels,
-                    availableGeminiModels = availableGeminiModels,
-                    availableGrokModels = availableGrokModels,
-                    availableGroqModels = availableGroqModels,
-                    availableDeepSeekModels = availableDeepSeekModels,
-                    availableMistralModels = availableMistralModels,
-                    availablePerplexityModels = availablePerplexityModels,
-                    availableTogetherModels = availableTogetherModels,
-                    availableOpenRouterModels = availableOpenRouterModels,
-                    availableSiliconFlowModels = availableSiliconFlowModels,
-                    availableZaiModels = availableZaiModels,
-                    availableDummyModels = availableDummyModels
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Import",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            Text("Export model costs")
-        }
 
-        // Import model costs button
-        Button(
-            onClick = {
-                costsCsvPickerLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            Text("Import model costs")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("AI configuration", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = {
+                            costsCsvPickerLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("Model costs", fontSize = 12.sp)
+                    }
+                }
+            }
         }
 
         // Import costs result dialog
@@ -1995,7 +2144,95 @@ fun HousekeepingScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Delete card - agents and swarms
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Delete",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { showDeleteAllAgentsConfirm = true },
+                        modifier = Modifier.weight(1f),
+                        enabled = aiSettings.agents.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("All agents", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { showDeleteAllSwarmsConfirm = true },
+                        modifier = Modifier.weight(1f),
+                        enabled = aiSettings.swarms.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("All swarms", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // Delete all agents confirmation dialog
+        if (showDeleteAllAgentsConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteAllAgentsConfirm = false },
+                title = { Text("Delete All Agents", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete all ${aiSettings.agents.size} agents? This cannot be undone.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onSave(aiSettings.copy(agents = emptyList()))
+                            showDeleteAllAgentsConfirm = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Delete All")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteAllAgentsConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Delete all swarms confirmation dialog
+        if (showDeleteAllSwarmsConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteAllSwarmsConfirm = false },
+                title = { Text("Delete All Swarms", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete all ${aiSettings.swarms.size} swarms? This cannot be undone.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onSave(aiSettings.copy(swarms = emptyList()))
+                            showDeleteAllSwarmsConfirm = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Delete All")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteAllSwarmsConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
 
         // Clean up card
         var showCleanupDaysDialog by remember { mutableStateOf<String?>(null) }

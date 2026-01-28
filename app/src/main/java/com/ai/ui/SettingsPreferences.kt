@@ -22,6 +22,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             developerMode = prefs.getBoolean(KEY_DEVELOPER_MODE, false),
             trackApiCalls = prefs.getBoolean(KEY_TRACK_API_CALLS, false),
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
+            openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
             fullScreenMode = prefs.getBoolean(KEY_FULL_SCREEN_MODE, false)
         )
     }
@@ -32,6 +33,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putBoolean(KEY_DEVELOPER_MODE, settings.developerMode)
             .putBoolean(KEY_TRACK_API_CALLS, settings.trackApiCalls)
             .putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
+            .putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
             .putBoolean(KEY_FULL_SCREEN_MODE, settings.fullScreenMode)
             .apply()
     }
@@ -409,6 +411,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_DEVELOPER_MODE = "developer_mode"
         private const val KEY_TRACK_API_CALLS = "track_api_calls"
         private const val KEY_HUGGINGFACE_API_KEY = "huggingface_api_key"
+        private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
         private const val KEY_FULL_SCREEN_MODE = "full_screen_mode"
 
         // AI Analysis settings - API keys and models

@@ -671,9 +671,11 @@ object AiApiFactory {
         .build()
 
     private fun getRetrofit(baseUrl: String): Retrofit {
-        return retrofitCache.getOrPut(baseUrl) {
+        // Retrofit requires base URL to end with /
+        val normalizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        return retrofitCache.getOrPut(normalizedUrl) {
             Retrofit.Builder()
-                .baseUrl(baseUrl)
+                .baseUrl(normalizedUrl)
                 .client(okHttpClient)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
