@@ -354,7 +354,7 @@ fun SwarmEditScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = "${agent.provider.displayName} - ${agent.model}",
+                                text = "${agent.provider.displayName} - ${agent.model.ifBlank { agent.provider.defaultModel }}",
                                 fontSize = 12.sp,
                                 color = Color(0xFF888888)
                             )

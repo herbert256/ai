@@ -309,7 +309,7 @@ fun PromptEditScreen(
                                     Column {
                                         Text(agent.name, color = Color.White)
                                         Text(
-                                            "${agent.provider.displayName} - ${agent.model}",
+                                            "${agent.provider.displayName} - ${agent.model.ifBlank { agent.provider.defaultModel }}",
                                             fontSize = 12.sp,
                                             color = Color(0xFF888888)
                                         )

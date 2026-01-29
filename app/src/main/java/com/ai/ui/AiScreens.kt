@@ -2837,7 +2837,7 @@ fun AiReportsScreen(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
-                                                text = "${agent.name} / ${agent.model}",
+                                                text = "${agent.name} / ${agent.model.ifBlank { agent.provider.defaultModel }}",
                                                 fontWeight = FontWeight.Medium,
                                                 color = if (isFromSwarm) Color(0xFF888888) else Color.White
                                             )

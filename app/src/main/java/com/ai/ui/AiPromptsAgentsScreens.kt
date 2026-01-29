@@ -348,7 +348,7 @@ private fun AgentListItem(
                     color = Color.White
                 )
                 Text(
-                    text = agent.model,
+                    text = agent.model.ifBlank { agent.provider.defaultModel },
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF888888)
                 )

@@ -1,6 +1,8 @@
 package com.ai.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
 import com.ai.data.ChatHistoryManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -579,7 +582,8 @@ fun ChatSessionScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
+            .padding(horizontal = 16.dp)
+            .padding(top = 16.dp, bottom = 8.dp)
     ) {
         AiTitleBar(
             title = "Chat - Session",
@@ -597,7 +601,106 @@ fun ChatSessionScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Input area at the top
+        // Chat messages area
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            if (messages.isEmpty() || (messages.size == 1 && messages[0].role == "system")) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Start a conversation...",
+                        color = Color(0xFF666666)
+                    )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Show streaming message at top (newest first layout)
+                    if (isStreaming && streamingContent.isNotEmpty()) {
+                        item {
+                            StreamingMessageBubble(content = streamingContent)
+                        }
+                    }
+
+                    // Show loading indicator while waiting for first chunk
+                    if (isStreaming && streamingContent.isEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = Color(0xFF6B9BFF),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Thinking...",
+                                    color = Color(0xFF888888),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Non-streaming loading indicator (fallback mode)
+                    if (isLoading) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.Start
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = Color(0xFF6B9BFF),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Thinking...",
+                                    color = Color(0xFF888888),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+
+                    items(messages.filter { it.role != "system" }.reversed()) { message ->
+                        ChatMessageBubble(message = message, userName = userName)
+                    }
+                }
+            }
+        }
+
+        // Error message
+        error?.let {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = it,
+                color = Color(0xFFFF6B6B),
+                fontSize = 12.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Input area at the bottom - full width
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Bottom
@@ -696,185 +799,114 @@ fun ChatSessionScreen(
                 Text("Send")
             }
         }
-
-        // Error message
-        error?.let {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = it,
-                color = Color(0xFFFF6B6B),
-                fontSize = 12.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Chat messages
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            if (messages.isEmpty() || (messages.size == 1 && messages[0].role == "system")) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Start a conversation...",
-                        color = Color(0xFF666666)
-                    )
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Show streaming message at top (newest first layout)
-                    if (isStreaming && streamingContent.isNotEmpty()) {
-                        item {
-                            StreamingMessageBubble(content = streamingContent)
-                        }
-                    }
-
-                    // Show loading indicator while waiting for first chunk
-                    if (isStreaming && streamingContent.isEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    color = Color(0xFF6B9BFF),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Thinking...",
-                                    color = Color(0xFF888888),
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
-
-                    // Non-streaming loading indicator (fallback mode)
-                    if (isLoading) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    color = Color(0xFF6B9BFF),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Thinking...",
-                                    color = Color(0xFF888888),
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
-
-                    items(messages.filter { it.role != "system" }.reversed()) { message ->
-                        ChatMessageBubble(message = message, userName = userName)
-                    }
-                }
-            }
-        }
     }
 }
 
 /**
- * A streaming message bubble that shows content as it arrives.
+ * A streaming message bubble that shows content as it arrives with animated lines.
  */
 @Composable
 private fun StreamingMessageBubble(content: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.widthIn(max = 300.dp)
+        Column(
+            modifier = Modifier.padding(12.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Assistant",
-                        color = Color(0xFF6B9BFF),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // Typing indicator
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(10.dp),
-                        color = Color(0xFF6B9BFF),
-                        strokeWidth = 1.dp
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = content,
-                    color = Color.White,
-                    fontSize = 14.sp
+                    text = "Assistant",
+                    color = Color(0xFF6B9BFF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                // Typing indicator
+                CircularProgressIndicator(
+                    modifier = Modifier.size(10.dp),
+                    color = Color(0xFF6B9BFF),
+                    strokeWidth = 1.dp
                 )
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            // Animated lines display
+            AnimatedTextLines(content = content)
         }
     }
 }
 
 /**
- * A single chat message bubble.
+ * Displays text content with animated line-by-line appearance.
+ * Each line animates in with a 500ms delay.
+ */
+@Composable
+private fun AnimatedTextLines(content: String) {
+    val lines = content.split("\n")
+    var visibleLineCount by remember { mutableIntStateOf(0) }
+
+    // Animate new lines appearing
+    LaunchedEffect(lines.size) {
+        while (visibleLineCount < lines.size) {
+            delay(500) // 0.5 second per line
+            visibleLineCount = minOf(visibleLineCount + 1, lines.size)
+        }
+    }
+
+    // Reset when content changes significantly (new message)
+    LaunchedEffect(content.take(50)) {
+        if (lines.size < visibleLineCount) {
+            visibleLineCount = lines.size
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        lines.forEachIndexed { index, line ->
+            val alpha by animateFloatAsState(
+                targetValue = if (index < visibleLineCount) 1f else 0f,
+                animationSpec = tween(durationMillis = 300),
+                label = "lineAlpha"
+            )
+            Text(
+                text = line,
+                color = Color.White.copy(alpha = alpha),
+                fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+/**
+ * A single chat message bubble - full width.
  */
 @Composable
 private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
     val isUser = message.role == "user"
     val backgroundColor = if (isUser) Color(0xFF8B5CF6) else Color(0xFF2A2A2A)
-    val alignment = if (isUser) Arrangement.End else Arrangement.Start
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = alignment
+    Card(
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = backgroundColor),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.widthIn(max = 300.dp)
+        Column(
+            modifier = Modifier.padding(12.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp)
-            ) {
-                Text(
-                    text = if (isUser) userName else "Assistant",
-                    color = if (isUser) Color.White.copy(alpha = 0.7f) else Color(0xFF6B9BFF),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = message.content,
-                    color = Color.White,
-                    fontSize = 14.sp
-                )
-            }
+            Text(
+                text = if (isUser) userName else "Assistant",
+                color = if (isUser) Color.White.copy(alpha = 0.7f) else Color(0xFF6B9BFF),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = message.content,
+                color = Color.White,
+                fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -1289,7 +1321,7 @@ fun ChatAgentSelectScreen(
                                         fontSize = 13.sp
                                     )
                                     Text(
-                                        text = " • ${agent.model}",
+                                        text = " • ${agent.model.ifBlank { agent.provider.defaultModel }}",
                                         color = Color(0xFF888888),
                                         fontSize = 13.sp
                                     )
