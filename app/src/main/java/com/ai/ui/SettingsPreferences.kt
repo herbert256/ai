@@ -155,6 +155,13 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             zaiAdminUrl = prefs.getString(KEY_AI_ZAI_ADMIN_URL, AiService.ZAI.adminUrl) ?: AiService.ZAI.adminUrl,
             zaiModelListUrl = prefs.getString(KEY_AI_ZAI_MODEL_LIST_URL, "") ?: "",
             zaiParamsId = prefs.getString(KEY_AI_ZAI_PARAMS_ID, null),
+            moonshotApiKey = prefs.getString(KEY_AI_MOONSHOT_API_KEY, "") ?: "",
+            moonshotModel = prefs.getString(KEY_AI_MOONSHOT_MODEL, AiService.MOONSHOT.defaultModel) ?: AiService.MOONSHOT.defaultModel,
+            moonshotModelSource = loadModelSource(KEY_AI_MOONSHOT_MODEL_SOURCE, ModelSource.API),
+            moonshotManualModels = loadManualModelsWithDefault(KEY_AI_MOONSHOT_MANUAL_MODELS, MOONSHOT_MODELS),
+            moonshotAdminUrl = prefs.getString(KEY_AI_MOONSHOT_ADMIN_URL, AiService.MOONSHOT.adminUrl) ?: AiService.MOONSHOT.adminUrl,
+            moonshotModelListUrl = prefs.getString(KEY_AI_MOONSHOT_MODEL_LIST_URL, "") ?: "",
+            moonshotParamsId = prefs.getString(KEY_AI_MOONSHOT_PARAMS_ID, null),
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
             dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, AiService.DUMMY.defaultModel) ?: AiService.DUMMY.defaultModel,
             dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
@@ -282,6 +289,13 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_ZAI_ADMIN_URL, settings.zaiAdminUrl)
             .putString(KEY_AI_ZAI_MODEL_LIST_URL, settings.zaiModelListUrl)
             .putString(KEY_AI_ZAI_PARAMS_ID, settings.zaiParamsId)
+            .putString(KEY_AI_MOONSHOT_API_KEY, settings.moonshotApiKey)
+            .putString(KEY_AI_MOONSHOT_MODEL, settings.moonshotModel)
+            .putString(KEY_AI_MOONSHOT_MODEL_SOURCE, settings.moonshotModelSource.name)
+            .putString(KEY_AI_MOONSHOT_MANUAL_MODELS, gson.toJson(settings.moonshotManualModels))
+            .putString(KEY_AI_MOONSHOT_ADMIN_URL, settings.moonshotAdminUrl)
+            .putString(KEY_AI_MOONSHOT_MODEL_LIST_URL, settings.moonshotModelListUrl)
+            .putString(KEY_AI_MOONSHOT_PARAMS_ID, settings.moonshotParamsId)
             .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
             .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
             .putString(KEY_AI_DUMMY_MODEL_SOURCE, settings.dummyModelSource.name)
@@ -499,6 +513,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_SILICONFLOW_MODEL = "ai_siliconflow_model"
         private const val KEY_AI_ZAI_API_KEY = "ai_zai_api_key"
         private const val KEY_AI_ZAI_MODEL = "ai_zai_model"
+        private const val KEY_AI_MOONSHOT_API_KEY = "ai_moonshot_api_key"
+        private const val KEY_AI_MOONSHOT_MODEL = "ai_moonshot_model"
         private const val KEY_AI_DUMMY_API_KEY = "ai_dummy_api_key"
         private const val KEY_AI_DUMMY_MODEL = "ai_dummy_model"
         private const val KEY_AI_DUMMY_MANUAL_MODELS = "ai_dummy_manual_models"
@@ -516,6 +532,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_OPENROUTER_MODEL_SOURCE = "ai_openrouter_model_source"
         private const val KEY_AI_SILICONFLOW_MODEL_SOURCE = "ai_siliconflow_model_source"
         private const val KEY_AI_ZAI_MODEL_SOURCE = "ai_zai_model_source"
+        private const val KEY_AI_MOONSHOT_MODEL_SOURCE = "ai_moonshot_model_source"
         private const val KEY_AI_DUMMY_MODEL_SOURCE = "ai_dummy_model_source"
 
         // AI manual models lists
@@ -531,6 +548,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_OPENROUTER_MANUAL_MODELS = "ai_openrouter_manual_models"
         private const val KEY_AI_SILICONFLOW_MANUAL_MODELS = "ai_siliconflow_manual_models"
         private const val KEY_AI_ZAI_MANUAL_MODELS = "ai_zai_manual_models"
+        private const val KEY_AI_MOONSHOT_MANUAL_MODELS = "ai_moonshot_manual_models"
 
         // AI admin URLs
         private const val KEY_AI_OPENAI_ADMIN_URL = "ai_openai_admin_url"
@@ -545,6 +563,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_OPENROUTER_ADMIN_URL = "ai_openrouter_admin_url"
         private const val KEY_AI_SILICONFLOW_ADMIN_URL = "ai_siliconflow_admin_url"
         private const val KEY_AI_ZAI_ADMIN_URL = "ai_zai_admin_url"
+        private const val KEY_AI_MOONSHOT_ADMIN_URL = "ai_moonshot_admin_url"
         private const val KEY_AI_DUMMY_ADMIN_URL = "ai_dummy_admin_url"
 
         // AI model list URLs
@@ -560,6 +579,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_OPENROUTER_MODEL_LIST_URL = "ai_openrouter_model_list_url"
         private const val KEY_AI_SILICONFLOW_MODEL_LIST_URL = "ai_siliconflow_model_list_url"
         private const val KEY_AI_ZAI_MODEL_LIST_URL = "ai_zai_model_list_url"
+        private const val KEY_AI_MOONSHOT_MODEL_LIST_URL = "ai_moonshot_model_list_url"
         private const val KEY_AI_DUMMY_MODEL_LIST_URL = "ai_dummy_model_list_url"
 
         // AI params ID per provider
@@ -575,6 +595,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_OPENROUTER_PARAMS_ID = "ai_openrouter_params_id"
         private const val KEY_AI_SILICONFLOW_PARAMS_ID = "ai_siliconflow_params_id"
         private const val KEY_AI_ZAI_PARAMS_ID = "ai_zai_params_id"
+        private const val KEY_AI_MOONSHOT_PARAMS_ID = "ai_moonshot_params_id"
         private const val KEY_AI_DUMMY_PARAMS_ID = "ai_dummy_params_id"
 
         // AI agents
@@ -625,6 +646,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_API_MODELS_CLAUDE = "api_models_claude"
         private const val KEY_API_MODELS_SILICONFLOW = "api_models_siliconflow"
         private const val KEY_API_MODELS_ZAI = "api_models_zai"
+        private const val KEY_API_MODELS_MOONSHOT = "api_models_moonshot"
 
         // Model lists cache timestamps (24-hour cache per provider)
         private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"
@@ -770,6 +792,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun loadZaiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_ZAI)
     fun saveZaiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_ZAI, models)
+
+    fun loadMoonshotApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MOONSHOT)
+    fun saveMoonshotApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MOONSHOT, models)
 
     // ============================================================================
     // Model Lists Cache (24-hour validity per provider)

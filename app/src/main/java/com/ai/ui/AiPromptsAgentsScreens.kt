@@ -37,6 +37,7 @@ fun AiAgentsScreen(
     availableOpenRouterModels: List<String>,
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
+    availableMoonshotModels: List<String>,
     availableDummyModels: List<String>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
@@ -54,6 +55,7 @@ fun AiAgentsScreen(
     onFetchOpenRouterModels: (String) -> Unit = {},
     onFetchSiliconFlowModels: (String) -> Unit = {},
     onFetchZaiModels: (String) -> Unit = {},
+    onFetchMoonshotModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit = {}
 ) {
     var showAddScreen by remember { mutableStateOf(false) }
@@ -77,6 +79,7 @@ fun AiAgentsScreen(
             AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
             AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
             AiService.ZAI -> onFetchZaiModels(apiKey)
+            AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }
@@ -109,6 +112,7 @@ fun AiAgentsScreen(
             availableOpenRouterModels = availableOpenRouterModels,
             availableSiliconFlowModels = availableSiliconFlowModels,
             availableZaiModels = availableZaiModels,
+            availableMoonshotModels = availableMoonshotModels,
             availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
@@ -399,6 +403,7 @@ internal fun AgentEditScreen(
     availableOpenRouterModels: List<String>,
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
+    availableMoonshotModels: List<String>,
     availableDummyModels: List<String>,
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
@@ -534,6 +539,11 @@ internal fun AgentEditScreen(
             val manualModels = if (aiSettings.zaiModelSource == ModelSource.MANUAL) aiSettings.zaiManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { ZAI_MODELS }
         }
+        AiService.MOONSHOT -> {
+            val apiModels = if (aiSettings.moonshotModelSource == ModelSource.API) availableMoonshotModels else emptyList()
+            val manualModels = if (aiSettings.moonshotModelSource == ModelSource.MANUAL) aiSettings.moonshotManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { MOONSHOT_MODELS }
+        }
         AiService.DUMMY -> {
             val apiModels = if (aiSettings.dummyModelSource == ModelSource.API) availableDummyModels else emptyList()
             val manualModels = if (aiSettings.dummyModelSource == ModelSource.MANUAL) aiSettings.dummyManualModels else emptyList()
@@ -557,6 +567,7 @@ internal fun AgentEditScreen(
             AiService.ANTHROPIC -> ModelSource.MANUAL // Claude has hardcoded models
             AiService.SILICONFLOW -> ModelSource.MANUAL // SiliconFlow has hardcoded models
             AiService.ZAI -> ModelSource.MANUAL // Z.AI has hardcoded models
+            AiService.MOONSHOT -> aiSettings.moonshotModelSource
         }
     }
 

@@ -64,6 +64,7 @@ fun ChatSelectProviderScreen(
             AiService.OPENROUTER -> aiSettings.openRouterApiKey.isNotBlank()
             AiService.SILICONFLOW -> aiSettings.siliconFlowApiKey.isNotBlank()
             AiService.ZAI -> aiSettings.zaiApiKey.isNotBlank()
+            AiService.MOONSHOT -> aiSettings.moonshotApiKey.isNotBlank()
             AiService.DUMMY -> developerMode && aiSettings.dummyApiKey.isNotBlank()
         }
         hasApiKey
@@ -161,6 +162,7 @@ fun ChatSelectModelScreen(
             AiService.OPENROUTER -> Quadruple(aiSettings.openRouterApiKey, aiSettings.openRouterModelSource, aiSettings.openRouterManualModels, aiSettings.openRouterModel)
             AiService.SILICONFLOW -> Quadruple(aiSettings.siliconFlowApiKey, ModelSource.MANUAL, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowModel)
             AiService.ZAI -> Quadruple(aiSettings.zaiApiKey, ModelSource.MANUAL, aiSettings.zaiManualModels, aiSettings.zaiModel)
+            AiService.MOONSHOT -> Quadruple(aiSettings.moonshotApiKey, aiSettings.moonshotModelSource, aiSettings.moonshotManualModels, aiSettings.moonshotModel)
             AiService.DUMMY -> Quadruple(aiSettings.dummyApiKey, aiSettings.dummyModelSource, aiSettings.dummyManualModels, aiSettings.dummyModel)
         }
     }

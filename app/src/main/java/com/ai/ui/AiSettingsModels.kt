@@ -94,6 +94,16 @@ val SILICONFLOW_MODELS = listOf(
 )
 
 /**
+ * Available Moonshot models (hardcoded - Kimi models).
+ */
+val MOONSHOT_MODELS = listOf(
+    "kimi-latest",
+    "moonshot-v1-8k",
+    "moonshot-v1-32k",
+    "moonshot-v1-128k"
+)
+
+/**
  * Available Z.AI models (hardcoded - uses ZhipuAI GLM models).
  */
 val ZAI_MODELS = listOf(
@@ -317,6 +327,13 @@ data class AiSettings(
     val zaiAdminUrl: String = AiService.ZAI.adminUrl,
     val zaiModelListUrl: String = "",
     val zaiParamsId: String? = null,
+    val moonshotApiKey: String = "",
+    val moonshotModel: String = AiService.MOONSHOT.defaultModel,
+    val moonshotModelSource: ModelSource = ModelSource.API,
+    val moonshotManualModels: List<String> = MOONSHOT_MODELS,
+    val moonshotAdminUrl: String = AiService.MOONSHOT.adminUrl,
+    val moonshotModelListUrl: String = "",
+    val moonshotParamsId: String? = null,
     val dummyApiKey: String = "",
     val dummyModel: String = AiService.DUMMY.defaultModel,
     val dummyModelSource: ModelSource = ModelSource.API,
@@ -351,6 +368,7 @@ data class AiSettings(
             AiService.OPENROUTER -> openRouterApiKey
             AiService.SILICONFLOW -> siliconFlowApiKey
             AiService.ZAI -> zaiApiKey
+            AiService.MOONSHOT -> moonshotApiKey
             AiService.DUMMY -> dummyApiKey
         }
     }
@@ -369,6 +387,7 @@ data class AiSettings(
             AiService.OPENROUTER -> openRouterModel
             AiService.SILICONFLOW -> siliconFlowModel
             AiService.ZAI -> zaiModel
+            AiService.MOONSHOT -> moonshotModel
             AiService.DUMMY -> dummyModel
         }
     }
@@ -387,6 +406,7 @@ data class AiSettings(
             AiService.OPENROUTER -> copy(openRouterModel = model)
             AiService.SILICONFLOW -> copy(siliconFlowModel = model)
             AiService.ZAI -> copy(zaiModel = model)
+            AiService.MOONSHOT -> copy(moonshotModel = model)
             AiService.DUMMY -> copy(dummyModel = model)
         }
     }
@@ -405,6 +425,7 @@ data class AiSettings(
             AiService.OPENROUTER -> openRouterModelSource
             AiService.SILICONFLOW -> siliconFlowModelSource
             AiService.ZAI -> zaiModelSource
+            AiService.MOONSHOT -> moonshotModelSource
             AiService.DUMMY -> dummyModelSource
         }
     }
@@ -423,6 +444,7 @@ data class AiSettings(
             AiService.OPENROUTER -> openRouterManualModels
             AiService.SILICONFLOW -> siliconFlowManualModels
             AiService.ZAI -> zaiManualModels
+            AiService.MOONSHOT -> moonshotManualModels
             AiService.DUMMY -> dummyManualModels
         }
     }
@@ -438,7 +460,8 @@ data class AiSettings(
                 togetherApiKey.isNotBlank() ||
                 openRouterApiKey.isNotBlank() ||
                 siliconFlowApiKey.isNotBlank() ||
-                zaiApiKey.isNotBlank()
+                zaiApiKey.isNotBlank() ||
+                moonshotApiKey.isNotBlank()
     }
 
     fun getConfiguredServices(): List<AiService> {
@@ -549,6 +572,9 @@ data class AiSettings(
         AiService.GOOGLE -> listOf(
             AiEndpoint("google-generate", "Generate Content", "https://generativelanguage.googleapis.com/v1beta/models", true)
         )
+        AiService.MOONSHOT -> listOf(
+            AiEndpoint("moonshot-chat", "Chat Completions", "https://api.moonshot.cn/v1/chat/completions", true)
+        )
         AiService.DUMMY -> listOf(
             AiEndpoint("dummy-chat", "Chat Completions", "http://localhost:54321/v1/chat/completions", true)
         )
@@ -608,6 +634,7 @@ data class AiSettings(
             AiService.OPENROUTER -> openRouterModelListUrl
             AiService.SILICONFLOW -> siliconFlowModelListUrl
             AiService.ZAI -> zaiModelListUrl
+            AiService.MOONSHOT -> moonshotModelListUrl
             AiService.DUMMY -> dummyModelListUrl
         }
     }
@@ -629,6 +656,7 @@ data class AiSettings(
             AiService.OPENROUTER -> "https://openrouter.ai/api/v1/models"
             AiService.SILICONFLOW -> "https://api.siliconflow.cn/v1/models"
             AiService.ZAI -> "https://api.z.ai/api/paas/v4/models"
+            AiService.MOONSHOT -> "https://api.moonshot.cn/v1/models"
             AiService.DUMMY -> "http://localhost:54321/v1/models"
         }
     }
@@ -659,6 +687,7 @@ data class AiSettings(
             AiService.OPENROUTER -> openRouterParamsId
             AiService.SILICONFLOW -> siliconFlowParamsId
             AiService.ZAI -> zaiParamsId
+            AiService.MOONSHOT -> moonshotParamsId
             AiService.DUMMY -> dummyParamsId
         }
     }
@@ -680,6 +709,7 @@ data class AiSettings(
             AiService.OPENROUTER -> copy(openRouterParamsId = paramsId)
             AiService.SILICONFLOW -> copy(siliconFlowParamsId = paramsId)
             AiService.ZAI -> copy(zaiParamsId = paramsId)
+            AiService.MOONSHOT -> copy(moonshotParamsId = paramsId)
             AiService.DUMMY -> copy(dummyParamsId = paramsId)
         }
     }

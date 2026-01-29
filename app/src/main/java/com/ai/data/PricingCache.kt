@@ -454,7 +454,12 @@ object PricingCache {
         "glm-4-flash" to ModelPricing("glm-4-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
         "glm-4-long" to ModelPricing("glm-4-long", 0.14e-6, 0.14e-6, "FALLBACK"),
         "glm-4.5-flash" to ModelPricing("glm-4.5-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
-        "glm-4.7-flash" to ModelPricing("glm-4.7-flash", 0.007e-6, 0.007e-6, "FALLBACK")
+        "glm-4.7-flash" to ModelPricing("glm-4.7-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
+        // Moonshot / Kimi
+        "kimi-latest" to ModelPricing("kimi-latest", 0.55e-6, 2.19e-6, "FALLBACK"),
+        "moonshot-v1-8k" to ModelPricing("moonshot-v1-8k", 0.55e-6, 2.19e-6, "FALLBACK"),
+        "moonshot-v1-32k" to ModelPricing("moonshot-v1-32k", 1.1e-6, 4.38e-6, "FALLBACK"),
+        "moonshot-v1-128k" to ModelPricing("moonshot-v1-128k", 4.38e-6, 8.76e-6, "FALLBACK")
     )
 
     // ============================================================================

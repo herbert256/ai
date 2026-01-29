@@ -34,6 +34,7 @@ enum class SettingsSubScreen {
     AI_OPENROUTER,
     AI_SILICONFLOW,
     AI_ZAI,
+    AI_MOONSHOT,
     AI_DUMMY,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
@@ -87,6 +88,8 @@ fun SettingsScreen(
     isLoadingSiliconFlowModels: Boolean = false,
     availableZaiModels: List<String> = emptyList(),
     isLoadingZaiModels: Boolean = false,
+    availableMoonshotModels: List<String> = emptyList(),
+    isLoadingMoonshotModels: Boolean = false,
     availableDummyModels: List<String>,
     isLoadingDummyModels: Boolean,
     onBack: () -> Unit,
@@ -106,6 +109,7 @@ fun SettingsScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchSiliconFlowModels: (String) -> Unit = {},
     onFetchZaiModels: (String) -> Unit = {},
+    onFetchMoonshotModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
@@ -168,6 +172,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_OPENROUTER,
             SettingsSubScreen.AI_SILICONFLOW,
             SettingsSubScreen.AI_ZAI,
+            SettingsSubScreen.AI_MOONSHOT,
             SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
             SettingsSubScreen.AI_PROVIDERS,
@@ -359,6 +364,17 @@ fun SettingsScreen(
             onTestApiKey = onTestAiModel,
             onCreateAgent = { navigateToAddAgent(AiService.ZAI, aiSettings.zaiApiKey, aiSettings.zaiModel) }
         )
+        SettingsSubScreen.AI_MOONSHOT -> MoonshotSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableMoonshotModels,
+            isLoadingModels = isLoadingMoonshotModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchMoonshotModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.MOONSHOT, aiSettings.moonshotApiKey, aiSettings.moonshotModel) }
+        )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,
             availableModels = availableDummyModels,
@@ -426,6 +442,7 @@ fun SettingsScreen(
             availableOpenRouterModels = availableOpenRouterModels,
             availableSiliconFlowModels = availableSiliconFlowModels,
             availableZaiModels = availableZaiModels,
+            availableMoonshotModels = availableMoonshotModels,
             availableDummyModels = availableDummyModels,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
@@ -443,6 +460,7 @@ fun SettingsScreen(
             onFetchOpenRouterModels = onFetchOpenRouterModels,
             onFetchSiliconFlowModels = onFetchSiliconFlowModels,
             onFetchZaiModels = onFetchZaiModels,
+            onFetchMoonshotModels = onFetchMoonshotModels,
             onFetchDummyModels = onFetchDummyModels
         )
         SettingsSubScreen.AI_ADD_AGENT -> {
@@ -461,6 +479,7 @@ fun SettingsScreen(
                     com.ai.data.AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
                     com.ai.data.AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
                     com.ai.data.AiService.ZAI -> onFetchZaiModels(apiKey)
+                    com.ai.data.AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
                     com.ai.data.AiService.DUMMY -> onFetchDummyModels(apiKey)
                 }
             }
@@ -486,6 +505,7 @@ fun SettingsScreen(
                 availableOpenRouterModels = availableOpenRouterModels,
                 availableSiliconFlowModels = availableSiliconFlowModels,
                 availableZaiModels = availableZaiModels,
+                availableMoonshotModels = availableMoonshotModels,
                 availableDummyModels = availableDummyModels,
                 existingNames = aiSettings.agents.map { it.name }.toSet(),
                 onTestAiModel = onTestAiModel,
@@ -589,6 +609,7 @@ fun SettingsScreen(
                 AiService.OPENROUTER to availableOpenRouterModels,
                 AiService.SILICONFLOW to availableSiliconFlowModels,
                 AiService.ZAI to availableZaiModels,
+                AiService.MOONSHOT to availableMoonshotModels,
                 AiService.DUMMY to availableDummyModels
             ),
             onSave = { newSwarm ->
@@ -619,6 +640,7 @@ fun SettingsScreen(
                     AiService.OPENROUTER to availableOpenRouterModels,
                     AiService.SILICONFLOW to availableSiliconFlowModels,
                     AiService.ZAI to availableZaiModels,
+                    AiService.MOONSHOT to availableMoonshotModels,
                     AiService.DUMMY to availableDummyModels
                 ),
                 onSave = { updatedSwarm ->

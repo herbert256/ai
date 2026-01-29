@@ -841,6 +841,7 @@ fun CostConfigurationScreen(
             }
             com.ai.data.AiService.SILICONFLOW -> SILICONFLOW_MODELS
             com.ai.data.AiService.ZAI -> ZAI_MODELS
+            com.ai.data.AiService.MOONSHOT -> MOONSHOT_MODELS
             com.ai.data.AiService.DUMMY -> listOf("dummy-model")
         }
     }

@@ -1348,6 +1348,118 @@ fun ZaiSettingsScreen(
 }
 
 /**
+ * Moonshot settings screen (Kimi models).
+ */
+@Composable
+fun MoonshotSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.moonshotApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.moonshotModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.moonshotModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.moonshotManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.moonshotAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.moonshotModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.moonshotParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.moonshotParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultMoonshotEndpoints = listOf(
+        AiEndpoint(
+            id = "moonshot-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.moonshot.cn/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.MOONSHOT).ifEmpty { defaultMoonshotEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.moonshotApiKey ||
+            defaultModel != aiSettings.moonshotModel ||
+            modelSource != aiSettings.moonshotModelSource ||
+            manualModels != aiSettings.moonshotManualModels ||
+            adminUrl != aiSettings.moonshotAdminUrl ||
+            modelListUrl != aiSettings.moonshotModelListUrl ||
+            selectedParamsId != aiSettings.moonshotParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.MOONSHOT)
+
+    AiServiceSettingsScreenTemplate(
+        title = "Moonshot",
+        accentColor = Color(0xFF7C3AED),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                moonshotApiKey = apiKey,
+                moonshotModel = defaultModel,
+                moonshotModelSource = modelSource,
+                moonshotManualModels = manualModels,
+                moonshotAdminUrl = adminUrl,
+                moonshotModelListUrl = modelListUrl,
+                moonshotParamsId = selectedParamsId
+            ).withEndpoints(AiService.MOONSHOT, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.MOONSHOT, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.MOONSHOT, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.MOONSHOT.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.MOONSHOT),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
  * Dummy settings screen (for testing with local HTTP server).
  */
 @Composable

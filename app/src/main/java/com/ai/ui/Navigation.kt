@@ -64,12 +64,14 @@ object NavRoutes {
         return "ai_chat_params/$provider/$encodedModel"
     }
     fun aiChatSession(provider: String, model: String): String {
-        val encodedModel = java.net.URLEncoder.encode(model, "UTF-8")
+        // Use %20 for spaces instead of + (URLEncoder uses + which Navigation doesn't decode)
+        val encodedModel = java.net.URLEncoder.encode(model, "UTF-8").replace("+", "%20")
         return "ai_chat_session/$provider/$encodedModel"
     }
     fun aiNewReportWithParams(title: String, prompt: String): String {
-        val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
-        val encodedPrompt = java.net.URLEncoder.encode(prompt, "UTF-8")
+        // Use %20 for spaces instead of + (URLEncoder uses + which Navigation doesn't decode)
+        val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8").replace("+", "%20")
+        val encodedPrompt = java.net.URLEncoder.encode(prompt, "UTF-8").replace("+", "%20")
         return "ai_new_report/$encodedTitle/$encodedPrompt"
     }
 }
@@ -320,6 +322,7 @@ fun AiNavHost(
                 availableClaudeModels = uiState.availableClaudeModels,
                 availableSiliconFlowModels = uiState.availableSiliconFlowModels,
                 availableZaiModels = uiState.availableZaiModels,
+                availableMoonshotModels = uiState.availableMoonshotModels,
                 isLoadingChatGptModels = uiState.isLoadingChatGptModels,
                 isLoadingGeminiModels = uiState.isLoadingGeminiModels,
                 isLoadingGrokModels = uiState.isLoadingGrokModels,
@@ -332,6 +335,7 @@ fun AiNavHost(
                 isLoadingClaudeModels = uiState.isLoadingClaudeModels,
                 isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
                 isLoadingZaiModels = uiState.isLoadingZaiModels,
+                isLoadingMoonshotModels = uiState.isLoadingMoonshotModels,
                 onBackToAiSetup = { navController.popBackStack() },
                 onBackToHome = navigateHome,
                 onSaveAiSettings = { viewModel.updateAiSettings(it) },
@@ -349,6 +353,7 @@ fun AiNavHost(
                 onFetchClaudeModels = { viewModel.fetchClaudeModels(it) },
                 onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
                 onFetchZaiModels = { viewModel.fetchZaiModels(it) },
+                onFetchMoonshotModels = { viewModel.fetchMoonshotModels(it) },
                 onNavigateToChatParams = { provider, model ->
                     navController.navigate(NavRoutes.aiChatParams(provider.name, model))
                 },
@@ -530,6 +535,7 @@ fun AiNavHost(
                     com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
                     com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
                     com.ai.data.AiService.ZAI -> uiState.availableZaiModels
+                    com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
                     com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                     else -> emptyList()
                 }
@@ -545,6 +551,7 @@ fun AiNavHost(
                     com.ai.data.AiService.OPENROUTER -> uiState.isLoadingOpenRouterModels
                     com.ai.data.AiService.SILICONFLOW -> uiState.isLoadingSiliconFlowModels
                     com.ai.data.AiService.ZAI -> uiState.isLoadingZaiModels
+                    com.ai.data.AiService.MOONSHOT -> uiState.isLoadingMoonshotModels
                     com.ai.data.AiService.DUMMY -> uiState.isLoadingDummyModels
                     else -> false
                 }
@@ -605,6 +612,7 @@ fun AiNavHost(
                     com.ai.data.AiService.OPENROUTER -> uiState.aiSettings.openRouterApiKey
                     com.ai.data.AiService.SILICONFLOW -> uiState.aiSettings.siliconFlowApiKey
                     com.ai.data.AiService.ZAI -> uiState.aiSettings.zaiApiKey
+                    com.ai.data.AiService.MOONSHOT -> uiState.aiSettings.moonshotApiKey
                     com.ai.data.AiService.DUMMY -> uiState.aiSettings.dummyApiKey
                 }
 
@@ -721,6 +729,8 @@ fun SettingsScreenNav(
         isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
         availableZaiModels = uiState.availableZaiModels,
         isLoadingZaiModels = uiState.isLoadingZaiModels,
+        availableMoonshotModels = uiState.availableMoonshotModels,
+        isLoadingMoonshotModels = uiState.isLoadingMoonshotModels,
         availableDummyModels = uiState.availableDummyModels,
         isLoadingDummyModels = uiState.isLoadingDummyModels,
         onBack = onNavigateBack,
@@ -740,6 +750,7 @@ fun SettingsScreenNav(
         onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
         onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
         onFetchZaiModels = { viewModel.fetchZaiModels(it) },
+        onFetchMoonshotModels = { viewModel.fetchMoonshotModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onRefreshAllModels = { viewModel.refreshAllModelLists(it) },
@@ -817,6 +828,7 @@ fun HousekeepingScreenNav(
         availableOpenRouterModels = uiState.availableOpenRouterModels,
         availableSiliconFlowModels = uiState.availableSiliconFlowModels,
         availableZaiModels = uiState.availableZaiModels,
+        availableMoonshotModels = uiState.availableMoonshotModels,
         availableDummyModels = uiState.availableDummyModels,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },

@@ -550,6 +550,13 @@ fun AiProvidersScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
+            title = "Moonshot",
+            accentColor = Color(0xFF7C3AED),
+            hasApiKey = aiSettings.moonshotApiKey.isNotBlank(),
+            adminUrl = AiService.MOONSHOT.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_MOONSHOT) }
+        )
+        AiServiceNavigationCard(
             title = "Z.AI",
             accentColor = Color(0xFF6366F1),
             hasApiKey = aiSettings.zaiApiKey.isNotBlank(),
@@ -588,6 +595,7 @@ fun ModelSearchScreen(
     availableOpenRouterModels: List<String>,
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
+    availableMoonshotModels: List<String>,
     availableDummyModels: List<String>,
     isLoadingChatGptModels: Boolean = false,
     isLoadingClaudeModels: Boolean = false,
@@ -600,6 +608,7 @@ fun ModelSearchScreen(
     isLoadingOpenRouterModels: Boolean = false,
     isLoadingSiliconFlowModels: Boolean = false,
     isLoadingZaiModels: Boolean = false,
+    isLoadingMoonshotModels: Boolean = false,
     isLoadingDummyModels: Boolean = false,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
@@ -617,6 +626,7 @@ fun ModelSearchScreen(
     onFetchOpenRouterModels: (String) -> Unit,
     onFetchSiliconFlowModels: (String) -> Unit,
     onFetchZaiModels: (String) -> Unit,
+    onFetchMoonshotModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onNavigateToChatParams: (AiService, String) -> Unit,
     onNavigateToModelInfo: (AiService, String) -> Unit
@@ -625,7 +635,7 @@ fun ModelSearchScreen(
     val isLoading = isLoadingChatGptModels || isLoadingClaudeModels || isLoadingGeminiModels || isLoadingGrokModels ||
             isLoadingGroqModels || isLoadingDeepSeekModels || isLoadingMistralModels ||
             isLoadingTogetherModels || isLoadingOpenRouterModels || isLoadingSiliconFlowModels ||
-            isLoadingZaiModels || isLoadingDummyModels
+            isLoadingZaiModels || isLoadingMoonshotModels || isLoadingDummyModels
     var searchQuery by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf<ModelSearchItem?>(null) }
 
@@ -644,6 +654,7 @@ fun ModelSearchScreen(
             AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
             AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
             AiService.ZAI -> onFetchZaiModels(apiKey)
+            AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }
@@ -769,6 +780,7 @@ fun ModelSearchScreen(
             availableOpenRouterModels = availableOpenRouterModels,
             availableSiliconFlowModels = availableSiliconFlowModels,
             availableZaiModels = availableZaiModels,
+            availableMoonshotModels = availableMoonshotModels,
             availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
@@ -794,7 +806,7 @@ fun ModelSearchScreen(
         availableChatGptModels, availableClaudeModels, availableGeminiModels, availableGrokModels,
         availableGroqModels, availableDeepSeekModels, availableMistralModels,
         availablePerplexityModels, availableTogetherModels, availableOpenRouterModels,
-        availableSiliconFlowModels, availableZaiModels, availableDummyModels, aiSettings
+        availableSiliconFlowModels, availableZaiModels, availableMoonshotModels, availableDummyModels, aiSettings
     ) {
         buildList {
             // OpenAI models
@@ -824,6 +836,9 @@ fun ModelSearchScreen(
             // Z.AI models (API or fallback to manual)
             val zaiModels = if (availableZaiModels.isNotEmpty()) availableZaiModels else aiSettings.zaiManualModels
             zaiModels.forEach { add(ModelSearchItem(AiService.ZAI, "Z.AI", it, Color(0xFF6366F1))) }
+            // Moonshot models (API or fallback to manual)
+            val moonshotModels = if (availableMoonshotModels.isNotEmpty()) availableMoonshotModels else aiSettings.moonshotManualModels
+            moonshotModels.forEach { add(ModelSearchItem(AiService.MOONSHOT, "Moonshot", it, Color(0xFF7C3AED))) }
             // Dummy models (only in developer mode)
             if (developerMode) {
                 availableDummyModels.forEach { add(ModelSearchItem(AiService.DUMMY, "Dummy", it, Color(0xFF888888))) }
@@ -1569,6 +1584,7 @@ fun HousekeepingScreen(
     availableOpenRouterModels: List<String> = emptyList(),
     availableSiliconFlowModels: List<String> = emptyList(),
     availableZaiModels: List<String> = emptyList(),
+    availableMoonshotModels: List<String> = emptyList(),
     availableDummyModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -2116,6 +2132,7 @@ fun HousekeepingScreen(
                                 availableOpenRouterModels = availableOpenRouterModels,
                                 availableSiliconFlowModels = availableSiliconFlowModels,
                                 availableZaiModels = availableZaiModels,
+                                availableMoonshotModels = availableMoonshotModels,
                                 availableDummyModels = availableDummyModels
                             )
                         },
@@ -2478,6 +2495,7 @@ private fun exportModelCostsToCsv(
     availableOpenRouterModels: List<String>,
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
+    availableMoonshotModels: List<String>,
     availableDummyModels: List<String>
 ) {
     val pricingCache = com.ai.data.PricingCache
@@ -2532,6 +2550,10 @@ private fun exportModelCostsToCsv(
     // Z.AI models (API or fallback to manual)
     val zaiModels = availableZaiModels.ifEmpty { aiSettings.zaiManualModels }
     zaiModels.forEach { allModels.add(ProviderModel("ZAI", it)) }
+
+    // Moonshot models (API or fallback to manual)
+    val moonshotModels = availableMoonshotModels.ifEmpty { aiSettings.moonshotManualModels }
+    moonshotModels.forEach { allModels.add(ProviderModel("MOONSHOT", it)) }
 
     // Dummy models (only in developer mode)
     if (developerMode) {
@@ -2994,6 +3016,7 @@ fun ApiTestScreen(
                                     com.ai.data.AiService.OPENROUTER -> repository.fetchOpenRouterModels(apiKey)
                                     com.ai.data.AiService.SILICONFLOW -> repository.fetchSiliconFlowModels(apiKey)
                                     com.ai.data.AiService.ZAI -> repository.fetchZaiModels(apiKey)
+                                    com.ai.data.AiService.MOONSHOT -> repository.fetchMoonshotModels(apiKey)
                                     com.ai.data.AiService.DUMMY -> repository.fetchDummyModels(apiKey)
                                 }
                                 isLoadingModels = false

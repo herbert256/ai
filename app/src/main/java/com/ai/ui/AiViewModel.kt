@@ -71,6 +71,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val claudeApiModels = settingsPrefs.loadClaudeApiModels()
         val siliconFlowApiModels = settingsPrefs.loadSiliconFlowApiModels()
         val zaiApiModels = settingsPrefs.loadZaiApiModels()
+        val moonshotApiModels = settingsPrefs.loadMoonshotApiModels()
 
         _uiState.value = _uiState.value.copy(
             generalSettings = generalSettings,
@@ -86,7 +87,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             availableDummyModels = dummyApiModels,
             availableClaudeModels = claudeApiModels,
             availableSiliconFlowModels = siliconFlowApiModels,
-            availableZaiModels = zaiApiModels
+            availableZaiModels = zaiApiModels,
+            availableMoonshotModels = moonshotApiModels
         )
 
         // Enable API tracing if configured
@@ -281,11 +283,23 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val allReportAgents = reportAgents + reportModelMembers
+
+            // Split prompt at "-- rapport --" line if present
+            // Only send text above the line to AI, text below goes to HTML export
+            val rapportDelimiter = "-- rapport --"
+            val (aiPrompt, rapportText) = if (prompt.contains(rapportDelimiter)) {
+                val parts = prompt.split(rapportDelimiter, limit = 2)
+                Pair(parts[0].trim(), parts.getOrNull(1)?.trim())
+            } else {
+                Pair(prompt, null)
+            }
+
             val report = AiReportStorage.createReport(
                 context = context,
                 title = title.ifBlank { "AI Report" },
-                prompt = prompt,
-                agents = allReportAgents
+                prompt = aiPrompt,
+                agents = allReportAgents,
+                rapportText = rapportText
             )
             val reportId = report.id
 
@@ -303,7 +317,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         context = context,
                         reportId = reportId,
                         agentId = agent.id,
-                        requestBody = prompt
+                        requestBody = aiPrompt
                     )
 
                     // Use effective API key and model (agent's or provider's)
@@ -316,7 +330,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         aiAnalysisRepository.analyzePositionWithAgent(
                             agent = effectiveAgent,
                             fen = "",  // No FEN for generic prompts
-                            prompt = prompt,
+                            prompt = aiPrompt,
                             overrideParams = overrideParams,
                             context = context  // For looking up supported parameters
                         )
@@ -402,7 +416,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         context = context,
                         reportId = reportId,
                         agentId = syntheticId,
-                        requestBody = prompt
+                        requestBody = aiPrompt
                     )
 
                     // Get provider's API key
@@ -421,7 +435,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         aiAnalysisRepository.analyzePositionWithAgent(
                             agent = tempAgent,
                             fen = "",  // No FEN for generic prompts
-                            prompt = prompt,
+                            prompt = aiPrompt,
                             overrideParams = overrideParams,
                             context = context
                         )
@@ -781,6 +795,23 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun fetchMoonshotModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingMoonshotModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchMoonshotModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableMoonshotModels = models,
+                    isLoadingMoonshotModels = false
+                )
+                // Persist the fetched models
+                settingsPrefs.saveMoonshotApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingMoonshotModels = false)
+            }
+        }
+    }
+
     // ========== Refresh All Model Lists ==========
 
     /**
@@ -967,6 +998,21 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     results["Z.AI"] = models.size
                 } catch (e: Exception) {
                     results["Z.AI"] = -1
+                }
+            }
+        }
+
+        // Moonshot
+        if (settings.moonshotModelSource == ModelSource.API && settings.moonshotApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.MOONSHOT)) {
+                try {
+                    val models = aiAnalysisRepository.fetchMoonshotModels(settings.moonshotApiKey)
+                    _uiState.value = _uiState.value.copy(availableMoonshotModels = models)
+                    settingsPrefs.saveMoonshotApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.MOONSHOT)
+                    results["Moonshot"] = models.size
+                } catch (e: Exception) {
+                    results["Moonshot"] = -1
                 }
             }
         }

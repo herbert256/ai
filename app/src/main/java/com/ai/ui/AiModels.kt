@@ -54,6 +54,8 @@ data class AiUiState(
     val isLoadingSiliconFlowModels: Boolean = false,
     val availableZaiModels: List<String> = emptyList(),
     val isLoadingZaiModels: Boolean = false,
+    val availableMoonshotModels: List<String> = emptyList(),
+    val isLoadingMoonshotModels: Boolean = false,
     // Generic AI Reports (main feature)
     val showGenericAiAgentSelection: Boolean = false,
     val showGenericAiReportsDialog: Boolean = false,

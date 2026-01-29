@@ -116,6 +116,7 @@ class AiAnalysisRepository {
     private val openRouterApi = AiApiFactory.createOpenRouterApi()
     private val siliconFlowApi = AiApiFactory.createSiliconFlowApi()
     private val zaiApi = AiApiFactory.createZaiApi()
+    private val moonshotApi = AiApiFactory.createMoonshotApi()
     private val dummyApi = AiApiFactory.createDummyApi()
 
     // Streaming API instances
@@ -131,6 +132,7 @@ class AiAnalysisRepository {
     private val openRouterStreamApi = AiApiFactory.createOpenRouterStreamApi()
     private val siliconFlowStreamApi = AiApiFactory.createSiliconFlowStreamApi()
     private val zaiStreamApi = AiApiFactory.createZaiStreamApi()
+    private val moonshotStreamApi = AiApiFactory.createMoonshotStreamApi()
     private val dummyStreamApi = AiApiFactory.createDummyStreamApi()
 
     // Gson instance for pretty printing usage JSON
@@ -221,7 +223,8 @@ class AiAnalysisRepository {
         togetherModel: String = AiService.TOGETHER.defaultModel,
         openRouterModel: String = AiService.OPENROUTER.defaultModel,
         siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
-        zaiModel: String = AiService.ZAI.defaultModel
+        zaiModel: String = AiService.ZAI.defaultModel,
+        moonshotModel: String = AiService.MOONSHOT.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -247,6 +250,7 @@ class AiAnalysisRepository {
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, finalPrompt, openRouterModel)
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, finalPrompt, siliconFlowModel)
                 AiService.ZAI -> analyzeWithZai(apiKey, finalPrompt, zaiModel)
+                AiService.MOONSHOT -> analyzeWithMoonshot(apiKey, finalPrompt, moonshotModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -307,7 +311,8 @@ class AiAnalysisRepository {
         togetherModel: String = AiService.TOGETHER.defaultModel,
         openRouterModel: String = AiService.OPENROUTER.defaultModel,
         siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
-        zaiModel: String = AiService.ZAI.defaultModel
+        zaiModel: String = AiService.ZAI.defaultModel,
+        moonshotModel: String = AiService.MOONSHOT.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -333,6 +338,7 @@ class AiAnalysisRepository {
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, finalPrompt, openRouterModel)
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, finalPrompt, siliconFlowModel)
                 AiService.ZAI -> analyzeWithZai(apiKey, finalPrompt, zaiModel)
+                AiService.MOONSHOT -> analyzeWithMoonshot(apiKey, finalPrompt, moonshotModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -468,6 +474,7 @@ class AiAnalysisRepository {
                 AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.ZAI -> analyzeWithZai(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.MOONSHOT -> analyzeWithMoonshot(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             // Add agent name and prompt used to result
@@ -533,6 +540,7 @@ class AiAnalysisRepository {
                 AiService.OPENROUTER -> analyzeWithOpenRouter(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.ZAI -> analyzeWithZai(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.MOONSHOT -> analyzeWithMoonshot(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
@@ -1357,6 +1365,64 @@ class AiAnalysisRepository {
         }
     }
 
+    private suspend fun analyzeWithMoonshot(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createMoonshotApi()
+
+        // Build messages with optional system prompt
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.MOONSHOT, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.MOONSHOT, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.MOONSHOT, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
     private suspend fun analyzeWithDummy(
         apiKey: String,
         prompt: String,
@@ -1479,6 +1545,7 @@ class AiAnalysisRepository {
                 AiService.OPENROUTER -> analyzeWithOpenRouter(apiKey, TEST_PROMPT, model)
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, TEST_PROMPT, model)
                 AiService.ZAI -> analyzeWithZai(apiKey, TEST_PROMPT, model)
+                AiService.MOONSHOT -> analyzeWithMoonshot(apiKey, TEST_PROMPT, model)
                 AiService.DUMMY -> analyzeWithDummy(apiKey, TEST_PROMPT, model)
             }
 
@@ -1916,6 +1983,31 @@ class AiAnalysisRepository {
         }
     }
 
+    suspend fun fetchMoonshotModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("MoonshotAPI", "Fetching models from Moonshot API...")
+            val response = moonshotApi.listModels("Bearer $apiKey")
+            android.util.Log.d("MoonshotAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("MoonshotAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("MoonshotAPI", "Found ${result.size} Moonshot models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("MoonshotAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MoonshotAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
     /**
      * Send a chat message with conversation history.
      * Returns the assistant's response message.
@@ -1940,6 +2032,7 @@ class AiAnalysisRepository {
             AiService.OPENROUTER -> sendChatMessageOpenRouter(apiKey, model, messages, params)
             AiService.SILICONFLOW -> sendChatMessageSiliconFlow(apiKey, model, messages, params)
             AiService.ZAI -> sendChatMessageZai(apiKey, model, messages, params)
+            AiService.MOONSHOT -> sendChatMessageMoonshot(apiKey, model, messages, params)
             AiService.DUMMY -> sendChatMessageDummy(apiKey, model, messages, params)
         }
     }
@@ -2239,6 +2332,35 @@ class AiAnalysisRepository {
         }
     }
 
+    private suspend fun sendChatMessageMoonshot(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = moonshotApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
     private suspend fun sendChatMessageDummy(
         apiKey: String,
         model: String,
@@ -2368,6 +2490,7 @@ class AiAnalysisRepository {
             AiService.OPENROUTER -> streamChatOpenRouter(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
             AiService.SILICONFLOW -> streamChatSiliconFlow(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
             AiService.ZAI -> streamChatZai(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.MOONSHOT -> streamChatMoonshot(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
             AiService.DUMMY -> streamChatDummy(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         }
     }
@@ -3035,6 +3158,44 @@ class AiAnalysisRepository {
             AiApiFactory.createZaiStreamApiWithBaseUrl(baseUrl)
         } else {
             zaiStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatMoonshot(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.MOONSHOT.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            moonshotStreamApi
         }
 
         val response = withContext(Dispatchers.IO) {

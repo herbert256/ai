@@ -1929,6 +1929,12 @@ internal fun convertAiReportToHtml(report: com.ai.data.AiReport, appVersion: Str
                 </div>
     """)
 
+    // Add rapport text if present (text below "-- rapport --" from external apps)
+    // This is raw HTML content, inserted as-is without escaping
+    report.rapportText?.takeIf { it.isNotBlank() }?.let { rapportText ->
+        htmlBuilder.append(rapportText)
+    }
+
     // Add each agent's response section
     agentList.forEachIndexed { index, agent ->
         val activeClass = if (index == 0) "active" else ""
@@ -2937,6 +2943,7 @@ fun AiReportsScreen(
                                             com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
                                             com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
                                             com.ai.data.AiService.ZAI -> uiState.availableZaiModels
+                                            com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
                                             com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                         }
                                         models.map { model -> provider to model }
@@ -3049,6 +3056,7 @@ fun AiReportsScreen(
                                                 com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
                                                 com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
                                                 com.ai.data.AiService.ZAI -> uiState.availableZaiModels
+                                                com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
                                                 com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                             }
                                             models.map { "swarm:${provider.name}:$it" }

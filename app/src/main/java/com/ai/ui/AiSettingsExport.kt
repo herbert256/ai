@@ -272,6 +272,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         "OPENROUTER" to ProviderConfigExport(aiSettings.openRouterModelSource.name, aiSettings.openRouterManualModels, aiSettings.openRouterApiKey, aiSettings.openRouterModel, aiSettings.openRouterAdminUrl, aiSettings.openRouterModelListUrl.ifBlank { null }),
         "SILICONFLOW" to ProviderConfigExport(aiSettings.siliconFlowModelSource.name, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowApiKey, aiSettings.siliconFlowModel, aiSettings.siliconFlowAdminUrl, aiSettings.siliconFlowModelListUrl.ifBlank { null }),
         "ZAI" to ProviderConfigExport(aiSettings.zaiModelSource.name, aiSettings.zaiManualModels, aiSettings.zaiApiKey, aiSettings.zaiModel, aiSettings.zaiAdminUrl, aiSettings.zaiModelListUrl.ifBlank { null }),
+        "MOONSHOT" to ProviderConfigExport(aiSettings.moonshotModelSource.name, aiSettings.moonshotManualModels, aiSettings.moonshotApiKey, aiSettings.moonshotModel, aiSettings.moonshotAdminUrl, aiSettings.moonshotModelListUrl.ifBlank { null }),
         "DUMMY" to ProviderConfigExport(aiSettings.dummyModelSource.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey, aiSettings.dummyModel, aiSettings.dummyAdminUrl, aiSettings.dummyModelListUrl.ifBlank { null })
     )
 
@@ -471,6 +472,9 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
     }
     if (aiSettings.zaiApiKey.isNotBlank()) {
         keys.add(ApiKeyEntry("Z.AI", aiSettings.zaiApiKey))
+    }
+    if (aiSettings.moonshotApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("Moonshot", aiSettings.moonshotApiKey))
     }
 
     val gson = Gson()
@@ -730,6 +734,16 @@ private fun processImportedConfig(
             zaiModel = p.defaultModel ?: settings.zaiModel,
             zaiAdminUrl = p.adminUrl ?: settings.zaiAdminUrl,
             zaiModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("MOONSHOT") { p ->
+        settings.copy(
+            moonshotModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            moonshotManualModels = p.manualModels,
+            moonshotApiKey = p.apiKey,
+            moonshotModel = p.defaultModel ?: settings.moonshotModel,
+            moonshotAdminUrl = p.adminUrl ?: settings.moonshotAdminUrl,
+            moonshotModelListUrl = p.modelListUrl ?: ""
         )
     }
     importProvider("DUMMY") { p ->

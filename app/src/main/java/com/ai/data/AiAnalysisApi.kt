@@ -62,6 +62,7 @@ enum class AiService(
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys", "anthropic/claude-3.5-sonnet"),
     SILICONFLOW("SiliconFlow", "https://api.siliconflow.cn/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
     ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash", "z-ai"),
+    MOONSHOT("Moonshot", "https://api.moonshot.cn/", "https://platform.moonshot.cn/console/api-keys", "kimi-latest", "moonshot"),
     DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
 }
 
@@ -854,6 +855,11 @@ object AiApiFactory {
         return getRetrofit(AiService.ZAI.baseUrl).create(ZaiApi::class.java)
     }
 
+    fun createMoonshotApi(): OpenAiApi {
+        // Moonshot uses OpenAI-compatible format with /v1/chat/completions
+        return getRetrofit(AiService.MOONSHOT.baseUrl).create(OpenAiApi::class.java)
+    }
+
     fun createDummyApi(): OpenAiApi {
         // Dummy API uses OpenAI-compatible format
         return getRetrofit(AiService.DUMMY.baseUrl).create(OpenAiApi::class.java)
@@ -915,6 +921,10 @@ object AiApiFactory {
 
     fun createZaiStreamApi(): ZaiStreamApi {
         return getRetrofit(AiService.ZAI.baseUrl).create(ZaiStreamApi::class.java)
+    }
+
+    fun createMoonshotStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.MOONSHOT.baseUrl).create(OpenAiStreamApi::class.java)
     }
 
     fun createDummyStreamApi(): DummyStreamApi {
