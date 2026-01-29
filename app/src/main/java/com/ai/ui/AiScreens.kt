@@ -2944,6 +2944,15 @@ fun AiReportsScreen(
                                             com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
                                             com.ai.data.AiService.ZAI -> uiState.availableZaiModels
                                             com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
+                                            com.ai.data.AiService.COHERE -> uiState.availableCohereModels
+                                            com.ai.data.AiService.AI21 -> uiState.availableAi21Models
+                                            com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
+                                            com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
+                                            com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
+                                            com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
+                                            com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
+                                            com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
+                                            com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
                                             com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                         }
                                         models.map { model -> provider to model }
@@ -3057,6 +3066,15 @@ fun AiReportsScreen(
                                                 com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
                                                 com.ai.data.AiService.ZAI -> uiState.availableZaiModels
                                                 com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
+                                                com.ai.data.AiService.COHERE -> uiState.availableCohereModels
+                                                com.ai.data.AiService.AI21 -> uiState.availableAi21Models
+                                                com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
+                                                com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
+                                                com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
+                                                com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
+                                                com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
+                                                com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
+                                                com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
                                                 com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                             }
                                             models.map { "swarm:${provider.name}:$it" }

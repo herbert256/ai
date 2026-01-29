@@ -459,7 +459,33 @@ object PricingCache {
         "kimi-latest" to ModelPricing("kimi-latest", 0.55e-6, 2.19e-6, "FALLBACK"),
         "moonshot-v1-8k" to ModelPricing("moonshot-v1-8k", 0.55e-6, 2.19e-6, "FALLBACK"),
         "moonshot-v1-32k" to ModelPricing("moonshot-v1-32k", 1.1e-6, 4.38e-6, "FALLBACK"),
-        "moonshot-v1-128k" to ModelPricing("moonshot-v1-128k", 4.38e-6, 8.76e-6, "FALLBACK")
+        "moonshot-v1-128k" to ModelPricing("moonshot-v1-128k", 4.38e-6, 8.76e-6, "FALLBACK"),
+        // Cohere
+        "command-a-03-2025" to ModelPricing("command-a-03-2025", 2.5e-6, 10.0e-6, "FALLBACK"),
+        "command-r-plus-08-2024" to ModelPricing("command-r-plus-08-2024", 2.5e-6, 10.0e-6, "FALLBACK"),
+        "command-r-08-2024" to ModelPricing("command-r-08-2024", 0.15e-6, 0.6e-6, "FALLBACK"),
+        "command-r7b-12-2024" to ModelPricing("command-r7b-12-2024", 0.0375e-6, 0.15e-6, "FALLBACK"),
+        // AI21
+        "jamba-mini" to ModelPricing("jamba-mini", 0.2e-6, 0.4e-6, "FALLBACK"),
+        "jamba-large" to ModelPricing("jamba-large", 2.0e-6, 8.0e-6, "FALLBACK"),
+        // DashScope (Qwen)
+        "qwen-plus" to ModelPricing("qwen-plus", 0.8e-6, 2.0e-6, "FALLBACK"),
+        "qwen-max" to ModelPricing("qwen-max", 2.4e-6, 9.6e-6, "FALLBACK"),
+        "qwen-turbo" to ModelPricing("qwen-turbo", 0.3e-6, 0.6e-6, "FALLBACK"),
+        // Fireworks
+        "accounts/fireworks/models/llama-v3p3-70b-instruct" to ModelPricing("accounts/fireworks/models/llama-v3p3-70b-instruct", 0.9e-6, 0.9e-6, "FALLBACK"),
+        // Cerebras
+        "llama-3.3-70b" to ModelPricing("llama-3.3-70b", 0.85e-6, 1.2e-6, "FALLBACK"),
+        // SambaNova
+        "Meta-Llama-3.3-70B-Instruct" to ModelPricing("Meta-Llama-3.3-70B-Instruct", 0.6e-6, 1.2e-6, "FALLBACK"),
+        // Baichuan
+        "Baichuan4-Turbo" to ModelPricing("Baichuan4-Turbo", 0.55e-6, 2.19e-6, "FALLBACK"),
+        // StepFun
+        "step-2-16k" to ModelPricing("step-2-16k", 1.33e-6, 16.0e-6, "FALLBACK"),
+        "step-1-8k" to ModelPricing("step-1-8k", 0.8e-6, 2.0e-6, "FALLBACK"),
+        // MiniMax
+        "MiniMax-M2.1" to ModelPricing("MiniMax-M2.1", 1.1e-6, 4.4e-6, "FALLBACK"),
+        "MiniMax-M1" to ModelPricing("MiniMax-M1", 0.3e-6, 1.1e-6, "FALLBACK")
     )
 
     // ============================================================================

@@ -65,6 +65,15 @@ fun ChatSelectProviderScreen(
             AiService.SILICONFLOW -> aiSettings.siliconFlowApiKey.isNotBlank()
             AiService.ZAI -> aiSettings.zaiApiKey.isNotBlank()
             AiService.MOONSHOT -> aiSettings.moonshotApiKey.isNotBlank()
+            AiService.COHERE -> aiSettings.cohereApiKey.isNotBlank()
+            AiService.AI21 -> aiSettings.ai21ApiKey.isNotBlank()
+            AiService.DASHSCOPE -> aiSettings.dashScopeApiKey.isNotBlank()
+            AiService.FIREWORKS -> aiSettings.fireworksApiKey.isNotBlank()
+            AiService.CEREBRAS -> aiSettings.cerebrasApiKey.isNotBlank()
+            AiService.SAMBANOVA -> aiSettings.sambaNovaApiKey.isNotBlank()
+            AiService.BAICHUAN -> aiSettings.baichuanApiKey.isNotBlank()
+            AiService.STEPFUN -> aiSettings.stepFunApiKey.isNotBlank()
+            AiService.MINIMAX -> aiSettings.miniMaxApiKey.isNotBlank()
             AiService.DUMMY -> developerMode && aiSettings.dummyApiKey.isNotBlank()
         }
         hasApiKey
@@ -163,6 +172,15 @@ fun ChatSelectModelScreen(
             AiService.SILICONFLOW -> Quadruple(aiSettings.siliconFlowApiKey, ModelSource.MANUAL, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowModel)
             AiService.ZAI -> Quadruple(aiSettings.zaiApiKey, ModelSource.MANUAL, aiSettings.zaiManualModels, aiSettings.zaiModel)
             AiService.MOONSHOT -> Quadruple(aiSettings.moonshotApiKey, aiSettings.moonshotModelSource, aiSettings.moonshotManualModels, aiSettings.moonshotModel)
+            AiService.COHERE -> Quadruple(aiSettings.cohereApiKey, aiSettings.cohereModelSource, aiSettings.cohereManualModels, aiSettings.cohereModel)
+            AiService.AI21 -> Quadruple(aiSettings.ai21ApiKey, aiSettings.ai21ModelSource, aiSettings.ai21ManualModels, aiSettings.ai21Model)
+            AiService.DASHSCOPE -> Quadruple(aiSettings.dashScopeApiKey, aiSettings.dashScopeModelSource, aiSettings.dashScopeManualModels, aiSettings.dashScopeModel)
+            AiService.FIREWORKS -> Quadruple(aiSettings.fireworksApiKey, aiSettings.fireworksModelSource, aiSettings.fireworksManualModels, aiSettings.fireworksModel)
+            AiService.CEREBRAS -> Quadruple(aiSettings.cerebrasApiKey, aiSettings.cerebrasModelSource, aiSettings.cerebrasManualModels, aiSettings.cerebrasModel)
+            AiService.SAMBANOVA -> Quadruple(aiSettings.sambaNovaApiKey, aiSettings.sambaNovaModelSource, aiSettings.sambaNovaManualModels, aiSettings.sambaNovaModel)
+            AiService.BAICHUAN -> Quadruple(aiSettings.baichuanApiKey, aiSettings.baichuanModelSource, aiSettings.baichuanManualModels, aiSettings.baichuanModel)
+            AiService.STEPFUN -> Quadruple(aiSettings.stepFunApiKey, aiSettings.stepFunModelSource, aiSettings.stepFunManualModels, aiSettings.stepFunModel)
+            AiService.MINIMAX -> Quadruple(aiSettings.miniMaxApiKey, aiSettings.miniMaxModelSource, aiSettings.miniMaxManualModels, aiSettings.miniMaxModel)
             AiService.DUMMY -> Quadruple(aiSettings.dummyApiKey, aiSettings.dummyModelSource, aiSettings.dummyManualModels, aiSettings.dummyModel)
         }
     }

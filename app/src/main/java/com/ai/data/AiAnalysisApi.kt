@@ -63,6 +63,15 @@ enum class AiService(
     SILICONFLOW("SiliconFlow", "https://api.siliconflow.cn/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
     ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash", "z-ai"),
     MOONSHOT("Moonshot", "https://api.moonshot.cn/", "https://platform.moonshot.cn/console/api-keys", "kimi-latest", "moonshot"),
+    COHERE("Cohere", "https://api.cohere.ai/compatibility/", "https://dashboard.cohere.com/", "command-a-03-2025", "cohere"),
+    AI21("AI21", "https://api.ai21.com/", "https://studio.ai21.com/", "jamba-mini", "ai21"),
+    DASHSCOPE("DashScope", "https://dashscope-intl.aliyuncs.com/compatible-mode/", "https://dashscope.console.aliyun.com/", "qwen-plus"),
+    FIREWORKS("Fireworks", "https://api.fireworks.ai/inference/", "https://app.fireworks.ai/", "accounts/fireworks/models/llama-v3p3-70b-instruct"),
+    CEREBRAS("Cerebras", "https://api.cerebras.ai/", "https://cloud.cerebras.ai/", "llama-3.3-70b"),
+    SAMBANOVA("SambaNova", "https://api.sambanova.ai/", "https://cloud.sambanova.ai/", "Meta-Llama-3.3-70B-Instruct"),
+    BAICHUAN("Baichuan", "https://api.baichuan-ai.com/", "https://platform.baichuan-ai.com/", "Baichuan4-Turbo"),
+    STEPFUN("StepFun", "https://api.stepfun.com/", "https://platform.stepfun.com/", "step-2-16k"),
+    MINIMAX("MiniMax", "https://api.minimax.io/", "https://platform.minimax.io/", "MiniMax-M2.1", "minimax"),
     DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
 }
 
@@ -860,6 +869,42 @@ object AiApiFactory {
         return getRetrofit(AiService.MOONSHOT.baseUrl).create(OpenAiApi::class.java)
     }
 
+    fun createCohereApi(): OpenAiApi {
+        return getRetrofit(AiService.COHERE.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createAi21Api(): OpenAiApi {
+        return getRetrofit(AiService.AI21.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createDashScopeApi(): OpenAiApi {
+        return getRetrofit(AiService.DASHSCOPE.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createFireworksApi(): OpenAiApi {
+        return getRetrofit(AiService.FIREWORKS.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createCerebrasApi(): OpenAiApi {
+        return getRetrofit(AiService.CEREBRAS.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createSambaNovaApi(): OpenAiApi {
+        return getRetrofit(AiService.SAMBANOVA.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createBaichuanApi(): OpenAiApi {
+        return getRetrofit(AiService.BAICHUAN.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createStepFunApi(): OpenAiApi {
+        return getRetrofit(AiService.STEPFUN.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createMiniMaxApi(): OpenAiApi {
+        return getRetrofit(AiService.MINIMAX.baseUrl).create(OpenAiApi::class.java)
+    }
+
     fun createDummyApi(): OpenAiApi {
         // Dummy API uses OpenAI-compatible format
         return getRetrofit(AiService.DUMMY.baseUrl).create(OpenAiApi::class.java)
@@ -925,6 +970,42 @@ object AiApiFactory {
 
     fun createMoonshotStreamApi(): OpenAiStreamApi {
         return getRetrofit(AiService.MOONSHOT.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createCohereStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.COHERE.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createAi21StreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.AI21.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createDashScopeStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.DASHSCOPE.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createFireworksStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.FIREWORKS.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createCerebrasStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.CEREBRAS.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createSambaNovaStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.SAMBANOVA.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createBaichuanStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.BAICHUAN.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createStepFunStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.STEPFUN.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createMiniMaxStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.MINIMAX.baseUrl).create(OpenAiStreamApi::class.java)
     }
 
     fun createDummyStreamApi(): DummyStreamApi {

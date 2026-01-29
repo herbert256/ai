@@ -117,6 +117,15 @@ class AiAnalysisRepository {
     private val siliconFlowApi = AiApiFactory.createSiliconFlowApi()
     private val zaiApi = AiApiFactory.createZaiApi()
     private val moonshotApi = AiApiFactory.createMoonshotApi()
+    private val cohereApi = AiApiFactory.createCohereApi()
+    private val ai21Api = AiApiFactory.createAi21Api()
+    private val dashScopeApi = AiApiFactory.createDashScopeApi()
+    private val fireworksApi = AiApiFactory.createFireworksApi()
+    private val cerebrasApi = AiApiFactory.createCerebrasApi()
+    private val sambaNovaApi = AiApiFactory.createSambaNovaApi()
+    private val baichuanApi = AiApiFactory.createBaichuanApi()
+    private val stepFunApi = AiApiFactory.createStepFunApi()
+    private val miniMaxApi = AiApiFactory.createMiniMaxApi()
     private val dummyApi = AiApiFactory.createDummyApi()
 
     // Streaming API instances
@@ -133,6 +142,15 @@ class AiAnalysisRepository {
     private val siliconFlowStreamApi = AiApiFactory.createSiliconFlowStreamApi()
     private val zaiStreamApi = AiApiFactory.createZaiStreamApi()
     private val moonshotStreamApi = AiApiFactory.createMoonshotStreamApi()
+    private val cohereStreamApi = AiApiFactory.createCohereStreamApi()
+    private val ai21StreamApi = AiApiFactory.createAi21StreamApi()
+    private val dashScopeStreamApi = AiApiFactory.createDashScopeStreamApi()
+    private val fireworksStreamApi = AiApiFactory.createFireworksStreamApi()
+    private val cerebrasStreamApi = AiApiFactory.createCerebrasStreamApi()
+    private val sambaNovaStreamApi = AiApiFactory.createSambaNovaStreamApi()
+    private val baichuanStreamApi = AiApiFactory.createBaichuanStreamApi()
+    private val stepFunStreamApi = AiApiFactory.createStepFunStreamApi()
+    private val miniMaxStreamApi = AiApiFactory.createMiniMaxStreamApi()
     private val dummyStreamApi = AiApiFactory.createDummyStreamApi()
 
     // Gson instance for pretty printing usage JSON
@@ -224,7 +242,16 @@ class AiAnalysisRepository {
         openRouterModel: String = AiService.OPENROUTER.defaultModel,
         siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
         zaiModel: String = AiService.ZAI.defaultModel,
-        moonshotModel: String = AiService.MOONSHOT.defaultModel
+        moonshotModel: String = AiService.MOONSHOT.defaultModel,
+        cohereModel: String = AiService.COHERE.defaultModel,
+        ai21Model: String = AiService.AI21.defaultModel,
+        dashScopeModel: String = AiService.DASHSCOPE.defaultModel,
+        fireworksModel: String = AiService.FIREWORKS.defaultModel,
+        cerebrasModel: String = AiService.CEREBRAS.defaultModel,
+        sambaNovaModel: String = AiService.SAMBANOVA.defaultModel,
+        baichuanModel: String = AiService.BAICHUAN.defaultModel,
+        stepFunModel: String = AiService.STEPFUN.defaultModel,
+        miniMaxModel: String = AiService.MINIMAX.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -251,6 +278,15 @@ class AiAnalysisRepository {
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, finalPrompt, siliconFlowModel)
                 AiService.ZAI -> analyzeWithZai(apiKey, finalPrompt, zaiModel)
                 AiService.MOONSHOT -> analyzeWithMoonshot(apiKey, finalPrompt, moonshotModel)
+                AiService.COHERE -> analyzeWithCohere(apiKey, finalPrompt, cohereModel)
+                AiService.AI21 -> analyzeWithAi21(apiKey, finalPrompt, ai21Model)
+                AiService.DASHSCOPE -> analyzeWithDashScope(apiKey, finalPrompt, dashScopeModel)
+                AiService.FIREWORKS -> analyzeWithFireworks(apiKey, finalPrompt, fireworksModel)
+                AiService.CEREBRAS -> analyzeWithCerebras(apiKey, finalPrompt, cerebrasModel)
+                AiService.SAMBANOVA -> analyzeWithSambaNova(apiKey, finalPrompt, sambaNovaModel)
+                AiService.BAICHUAN -> analyzeWithBaichuan(apiKey, finalPrompt, baichuanModel)
+                AiService.STEPFUN -> analyzeWithStepFun(apiKey, finalPrompt, stepFunModel)
+                AiService.MINIMAX -> analyzeWithMiniMax(apiKey, finalPrompt, miniMaxModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -312,7 +348,16 @@ class AiAnalysisRepository {
         openRouterModel: String = AiService.OPENROUTER.defaultModel,
         siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
         zaiModel: String = AiService.ZAI.defaultModel,
-        moonshotModel: String = AiService.MOONSHOT.defaultModel
+        moonshotModel: String = AiService.MOONSHOT.defaultModel,
+        cohereModel: String = AiService.COHERE.defaultModel,
+        ai21Model: String = AiService.AI21.defaultModel,
+        dashScopeModel: String = AiService.DASHSCOPE.defaultModel,
+        fireworksModel: String = AiService.FIREWORKS.defaultModel,
+        cerebrasModel: String = AiService.CEREBRAS.defaultModel,
+        sambaNovaModel: String = AiService.SAMBANOVA.defaultModel,
+        baichuanModel: String = AiService.BAICHUAN.defaultModel,
+        stepFunModel: String = AiService.STEPFUN.defaultModel,
+        miniMaxModel: String = AiService.MINIMAX.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -339,6 +384,15 @@ class AiAnalysisRepository {
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, finalPrompt, siliconFlowModel)
                 AiService.ZAI -> analyzeWithZai(apiKey, finalPrompt, zaiModel)
                 AiService.MOONSHOT -> analyzeWithMoonshot(apiKey, finalPrompt, moonshotModel)
+                AiService.COHERE -> analyzeWithCohere(apiKey, finalPrompt, cohereModel)
+                AiService.AI21 -> analyzeWithAi21(apiKey, finalPrompt, ai21Model)
+                AiService.DASHSCOPE -> analyzeWithDashScope(apiKey, finalPrompt, dashScopeModel)
+                AiService.FIREWORKS -> analyzeWithFireworks(apiKey, finalPrompt, fireworksModel)
+                AiService.CEREBRAS -> analyzeWithCerebras(apiKey, finalPrompt, cerebrasModel)
+                AiService.SAMBANOVA -> analyzeWithSambaNova(apiKey, finalPrompt, sambaNovaModel)
+                AiService.BAICHUAN -> analyzeWithBaichuan(apiKey, finalPrompt, baichuanModel)
+                AiService.STEPFUN -> analyzeWithStepFun(apiKey, finalPrompt, stepFunModel)
+                AiService.MINIMAX -> analyzeWithMiniMax(apiKey, finalPrompt, miniMaxModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -475,6 +529,15 @@ class AiAnalysisRepository {
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.ZAI -> analyzeWithZai(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.MOONSHOT -> analyzeWithMoonshot(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.COHERE -> analyzeWithCohere(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.AI21 -> analyzeWithAi21(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.DASHSCOPE -> analyzeWithDashScope(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.FIREWORKS -> analyzeWithFireworks(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.CEREBRAS -> analyzeWithCerebras(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.SAMBANOVA -> analyzeWithSambaNova(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.BAICHUAN -> analyzeWithBaichuan(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.STEPFUN -> analyzeWithStepFun(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.MINIMAX -> analyzeWithMiniMax(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             // Add agent name and prompt used to result
@@ -541,6 +604,15 @@ class AiAnalysisRepository {
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.ZAI -> analyzeWithZai(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.MOONSHOT -> analyzeWithMoonshot(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.COHERE -> analyzeWithCohere(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.AI21 -> analyzeWithAi21(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.DASHSCOPE -> analyzeWithDashScope(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.FIREWORKS -> analyzeWithFireworks(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.CEREBRAS -> analyzeWithCerebras(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.SAMBANOVA -> analyzeWithSambaNova(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.BAICHUAN -> analyzeWithBaichuan(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.STEPFUN -> analyzeWithStepFun(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.MINIMAX -> analyzeWithMiniMax(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
@@ -1423,6 +1495,483 @@ class AiAnalysisRepository {
         }
     }
 
+    private suspend fun analyzeWithCohere(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createCohereApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.COHERE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.COHERE, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.COHERE, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithAi21(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createAi21Api()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.AI21, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.AI21, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.AI21, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithDashScope(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createDashScopeApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.DASHSCOPE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.DASHSCOPE, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.DASHSCOPE, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithFireworks(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createFireworksApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.FIREWORKS, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.FIREWORKS, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.FIREWORKS, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithCerebras(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createCerebrasApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.CEREBRAS, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.CEREBRAS, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.CEREBRAS, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithSambaNova(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createSambaNovaApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.SAMBANOVA, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.SAMBANOVA, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.SAMBANOVA, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithBaichuan(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createBaichuanApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.BAICHUAN, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.BAICHUAN, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.BAICHUAN, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithStepFun(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createStepFunApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.STEPFUN, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.STEPFUN, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.STEPFUN, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
+    private suspend fun analyzeWithMiniMax(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+        val api = AiApiFactory.createMiniMaxApi()
+        val messages = buildList {
+            params?.systemPrompt?.let { systemPrompt ->
+                if (systemPrompt.isNotBlank()) {
+                    add(OpenAiMessage(role = "system", content = systemPrompt))
+                }
+            }
+            add(OpenAiMessage(role = "user", content = prompt))
+        }
+        val request = OpenAiRequest(
+            model = model,
+            messages = messages,
+            max_tokens = params?.maxTokens,
+            temperature = params?.temperature,
+            top_p = params?.topP,
+            frequency_penalty = params?.frequencyPenalty,
+            presence_penalty = params?.presencePenalty,
+            stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+            search = if (params?.searchEnabled == true) true else null
+        )
+        val response = api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        val headers = formatHeaders(response.headers())
+        val statusCode = response.code()
+        return if (response.isSuccessful) {
+            val body = response.body()
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message?.content }
+            }
+            val rawUsageJson = formatUsageJson(body?.usage)
+            val usage = body?.usage?.let {
+                TokenUsage(
+                    inputTokens = it.prompt_tokens ?: 0,
+                    outputTokens = it.completion_tokens ?: 0,
+                    apiCost = extractApiCost(it)
+                )
+            }
+            if (content != null) {
+                AiAnalysisResponse(AiService.MINIMAX, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+                AiAnalysisResponse(AiService.MINIMAX, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            }
+        } else {
+            AiAnalysisResponse(AiService.MINIMAX, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    }
+
     private suspend fun analyzeWithDummy(
         apiKey: String,
         prompt: String,
@@ -1546,6 +2095,15 @@ class AiAnalysisRepository {
                 AiService.SILICONFLOW -> analyzeWithSiliconFlow(apiKey, TEST_PROMPT, model)
                 AiService.ZAI -> analyzeWithZai(apiKey, TEST_PROMPT, model)
                 AiService.MOONSHOT -> analyzeWithMoonshot(apiKey, TEST_PROMPT, model)
+                AiService.COHERE -> analyzeWithCohere(apiKey, TEST_PROMPT, model)
+                AiService.AI21 -> analyzeWithAi21(apiKey, TEST_PROMPT, model)
+                AiService.DASHSCOPE -> analyzeWithDashScope(apiKey, TEST_PROMPT, model)
+                AiService.FIREWORKS -> analyzeWithFireworks(apiKey, TEST_PROMPT, model)
+                AiService.CEREBRAS -> analyzeWithCerebras(apiKey, TEST_PROMPT, model)
+                AiService.SAMBANOVA -> analyzeWithSambaNova(apiKey, TEST_PROMPT, model)
+                AiService.BAICHUAN -> analyzeWithBaichuan(apiKey, TEST_PROMPT, model)
+                AiService.STEPFUN -> analyzeWithStepFun(apiKey, TEST_PROMPT, model)
+                AiService.MINIMAX -> analyzeWithMiniMax(apiKey, TEST_PROMPT, model)
                 AiService.DUMMY -> analyzeWithDummy(apiKey, TEST_PROMPT, model)
             }
 
@@ -2008,6 +2566,231 @@ class AiAnalysisRepository {
         }
     }
 
+    suspend fun fetchCohereModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("CohereAPI", "Fetching models from Cohere API...")
+            val response = cohereApi.listModels("Bearer $apiKey")
+            android.util.Log.d("CohereAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("CohereAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("CohereAPI", "Found ${result.size} Cohere models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("CohereAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CohereAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchAi21Models(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("AI21API", "Fetching models from AI21 API...")
+            val response = ai21Api.listModels("Bearer $apiKey")
+            android.util.Log.d("AI21API", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("AI21API", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("AI21API", "Found ${result.size} AI21 models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("AI21API", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AI21API", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchDashScopeModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("DashScopeAPI", "Fetching models from DashScope API...")
+            val response = dashScopeApi.listModels("Bearer $apiKey")
+            android.util.Log.d("DashScopeAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("DashScopeAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("DashScopeAPI", "Found ${result.size} DashScope models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("DashScopeAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DashScopeAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchFireworksModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("FireworksAPI", "Fetching models from Fireworks API...")
+            val response = fireworksApi.listModels("Bearer $apiKey")
+            android.util.Log.d("FireworksAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("FireworksAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("FireworksAPI", "Found ${result.size} Fireworks models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("FireworksAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FireworksAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchCerebrasModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("CerebrasAPI", "Fetching models from Cerebras API...")
+            val response = cerebrasApi.listModels("Bearer $apiKey")
+            android.util.Log.d("CerebrasAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("CerebrasAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("CerebrasAPI", "Found ${result.size} Cerebras models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("CerebrasAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CerebrasAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchSambaNovaModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("SambaNovaAPI", "Fetching models from SambaNova API...")
+            val response = sambaNovaApi.listModels("Bearer $apiKey")
+            android.util.Log.d("SambaNovaAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("SambaNovaAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("SambaNovaAPI", "Found ${result.size} SambaNova models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("SambaNovaAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SambaNovaAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchBaichuanModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("BaichuanAPI", "Fetching models from Baichuan API...")
+            val response = baichuanApi.listModels("Bearer $apiKey")
+            android.util.Log.d("BaichuanAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("BaichuanAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("BaichuanAPI", "Found ${result.size} Baichuan models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("BaichuanAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BaichuanAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchStepFunModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("StepFunAPI", "Fetching models from StepFun API...")
+            val response = stepFunApi.listModels("Bearer $apiKey")
+            android.util.Log.d("StepFunAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("StepFunAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("StepFunAPI", "Found ${result.size} StepFun models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("StepFunAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("StepFunAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun fetchMiniMaxModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("MiniMaxAPI", "Fetching models from MiniMax API...")
+            val response = miniMaxApi.listModels("Bearer $apiKey")
+            android.util.Log.d("MiniMaxAPI", "Response code: ${response.code()}")
+            if (response.isSuccessful) {
+                val body = response.body()
+                android.util.Log.d("MiniMaxAPI", "Response body data count: ${body?.data?.size ?: 0}")
+                val models = body?.data ?: emptyList()
+                val result = models
+                    .mapNotNull { it.id }
+                    .sorted()
+                android.util.Log.d("MiniMaxAPI", "Found ${result.size} MiniMax models")
+                result
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("MiniMaxAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MiniMaxAPI", "Error fetching models: ${e.message}", e)
+            emptyList()
+        }
+    }
+
     /**
      * Send a chat message with conversation history.
      * Returns the assistant's response message.
@@ -2033,6 +2816,15 @@ class AiAnalysisRepository {
             AiService.SILICONFLOW -> sendChatMessageSiliconFlow(apiKey, model, messages, params)
             AiService.ZAI -> sendChatMessageZai(apiKey, model, messages, params)
             AiService.MOONSHOT -> sendChatMessageMoonshot(apiKey, model, messages, params)
+            AiService.COHERE -> sendChatMessageCohere(apiKey, model, messages, params)
+            AiService.AI21 -> sendChatMessageAi21(apiKey, model, messages, params)
+            AiService.DASHSCOPE -> sendChatMessageDashScope(apiKey, model, messages, params)
+            AiService.FIREWORKS -> sendChatMessageFireworks(apiKey, model, messages, params)
+            AiService.CEREBRAS -> sendChatMessageCerebras(apiKey, model, messages, params)
+            AiService.SAMBANOVA -> sendChatMessageSambaNova(apiKey, model, messages, params)
+            AiService.BAICHUAN -> sendChatMessageBaichuan(apiKey, model, messages, params)
+            AiService.STEPFUN -> sendChatMessageStepFun(apiKey, model, messages, params)
+            AiService.MINIMAX -> sendChatMessageMiniMax(apiKey, model, messages, params)
             AiService.DUMMY -> sendChatMessageDummy(apiKey, model, messages, params)
         }
     }
@@ -2361,6 +3153,267 @@ class AiAnalysisRepository {
         }
     }
 
+    private suspend fun sendChatMessageCohere(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = cohereApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageAi21(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = ai21Api.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageDashScope(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = dashScopeApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageFireworks(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = fireworksApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageCerebras(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = cerebrasApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageSambaNova(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = sambaNovaApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageBaichuan(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = baichuanApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageStepFun(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = stepFunApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private suspend fun sendChatMessageMiniMax(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters
+    ): String {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiRequest(
+            model = model,
+            messages = openAiMessages,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty,
+            search = if (params.searchEnabled) true else null
+        )
+        val response = miniMaxApi.createChatCompletion(
+            authorization = "Bearer $apiKey",
+            request = request
+        )
+        if (response.isSuccessful) {
+            val content = response.body()?.choices?.firstOrNull()?.message?.content
+            return content ?: throw Exception("No response content")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
     private suspend fun sendChatMessageDummy(
         apiKey: String,
         model: String,
@@ -2491,6 +3544,15 @@ class AiAnalysisRepository {
             AiService.SILICONFLOW -> streamChatSiliconFlow(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
             AiService.ZAI -> streamChatZai(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
             AiService.MOONSHOT -> streamChatMoonshot(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.COHERE -> streamChatCohere(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.AI21 -> streamChatAi21(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.DASHSCOPE -> streamChatDashScope(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.FIREWORKS -> streamChatFireworks(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.CEREBRAS -> streamChatCerebras(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.SAMBANOVA -> streamChatSambaNova(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.BAICHUAN -> streamChatBaichuan(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.STEPFUN -> streamChatStepFun(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            AiService.MINIMAX -> streamChatMiniMax(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
             AiService.DUMMY -> streamChatDummy(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         }
     }
@@ -3196,6 +4258,348 @@ class AiAnalysisRepository {
             AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
         } else {
             moonshotStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatCohere(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.COHERE.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            cohereStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatAi21(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.AI21.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            ai21StreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatDashScope(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.DASHSCOPE.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            dashScopeStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatFireworks(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.FIREWORKS.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            fireworksStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatCerebras(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.CEREBRAS.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            cerebrasStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatSambaNova(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.SAMBANOVA.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            sambaNovaStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatBaichuan(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.BAICHUAN.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            baichuanStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatStepFun(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.STEPFUN.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            stepFunStreamApi
+        }
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream("Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
+    }
+
+    private fun streamChatMiniMax(
+        apiKey: String,
+        model: String,
+        messages: List<com.ai.ui.ChatMessage>,
+        params: com.ai.ui.ChatParameters,
+        baseUrl: String
+    ): Flow<String> = flow {
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val api = if (baseUrl != AiService.MINIMAX.baseUrl) {
+            AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        } else {
+            miniMaxStreamApi
         }
 
         val response = withContext(Dispatchers.IO) {

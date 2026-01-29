@@ -842,6 +842,15 @@ fun CostConfigurationScreen(
             com.ai.data.AiService.SILICONFLOW -> SILICONFLOW_MODELS
             com.ai.data.AiService.ZAI -> ZAI_MODELS
             com.ai.data.AiService.MOONSHOT -> MOONSHOT_MODELS
+            com.ai.data.AiService.COHERE -> COHERE_MODELS
+            com.ai.data.AiService.AI21 -> AI21_MODELS
+            com.ai.data.AiService.DASHSCOPE -> DASHSCOPE_MODELS
+            com.ai.data.AiService.FIREWORKS -> FIREWORKS_MODELS
+            com.ai.data.AiService.CEREBRAS -> CEREBRAS_MODELS
+            com.ai.data.AiService.SAMBANOVA -> SAMBANOVA_MODELS
+            com.ai.data.AiService.BAICHUAN -> BAICHUAN_MODELS
+            com.ai.data.AiService.STEPFUN -> STEPFUN_MODELS
+            com.ai.data.AiService.MINIMAX -> MINIMAX_MODELS
             com.ai.data.AiService.DUMMY -> listOf("dummy-model")
         }
     }

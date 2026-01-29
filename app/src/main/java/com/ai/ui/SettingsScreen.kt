@@ -35,6 +35,15 @@ enum class SettingsSubScreen {
     AI_SILICONFLOW,
     AI_ZAI,
     AI_MOONSHOT,
+    AI_COHERE,
+    AI_AI21,
+    AI_DASHSCOPE,
+    AI_FIREWORKS,
+    AI_CEREBRAS,
+    AI_SAMBANOVA,
+    AI_BAICHUAN,
+    AI_STEPFUN,
+    AI_MINIMAX,
     AI_DUMMY,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
@@ -90,6 +99,24 @@ fun SettingsScreen(
     isLoadingZaiModels: Boolean = false,
     availableMoonshotModels: List<String> = emptyList(),
     isLoadingMoonshotModels: Boolean = false,
+    availableCohereModels: List<String> = emptyList(),
+    isLoadingCohereModels: Boolean = false,
+    availableAi21Models: List<String> = emptyList(),
+    isLoadingAi21Models: Boolean = false,
+    availableDashScopeModels: List<String> = emptyList(),
+    isLoadingDashScopeModels: Boolean = false,
+    availableFireworksModels: List<String> = emptyList(),
+    isLoadingFireworksModels: Boolean = false,
+    availableCerebrasModels: List<String> = emptyList(),
+    isLoadingCerebrasModels: Boolean = false,
+    availableSambaNovaModels: List<String> = emptyList(),
+    isLoadingSambaNovaModels: Boolean = false,
+    availableBaichuanModels: List<String> = emptyList(),
+    isLoadingBaichuanModels: Boolean = false,
+    availableStepFunModels: List<String> = emptyList(),
+    isLoadingStepFunModels: Boolean = false,
+    availableMiniMaxModels: List<String> = emptyList(),
+    isLoadingMiniMaxModels: Boolean = false,
     availableDummyModels: List<String>,
     isLoadingDummyModels: Boolean,
     onBack: () -> Unit,
@@ -110,6 +137,15 @@ fun SettingsScreen(
     onFetchSiliconFlowModels: (String) -> Unit = {},
     onFetchZaiModels: (String) -> Unit = {},
     onFetchMoonshotModels: (String) -> Unit = {},
+    onFetchCohereModels: (String) -> Unit = {},
+    onFetchAi21Models: (String) -> Unit = {},
+    onFetchDashScopeModels: (String) -> Unit = {},
+    onFetchFireworksModels: (String) -> Unit = {},
+    onFetchCerebrasModels: (String) -> Unit = {},
+    onFetchSambaNovaModels: (String) -> Unit = {},
+    onFetchBaichuanModels: (String) -> Unit = {},
+    onFetchStepFunModels: (String) -> Unit = {},
+    onFetchMiniMaxModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
@@ -173,6 +209,15 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SILICONFLOW,
             SettingsSubScreen.AI_ZAI,
             SettingsSubScreen.AI_MOONSHOT,
+            SettingsSubScreen.AI_COHERE,
+            SettingsSubScreen.AI_AI21,
+            SettingsSubScreen.AI_DASHSCOPE,
+            SettingsSubScreen.AI_FIREWORKS,
+            SettingsSubScreen.AI_CEREBRAS,
+            SettingsSubScreen.AI_SAMBANOVA,
+            SettingsSubScreen.AI_BAICHUAN,
+            SettingsSubScreen.AI_STEPFUN,
+            SettingsSubScreen.AI_MINIMAX,
             SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
             SettingsSubScreen.AI_PROVIDERS,
@@ -375,6 +420,105 @@ fun SettingsScreen(
             onTestApiKey = onTestAiModel,
             onCreateAgent = { navigateToAddAgent(AiService.MOONSHOT, aiSettings.moonshotApiKey, aiSettings.moonshotModel) }
         )
+        SettingsSubScreen.AI_COHERE -> CohereSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableCohereModels,
+            isLoadingModels = isLoadingCohereModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchCohereModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.COHERE, aiSettings.cohereApiKey, aiSettings.cohereModel) }
+        )
+        SettingsSubScreen.AI_AI21 -> Ai21SettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableAi21Models,
+            isLoadingModels = isLoadingAi21Models,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchAi21Models,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.AI21, aiSettings.ai21ApiKey, aiSettings.ai21Model) }
+        )
+        SettingsSubScreen.AI_DASHSCOPE -> DashScopeSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableDashScopeModels,
+            isLoadingModels = isLoadingDashScopeModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchDashScopeModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.DASHSCOPE, aiSettings.dashScopeApiKey, aiSettings.dashScopeModel) }
+        )
+        SettingsSubScreen.AI_FIREWORKS -> FireworksSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableFireworksModels,
+            isLoadingModels = isLoadingFireworksModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchFireworksModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.FIREWORKS, aiSettings.fireworksApiKey, aiSettings.fireworksModel) }
+        )
+        SettingsSubScreen.AI_CEREBRAS -> CerebrasSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableCerebrasModels,
+            isLoadingModels = isLoadingCerebrasModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchCerebrasModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.CEREBRAS, aiSettings.cerebrasApiKey, aiSettings.cerebrasModel) }
+        )
+        SettingsSubScreen.AI_SAMBANOVA -> SambaNovaSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableSambaNovaModels,
+            isLoadingModels = isLoadingSambaNovaModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchSambaNovaModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.SAMBANOVA, aiSettings.sambaNovaApiKey, aiSettings.sambaNovaModel) }
+        )
+        SettingsSubScreen.AI_BAICHUAN -> BaichuanSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableBaichuanModels,
+            isLoadingModels = isLoadingBaichuanModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchBaichuanModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.BAICHUAN, aiSettings.baichuanApiKey, aiSettings.baichuanModel) }
+        )
+        SettingsSubScreen.AI_STEPFUN -> StepFunSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableStepFunModels,
+            isLoadingModels = isLoadingStepFunModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchStepFunModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.STEPFUN, aiSettings.stepFunApiKey, aiSettings.stepFunModel) }
+        )
+        SettingsSubScreen.AI_MINIMAX -> MiniMaxSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableMiniMaxModels,
+            isLoadingModels = isLoadingMiniMaxModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchMiniMaxModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.MINIMAX, aiSettings.miniMaxApiKey, aiSettings.miniMaxModel) }
+        )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,
             availableModels = availableDummyModels,
@@ -443,6 +587,15 @@ fun SettingsScreen(
             availableSiliconFlowModels = availableSiliconFlowModels,
             availableZaiModels = availableZaiModels,
             availableMoonshotModels = availableMoonshotModels,
+            availableCohereModels = availableCohereModels,
+            availableAi21Models = availableAi21Models,
+            availableDashScopeModels = availableDashScopeModels,
+            availableFireworksModels = availableFireworksModels,
+            availableCerebrasModels = availableCerebrasModels,
+            availableSambaNovaModels = availableSambaNovaModels,
+            availableBaichuanModels = availableBaichuanModels,
+            availableStepFunModels = availableStepFunModels,
+            availableMiniMaxModels = availableMiniMaxModels,
             availableDummyModels = availableDummyModels,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
@@ -461,6 +614,15 @@ fun SettingsScreen(
             onFetchSiliconFlowModels = onFetchSiliconFlowModels,
             onFetchZaiModels = onFetchZaiModels,
             onFetchMoonshotModels = onFetchMoonshotModels,
+            onFetchCohereModels = onFetchCohereModels,
+            onFetchAi21Models = onFetchAi21Models,
+            onFetchDashScopeModels = onFetchDashScopeModels,
+            onFetchFireworksModels = onFetchFireworksModels,
+            onFetchCerebrasModels = onFetchCerebrasModels,
+            onFetchSambaNovaModels = onFetchSambaNovaModels,
+            onFetchBaichuanModels = onFetchBaichuanModels,
+            onFetchStepFunModels = onFetchStepFunModels,
+            onFetchMiniMaxModels = onFetchMiniMaxModels,
             onFetchDummyModels = onFetchDummyModels
         )
         SettingsSubScreen.AI_ADD_AGENT -> {
@@ -480,6 +642,15 @@ fun SettingsScreen(
                     com.ai.data.AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
                     com.ai.data.AiService.ZAI -> onFetchZaiModels(apiKey)
                     com.ai.data.AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
+                    com.ai.data.AiService.COHERE -> onFetchCohereModels(apiKey)
+                    com.ai.data.AiService.AI21 -> onFetchAi21Models(apiKey)
+                    com.ai.data.AiService.DASHSCOPE -> onFetchDashScopeModels(apiKey)
+                    com.ai.data.AiService.FIREWORKS -> onFetchFireworksModels(apiKey)
+                    com.ai.data.AiService.CEREBRAS -> onFetchCerebrasModels(apiKey)
+                    com.ai.data.AiService.SAMBANOVA -> onFetchSambaNovaModels(apiKey)
+                    com.ai.data.AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
+                    com.ai.data.AiService.STEPFUN -> onFetchStepFunModels(apiKey)
+                    com.ai.data.AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
                     com.ai.data.AiService.DUMMY -> onFetchDummyModels(apiKey)
                 }
             }
@@ -506,6 +677,15 @@ fun SettingsScreen(
                 availableSiliconFlowModels = availableSiliconFlowModels,
                 availableZaiModels = availableZaiModels,
                 availableMoonshotModels = availableMoonshotModels,
+                availableCohereModels = availableCohereModels,
+                availableAi21Models = availableAi21Models,
+                availableDashScopeModels = availableDashScopeModels,
+                availableFireworksModels = availableFireworksModels,
+                availableCerebrasModels = availableCerebrasModels,
+                availableSambaNovaModels = availableSambaNovaModels,
+                availableBaichuanModels = availableBaichuanModels,
+                availableStepFunModels = availableStepFunModels,
+                availableMiniMaxModels = availableMiniMaxModels,
                 availableDummyModels = availableDummyModels,
                 existingNames = aiSettings.agents.map { it.name }.toSet(),
                 onTestAiModel = onTestAiModel,
@@ -610,6 +790,15 @@ fun SettingsScreen(
                 AiService.SILICONFLOW to availableSiliconFlowModels,
                 AiService.ZAI to availableZaiModels,
                 AiService.MOONSHOT to availableMoonshotModels,
+                AiService.COHERE to availableCohereModels,
+                AiService.AI21 to availableAi21Models,
+                AiService.DASHSCOPE to availableDashScopeModels,
+                AiService.FIREWORKS to availableFireworksModels,
+                AiService.CEREBRAS to availableCerebrasModels,
+                AiService.SAMBANOVA to availableSambaNovaModels,
+                AiService.BAICHUAN to availableBaichuanModels,
+                AiService.STEPFUN to availableStepFunModels,
+                AiService.MINIMAX to availableMiniMaxModels,
                 AiService.DUMMY to availableDummyModels
             ),
             onSave = { newSwarm ->
@@ -641,6 +830,15 @@ fun SettingsScreen(
                     AiService.SILICONFLOW to availableSiliconFlowModels,
                     AiService.ZAI to availableZaiModels,
                     AiService.MOONSHOT to availableMoonshotModels,
+                    AiService.COHERE to availableCohereModels,
+                    AiService.AI21 to availableAi21Models,
+                    AiService.DASHSCOPE to availableDashScopeModels,
+                    AiService.FIREWORKS to availableFireworksModels,
+                    AiService.CEREBRAS to availableCerebrasModels,
+                    AiService.SAMBANOVA to availableSambaNovaModels,
+                    AiService.BAICHUAN to availableBaichuanModels,
+                    AiService.STEPFUN to availableStepFunModels,
+                    AiService.MINIMAX to availableMiniMaxModels,
                     AiService.DUMMY to availableDummyModels
                 ),
                 onSave = { updatedSwarm ->

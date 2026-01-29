@@ -273,6 +273,78 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         "SILICONFLOW" to ProviderConfigExport(aiSettings.siliconFlowModelSource.name, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowApiKey, aiSettings.siliconFlowModel, aiSettings.siliconFlowAdminUrl, aiSettings.siliconFlowModelListUrl.ifBlank { null }),
         "ZAI" to ProviderConfigExport(aiSettings.zaiModelSource.name, aiSettings.zaiManualModels, aiSettings.zaiApiKey, aiSettings.zaiModel, aiSettings.zaiAdminUrl, aiSettings.zaiModelListUrl.ifBlank { null }),
         "MOONSHOT" to ProviderConfigExport(aiSettings.moonshotModelSource.name, aiSettings.moonshotManualModels, aiSettings.moonshotApiKey, aiSettings.moonshotModel, aiSettings.moonshotAdminUrl, aiSettings.moonshotModelListUrl.ifBlank { null }),
+        "COHERE" to ProviderConfigExport(
+            aiSettings.cohereModelSource.name,
+            aiSettings.cohereManualModels,
+            aiSettings.cohereApiKey,
+            aiSettings.cohereModel,
+            aiSettings.cohereAdminUrl,
+            aiSettings.cohereModelListUrl.ifBlank { null }
+        ),
+        "AI21" to ProviderConfigExport(
+            aiSettings.ai21ModelSource.name,
+            aiSettings.ai21ManualModels,
+            aiSettings.ai21ApiKey,
+            aiSettings.ai21Model,
+            aiSettings.ai21AdminUrl,
+            aiSettings.ai21ModelListUrl.ifBlank { null }
+        ),
+        "DASHSCOPE" to ProviderConfigExport(
+            aiSettings.dashScopeModelSource.name,
+            aiSettings.dashScopeManualModels,
+            aiSettings.dashScopeApiKey,
+            aiSettings.dashScopeModel,
+            aiSettings.dashScopeAdminUrl,
+            aiSettings.dashScopeModelListUrl.ifBlank { null }
+        ),
+        "FIREWORKS" to ProviderConfigExport(
+            aiSettings.fireworksModelSource.name,
+            aiSettings.fireworksManualModels,
+            aiSettings.fireworksApiKey,
+            aiSettings.fireworksModel,
+            aiSettings.fireworksAdminUrl,
+            aiSettings.fireworksModelListUrl.ifBlank { null }
+        ),
+        "CEREBRAS" to ProviderConfigExport(
+            aiSettings.cerebrasModelSource.name,
+            aiSettings.cerebrasManualModels,
+            aiSettings.cerebrasApiKey,
+            aiSettings.cerebrasModel,
+            aiSettings.cerebrasAdminUrl,
+            aiSettings.cerebrasModelListUrl.ifBlank { null }
+        ),
+        "SAMBANOVA" to ProviderConfigExport(
+            aiSettings.sambaNovaModelSource.name,
+            aiSettings.sambaNovaManualModels,
+            aiSettings.sambaNovaApiKey,
+            aiSettings.sambaNovaModel,
+            aiSettings.sambaNovaAdminUrl,
+            aiSettings.sambaNovaModelListUrl.ifBlank { null }
+        ),
+        "BAICHUAN" to ProviderConfigExport(
+            aiSettings.baichuanModelSource.name,
+            aiSettings.baichuanManualModels,
+            aiSettings.baichuanApiKey,
+            aiSettings.baichuanModel,
+            aiSettings.baichuanAdminUrl,
+            aiSettings.baichuanModelListUrl.ifBlank { null }
+        ),
+        "STEPFUN" to ProviderConfigExport(
+            aiSettings.stepFunModelSource.name,
+            aiSettings.stepFunManualModels,
+            aiSettings.stepFunApiKey,
+            aiSettings.stepFunModel,
+            aiSettings.stepFunAdminUrl,
+            aiSettings.stepFunModelListUrl.ifBlank { null }
+        ),
+        "MINIMAX" to ProviderConfigExport(
+            aiSettings.miniMaxModelSource.name,
+            aiSettings.miniMaxManualModels,
+            aiSettings.miniMaxApiKey,
+            aiSettings.miniMaxModel,
+            aiSettings.miniMaxAdminUrl,
+            aiSettings.miniMaxModelListUrl.ifBlank { null }
+        ),
         "DUMMY" to ProviderConfigExport(aiSettings.dummyModelSource.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey, aiSettings.dummyModel, aiSettings.dummyAdminUrl, aiSettings.dummyModelListUrl.ifBlank { null })
     )
 
@@ -475,6 +547,33 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
     }
     if (aiSettings.moonshotApiKey.isNotBlank()) {
         keys.add(ApiKeyEntry("Moonshot", aiSettings.moonshotApiKey))
+    }
+    if (aiSettings.cohereApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("Cohere", aiSettings.cohereApiKey))
+    }
+    if (aiSettings.ai21ApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("AI21", aiSettings.ai21ApiKey))
+    }
+    if (aiSettings.dashScopeApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("DashScope", aiSettings.dashScopeApiKey))
+    }
+    if (aiSettings.fireworksApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("Fireworks", aiSettings.fireworksApiKey))
+    }
+    if (aiSettings.cerebrasApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("Cerebras", aiSettings.cerebrasApiKey))
+    }
+    if (aiSettings.sambaNovaApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("SambaNova", aiSettings.sambaNovaApiKey))
+    }
+    if (aiSettings.baichuanApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("Baichuan", aiSettings.baichuanApiKey))
+    }
+    if (aiSettings.stepFunApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("StepFun", aiSettings.stepFunApiKey))
+    }
+    if (aiSettings.miniMaxApiKey.isNotBlank()) {
+        keys.add(ApiKeyEntry("MiniMax", aiSettings.miniMaxApiKey))
     }
 
     val gson = Gson()
@@ -744,6 +843,96 @@ private fun processImportedConfig(
             moonshotModel = p.defaultModel ?: settings.moonshotModel,
             moonshotAdminUrl = p.adminUrl ?: settings.moonshotAdminUrl,
             moonshotModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("COHERE") { p ->
+        settings.copy(
+            cohereModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            cohereManualModels = p.manualModels,
+            cohereApiKey = p.apiKey,
+            cohereModel = p.defaultModel ?: settings.cohereModel,
+            cohereAdminUrl = p.adminUrl ?: settings.cohereAdminUrl,
+            cohereModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("AI21") { p ->
+        settings.copy(
+            ai21ModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            ai21ManualModels = p.manualModels,
+            ai21ApiKey = p.apiKey,
+            ai21Model = p.defaultModel ?: settings.ai21Model,
+            ai21AdminUrl = p.adminUrl ?: settings.ai21AdminUrl,
+            ai21ModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("DASHSCOPE") { p ->
+        settings.copy(
+            dashScopeModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            dashScopeManualModels = p.manualModels,
+            dashScopeApiKey = p.apiKey,
+            dashScopeModel = p.defaultModel ?: settings.dashScopeModel,
+            dashScopeAdminUrl = p.adminUrl ?: settings.dashScopeAdminUrl,
+            dashScopeModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("FIREWORKS") { p ->
+        settings.copy(
+            fireworksModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            fireworksManualModels = p.manualModels,
+            fireworksApiKey = p.apiKey,
+            fireworksModel = p.defaultModel ?: settings.fireworksModel,
+            fireworksAdminUrl = p.adminUrl ?: settings.fireworksAdminUrl,
+            fireworksModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("CEREBRAS") { p ->
+        settings.copy(
+            cerebrasModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            cerebrasManualModels = p.manualModels,
+            cerebrasApiKey = p.apiKey,
+            cerebrasModel = p.defaultModel ?: settings.cerebrasModel,
+            cerebrasAdminUrl = p.adminUrl ?: settings.cerebrasAdminUrl,
+            cerebrasModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("SAMBANOVA") { p ->
+        settings.copy(
+            sambaNovaModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            sambaNovaManualModels = p.manualModels,
+            sambaNovaApiKey = p.apiKey,
+            sambaNovaModel = p.defaultModel ?: settings.sambaNovaModel,
+            sambaNovaAdminUrl = p.adminUrl ?: settings.sambaNovaAdminUrl,
+            sambaNovaModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("BAICHUAN") { p ->
+        settings.copy(
+            baichuanModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            baichuanManualModels = p.manualModels,
+            baichuanApiKey = p.apiKey,
+            baichuanModel = p.defaultModel ?: settings.baichuanModel,
+            baichuanAdminUrl = p.adminUrl ?: settings.baichuanAdminUrl,
+            baichuanModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("STEPFUN") { p ->
+        settings.copy(
+            stepFunModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            stepFunManualModels = p.manualModels,
+            stepFunApiKey = p.apiKey,
+            stepFunModel = p.defaultModel ?: settings.stepFunModel,
+            stepFunAdminUrl = p.adminUrl ?: settings.stepFunAdminUrl,
+            stepFunModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("MINIMAX") { p ->
+        settings.copy(
+            miniMaxModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            miniMaxManualModels = p.manualModels,
+            miniMaxApiKey = p.apiKey,
+            miniMaxModel = p.defaultModel ?: settings.miniMaxModel,
+            miniMaxAdminUrl = p.adminUrl ?: settings.miniMaxAdminUrl,
+            miniMaxModelListUrl = p.modelListUrl ?: ""
         )
     }
     importProvider("DUMMY") { p ->

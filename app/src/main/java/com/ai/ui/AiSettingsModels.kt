@@ -117,6 +117,103 @@ val ZAI_MODELS = listOf(
 )
 
 /**
+ * Available Cohere models (hardcoded).
+ */
+val COHERE_MODELS = listOf(
+    "command-a-03-2025",
+    "command-r-plus-08-2024",
+    "command-r-08-2024",
+    "command-r7b-12-2024"
+)
+
+/**
+ * Available AI21 models (hardcoded).
+ */
+val AI21_MODELS = listOf(
+    "jamba-mini",
+    "jamba-large",
+    "jamba-mini-1.7",
+    "jamba-large-1.7"
+)
+
+/**
+ * Available DashScope models (hardcoded - Alibaba Cloud Qwen models).
+ */
+val DASHSCOPE_MODELS = listOf(
+    "qwen-plus",
+    "qwen-max",
+    "qwen-turbo",
+    "qwen-long",
+    "qwen3-max",
+    "qwen3-235b-a22b"
+)
+
+/**
+ * Available Fireworks models (hardcoded).
+ */
+val FIREWORKS_MODELS = listOf(
+    "accounts/fireworks/models/llama-v3p3-70b-instruct",
+    "accounts/fireworks/models/deepseek-r1-0528",
+    "accounts/fireworks/models/qwen3-235b-a22b",
+    "accounts/fireworks/models/llama-v3p1-8b-instruct"
+)
+
+/**
+ * Available Cerebras models (hardcoded).
+ */
+val CEREBRAS_MODELS = listOf(
+    "llama-3.3-70b",
+    "llama-4-scout-17b-16e-instruct",
+    "llama3.1-8b",
+    "qwen-3-32b",
+    "deepseek-r1-distill-llama-70b"
+)
+
+/**
+ * Available SambaNova models (hardcoded).
+ */
+val SAMBANOVA_MODELS = listOf(
+    "Meta-Llama-3.3-70B-Instruct",
+    "DeepSeek-R1",
+    "DeepSeek-V3-0324",
+    "Qwen3-32B",
+    "Meta-Llama-3.1-8B-Instruct"
+)
+
+/**
+ * Available Baichuan models (hardcoded).
+ */
+val BAICHUAN_MODELS = listOf(
+    "Baichuan4-Turbo",
+    "Baichuan4",
+    "Baichuan4-Air",
+    "Baichuan3-Turbo",
+    "Baichuan3-Turbo-128k"
+)
+
+/**
+ * Available StepFun models (hardcoded).
+ */
+val STEPFUN_MODELS = listOf(
+    "step-3",
+    "step-2-16k",
+    "step-2-mini",
+    "step-1-8k",
+    "step-1-32k",
+    "step-1-128k"
+)
+
+/**
+ * Available MiniMax models (hardcoded).
+ */
+val MINIMAX_MODELS = listOf(
+    "MiniMax-M2.1",
+    "MiniMax-M2",
+    "MiniMax-M1",
+    "MiniMax-Text-01"
+)
+
+/**
  * AI Endpoint - configurable API endpoint for a provider.
  */
 data class AiEndpoint(
@@ -334,6 +431,69 @@ data class AiSettings(
     val moonshotAdminUrl: String = AiService.MOONSHOT.adminUrl,
     val moonshotModelListUrl: String = "",
     val moonshotParamsId: String? = null,
+    val cohereApiKey: String = "",
+    val cohereModel: String = AiService.COHERE.defaultModel,
+    val cohereModelSource: ModelSource = ModelSource.MANUAL,
+    val cohereManualModels: List<String> = COHERE_MODELS,
+    val cohereAdminUrl: String = AiService.COHERE.adminUrl,
+    val cohereModelListUrl: String = "",
+    val cohereParamsId: String? = null,
+    val ai21ApiKey: String = "",
+    val ai21Model: String = AiService.AI21.defaultModel,
+    val ai21ModelSource: ModelSource = ModelSource.MANUAL,
+    val ai21ManualModels: List<String> = AI21_MODELS,
+    val ai21AdminUrl: String = AiService.AI21.adminUrl,
+    val ai21ModelListUrl: String = "",
+    val ai21ParamsId: String? = null,
+    val dashScopeApiKey: String = "",
+    val dashScopeModel: String = AiService.DASHSCOPE.defaultModel,
+    val dashScopeModelSource: ModelSource = ModelSource.MANUAL,
+    val dashScopeManualModels: List<String> = DASHSCOPE_MODELS,
+    val dashScopeAdminUrl: String = AiService.DASHSCOPE.adminUrl,
+    val dashScopeModelListUrl: String = "",
+    val dashScopeParamsId: String? = null,
+    val fireworksApiKey: String = "",
+    val fireworksModel: String = AiService.FIREWORKS.defaultModel,
+    val fireworksModelSource: ModelSource = ModelSource.MANUAL,
+    val fireworksManualModels: List<String> = FIREWORKS_MODELS,
+    val fireworksAdminUrl: String = AiService.FIREWORKS.adminUrl,
+    val fireworksModelListUrl: String = "",
+    val fireworksParamsId: String? = null,
+    val cerebrasApiKey: String = "",
+    val cerebrasModel: String = AiService.CEREBRAS.defaultModel,
+    val cerebrasModelSource: ModelSource = ModelSource.MANUAL,
+    val cerebrasManualModels: List<String> = CEREBRAS_MODELS,
+    val cerebrasAdminUrl: String = AiService.CEREBRAS.adminUrl,
+    val cerebrasModelListUrl: String = "",
+    val cerebrasParamsId: String? = null,
+    val sambaNovaApiKey: String = "",
+    val sambaNovaModel: String = AiService.SAMBANOVA.defaultModel,
+    val sambaNovaModelSource: ModelSource = ModelSource.MANUAL,
+    val sambaNovaManualModels: List<String> = SAMBANOVA_MODELS,
+    val sambaNovaAdminUrl: String = AiService.SAMBANOVA.adminUrl,
+    val sambaNovaModelListUrl: String = "",
+    val sambaNovaParamsId: String? = null,
+    val baichuanApiKey: String = "",
+    val baichuanModel: String = AiService.BAICHUAN.defaultModel,
+    val baichuanModelSource: ModelSource = ModelSource.MANUAL,
+    val baichuanManualModels: List<String> = BAICHUAN_MODELS,
+    val baichuanAdminUrl: String = AiService.BAICHUAN.adminUrl,
+    val baichuanModelListUrl: String = "",
+    val baichuanParamsId: String? = null,
+    val stepFunApiKey: String = "",
+    val stepFunModel: String = AiService.STEPFUN.defaultModel,
+    val stepFunModelSource: ModelSource = ModelSource.MANUAL,
+    val stepFunManualModels: List<String> = STEPFUN_MODELS,
+    val stepFunAdminUrl: String = AiService.STEPFUN.adminUrl,
+    val stepFunModelListUrl: String = "",
+    val stepFunParamsId: String? = null,
+    val miniMaxApiKey: String = "",
+    val miniMaxModel: String = AiService.MINIMAX.defaultModel,
+    val miniMaxModelSource: ModelSource = ModelSource.MANUAL,
+    val miniMaxManualModels: List<String> = MINIMAX_MODELS,
+    val miniMaxAdminUrl: String = AiService.MINIMAX.adminUrl,
+    val miniMaxModelListUrl: String = "",
+    val miniMaxParamsId: String? = null,
     val dummyApiKey: String = "",
     val dummyModel: String = AiService.DUMMY.defaultModel,
     val dummyModelSource: ModelSource = ModelSource.API,
@@ -369,6 +529,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> siliconFlowApiKey
             AiService.ZAI -> zaiApiKey
             AiService.MOONSHOT -> moonshotApiKey
+            AiService.COHERE -> cohereApiKey
+            AiService.AI21 -> ai21ApiKey
+            AiService.DASHSCOPE -> dashScopeApiKey
+            AiService.FIREWORKS -> fireworksApiKey
+            AiService.CEREBRAS -> cerebrasApiKey
+            AiService.SAMBANOVA -> sambaNovaApiKey
+            AiService.BAICHUAN -> baichuanApiKey
+            AiService.STEPFUN -> stepFunApiKey
+            AiService.MINIMAX -> miniMaxApiKey
             AiService.DUMMY -> dummyApiKey
         }
     }
@@ -388,6 +557,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> siliconFlowModel
             AiService.ZAI -> zaiModel
             AiService.MOONSHOT -> moonshotModel
+            AiService.COHERE -> cohereModel
+            AiService.AI21 -> ai21Model
+            AiService.DASHSCOPE -> dashScopeModel
+            AiService.FIREWORKS -> fireworksModel
+            AiService.CEREBRAS -> cerebrasModel
+            AiService.SAMBANOVA -> sambaNovaModel
+            AiService.BAICHUAN -> baichuanModel
+            AiService.STEPFUN -> stepFunModel
+            AiService.MINIMAX -> miniMaxModel
             AiService.DUMMY -> dummyModel
         }
     }
@@ -407,6 +585,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> copy(siliconFlowModel = model)
             AiService.ZAI -> copy(zaiModel = model)
             AiService.MOONSHOT -> copy(moonshotModel = model)
+            AiService.COHERE -> copy(cohereModel = model)
+            AiService.AI21 -> copy(ai21Model = model)
+            AiService.DASHSCOPE -> copy(dashScopeModel = model)
+            AiService.FIREWORKS -> copy(fireworksModel = model)
+            AiService.CEREBRAS -> copy(cerebrasModel = model)
+            AiService.SAMBANOVA -> copy(sambaNovaModel = model)
+            AiService.BAICHUAN -> copy(baichuanModel = model)
+            AiService.STEPFUN -> copy(stepFunModel = model)
+            AiService.MINIMAX -> copy(miniMaxModel = model)
             AiService.DUMMY -> copy(dummyModel = model)
         }
     }
@@ -426,6 +613,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> siliconFlowModelSource
             AiService.ZAI -> zaiModelSource
             AiService.MOONSHOT -> moonshotModelSource
+            AiService.COHERE -> cohereModelSource
+            AiService.AI21 -> ai21ModelSource
+            AiService.DASHSCOPE -> dashScopeModelSource
+            AiService.FIREWORKS -> fireworksModelSource
+            AiService.CEREBRAS -> cerebrasModelSource
+            AiService.SAMBANOVA -> sambaNovaModelSource
+            AiService.BAICHUAN -> baichuanModelSource
+            AiService.STEPFUN -> stepFunModelSource
+            AiService.MINIMAX -> miniMaxModelSource
             AiService.DUMMY -> dummyModelSource
         }
     }
@@ -445,6 +641,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> siliconFlowManualModels
             AiService.ZAI -> zaiManualModels
             AiService.MOONSHOT -> moonshotManualModels
+            AiService.COHERE -> cohereManualModels
+            AiService.AI21 -> ai21ManualModels
+            AiService.DASHSCOPE -> dashScopeManualModels
+            AiService.FIREWORKS -> fireworksManualModels
+            AiService.CEREBRAS -> cerebrasManualModels
+            AiService.SAMBANOVA -> sambaNovaManualModels
+            AiService.BAICHUAN -> baichuanManualModels
+            AiService.STEPFUN -> stepFunManualModels
+            AiService.MINIMAX -> miniMaxManualModels
             AiService.DUMMY -> dummyManualModels
         }
     }
@@ -461,7 +666,16 @@ data class AiSettings(
                 openRouterApiKey.isNotBlank() ||
                 siliconFlowApiKey.isNotBlank() ||
                 zaiApiKey.isNotBlank() ||
-                moonshotApiKey.isNotBlank()
+                moonshotApiKey.isNotBlank() ||
+                cohereApiKey.isNotBlank() ||
+                ai21ApiKey.isNotBlank() ||
+                dashScopeApiKey.isNotBlank() ||
+                fireworksApiKey.isNotBlank() ||
+                cerebrasApiKey.isNotBlank() ||
+                sambaNovaApiKey.isNotBlank() ||
+                baichuanApiKey.isNotBlank() ||
+                stepFunApiKey.isNotBlank() ||
+                miniMaxApiKey.isNotBlank()
     }
 
     fun getConfiguredServices(): List<AiService> {
@@ -575,6 +789,33 @@ data class AiSettings(
         AiService.MOONSHOT -> listOf(
             AiEndpoint("moonshot-chat", "Chat Completions", "https://api.moonshot.cn/v1/chat/completions", true)
         )
+        AiService.COHERE -> listOf(
+            AiEndpoint("cohere-chat", "Chat Completions", "https://api.cohere.ai/compatibility/v1/chat/completions", true)
+        )
+        AiService.AI21 -> listOf(
+            AiEndpoint("ai21-chat", "Chat Completions", "https://api.ai21.com/v1/chat/completions", true)
+        )
+        AiService.DASHSCOPE -> listOf(
+            AiEndpoint("dashscope-chat", "Chat Completions", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions", true)
+        )
+        AiService.FIREWORKS -> listOf(
+            AiEndpoint("fireworks-chat", "Chat Completions", "https://api.fireworks.ai/inference/v1/chat/completions", true)
+        )
+        AiService.CEREBRAS -> listOf(
+            AiEndpoint("cerebras-chat", "Chat Completions", "https://api.cerebras.ai/v1/chat/completions", true)
+        )
+        AiService.SAMBANOVA -> listOf(
+            AiEndpoint("sambanova-chat", "Chat Completions", "https://api.sambanova.ai/v1/chat/completions", true)
+        )
+        AiService.BAICHUAN -> listOf(
+            AiEndpoint("baichuan-chat", "Chat Completions", "https://api.baichuan-ai.com/v1/chat/completions", true)
+        )
+        AiService.STEPFUN -> listOf(
+            AiEndpoint("stepfun-chat", "Chat Completions", "https://api.stepfun.com/v1/chat/completions", true)
+        )
+        AiService.MINIMAX -> listOf(
+            AiEndpoint("minimax-chat", "Chat Completions", "https://api.minimax.io/v1/chat/completions", true)
+        )
         AiService.DUMMY -> listOf(
             AiEndpoint("dummy-chat", "Chat Completions", "http://localhost:54321/v1/chat/completions", true)
         )
@@ -635,6 +876,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> siliconFlowModelListUrl
             AiService.ZAI -> zaiModelListUrl
             AiService.MOONSHOT -> moonshotModelListUrl
+            AiService.COHERE -> cohereModelListUrl
+            AiService.AI21 -> ai21ModelListUrl
+            AiService.DASHSCOPE -> dashScopeModelListUrl
+            AiService.FIREWORKS -> fireworksModelListUrl
+            AiService.CEREBRAS -> cerebrasModelListUrl
+            AiService.SAMBANOVA -> sambaNovaModelListUrl
+            AiService.BAICHUAN -> baichuanModelListUrl
+            AiService.STEPFUN -> stepFunModelListUrl
+            AiService.MINIMAX -> miniMaxModelListUrl
             AiService.DUMMY -> dummyModelListUrl
         }
     }
@@ -657,6 +907,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> "https://api.siliconflow.cn/v1/models"
             AiService.ZAI -> "https://api.z.ai/api/paas/v4/models"
             AiService.MOONSHOT -> "https://api.moonshot.cn/v1/models"
+            AiService.COHERE -> "https://api.cohere.ai/compatibility/v1/models"
+            AiService.AI21 -> "https://api.ai21.com/v1/models"
+            AiService.DASHSCOPE -> "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models"
+            AiService.FIREWORKS -> "https://api.fireworks.ai/inference/v1/models"
+            AiService.CEREBRAS -> "https://api.cerebras.ai/v1/models"
+            AiService.SAMBANOVA -> "https://api.sambanova.ai/v1/models"
+            AiService.BAICHUAN -> "https://api.baichuan-ai.com/v1/models"
+            AiService.STEPFUN -> "https://api.stepfun.com/v1/models"
+            AiService.MINIMAX -> "https://api.minimax.io/v1/models"
             AiService.DUMMY -> "http://localhost:54321/v1/models"
         }
     }
@@ -688,6 +947,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> siliconFlowParamsId
             AiService.ZAI -> zaiParamsId
             AiService.MOONSHOT -> moonshotParamsId
+            AiService.COHERE -> cohereParamsId
+            AiService.AI21 -> ai21ParamsId
+            AiService.DASHSCOPE -> dashScopeParamsId
+            AiService.FIREWORKS -> fireworksParamsId
+            AiService.CEREBRAS -> cerebrasParamsId
+            AiService.SAMBANOVA -> sambaNovaParamsId
+            AiService.BAICHUAN -> baichuanParamsId
+            AiService.STEPFUN -> stepFunParamsId
+            AiService.MINIMAX -> miniMaxParamsId
             AiService.DUMMY -> dummyParamsId
         }
     }
@@ -710,6 +978,15 @@ data class AiSettings(
             AiService.SILICONFLOW -> copy(siliconFlowParamsId = paramsId)
             AiService.ZAI -> copy(zaiParamsId = paramsId)
             AiService.MOONSHOT -> copy(moonshotParamsId = paramsId)
+            AiService.COHERE -> copy(cohereParamsId = paramsId)
+            AiService.AI21 -> copy(ai21ParamsId = paramsId)
+            AiService.DASHSCOPE -> copy(dashScopeParamsId = paramsId)
+            AiService.FIREWORKS -> copy(fireworksParamsId = paramsId)
+            AiService.CEREBRAS -> copy(cerebrasParamsId = paramsId)
+            AiService.SAMBANOVA -> copy(sambaNovaParamsId = paramsId)
+            AiService.BAICHUAN -> copy(baichuanParamsId = paramsId)
+            AiService.STEPFUN -> copy(stepFunParamsId = paramsId)
+            AiService.MINIMAX -> copy(miniMaxParamsId = paramsId)
             AiService.DUMMY -> copy(dummyParamsId = paramsId)
         }
     }

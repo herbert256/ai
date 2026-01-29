@@ -473,6 +473,13 @@ fun AiProvidersScreen(
 
         // Provider cards - sorted alphabetically, navigate to individual provider screens
         AiServiceNavigationCard(
+            title = "AI21",
+            accentColor = Color(0xFFFF6F00),
+            hasApiKey = aiSettings.ai21ApiKey.isNotBlank(),
+            adminUrl = AiService.AI21.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_AI21) }
+        )
+        AiServiceNavigationCard(
             title = "Anthropic",
             accentColor = Color(0xFFD97706),
             hasApiKey = aiSettings.claudeApiKey.isNotBlank(),
@@ -480,11 +487,46 @@ fun AiProvidersScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
+            title = "Baichuan",
+            accentColor = Color(0xFF1E88E5),
+            hasApiKey = aiSettings.baichuanApiKey.isNotBlank(),
+            adminUrl = AiService.BAICHUAN.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_BAICHUAN) }
+        )
+        AiServiceNavigationCard(
+            title = "Cerebras",
+            accentColor = Color(0xFF00A3E0),
+            hasApiKey = aiSettings.cerebrasApiKey.isNotBlank(),
+            adminUrl = AiService.CEREBRAS.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_CEREBRAS) }
+        )
+        AiServiceNavigationCard(
+            title = "Cohere",
+            accentColor = Color(0xFF39594D),
+            hasApiKey = aiSettings.cohereApiKey.isNotBlank(),
+            adminUrl = AiService.COHERE.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_COHERE) }
+        )
+        AiServiceNavigationCard(
+            title = "DashScope",
+            accentColor = Color(0xFFFF6A00),
+            hasApiKey = aiSettings.dashScopeApiKey.isNotBlank(),
+            adminUrl = AiService.DASHSCOPE.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_DASHSCOPE) }
+        )
+        AiServiceNavigationCard(
             title = "DeepSeek",
             accentColor = Color(0xFF4D6BFE),
             hasApiKey = aiSettings.deepSeekApiKey.isNotBlank(),
             adminUrl = AiService.DEEPSEEK.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
+        )
+        AiServiceNavigationCard(
+            title = "Fireworks",
+            accentColor = Color(0xFFE34234),
+            hasApiKey = aiSettings.fireworksApiKey.isNotBlank(),
+            adminUrl = AiService.FIREWORKS.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_FIREWORKS) }
         )
         AiServiceNavigationCard(
             title = "Google",
@@ -501,11 +543,25 @@ fun AiProvidersScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
         )
         AiServiceNavigationCard(
+            title = "MiniMax",
+            accentColor = Color(0xFFEC407A),
+            hasApiKey = aiSettings.miniMaxApiKey.isNotBlank(),
+            adminUrl = AiService.MINIMAX.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_MINIMAX) }
+        )
+        AiServiceNavigationCard(
             title = "Mistral",
             accentColor = Color(0xFFFF7000),
             hasApiKey = aiSettings.mistralApiKey.isNotBlank(),
             adminUrl = AiService.MISTRAL.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
+        )
+        AiServiceNavigationCard(
+            title = "Moonshot",
+            accentColor = Color(0xFF7C3AED),
+            hasApiKey = aiSettings.moonshotApiKey.isNotBlank(),
+            adminUrl = AiService.MOONSHOT.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_MOONSHOT) }
         )
         AiServiceNavigationCard(
             title = "OpenAI",
@@ -529,11 +585,25 @@ fun AiProvidersScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
         )
         AiServiceNavigationCard(
+            title = "SambaNova",
+            accentColor = Color(0xFF6B21A8),
+            hasApiKey = aiSettings.sambaNovaApiKey.isNotBlank(),
+            adminUrl = AiService.SAMBANOVA.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_SAMBANOVA) }
+        )
+        AiServiceNavigationCard(
             title = "SiliconFlow",
             accentColor = Color(0xFF00B4D8),
             hasApiKey = aiSettings.siliconFlowApiKey.isNotBlank(),
             adminUrl = AiService.SILICONFLOW.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
+        )
+        AiServiceNavigationCard(
+            title = "StepFun",
+            accentColor = Color(0xFF00BFA5),
+            hasApiKey = aiSettings.stepFunApiKey.isNotBlank(),
+            adminUrl = AiService.STEPFUN.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_STEPFUN) }
         )
         AiServiceNavigationCard(
             title = "Together",
@@ -548,13 +618,6 @@ fun AiProvidersScreen(
             hasApiKey = aiSettings.grokApiKey.isNotBlank(),
             adminUrl = AiService.XAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
-        )
-        AiServiceNavigationCard(
-            title = "Moonshot",
-            accentColor = Color(0xFF7C3AED),
-            hasApiKey = aiSettings.moonshotApiKey.isNotBlank(),
-            adminUrl = AiService.MOONSHOT.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_MOONSHOT) }
         )
         AiServiceNavigationCard(
             title = "Z.AI",
@@ -596,6 +659,15 @@ fun ModelSearchScreen(
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
     availableMoonshotModels: List<String>,
+    availableCohereModels: List<String>,
+    availableAi21Models: List<String>,
+    availableDashScopeModels: List<String>,
+    availableFireworksModels: List<String>,
+    availableCerebrasModels: List<String>,
+    availableSambaNovaModels: List<String>,
+    availableBaichuanModels: List<String>,
+    availableStepFunModels: List<String>,
+    availableMiniMaxModels: List<String>,
     availableDummyModels: List<String>,
     isLoadingChatGptModels: Boolean = false,
     isLoadingClaudeModels: Boolean = false,
@@ -609,6 +681,15 @@ fun ModelSearchScreen(
     isLoadingSiliconFlowModels: Boolean = false,
     isLoadingZaiModels: Boolean = false,
     isLoadingMoonshotModels: Boolean = false,
+    isLoadingCohereModels: Boolean = false,
+    isLoadingAi21Models: Boolean = false,
+    isLoadingDashScopeModels: Boolean = false,
+    isLoadingFireworksModels: Boolean = false,
+    isLoadingCerebrasModels: Boolean = false,
+    isLoadingSambaNovaModels: Boolean = false,
+    isLoadingBaichuanModels: Boolean = false,
+    isLoadingStepFunModels: Boolean = false,
+    isLoadingMiniMaxModels: Boolean = false,
     isLoadingDummyModels: Boolean = false,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
@@ -627,6 +708,15 @@ fun ModelSearchScreen(
     onFetchSiliconFlowModels: (String) -> Unit,
     onFetchZaiModels: (String) -> Unit,
     onFetchMoonshotModels: (String) -> Unit,
+    onFetchCohereModels: (String) -> Unit,
+    onFetchAi21Models: (String) -> Unit,
+    onFetchDashScopeModels: (String) -> Unit,
+    onFetchFireworksModels: (String) -> Unit,
+    onFetchCerebrasModels: (String) -> Unit,
+    onFetchSambaNovaModels: (String) -> Unit,
+    onFetchBaichuanModels: (String) -> Unit,
+    onFetchStepFunModels: (String) -> Unit,
+    onFetchMiniMaxModels: (String) -> Unit,
     onFetchDummyModels: (String) -> Unit,
     onNavigateToChatParams: (AiService, String) -> Unit,
     onNavigateToModelInfo: (AiService, String) -> Unit
@@ -635,7 +725,10 @@ fun ModelSearchScreen(
     val isLoading = isLoadingChatGptModels || isLoadingClaudeModels || isLoadingGeminiModels || isLoadingGrokModels ||
             isLoadingGroqModels || isLoadingDeepSeekModels || isLoadingMistralModels ||
             isLoadingTogetherModels || isLoadingOpenRouterModels || isLoadingSiliconFlowModels ||
-            isLoadingZaiModels || isLoadingMoonshotModels || isLoadingDummyModels
+            isLoadingZaiModels || isLoadingMoonshotModels || isLoadingCohereModels || isLoadingAi21Models ||
+            isLoadingDashScopeModels || isLoadingFireworksModels || isLoadingCerebrasModels ||
+            isLoadingSambaNovaModels || isLoadingBaichuanModels || isLoadingStepFunModels ||
+            isLoadingMiniMaxModels || isLoadingDummyModels
     var searchQuery by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf<ModelSearchItem?>(null) }
 
@@ -655,6 +748,15 @@ fun ModelSearchScreen(
             AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
             AiService.ZAI -> onFetchZaiModels(apiKey)
             AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
+            AiService.COHERE -> onFetchCohereModels(apiKey)
+            AiService.AI21 -> onFetchAi21Models(apiKey)
+            AiService.DASHSCOPE -> onFetchDashScopeModels(apiKey)
+            AiService.FIREWORKS -> onFetchFireworksModels(apiKey)
+            AiService.CEREBRAS -> onFetchCerebrasModels(apiKey)
+            AiService.SAMBANOVA -> onFetchSambaNovaModels(apiKey)
+            AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
+            AiService.STEPFUN -> onFetchStepFunModels(apiKey)
+            AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }
@@ -781,6 +883,15 @@ fun ModelSearchScreen(
             availableSiliconFlowModels = availableSiliconFlowModels,
             availableZaiModels = availableZaiModels,
             availableMoonshotModels = availableMoonshotModels,
+            availableCohereModels = availableCohereModels,
+            availableAi21Models = availableAi21Models,
+            availableDashScopeModels = availableDashScopeModels,
+            availableFireworksModels = availableFireworksModels,
+            availableCerebrasModels = availableCerebrasModels,
+            availableSambaNovaModels = availableSambaNovaModels,
+            availableBaichuanModels = availableBaichuanModels,
+            availableStepFunModels = availableStepFunModels,
+            availableMiniMaxModels = availableMiniMaxModels,
             availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
@@ -806,7 +917,10 @@ fun ModelSearchScreen(
         availableChatGptModels, availableClaudeModels, availableGeminiModels, availableGrokModels,
         availableGroqModels, availableDeepSeekModels, availableMistralModels,
         availablePerplexityModels, availableTogetherModels, availableOpenRouterModels,
-        availableSiliconFlowModels, availableZaiModels, availableMoonshotModels, availableDummyModels, aiSettings
+        availableSiliconFlowModels, availableZaiModels, availableMoonshotModels,
+        availableCohereModels, availableAi21Models, availableDashScopeModels, availableFireworksModels,
+        availableCerebrasModels, availableSambaNovaModels, availableBaichuanModels, availableStepFunModels,
+        availableMiniMaxModels, availableDummyModels, aiSettings
     ) {
         buildList {
             // OpenAI models
@@ -839,6 +953,33 @@ fun ModelSearchScreen(
             // Moonshot models (API or fallback to manual)
             val moonshotModels = if (availableMoonshotModels.isNotEmpty()) availableMoonshotModels else aiSettings.moonshotManualModels
             moonshotModels.forEach { add(ModelSearchItem(AiService.MOONSHOT, "Moonshot", it, Color(0xFF7C3AED))) }
+            // Cohere models (API or fallback to manual)
+            val cohereModels = if (availableCohereModels.isNotEmpty()) availableCohereModels else aiSettings.cohereManualModels
+            cohereModels.forEach { add(ModelSearchItem(AiService.COHERE, "Cohere", it, Color(0xFF39594D))) }
+            // AI21 models (API or fallback to manual)
+            val ai21Models = if (availableAi21Models.isNotEmpty()) availableAi21Models else aiSettings.ai21ManualModels
+            ai21Models.forEach { add(ModelSearchItem(AiService.AI21, "AI21", it, Color(0xFFFF6F00))) }
+            // DashScope models (API or fallback to manual)
+            val dashScopeModels = if (availableDashScopeModels.isNotEmpty()) availableDashScopeModels else aiSettings.dashScopeManualModels
+            dashScopeModels.forEach { add(ModelSearchItem(AiService.DASHSCOPE, "DashScope", it, Color(0xFFFF6A00))) }
+            // Fireworks models (API or fallback to manual)
+            val fireworksModels = if (availableFireworksModels.isNotEmpty()) availableFireworksModels else aiSettings.fireworksManualModels
+            fireworksModels.forEach { add(ModelSearchItem(AiService.FIREWORKS, "Fireworks", it, Color(0xFFE34234))) }
+            // Cerebras models (API or fallback to manual)
+            val cerebrasModels = if (availableCerebrasModels.isNotEmpty()) availableCerebrasModels else aiSettings.cerebrasManualModels
+            cerebrasModels.forEach { add(ModelSearchItem(AiService.CEREBRAS, "Cerebras", it, Color(0xFF00A3E0))) }
+            // SambaNova models (API or fallback to manual)
+            val sambaNovaModels = if (availableSambaNovaModels.isNotEmpty()) availableSambaNovaModels else aiSettings.sambaNovaManualModels
+            sambaNovaModels.forEach { add(ModelSearchItem(AiService.SAMBANOVA, "SambaNova", it, Color(0xFF6B21A8))) }
+            // Baichuan models (API or fallback to manual)
+            val baichuanModels = if (availableBaichuanModels.isNotEmpty()) availableBaichuanModels else aiSettings.baichuanManualModels
+            baichuanModels.forEach { add(ModelSearchItem(AiService.BAICHUAN, "Baichuan", it, Color(0xFF1E88E5))) }
+            // StepFun models (API or fallback to manual)
+            val stepFunModels = if (availableStepFunModels.isNotEmpty()) availableStepFunModels else aiSettings.stepFunManualModels
+            stepFunModels.forEach { add(ModelSearchItem(AiService.STEPFUN, "StepFun", it, Color(0xFF00BFA5))) }
+            // MiniMax models (API or fallback to manual)
+            val miniMaxModels = if (availableMiniMaxModels.isNotEmpty()) availableMiniMaxModels else aiSettings.miniMaxManualModels
+            miniMaxModels.forEach { add(ModelSearchItem(AiService.MINIMAX, "MiniMax", it, Color(0xFFEC407A))) }
             // Dummy models (only in developer mode)
             if (developerMode) {
                 availableDummyModels.forEach { add(ModelSearchItem(AiService.DUMMY, "Dummy", it, Color(0xFF888888))) }
@@ -1585,6 +1726,15 @@ fun HousekeepingScreen(
     availableSiliconFlowModels: List<String> = emptyList(),
     availableZaiModels: List<String> = emptyList(),
     availableMoonshotModels: List<String> = emptyList(),
+    availableCohereModels: List<String> = emptyList(),
+    availableAi21Models: List<String> = emptyList(),
+    availableDashScopeModels: List<String> = emptyList(),
+    availableFireworksModels: List<String> = emptyList(),
+    availableCerebrasModels: List<String> = emptyList(),
+    availableSambaNovaModels: List<String> = emptyList(),
+    availableBaichuanModels: List<String> = emptyList(),
+    availableStepFunModels: List<String> = emptyList(),
+    availableMiniMaxModels: List<String> = emptyList(),
     availableDummyModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -2133,6 +2283,15 @@ fun HousekeepingScreen(
                                 availableSiliconFlowModels = availableSiliconFlowModels,
                                 availableZaiModels = availableZaiModels,
                                 availableMoonshotModels = availableMoonshotModels,
+                                availableCohereModels = availableCohereModels,
+                                availableAi21Models = availableAi21Models,
+                                availableDashScopeModels = availableDashScopeModels,
+                                availableFireworksModels = availableFireworksModels,
+                                availableCerebrasModels = availableCerebrasModels,
+                                availableSambaNovaModels = availableSambaNovaModels,
+                                availableBaichuanModels = availableBaichuanModels,
+                                availableStepFunModels = availableStepFunModels,
+                                availableMiniMaxModels = availableMiniMaxModels,
                                 availableDummyModels = availableDummyModels
                             )
                         },
@@ -2496,6 +2655,15 @@ private fun exportModelCostsToCsv(
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
     availableMoonshotModels: List<String>,
+    availableCohereModels: List<String>,
+    availableAi21Models: List<String>,
+    availableDashScopeModels: List<String>,
+    availableFireworksModels: List<String>,
+    availableCerebrasModels: List<String>,
+    availableSambaNovaModels: List<String>,
+    availableBaichuanModels: List<String>,
+    availableStepFunModels: List<String>,
+    availableMiniMaxModels: List<String>,
     availableDummyModels: List<String>
 ) {
     val pricingCache = com.ai.data.PricingCache
@@ -2554,6 +2722,42 @@ private fun exportModelCostsToCsv(
     // Moonshot models (API or fallback to manual)
     val moonshotModels = availableMoonshotModels.ifEmpty { aiSettings.moonshotManualModels }
     moonshotModels.forEach { allModels.add(ProviderModel("MOONSHOT", it)) }
+
+    // Cohere models (API or fallback to manual)
+    val cohereModelsC = availableCohereModels.ifEmpty { aiSettings.cohereManualModels }
+    cohereModelsC.forEach { allModels.add(ProviderModel("COHERE", it)) }
+
+    // AI21 models (API or fallback to manual)
+    val ai21ModelsC = availableAi21Models.ifEmpty { aiSettings.ai21ManualModels }
+    ai21ModelsC.forEach { allModels.add(ProviderModel("AI21", it)) }
+
+    // DashScope models (API or fallback to manual)
+    val dashScopeModelsC = availableDashScopeModels.ifEmpty { aiSettings.dashScopeManualModels }
+    dashScopeModelsC.forEach { allModels.add(ProviderModel("DASHSCOPE", it)) }
+
+    // Fireworks models (API or fallback to manual)
+    val fireworksModelsC = availableFireworksModels.ifEmpty { aiSettings.fireworksManualModels }
+    fireworksModelsC.forEach { allModels.add(ProviderModel("FIREWORKS", it)) }
+
+    // Cerebras models (API or fallback to manual)
+    val cerebrasModelsC = availableCerebrasModels.ifEmpty { aiSettings.cerebrasManualModels }
+    cerebrasModelsC.forEach { allModels.add(ProviderModel("CEREBRAS", it)) }
+
+    // SambaNova models (API or fallback to manual)
+    val sambaNovaModelsC = availableSambaNovaModels.ifEmpty { aiSettings.sambaNovaManualModels }
+    sambaNovaModelsC.forEach { allModels.add(ProviderModel("SAMBANOVA", it)) }
+
+    // Baichuan models (API or fallback to manual)
+    val baichuanModelsC = availableBaichuanModels.ifEmpty { aiSettings.baichuanManualModels }
+    baichuanModelsC.forEach { allModels.add(ProviderModel("BAICHUAN", it)) }
+
+    // StepFun models (API or fallback to manual)
+    val stepFunModelsC = availableStepFunModels.ifEmpty { aiSettings.stepFunManualModels }
+    stepFunModelsC.forEach { allModels.add(ProviderModel("STEPFUN", it)) }
+
+    // MiniMax models (API or fallback to manual)
+    val miniMaxModelsC = availableMiniMaxModels.ifEmpty { aiSettings.miniMaxManualModels }
+    miniMaxModelsC.forEach { allModels.add(ProviderModel("MINIMAX", it)) }
 
     // Dummy models (only in developer mode)
     if (developerMode) {
@@ -3017,6 +3221,15 @@ fun ApiTestScreen(
                                     com.ai.data.AiService.SILICONFLOW -> repository.fetchSiliconFlowModels(apiKey)
                                     com.ai.data.AiService.ZAI -> repository.fetchZaiModels(apiKey)
                                     com.ai.data.AiService.MOONSHOT -> repository.fetchMoonshotModels(apiKey)
+                                    com.ai.data.AiService.COHERE -> repository.fetchCohereModels(apiKey)
+                                    com.ai.data.AiService.AI21 -> repository.fetchAi21Models(apiKey)
+                                    com.ai.data.AiService.DASHSCOPE -> repository.fetchDashScopeModels(apiKey)
+                                    com.ai.data.AiService.FIREWORKS -> repository.fetchFireworksModels(apiKey)
+                                    com.ai.data.AiService.CEREBRAS -> repository.fetchCerebrasModels(apiKey)
+                                    com.ai.data.AiService.SAMBANOVA -> repository.fetchSambaNovaModels(apiKey)
+                                    com.ai.data.AiService.BAICHUAN -> repository.fetchBaichuanModels(apiKey)
+                                    com.ai.data.AiService.STEPFUN -> repository.fetchStepFunModels(apiKey)
+                                    com.ai.data.AiService.MINIMAX -> repository.fetchMiniMaxModels(apiKey)
                                     com.ai.data.AiService.DUMMY -> repository.fetchDummyModels(apiKey)
                                 }
                                 isLoadingModels = false

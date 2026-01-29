@@ -162,6 +162,69 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             moonshotAdminUrl = prefs.getString(KEY_AI_MOONSHOT_ADMIN_URL, AiService.MOONSHOT.adminUrl) ?: AiService.MOONSHOT.adminUrl,
             moonshotModelListUrl = prefs.getString(KEY_AI_MOONSHOT_MODEL_LIST_URL, "") ?: "",
             moonshotParamsId = prefs.getString(KEY_AI_MOONSHOT_PARAMS_ID, null),
+            cohereApiKey = prefs.getString(KEY_AI_COHERE_API_KEY, "") ?: "",
+            cohereModel = prefs.getString(KEY_AI_COHERE_MODEL, AiService.COHERE.defaultModel) ?: AiService.COHERE.defaultModel,
+            cohereModelSource = loadModelSource(KEY_AI_COHERE_MODEL_SOURCE, ModelSource.MANUAL),
+            cohereManualModels = loadManualModelsWithDefault(KEY_AI_COHERE_MANUAL_MODELS, COHERE_MODELS),
+            cohereAdminUrl = prefs.getString(KEY_AI_COHERE_ADMIN_URL, AiService.COHERE.adminUrl) ?: AiService.COHERE.adminUrl,
+            cohereModelListUrl = prefs.getString(KEY_AI_COHERE_MODEL_LIST_URL, "") ?: "",
+            cohereParamsId = prefs.getString(KEY_AI_COHERE_PARAMS_ID, null),
+            ai21ApiKey = prefs.getString(KEY_AI_AI21_API_KEY, "") ?: "",
+            ai21Model = prefs.getString(KEY_AI_AI21_MODEL, AiService.AI21.defaultModel) ?: AiService.AI21.defaultModel,
+            ai21ModelSource = loadModelSource(KEY_AI_AI21_MODEL_SOURCE, ModelSource.MANUAL),
+            ai21ManualModels = loadManualModelsWithDefault(KEY_AI_AI21_MANUAL_MODELS, AI21_MODELS),
+            ai21AdminUrl = prefs.getString(KEY_AI_AI21_ADMIN_URL, AiService.AI21.adminUrl) ?: AiService.AI21.adminUrl,
+            ai21ModelListUrl = prefs.getString(KEY_AI_AI21_MODEL_LIST_URL, "") ?: "",
+            ai21ParamsId = prefs.getString(KEY_AI_AI21_PARAMS_ID, null),
+            dashScopeApiKey = prefs.getString(KEY_AI_DASHSCOPE_API_KEY, "") ?: "",
+            dashScopeModel = prefs.getString(KEY_AI_DASHSCOPE_MODEL, AiService.DASHSCOPE.defaultModel) ?: AiService.DASHSCOPE.defaultModel,
+            dashScopeModelSource = loadModelSource(KEY_AI_DASHSCOPE_MODEL_SOURCE, ModelSource.MANUAL),
+            dashScopeManualModels = loadManualModelsWithDefault(KEY_AI_DASHSCOPE_MANUAL_MODELS, DASHSCOPE_MODELS),
+            dashScopeAdminUrl = prefs.getString(KEY_AI_DASHSCOPE_ADMIN_URL, AiService.DASHSCOPE.adminUrl) ?: AiService.DASHSCOPE.adminUrl,
+            dashScopeModelListUrl = prefs.getString(KEY_AI_DASHSCOPE_MODEL_LIST_URL, "") ?: "",
+            dashScopeParamsId = prefs.getString(KEY_AI_DASHSCOPE_PARAMS_ID, null),
+            fireworksApiKey = prefs.getString(KEY_AI_FIREWORKS_API_KEY, "") ?: "",
+            fireworksModel = prefs.getString(KEY_AI_FIREWORKS_MODEL, AiService.FIREWORKS.defaultModel) ?: AiService.FIREWORKS.defaultModel,
+            fireworksModelSource = loadModelSource(KEY_AI_FIREWORKS_MODEL_SOURCE, ModelSource.MANUAL),
+            fireworksManualModels = loadManualModelsWithDefault(KEY_AI_FIREWORKS_MANUAL_MODELS, FIREWORKS_MODELS),
+            fireworksAdminUrl = prefs.getString(KEY_AI_FIREWORKS_ADMIN_URL, AiService.FIREWORKS.adminUrl) ?: AiService.FIREWORKS.adminUrl,
+            fireworksModelListUrl = prefs.getString(KEY_AI_FIREWORKS_MODEL_LIST_URL, "") ?: "",
+            fireworksParamsId = prefs.getString(KEY_AI_FIREWORKS_PARAMS_ID, null),
+            cerebrasApiKey = prefs.getString(KEY_AI_CEREBRAS_API_KEY, "") ?: "",
+            cerebrasModel = prefs.getString(KEY_AI_CEREBRAS_MODEL, AiService.CEREBRAS.defaultModel) ?: AiService.CEREBRAS.defaultModel,
+            cerebrasModelSource = loadModelSource(KEY_AI_CEREBRAS_MODEL_SOURCE, ModelSource.MANUAL),
+            cerebrasManualModels = loadManualModelsWithDefault(KEY_AI_CEREBRAS_MANUAL_MODELS, CEREBRAS_MODELS),
+            cerebrasAdminUrl = prefs.getString(KEY_AI_CEREBRAS_ADMIN_URL, AiService.CEREBRAS.adminUrl) ?: AiService.CEREBRAS.adminUrl,
+            cerebrasModelListUrl = prefs.getString(KEY_AI_CEREBRAS_MODEL_LIST_URL, "") ?: "",
+            cerebrasParamsId = prefs.getString(KEY_AI_CEREBRAS_PARAMS_ID, null),
+            sambaNovaApiKey = prefs.getString(KEY_AI_SAMBANOVA_API_KEY, "") ?: "",
+            sambaNovaModel = prefs.getString(KEY_AI_SAMBANOVA_MODEL, AiService.SAMBANOVA.defaultModel) ?: AiService.SAMBANOVA.defaultModel,
+            sambaNovaModelSource = loadModelSource(KEY_AI_SAMBANOVA_MODEL_SOURCE, ModelSource.MANUAL),
+            sambaNovaManualModels = loadManualModelsWithDefault(KEY_AI_SAMBANOVA_MANUAL_MODELS, SAMBANOVA_MODELS),
+            sambaNovaAdminUrl = prefs.getString(KEY_AI_SAMBANOVA_ADMIN_URL, AiService.SAMBANOVA.adminUrl) ?: AiService.SAMBANOVA.adminUrl,
+            sambaNovaModelListUrl = prefs.getString(KEY_AI_SAMBANOVA_MODEL_LIST_URL, "") ?: "",
+            sambaNovaParamsId = prefs.getString(KEY_AI_SAMBANOVA_PARAMS_ID, null),
+            baichuanApiKey = prefs.getString(KEY_AI_BAICHUAN_API_KEY, "") ?: "",
+            baichuanModel = prefs.getString(KEY_AI_BAICHUAN_MODEL, AiService.BAICHUAN.defaultModel) ?: AiService.BAICHUAN.defaultModel,
+            baichuanModelSource = loadModelSource(KEY_AI_BAICHUAN_MODEL_SOURCE, ModelSource.MANUAL),
+            baichuanManualModels = loadManualModelsWithDefault(KEY_AI_BAICHUAN_MANUAL_MODELS, BAICHUAN_MODELS),
+            baichuanAdminUrl = prefs.getString(KEY_AI_BAICHUAN_ADMIN_URL, AiService.BAICHUAN.adminUrl) ?: AiService.BAICHUAN.adminUrl,
+            baichuanModelListUrl = prefs.getString(KEY_AI_BAICHUAN_MODEL_LIST_URL, "") ?: "",
+            baichuanParamsId = prefs.getString(KEY_AI_BAICHUAN_PARAMS_ID, null),
+            stepFunApiKey = prefs.getString(KEY_AI_STEPFUN_API_KEY, "") ?: "",
+            stepFunModel = prefs.getString(KEY_AI_STEPFUN_MODEL, AiService.STEPFUN.defaultModel) ?: AiService.STEPFUN.defaultModel,
+            stepFunModelSource = loadModelSource(KEY_AI_STEPFUN_MODEL_SOURCE, ModelSource.MANUAL),
+            stepFunManualModels = loadManualModelsWithDefault(KEY_AI_STEPFUN_MANUAL_MODELS, STEPFUN_MODELS),
+            stepFunAdminUrl = prefs.getString(KEY_AI_STEPFUN_ADMIN_URL, AiService.STEPFUN.adminUrl) ?: AiService.STEPFUN.adminUrl,
+            stepFunModelListUrl = prefs.getString(KEY_AI_STEPFUN_MODEL_LIST_URL, "") ?: "",
+            stepFunParamsId = prefs.getString(KEY_AI_STEPFUN_PARAMS_ID, null),
+            miniMaxApiKey = prefs.getString(KEY_AI_MINIMAX_API_KEY, "") ?: "",
+            miniMaxModel = prefs.getString(KEY_AI_MINIMAX_MODEL, AiService.MINIMAX.defaultModel) ?: AiService.MINIMAX.defaultModel,
+            miniMaxModelSource = loadModelSource(KEY_AI_MINIMAX_MODEL_SOURCE, ModelSource.MANUAL),
+            miniMaxManualModels = loadManualModelsWithDefault(KEY_AI_MINIMAX_MANUAL_MODELS, MINIMAX_MODELS),
+            miniMaxAdminUrl = prefs.getString(KEY_AI_MINIMAX_ADMIN_URL, AiService.MINIMAX.adminUrl) ?: AiService.MINIMAX.adminUrl,
+            miniMaxModelListUrl = prefs.getString(KEY_AI_MINIMAX_MODEL_LIST_URL, "") ?: "",
+            miniMaxParamsId = prefs.getString(KEY_AI_MINIMAX_PARAMS_ID, null),
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
             dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, AiService.DUMMY.defaultModel) ?: AiService.DUMMY.defaultModel,
             dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
@@ -296,6 +359,69 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_MOONSHOT_ADMIN_URL, settings.moonshotAdminUrl)
             .putString(KEY_AI_MOONSHOT_MODEL_LIST_URL, settings.moonshotModelListUrl)
             .putString(KEY_AI_MOONSHOT_PARAMS_ID, settings.moonshotParamsId)
+            .putString(KEY_AI_COHERE_API_KEY, settings.cohereApiKey)
+            .putString(KEY_AI_COHERE_MODEL, settings.cohereModel)
+            .putString(KEY_AI_COHERE_MODEL_SOURCE, settings.cohereModelSource.name)
+            .putString(KEY_AI_COHERE_MANUAL_MODELS, gson.toJson(settings.cohereManualModels))
+            .putString(KEY_AI_COHERE_ADMIN_URL, settings.cohereAdminUrl)
+            .putString(KEY_AI_COHERE_MODEL_LIST_URL, settings.cohereModelListUrl)
+            .putString(KEY_AI_COHERE_PARAMS_ID, settings.cohereParamsId)
+            .putString(KEY_AI_AI21_API_KEY, settings.ai21ApiKey)
+            .putString(KEY_AI_AI21_MODEL, settings.ai21Model)
+            .putString(KEY_AI_AI21_MODEL_SOURCE, settings.ai21ModelSource.name)
+            .putString(KEY_AI_AI21_MANUAL_MODELS, gson.toJson(settings.ai21ManualModels))
+            .putString(KEY_AI_AI21_ADMIN_URL, settings.ai21AdminUrl)
+            .putString(KEY_AI_AI21_MODEL_LIST_URL, settings.ai21ModelListUrl)
+            .putString(KEY_AI_AI21_PARAMS_ID, settings.ai21ParamsId)
+            .putString(KEY_AI_DASHSCOPE_API_KEY, settings.dashScopeApiKey)
+            .putString(KEY_AI_DASHSCOPE_MODEL, settings.dashScopeModel)
+            .putString(KEY_AI_DASHSCOPE_MODEL_SOURCE, settings.dashScopeModelSource.name)
+            .putString(KEY_AI_DASHSCOPE_MANUAL_MODELS, gson.toJson(settings.dashScopeManualModels))
+            .putString(KEY_AI_DASHSCOPE_ADMIN_URL, settings.dashScopeAdminUrl)
+            .putString(KEY_AI_DASHSCOPE_MODEL_LIST_URL, settings.dashScopeModelListUrl)
+            .putString(KEY_AI_DASHSCOPE_PARAMS_ID, settings.dashScopeParamsId)
+            .putString(KEY_AI_FIREWORKS_API_KEY, settings.fireworksApiKey)
+            .putString(KEY_AI_FIREWORKS_MODEL, settings.fireworksModel)
+            .putString(KEY_AI_FIREWORKS_MODEL_SOURCE, settings.fireworksModelSource.name)
+            .putString(KEY_AI_FIREWORKS_MANUAL_MODELS, gson.toJson(settings.fireworksManualModels))
+            .putString(KEY_AI_FIREWORKS_ADMIN_URL, settings.fireworksAdminUrl)
+            .putString(KEY_AI_FIREWORKS_MODEL_LIST_URL, settings.fireworksModelListUrl)
+            .putString(KEY_AI_FIREWORKS_PARAMS_ID, settings.fireworksParamsId)
+            .putString(KEY_AI_CEREBRAS_API_KEY, settings.cerebrasApiKey)
+            .putString(KEY_AI_CEREBRAS_MODEL, settings.cerebrasModel)
+            .putString(KEY_AI_CEREBRAS_MODEL_SOURCE, settings.cerebrasModelSource.name)
+            .putString(KEY_AI_CEREBRAS_MANUAL_MODELS, gson.toJson(settings.cerebrasManualModels))
+            .putString(KEY_AI_CEREBRAS_ADMIN_URL, settings.cerebrasAdminUrl)
+            .putString(KEY_AI_CEREBRAS_MODEL_LIST_URL, settings.cerebrasModelListUrl)
+            .putString(KEY_AI_CEREBRAS_PARAMS_ID, settings.cerebrasParamsId)
+            .putString(KEY_AI_SAMBANOVA_API_KEY, settings.sambaNovaApiKey)
+            .putString(KEY_AI_SAMBANOVA_MODEL, settings.sambaNovaModel)
+            .putString(KEY_AI_SAMBANOVA_MODEL_SOURCE, settings.sambaNovaModelSource.name)
+            .putString(KEY_AI_SAMBANOVA_MANUAL_MODELS, gson.toJson(settings.sambaNovaManualModels))
+            .putString(KEY_AI_SAMBANOVA_ADMIN_URL, settings.sambaNovaAdminUrl)
+            .putString(KEY_AI_SAMBANOVA_MODEL_LIST_URL, settings.sambaNovaModelListUrl)
+            .putString(KEY_AI_SAMBANOVA_PARAMS_ID, settings.sambaNovaParamsId)
+            .putString(KEY_AI_BAICHUAN_API_KEY, settings.baichuanApiKey)
+            .putString(KEY_AI_BAICHUAN_MODEL, settings.baichuanModel)
+            .putString(KEY_AI_BAICHUAN_MODEL_SOURCE, settings.baichuanModelSource.name)
+            .putString(KEY_AI_BAICHUAN_MANUAL_MODELS, gson.toJson(settings.baichuanManualModels))
+            .putString(KEY_AI_BAICHUAN_ADMIN_URL, settings.baichuanAdminUrl)
+            .putString(KEY_AI_BAICHUAN_MODEL_LIST_URL, settings.baichuanModelListUrl)
+            .putString(KEY_AI_BAICHUAN_PARAMS_ID, settings.baichuanParamsId)
+            .putString(KEY_AI_STEPFUN_API_KEY, settings.stepFunApiKey)
+            .putString(KEY_AI_STEPFUN_MODEL, settings.stepFunModel)
+            .putString(KEY_AI_STEPFUN_MODEL_SOURCE, settings.stepFunModelSource.name)
+            .putString(KEY_AI_STEPFUN_MANUAL_MODELS, gson.toJson(settings.stepFunManualModels))
+            .putString(KEY_AI_STEPFUN_ADMIN_URL, settings.stepFunAdminUrl)
+            .putString(KEY_AI_STEPFUN_MODEL_LIST_URL, settings.stepFunModelListUrl)
+            .putString(KEY_AI_STEPFUN_PARAMS_ID, settings.stepFunParamsId)
+            .putString(KEY_AI_MINIMAX_API_KEY, settings.miniMaxApiKey)
+            .putString(KEY_AI_MINIMAX_MODEL, settings.miniMaxModel)
+            .putString(KEY_AI_MINIMAX_MODEL_SOURCE, settings.miniMaxModelSource.name)
+            .putString(KEY_AI_MINIMAX_MANUAL_MODELS, gson.toJson(settings.miniMaxManualModels))
+            .putString(KEY_AI_MINIMAX_ADMIN_URL, settings.miniMaxAdminUrl)
+            .putString(KEY_AI_MINIMAX_MODEL_LIST_URL, settings.miniMaxModelListUrl)
+            .putString(KEY_AI_MINIMAX_PARAMS_ID, settings.miniMaxParamsId)
             .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
             .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
             .putString(KEY_AI_DUMMY_MODEL_SOURCE, settings.dummyModelSource.name)
@@ -515,6 +641,24 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_ZAI_MODEL = "ai_zai_model"
         private const val KEY_AI_MOONSHOT_API_KEY = "ai_moonshot_api_key"
         private const val KEY_AI_MOONSHOT_MODEL = "ai_moonshot_model"
+        private const val KEY_AI_COHERE_API_KEY = "ai_cohere_api_key"
+        private const val KEY_AI_COHERE_MODEL = "ai_cohere_model"
+        private const val KEY_AI_AI21_API_KEY = "ai_ai21_api_key"
+        private const val KEY_AI_AI21_MODEL = "ai_ai21_model"
+        private const val KEY_AI_DASHSCOPE_API_KEY = "ai_dashscope_api_key"
+        private const val KEY_AI_DASHSCOPE_MODEL = "ai_dashscope_model"
+        private const val KEY_AI_FIREWORKS_API_KEY = "ai_fireworks_api_key"
+        private const val KEY_AI_FIREWORKS_MODEL = "ai_fireworks_model"
+        private const val KEY_AI_CEREBRAS_API_KEY = "ai_cerebras_api_key"
+        private const val KEY_AI_CEREBRAS_MODEL = "ai_cerebras_model"
+        private const val KEY_AI_SAMBANOVA_API_KEY = "ai_sambanova_api_key"
+        private const val KEY_AI_SAMBANOVA_MODEL = "ai_sambanova_model"
+        private const val KEY_AI_BAICHUAN_API_KEY = "ai_baichuan_api_key"
+        private const val KEY_AI_BAICHUAN_MODEL = "ai_baichuan_model"
+        private const val KEY_AI_STEPFUN_API_KEY = "ai_stepfun_api_key"
+        private const val KEY_AI_STEPFUN_MODEL = "ai_stepfun_model"
+        private const val KEY_AI_MINIMAX_API_KEY = "ai_minimax_api_key"
+        private const val KEY_AI_MINIMAX_MODEL = "ai_minimax_model"
         private const val KEY_AI_DUMMY_API_KEY = "ai_dummy_api_key"
         private const val KEY_AI_DUMMY_MODEL = "ai_dummy_model"
         private const val KEY_AI_DUMMY_MANUAL_MODELS = "ai_dummy_manual_models"
@@ -533,6 +677,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_SILICONFLOW_MODEL_SOURCE = "ai_siliconflow_model_source"
         private const val KEY_AI_ZAI_MODEL_SOURCE = "ai_zai_model_source"
         private const val KEY_AI_MOONSHOT_MODEL_SOURCE = "ai_moonshot_model_source"
+        private const val KEY_AI_COHERE_MODEL_SOURCE = "ai_cohere_model_source"
+        private const val KEY_AI_AI21_MODEL_SOURCE = "ai_ai21_model_source"
+        private const val KEY_AI_DASHSCOPE_MODEL_SOURCE = "ai_dashscope_model_source"
+        private const val KEY_AI_FIREWORKS_MODEL_SOURCE = "ai_fireworks_model_source"
+        private const val KEY_AI_CEREBRAS_MODEL_SOURCE = "ai_cerebras_model_source"
+        private const val KEY_AI_SAMBANOVA_MODEL_SOURCE = "ai_sambanova_model_source"
+        private const val KEY_AI_BAICHUAN_MODEL_SOURCE = "ai_baichuan_model_source"
+        private const val KEY_AI_STEPFUN_MODEL_SOURCE = "ai_stepfun_model_source"
+        private const val KEY_AI_MINIMAX_MODEL_SOURCE = "ai_minimax_model_source"
         private const val KEY_AI_DUMMY_MODEL_SOURCE = "ai_dummy_model_source"
 
         // AI manual models lists
@@ -549,6 +702,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_SILICONFLOW_MANUAL_MODELS = "ai_siliconflow_manual_models"
         private const val KEY_AI_ZAI_MANUAL_MODELS = "ai_zai_manual_models"
         private const val KEY_AI_MOONSHOT_MANUAL_MODELS = "ai_moonshot_manual_models"
+        private const val KEY_AI_COHERE_MANUAL_MODELS = "ai_cohere_manual_models"
+        private const val KEY_AI_AI21_MANUAL_MODELS = "ai_ai21_manual_models"
+        private const val KEY_AI_DASHSCOPE_MANUAL_MODELS = "ai_dashscope_manual_models"
+        private const val KEY_AI_FIREWORKS_MANUAL_MODELS = "ai_fireworks_manual_models"
+        private const val KEY_AI_CEREBRAS_MANUAL_MODELS = "ai_cerebras_manual_models"
+        private const val KEY_AI_SAMBANOVA_MANUAL_MODELS = "ai_sambanova_manual_models"
+        private const val KEY_AI_BAICHUAN_MANUAL_MODELS = "ai_baichuan_manual_models"
+        private const val KEY_AI_STEPFUN_MANUAL_MODELS = "ai_stepfun_manual_models"
+        private const val KEY_AI_MINIMAX_MANUAL_MODELS = "ai_minimax_manual_models"
 
         // AI admin URLs
         private const val KEY_AI_OPENAI_ADMIN_URL = "ai_openai_admin_url"
@@ -564,6 +726,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_SILICONFLOW_ADMIN_URL = "ai_siliconflow_admin_url"
         private const val KEY_AI_ZAI_ADMIN_URL = "ai_zai_admin_url"
         private const val KEY_AI_MOONSHOT_ADMIN_URL = "ai_moonshot_admin_url"
+        private const val KEY_AI_COHERE_ADMIN_URL = "ai_cohere_admin_url"
+        private const val KEY_AI_AI21_ADMIN_URL = "ai_ai21_admin_url"
+        private const val KEY_AI_DASHSCOPE_ADMIN_URL = "ai_dashscope_admin_url"
+        private const val KEY_AI_FIREWORKS_ADMIN_URL = "ai_fireworks_admin_url"
+        private const val KEY_AI_CEREBRAS_ADMIN_URL = "ai_cerebras_admin_url"
+        private const val KEY_AI_SAMBANOVA_ADMIN_URL = "ai_sambanova_admin_url"
+        private const val KEY_AI_BAICHUAN_ADMIN_URL = "ai_baichuan_admin_url"
+        private const val KEY_AI_STEPFUN_ADMIN_URL = "ai_stepfun_admin_url"
+        private const val KEY_AI_MINIMAX_ADMIN_URL = "ai_minimax_admin_url"
         private const val KEY_AI_DUMMY_ADMIN_URL = "ai_dummy_admin_url"
 
         // AI model list URLs
@@ -580,6 +751,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_SILICONFLOW_MODEL_LIST_URL = "ai_siliconflow_model_list_url"
         private const val KEY_AI_ZAI_MODEL_LIST_URL = "ai_zai_model_list_url"
         private const val KEY_AI_MOONSHOT_MODEL_LIST_URL = "ai_moonshot_model_list_url"
+        private const val KEY_AI_COHERE_MODEL_LIST_URL = "ai_cohere_model_list_url"
+        private const val KEY_AI_AI21_MODEL_LIST_URL = "ai_ai21_model_list_url"
+        private const val KEY_AI_DASHSCOPE_MODEL_LIST_URL = "ai_dashscope_model_list_url"
+        private const val KEY_AI_FIREWORKS_MODEL_LIST_URL = "ai_fireworks_model_list_url"
+        private const val KEY_AI_CEREBRAS_MODEL_LIST_URL = "ai_cerebras_model_list_url"
+        private const val KEY_AI_SAMBANOVA_MODEL_LIST_URL = "ai_sambanova_model_list_url"
+        private const val KEY_AI_BAICHUAN_MODEL_LIST_URL = "ai_baichuan_model_list_url"
+        private const val KEY_AI_STEPFUN_MODEL_LIST_URL = "ai_stepfun_model_list_url"
+        private const val KEY_AI_MINIMAX_MODEL_LIST_URL = "ai_minimax_model_list_url"
         private const val KEY_AI_DUMMY_MODEL_LIST_URL = "ai_dummy_model_list_url"
 
         // AI params ID per provider
@@ -596,6 +776,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_SILICONFLOW_PARAMS_ID = "ai_siliconflow_params_id"
         private const val KEY_AI_ZAI_PARAMS_ID = "ai_zai_params_id"
         private const val KEY_AI_MOONSHOT_PARAMS_ID = "ai_moonshot_params_id"
+        private const val KEY_AI_COHERE_PARAMS_ID = "ai_cohere_params_id"
+        private const val KEY_AI_AI21_PARAMS_ID = "ai_ai21_params_id"
+        private const val KEY_AI_DASHSCOPE_PARAMS_ID = "ai_dashscope_params_id"
+        private const val KEY_AI_FIREWORKS_PARAMS_ID = "ai_fireworks_params_id"
+        private const val KEY_AI_CEREBRAS_PARAMS_ID = "ai_cerebras_params_id"
+        private const val KEY_AI_SAMBANOVA_PARAMS_ID = "ai_sambanova_params_id"
+        private const val KEY_AI_BAICHUAN_PARAMS_ID = "ai_baichuan_params_id"
+        private const val KEY_AI_STEPFUN_PARAMS_ID = "ai_stepfun_params_id"
+        private const val KEY_AI_MINIMAX_PARAMS_ID = "ai_minimax_params_id"
         private const val KEY_AI_DUMMY_PARAMS_ID = "ai_dummy_params_id"
 
         // AI agents
@@ -647,6 +836,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_API_MODELS_SILICONFLOW = "api_models_siliconflow"
         private const val KEY_API_MODELS_ZAI = "api_models_zai"
         private const val KEY_API_MODELS_MOONSHOT = "api_models_moonshot"
+        private const val KEY_API_MODELS_COHERE = "api_models_cohere"
+        private const val KEY_API_MODELS_AI21 = "api_models_ai21"
+        private const val KEY_API_MODELS_DASHSCOPE = "api_models_dashscope"
+        private const val KEY_API_MODELS_FIREWORKS = "api_models_fireworks"
+        private const val KEY_API_MODELS_CEREBRAS = "api_models_cerebras"
+        private const val KEY_API_MODELS_SAMBANOVA = "api_models_sambanova"
+        private const val KEY_API_MODELS_BAICHUAN = "api_models_baichuan"
+        private const val KEY_API_MODELS_STEPFUN = "api_models_stepfun"
+        private const val KEY_API_MODELS_MINIMAX = "api_models_minimax"
 
         // Model lists cache timestamps (24-hour cache per provider)
         private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"
@@ -795,6 +993,25 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun loadMoonshotApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MOONSHOT)
     fun saveMoonshotApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MOONSHOT, models)
+
+    fun loadCohereApiModels(): List<String> = loadApiModels(KEY_API_MODELS_COHERE)
+    fun saveCohereApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_COHERE, models)
+    fun loadAi21ApiModels(): List<String> = loadApiModels(KEY_API_MODELS_AI21)
+    fun saveAi21ApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_AI21, models)
+    fun loadDashScopeApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DASHSCOPE)
+    fun saveDashScopeApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DASHSCOPE, models)
+    fun loadFireworksApiModels(): List<String> = loadApiModels(KEY_API_MODELS_FIREWORKS)
+    fun saveFireworksApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_FIREWORKS, models)
+    fun loadCerebrasApiModels(): List<String> = loadApiModels(KEY_API_MODELS_CEREBRAS)
+    fun saveCerebrasApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_CEREBRAS, models)
+    fun loadSambaNovaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_SAMBANOVA)
+    fun saveSambaNovaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_SAMBANOVA, models)
+    fun loadBaichuanApiModels(): List<String> = loadApiModels(KEY_API_MODELS_BAICHUAN)
+    fun saveBaichuanApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_BAICHUAN, models)
+    fun loadStepFunApiModels(): List<String> = loadApiModels(KEY_API_MODELS_STEPFUN)
+    fun saveStepFunApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_STEPFUN, models)
+    fun loadMiniMaxApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MINIMAX)
+    fun saveMiniMaxApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MINIMAX, models)
 
     // ============================================================================
     // Model Lists Cache (24-hour validity per provider)

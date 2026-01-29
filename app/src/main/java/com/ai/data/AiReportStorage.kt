@@ -51,7 +51,8 @@ data class AiReport(
     val prompt: String,
     val agents: MutableList<AiReportAgent>,
     var totalCost: Double = 0.0,
-    var completedAt: Long? = null
+    var completedAt: Long? = null,
+    val rapportText: String? = null  // Text below "-- rapport --" line, shown in HTML export
 )
 
 /**
@@ -83,7 +84,8 @@ object AiReportStorage {
         context: Context,
         title: String,
         prompt: String,
-        agents: List<AiReportAgent>
+        agents: List<AiReportAgent>,
+        rapportText: String? = null
     ): AiReport {
         init(context)
 
@@ -92,7 +94,8 @@ object AiReportStorage {
             timestamp = System.currentTimeMillis(),
             title = title,
             prompt = prompt,
-            agents = agents.toMutableList()
+            agents = agents.toMutableList(),
+            rapportText = rapportText
         )
 
         lock.withLock {

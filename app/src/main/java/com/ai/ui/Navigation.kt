@@ -323,6 +323,15 @@ fun AiNavHost(
                 availableSiliconFlowModels = uiState.availableSiliconFlowModels,
                 availableZaiModels = uiState.availableZaiModels,
                 availableMoonshotModels = uiState.availableMoonshotModels,
+                availableCohereModels = uiState.availableCohereModels,
+                availableAi21Models = uiState.availableAi21Models,
+                availableDashScopeModels = uiState.availableDashScopeModels,
+                availableFireworksModels = uiState.availableFireworksModels,
+                availableCerebrasModels = uiState.availableCerebrasModels,
+                availableSambaNovaModels = uiState.availableSambaNovaModels,
+                availableBaichuanModels = uiState.availableBaichuanModels,
+                availableStepFunModels = uiState.availableStepFunModels,
+                availableMiniMaxModels = uiState.availableMiniMaxModels,
                 isLoadingChatGptModels = uiState.isLoadingChatGptModels,
                 isLoadingGeminiModels = uiState.isLoadingGeminiModels,
                 isLoadingGrokModels = uiState.isLoadingGrokModels,
@@ -336,6 +345,15 @@ fun AiNavHost(
                 isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
                 isLoadingZaiModels = uiState.isLoadingZaiModels,
                 isLoadingMoonshotModels = uiState.isLoadingMoonshotModels,
+                isLoadingCohereModels = uiState.isLoadingCohereModels,
+                isLoadingAi21Models = uiState.isLoadingAi21Models,
+                isLoadingDashScopeModels = uiState.isLoadingDashScopeModels,
+                isLoadingFireworksModels = uiState.isLoadingFireworksModels,
+                isLoadingCerebrasModels = uiState.isLoadingCerebrasModels,
+                isLoadingSambaNovaModels = uiState.isLoadingSambaNovaModels,
+                isLoadingBaichuanModels = uiState.isLoadingBaichuanModels,
+                isLoadingStepFunModels = uiState.isLoadingStepFunModels,
+                isLoadingMiniMaxModels = uiState.isLoadingMiniMaxModels,
                 onBackToAiSetup = { navController.popBackStack() },
                 onBackToHome = navigateHome,
                 onSaveAiSettings = { viewModel.updateAiSettings(it) },
@@ -354,6 +372,15 @@ fun AiNavHost(
                 onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
                 onFetchZaiModels = { viewModel.fetchZaiModels(it) },
                 onFetchMoonshotModels = { viewModel.fetchMoonshotModels(it) },
+                onFetchCohereModels = { viewModel.fetchCohereModels(it) },
+                onFetchAi21Models = { viewModel.fetchAi21Models(it) },
+                onFetchDashScopeModels = { viewModel.fetchDashScopeModels(it) },
+                onFetchFireworksModels = { viewModel.fetchFireworksModels(it) },
+                onFetchCerebrasModels = { viewModel.fetchCerebrasModels(it) },
+                onFetchSambaNovaModels = { viewModel.fetchSambaNovaModels(it) },
+                onFetchBaichuanModels = { viewModel.fetchBaichuanModels(it) },
+                onFetchStepFunModels = { viewModel.fetchStepFunModels(it) },
+                onFetchMiniMaxModels = { viewModel.fetchMiniMaxModels(it) },
                 onNavigateToChatParams = { provider, model ->
                     navController.navigate(NavRoutes.aiChatParams(provider.name, model))
                 },
@@ -536,6 +563,15 @@ fun AiNavHost(
                     com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
                     com.ai.data.AiService.ZAI -> uiState.availableZaiModels
                     com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
+                    com.ai.data.AiService.COHERE -> uiState.availableCohereModels
+                    com.ai.data.AiService.AI21 -> uiState.availableAi21Models
+                    com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
+                    com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
+                    com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
+                    com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
+                    com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
+                    com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
+                    com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
                     com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                     else -> emptyList()
                 }
@@ -552,6 +588,15 @@ fun AiNavHost(
                     com.ai.data.AiService.SILICONFLOW -> uiState.isLoadingSiliconFlowModels
                     com.ai.data.AiService.ZAI -> uiState.isLoadingZaiModels
                     com.ai.data.AiService.MOONSHOT -> uiState.isLoadingMoonshotModels
+                    com.ai.data.AiService.COHERE -> uiState.isLoadingCohereModels
+                    com.ai.data.AiService.AI21 -> uiState.isLoadingAi21Models
+                    com.ai.data.AiService.DASHSCOPE -> uiState.isLoadingDashScopeModels
+                    com.ai.data.AiService.FIREWORKS -> uiState.isLoadingFireworksModels
+                    com.ai.data.AiService.CEREBRAS -> uiState.isLoadingCerebrasModels
+                    com.ai.data.AiService.SAMBANOVA -> uiState.isLoadingSambaNovaModels
+                    com.ai.data.AiService.BAICHUAN -> uiState.isLoadingBaichuanModels
+                    com.ai.data.AiService.STEPFUN -> uiState.isLoadingStepFunModels
+                    com.ai.data.AiService.MINIMAX -> uiState.isLoadingMiniMaxModels
                     com.ai.data.AiService.DUMMY -> uiState.isLoadingDummyModels
                     else -> false
                 }
@@ -613,6 +658,15 @@ fun AiNavHost(
                     com.ai.data.AiService.SILICONFLOW -> uiState.aiSettings.siliconFlowApiKey
                     com.ai.data.AiService.ZAI -> uiState.aiSettings.zaiApiKey
                     com.ai.data.AiService.MOONSHOT -> uiState.aiSettings.moonshotApiKey
+                    com.ai.data.AiService.COHERE -> uiState.aiSettings.cohereApiKey
+                    com.ai.data.AiService.AI21 -> uiState.aiSettings.ai21ApiKey
+                    com.ai.data.AiService.DASHSCOPE -> uiState.aiSettings.dashScopeApiKey
+                    com.ai.data.AiService.FIREWORKS -> uiState.aiSettings.fireworksApiKey
+                    com.ai.data.AiService.CEREBRAS -> uiState.aiSettings.cerebrasApiKey
+                    com.ai.data.AiService.SAMBANOVA -> uiState.aiSettings.sambaNovaApiKey
+                    com.ai.data.AiService.BAICHUAN -> uiState.aiSettings.baichuanApiKey
+                    com.ai.data.AiService.STEPFUN -> uiState.aiSettings.stepFunApiKey
+                    com.ai.data.AiService.MINIMAX -> uiState.aiSettings.miniMaxApiKey
                     com.ai.data.AiService.DUMMY -> uiState.aiSettings.dummyApiKey
                 }
 
@@ -731,6 +785,24 @@ fun SettingsScreenNav(
         isLoadingZaiModels = uiState.isLoadingZaiModels,
         availableMoonshotModels = uiState.availableMoonshotModels,
         isLoadingMoonshotModels = uiState.isLoadingMoonshotModels,
+        availableCohereModels = uiState.availableCohereModels,
+        isLoadingCohereModels = uiState.isLoadingCohereModels,
+        availableAi21Models = uiState.availableAi21Models,
+        isLoadingAi21Models = uiState.isLoadingAi21Models,
+        availableDashScopeModels = uiState.availableDashScopeModels,
+        isLoadingDashScopeModels = uiState.isLoadingDashScopeModels,
+        availableFireworksModels = uiState.availableFireworksModels,
+        isLoadingFireworksModels = uiState.isLoadingFireworksModels,
+        availableCerebrasModels = uiState.availableCerebrasModels,
+        isLoadingCerebrasModels = uiState.isLoadingCerebrasModels,
+        availableSambaNovaModels = uiState.availableSambaNovaModels,
+        isLoadingSambaNovaModels = uiState.isLoadingSambaNovaModels,
+        availableBaichuanModels = uiState.availableBaichuanModels,
+        isLoadingBaichuanModels = uiState.isLoadingBaichuanModels,
+        availableStepFunModels = uiState.availableStepFunModels,
+        isLoadingStepFunModels = uiState.isLoadingStepFunModels,
+        availableMiniMaxModels = uiState.availableMiniMaxModels,
+        isLoadingMiniMaxModels = uiState.isLoadingMiniMaxModels,
         availableDummyModels = uiState.availableDummyModels,
         isLoadingDummyModels = uiState.isLoadingDummyModels,
         onBack = onNavigateBack,
@@ -751,6 +823,15 @@ fun SettingsScreenNav(
         onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
         onFetchZaiModels = { viewModel.fetchZaiModels(it) },
         onFetchMoonshotModels = { viewModel.fetchMoonshotModels(it) },
+        onFetchCohereModels = { viewModel.fetchCohereModels(it) },
+        onFetchAi21Models = { viewModel.fetchAi21Models(it) },
+        onFetchDashScopeModels = { viewModel.fetchDashScopeModels(it) },
+        onFetchFireworksModels = { viewModel.fetchFireworksModels(it) },
+        onFetchCerebrasModels = { viewModel.fetchCerebrasModels(it) },
+        onFetchSambaNovaModels = { viewModel.fetchSambaNovaModels(it) },
+        onFetchBaichuanModels = { viewModel.fetchBaichuanModels(it) },
+        onFetchStepFunModels = { viewModel.fetchStepFunModels(it) },
+        onFetchMiniMaxModels = { viewModel.fetchMiniMaxModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onRefreshAllModels = { viewModel.refreshAllModelLists(it) },
@@ -829,6 +910,15 @@ fun HousekeepingScreenNav(
         availableSiliconFlowModels = uiState.availableSiliconFlowModels,
         availableZaiModels = uiState.availableZaiModels,
         availableMoonshotModels = uiState.availableMoonshotModels,
+        availableCohereModels = uiState.availableCohereModels,
+        availableAi21Models = uiState.availableAi21Models,
+        availableDashScopeModels = uiState.availableDashScopeModels,
+        availableFireworksModels = uiState.availableFireworksModels,
+        availableCerebrasModels = uiState.availableCerebrasModels,
+        availableSambaNovaModels = uiState.availableSambaNovaModels,
+        availableBaichuanModels = uiState.availableBaichuanModels,
+        availableStepFunModels = uiState.availableStepFunModels,
+        availableMiniMaxModels = uiState.availableMiniMaxModels,
         availableDummyModels = uiState.availableDummyModels,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },

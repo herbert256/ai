@@ -72,6 +72,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val siliconFlowApiModels = settingsPrefs.loadSiliconFlowApiModels()
         val zaiApiModels = settingsPrefs.loadZaiApiModels()
         val moonshotApiModels = settingsPrefs.loadMoonshotApiModels()
+        val cohereApiModels = settingsPrefs.loadCohereApiModels()
+        val ai21ApiModels = settingsPrefs.loadAi21ApiModels()
+        val dashScopeApiModels = settingsPrefs.loadDashScopeApiModels()
+        val fireworksApiModels = settingsPrefs.loadFireworksApiModels()
+        val cerebrasApiModels = settingsPrefs.loadCerebrasApiModels()
+        val sambaNovaApiModels = settingsPrefs.loadSambaNovaApiModels()
+        val baichuanApiModels = settingsPrefs.loadBaichuanApiModels()
+        val stepFunApiModels = settingsPrefs.loadStepFunApiModels()
+        val miniMaxApiModels = settingsPrefs.loadMiniMaxApiModels()
 
         _uiState.value = _uiState.value.copy(
             generalSettings = generalSettings,
@@ -88,7 +97,16 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             availableClaudeModels = claudeApiModels,
             availableSiliconFlowModels = siliconFlowApiModels,
             availableZaiModels = zaiApiModels,
-            availableMoonshotModels = moonshotApiModels
+            availableMoonshotModels = moonshotApiModels,
+            availableCohereModels = cohereApiModels,
+            availableAi21Models = ai21ApiModels,
+            availableDashScopeModels = dashScopeApiModels,
+            availableFireworksModels = fireworksApiModels,
+            availableCerebrasModels = cerebrasApiModels,
+            availableSambaNovaModels = sambaNovaApiModels,
+            availableBaichuanModels = baichuanApiModels,
+            availableStepFunModels = stepFunApiModels,
+            availableMiniMaxModels = miniMaxApiModels
         )
 
         // Enable API tracing if configured
@@ -812,6 +830,150 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun fetchCohereModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingCohereModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchCohereModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableCohereModels = models,
+                    isLoadingCohereModels = false
+                )
+                settingsPrefs.saveCohereApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingCohereModels = false)
+            }
+        }
+    }
+
+    fun fetchAi21Models(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingAi21Models = true)
+            try {
+                val models = aiAnalysisRepository.fetchAi21Models(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableAi21Models = models,
+                    isLoadingAi21Models = false
+                )
+                settingsPrefs.saveAi21ApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingAi21Models = false)
+            }
+        }
+    }
+
+    fun fetchDashScopeModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingDashScopeModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchDashScopeModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableDashScopeModels = models,
+                    isLoadingDashScopeModels = false
+                )
+                settingsPrefs.saveDashScopeApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingDashScopeModels = false)
+            }
+        }
+    }
+
+    fun fetchFireworksModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingFireworksModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchFireworksModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableFireworksModels = models,
+                    isLoadingFireworksModels = false
+                )
+                settingsPrefs.saveFireworksApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingFireworksModels = false)
+            }
+        }
+    }
+
+    fun fetchCerebrasModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingCerebrasModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchCerebrasModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableCerebrasModels = models,
+                    isLoadingCerebrasModels = false
+                )
+                settingsPrefs.saveCerebrasApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingCerebrasModels = false)
+            }
+        }
+    }
+
+    fun fetchSambaNovaModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingSambaNovaModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchSambaNovaModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableSambaNovaModels = models,
+                    isLoadingSambaNovaModels = false
+                )
+                settingsPrefs.saveSambaNovaApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingSambaNovaModels = false)
+            }
+        }
+    }
+
+    fun fetchBaichuanModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingBaichuanModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchBaichuanModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableBaichuanModels = models,
+                    isLoadingBaichuanModels = false
+                )
+                settingsPrefs.saveBaichuanApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingBaichuanModels = false)
+            }
+        }
+    }
+
+    fun fetchStepFunModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingStepFunModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchStepFunModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableStepFunModels = models,
+                    isLoadingStepFunModels = false
+                )
+                settingsPrefs.saveStepFunApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingStepFunModels = false)
+            }
+        }
+    }
+
+    fun fetchMiniMaxModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingMiniMaxModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchMiniMaxModels(apiKey)
+                _uiState.value = _uiState.value.copy(
+                    availableMiniMaxModels = models,
+                    isLoadingMiniMaxModels = false
+                )
+                settingsPrefs.saveMiniMaxApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingMiniMaxModels = false)
+            }
+        }
+    }
+
     // ========== Refresh All Model Lists ==========
 
     /**
@@ -1013,6 +1175,141 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     results["Moonshot"] = models.size
                 } catch (e: Exception) {
                     results["Moonshot"] = -1
+                }
+            }
+        }
+
+        // Cohere
+        if (settings.cohereModelSource == ModelSource.API && settings.cohereApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.COHERE)) {
+                try {
+                    val models = aiAnalysisRepository.fetchCohereModels(settings.cohereApiKey)
+                    _uiState.value = _uiState.value.copy(availableCohereModels = models)
+                    settingsPrefs.saveCohereApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.COHERE)
+                    results["Cohere"] = models.size
+                } catch (e: Exception) {
+                    results["Cohere"] = -1
+                }
+            }
+        }
+
+        // AI21
+        if (settings.ai21ModelSource == ModelSource.API && settings.ai21ApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.AI21)) {
+                try {
+                    val models = aiAnalysisRepository.fetchAi21Models(settings.ai21ApiKey)
+                    _uiState.value = _uiState.value.copy(availableAi21Models = models)
+                    settingsPrefs.saveAi21ApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.AI21)
+                    results["AI21"] = models.size
+                } catch (e: Exception) {
+                    results["AI21"] = -1
+                }
+            }
+        }
+
+        // DashScope
+        if (settings.dashScopeModelSource == ModelSource.API && settings.dashScopeApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DASHSCOPE)) {
+                try {
+                    val models = aiAnalysisRepository.fetchDashScopeModels(settings.dashScopeApiKey)
+                    _uiState.value = _uiState.value.copy(availableDashScopeModels = models)
+                    settingsPrefs.saveDashScopeApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.DASHSCOPE)
+                    results["DashScope"] = models.size
+                } catch (e: Exception) {
+                    results["DashScope"] = -1
+                }
+            }
+        }
+
+        // Fireworks
+        if (settings.fireworksModelSource == ModelSource.API && settings.fireworksApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.FIREWORKS)) {
+                try {
+                    val models = aiAnalysisRepository.fetchFireworksModels(settings.fireworksApiKey)
+                    _uiState.value = _uiState.value.copy(availableFireworksModels = models)
+                    settingsPrefs.saveFireworksApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.FIREWORKS)
+                    results["Fireworks"] = models.size
+                } catch (e: Exception) {
+                    results["Fireworks"] = -1
+                }
+            }
+        }
+
+        // Cerebras
+        if (settings.cerebrasModelSource == ModelSource.API && settings.cerebrasApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.CEREBRAS)) {
+                try {
+                    val models = aiAnalysisRepository.fetchCerebrasModels(settings.cerebrasApiKey)
+                    _uiState.value = _uiState.value.copy(availableCerebrasModels = models)
+                    settingsPrefs.saveCerebrasApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.CEREBRAS)
+                    results["Cerebras"] = models.size
+                } catch (e: Exception) {
+                    results["Cerebras"] = -1
+                }
+            }
+        }
+
+        // SambaNova
+        if (settings.sambaNovaModelSource == ModelSource.API && settings.sambaNovaApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.SAMBANOVA)) {
+                try {
+                    val models = aiAnalysisRepository.fetchSambaNovaModels(settings.sambaNovaApiKey)
+                    _uiState.value = _uiState.value.copy(availableSambaNovaModels = models)
+                    settingsPrefs.saveSambaNovaApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.SAMBANOVA)
+                    results["SambaNova"] = models.size
+                } catch (e: Exception) {
+                    results["SambaNova"] = -1
+                }
+            }
+        }
+
+        // Baichuan
+        if (settings.baichuanModelSource == ModelSource.API && settings.baichuanApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.BAICHUAN)) {
+                try {
+                    val models = aiAnalysisRepository.fetchBaichuanModels(settings.baichuanApiKey)
+                    _uiState.value = _uiState.value.copy(availableBaichuanModels = models)
+                    settingsPrefs.saveBaichuanApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.BAICHUAN)
+                    results["Baichuan"] = models.size
+                } catch (e: Exception) {
+                    results["Baichuan"] = -1
+                }
+            }
+        }
+
+        // StepFun
+        if (settings.stepFunModelSource == ModelSource.API && settings.stepFunApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.STEPFUN)) {
+                try {
+                    val models = aiAnalysisRepository.fetchStepFunModels(settings.stepFunApiKey)
+                    _uiState.value = _uiState.value.copy(availableStepFunModels = models)
+                    settingsPrefs.saveStepFunApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.STEPFUN)
+                    results["StepFun"] = models.size
+                } catch (e: Exception) {
+                    results["StepFun"] = -1
+                }
+            }
+        }
+
+        // MiniMax
+        if (settings.miniMaxModelSource == ModelSource.API && settings.miniMaxApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.MINIMAX)) {
+                try {
+                    val models = aiAnalysisRepository.fetchMiniMaxModels(settings.miniMaxApiKey)
+                    _uiState.value = _uiState.value.copy(availableMiniMaxModels = models)
+                    settingsPrefs.saveMiniMaxApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.MINIMAX)
+                    results["MiniMax"] = models.size
+                } catch (e: Exception) {
+                    results["MiniMax"] = -1
                 }
             }
         }

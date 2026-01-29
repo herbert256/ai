@@ -38,6 +38,15 @@ fun AiAgentsScreen(
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
     availableMoonshotModels: List<String>,
+    availableCohereModels: List<String>,
+    availableAi21Models: List<String>,
+    availableDashScopeModels: List<String>,
+    availableFireworksModels: List<String>,
+    availableCerebrasModels: List<String>,
+    availableSambaNovaModels: List<String>,
+    availableBaichuanModels: List<String>,
+    availableStepFunModels: List<String>,
+    availableMiniMaxModels: List<String>,
     availableDummyModels: List<String>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
@@ -56,6 +65,15 @@ fun AiAgentsScreen(
     onFetchSiliconFlowModels: (String) -> Unit = {},
     onFetchZaiModels: (String) -> Unit = {},
     onFetchMoonshotModels: (String) -> Unit = {},
+    onFetchCohereModels: (String) -> Unit = {},
+    onFetchAi21Models: (String) -> Unit = {},
+    onFetchDashScopeModels: (String) -> Unit = {},
+    onFetchFireworksModels: (String) -> Unit = {},
+    onFetchCerebrasModels: (String) -> Unit = {},
+    onFetchSambaNovaModels: (String) -> Unit = {},
+    onFetchBaichuanModels: (String) -> Unit = {},
+    onFetchStepFunModels: (String) -> Unit = {},
+    onFetchMiniMaxModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit = {}
 ) {
     var showAddScreen by remember { mutableStateOf(false) }
@@ -80,6 +98,15 @@ fun AiAgentsScreen(
             AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
             AiService.ZAI -> onFetchZaiModels(apiKey)
             AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
+            AiService.COHERE -> onFetchCohereModels(apiKey)
+            AiService.AI21 -> onFetchAi21Models(apiKey)
+            AiService.DASHSCOPE -> onFetchDashScopeModels(apiKey)
+            AiService.FIREWORKS -> onFetchFireworksModels(apiKey)
+            AiService.CEREBRAS -> onFetchCerebrasModels(apiKey)
+            AiService.SAMBANOVA -> onFetchSambaNovaModels(apiKey)
+            AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
+            AiService.STEPFUN -> onFetchStepFunModels(apiKey)
+            AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }
@@ -113,6 +140,15 @@ fun AiAgentsScreen(
             availableSiliconFlowModels = availableSiliconFlowModels,
             availableZaiModels = availableZaiModels,
             availableMoonshotModels = availableMoonshotModels,
+            availableCohereModels = availableCohereModels,
+            availableAi21Models = availableAi21Models,
+            availableDashScopeModels = availableDashScopeModels,
+            availableFireworksModels = availableFireworksModels,
+            availableCerebrasModels = availableCerebrasModels,
+            availableSambaNovaModels = availableSambaNovaModels,
+            availableBaichuanModels = availableBaichuanModels,
+            availableStepFunModels = availableStepFunModels,
+            availableMiniMaxModels = availableMiniMaxModels,
             availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
@@ -404,6 +440,15 @@ internal fun AgentEditScreen(
     availableSiliconFlowModels: List<String>,
     availableZaiModels: List<String>,
     availableMoonshotModels: List<String>,
+    availableCohereModels: List<String>,
+    availableAi21Models: List<String>,
+    availableDashScopeModels: List<String>,
+    availableFireworksModels: List<String>,
+    availableCerebrasModels: List<String>,
+    availableSambaNovaModels: List<String>,
+    availableBaichuanModels: List<String>,
+    availableStepFunModels: List<String>,
+    availableMiniMaxModels: List<String>,
     availableDummyModels: List<String>,
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
@@ -544,6 +589,51 @@ internal fun AgentEditScreen(
             val manualModels = if (aiSettings.moonshotModelSource == ModelSource.MANUAL) aiSettings.moonshotManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { MOONSHOT_MODELS }
         }
+        AiService.COHERE -> {
+            val apiModels = if (aiSettings.cohereModelSource == ModelSource.API) availableCohereModels else emptyList()
+            val manualModels = if (aiSettings.cohereModelSource == ModelSource.MANUAL) aiSettings.cohereManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { COHERE_MODELS }
+        }
+        AiService.AI21 -> {
+            val apiModels = if (aiSettings.ai21ModelSource == ModelSource.API) availableAi21Models else emptyList()
+            val manualModels = if (aiSettings.ai21ModelSource == ModelSource.MANUAL) aiSettings.ai21ManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { AI21_MODELS }
+        }
+        AiService.DASHSCOPE -> {
+            val apiModels = if (aiSettings.dashScopeModelSource == ModelSource.API) availableDashScopeModels else emptyList()
+            val manualModels = if (aiSettings.dashScopeModelSource == ModelSource.MANUAL) aiSettings.dashScopeManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { DASHSCOPE_MODELS }
+        }
+        AiService.FIREWORKS -> {
+            val apiModels = if (aiSettings.fireworksModelSource == ModelSource.API) availableFireworksModels else emptyList()
+            val manualModels = if (aiSettings.fireworksModelSource == ModelSource.MANUAL) aiSettings.fireworksManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { FIREWORKS_MODELS }
+        }
+        AiService.CEREBRAS -> {
+            val apiModels = if (aiSettings.cerebrasModelSource == ModelSource.API) availableCerebrasModels else emptyList()
+            val manualModels = if (aiSettings.cerebrasModelSource == ModelSource.MANUAL) aiSettings.cerebrasManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { CEREBRAS_MODELS }
+        }
+        AiService.SAMBANOVA -> {
+            val apiModels = if (aiSettings.sambaNovaModelSource == ModelSource.API) availableSambaNovaModels else emptyList()
+            val manualModels = if (aiSettings.sambaNovaModelSource == ModelSource.MANUAL) aiSettings.sambaNovaManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { SAMBANOVA_MODELS }
+        }
+        AiService.BAICHUAN -> {
+            val apiModels = if (aiSettings.baichuanModelSource == ModelSource.API) availableBaichuanModels else emptyList()
+            val manualModels = if (aiSettings.baichuanModelSource == ModelSource.MANUAL) aiSettings.baichuanManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { BAICHUAN_MODELS }
+        }
+        AiService.STEPFUN -> {
+            val apiModels = if (aiSettings.stepFunModelSource == ModelSource.API) availableStepFunModels else emptyList()
+            val manualModels = if (aiSettings.stepFunModelSource == ModelSource.MANUAL) aiSettings.stepFunManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { STEPFUN_MODELS }
+        }
+        AiService.MINIMAX -> {
+            val apiModels = if (aiSettings.miniMaxModelSource == ModelSource.API) availableMiniMaxModels else emptyList()
+            val manualModels = if (aiSettings.miniMaxModelSource == ModelSource.MANUAL) aiSettings.miniMaxManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { MINIMAX_MODELS }
+        }
         AiService.DUMMY -> {
             val apiModels = if (aiSettings.dummyModelSource == ModelSource.API) availableDummyModels else emptyList()
             val manualModels = if (aiSettings.dummyModelSource == ModelSource.MANUAL) aiSettings.dummyManualModels else emptyList()
@@ -568,6 +658,15 @@ internal fun AgentEditScreen(
             AiService.SILICONFLOW -> ModelSource.MANUAL // SiliconFlow has hardcoded models
             AiService.ZAI -> ModelSource.MANUAL // Z.AI has hardcoded models
             AiService.MOONSHOT -> aiSettings.moonshotModelSource
+            AiService.COHERE -> aiSettings.cohereModelSource
+            AiService.AI21 -> aiSettings.ai21ModelSource
+            AiService.DASHSCOPE -> aiSettings.dashScopeModelSource
+            AiService.FIREWORKS -> aiSettings.fireworksModelSource
+            AiService.CEREBRAS -> aiSettings.cerebrasModelSource
+            AiService.SAMBANOVA -> aiSettings.sambaNovaModelSource
+            AiService.BAICHUAN -> aiSettings.baichuanModelSource
+            AiService.STEPFUN -> aiSettings.stepFunModelSource
+            AiService.MINIMAX -> aiSettings.miniMaxModelSource
         }
     }
 

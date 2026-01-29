@@ -1460,6 +1460,1014 @@ fun MoonshotSettingsScreen(
 }
 
 /**
+ * Cohere settings screen.
+ */
+@Composable
+fun CohereSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.cohereApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.cohereModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.cohereModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.cohereManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.cohereAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.cohereModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.cohereParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.cohereParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultCohereEndpoints = listOf(
+        AiEndpoint(
+            id = "cohere-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.cohere.ai/compatibility/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.COHERE).ifEmpty { defaultCohereEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.cohereApiKey ||
+            defaultModel != aiSettings.cohereModel ||
+            modelSource != aiSettings.cohereModelSource ||
+            manualModels != aiSettings.cohereManualModels ||
+            adminUrl != aiSettings.cohereAdminUrl ||
+            modelListUrl != aiSettings.cohereModelListUrl ||
+            selectedParamsId != aiSettings.cohereParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.COHERE)
+
+    AiServiceSettingsScreenTemplate(
+        title = "Cohere",
+        accentColor = Color(0xFF39594D),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                cohereApiKey = apiKey,
+                cohereModel = defaultModel,
+                cohereModelSource = modelSource,
+                cohereManualModels = manualModels,
+                cohereAdminUrl = adminUrl,
+                cohereModelListUrl = modelListUrl,
+                cohereParamsId = selectedParamsId
+            ).withEndpoints(AiService.COHERE, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.COHERE, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.COHERE, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.COHERE.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.COHERE),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * AI21 settings screen.
+ */
+@Composable
+fun Ai21SettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.ai21ApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.ai21Model) }
+    var modelSource by remember { mutableStateOf(aiSettings.ai21ModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.ai21ManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.ai21AdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.ai21ModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.ai21ParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.ai21ParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultAi21Endpoints = listOf(
+        AiEndpoint(
+            id = "ai21-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.ai21.com/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.AI21).ifEmpty { defaultAi21Endpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.ai21ApiKey ||
+            defaultModel != aiSettings.ai21Model ||
+            modelSource != aiSettings.ai21ModelSource ||
+            manualModels != aiSettings.ai21ManualModels ||
+            adminUrl != aiSettings.ai21AdminUrl ||
+            modelListUrl != aiSettings.ai21ModelListUrl ||
+            selectedParamsId != aiSettings.ai21ParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.AI21)
+
+    AiServiceSettingsScreenTemplate(
+        title = "AI21",
+        accentColor = Color(0xFFFF6F00),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                ai21ApiKey = apiKey,
+                ai21Model = defaultModel,
+                ai21ModelSource = modelSource,
+                ai21ManualModels = manualModels,
+                ai21AdminUrl = adminUrl,
+                ai21ModelListUrl = modelListUrl,
+                ai21ParamsId = selectedParamsId
+            ).withEndpoints(AiService.AI21, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.AI21, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.AI21, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.AI21.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.AI21),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * DashScope settings screen.
+ */
+@Composable
+fun DashScopeSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.dashScopeApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.dashScopeModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.dashScopeModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.dashScopeManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.dashScopeAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.dashScopeModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.dashScopeParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.dashScopeParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultDashScopeEndpoints = listOf(
+        AiEndpoint(
+            id = "dashscope-chat-completions",
+            name = "Chat Completions",
+            url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.DASHSCOPE).ifEmpty { defaultDashScopeEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.dashScopeApiKey ||
+            defaultModel != aiSettings.dashScopeModel ||
+            modelSource != aiSettings.dashScopeModelSource ||
+            manualModels != aiSettings.dashScopeManualModels ||
+            adminUrl != aiSettings.dashScopeAdminUrl ||
+            modelListUrl != aiSettings.dashScopeModelListUrl ||
+            selectedParamsId != aiSettings.dashScopeParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.DASHSCOPE)
+
+    AiServiceSettingsScreenTemplate(
+        title = "DashScope",
+        accentColor = Color(0xFFFF6A00),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                dashScopeApiKey = apiKey,
+                dashScopeModel = defaultModel,
+                dashScopeModelSource = modelSource,
+                dashScopeManualModels = manualModels,
+                dashScopeAdminUrl = adminUrl,
+                dashScopeModelListUrl = modelListUrl,
+                dashScopeParamsId = selectedParamsId
+            ).withEndpoints(AiService.DASHSCOPE, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.DASHSCOPE, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.DASHSCOPE, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.DASHSCOPE.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DASHSCOPE),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Fireworks settings screen.
+ */
+@Composable
+fun FireworksSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.fireworksApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.fireworksModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.fireworksModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.fireworksManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.fireworksAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.fireworksModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.fireworksParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.fireworksParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultFireworksEndpoints = listOf(
+        AiEndpoint(
+            id = "fireworks-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.fireworks.ai/inference/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.FIREWORKS).ifEmpty { defaultFireworksEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.fireworksApiKey ||
+            defaultModel != aiSettings.fireworksModel ||
+            modelSource != aiSettings.fireworksModelSource ||
+            manualModels != aiSettings.fireworksManualModels ||
+            adminUrl != aiSettings.fireworksAdminUrl ||
+            modelListUrl != aiSettings.fireworksModelListUrl ||
+            selectedParamsId != aiSettings.fireworksParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.FIREWORKS)
+
+    AiServiceSettingsScreenTemplate(
+        title = "Fireworks",
+        accentColor = Color(0xFFE34234),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                fireworksApiKey = apiKey,
+                fireworksModel = defaultModel,
+                fireworksModelSource = modelSource,
+                fireworksManualModels = manualModels,
+                fireworksAdminUrl = adminUrl,
+                fireworksModelListUrl = modelListUrl,
+                fireworksParamsId = selectedParamsId
+            ).withEndpoints(AiService.FIREWORKS, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.FIREWORKS, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.FIREWORKS, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.FIREWORKS.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.FIREWORKS),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Cerebras settings screen.
+ */
+@Composable
+fun CerebrasSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.cerebrasApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.cerebrasModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.cerebrasModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.cerebrasManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.cerebrasAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.cerebrasModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.cerebrasParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.cerebrasParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultCerebrasEndpoints = listOf(
+        AiEndpoint(
+            id = "cerebras-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.cerebras.ai/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.CEREBRAS).ifEmpty { defaultCerebrasEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.cerebrasApiKey ||
+            defaultModel != aiSettings.cerebrasModel ||
+            modelSource != aiSettings.cerebrasModelSource ||
+            manualModels != aiSettings.cerebrasManualModels ||
+            adminUrl != aiSettings.cerebrasAdminUrl ||
+            modelListUrl != aiSettings.cerebrasModelListUrl ||
+            selectedParamsId != aiSettings.cerebrasParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.CEREBRAS)
+
+    AiServiceSettingsScreenTemplate(
+        title = "Cerebras",
+        accentColor = Color(0xFF00A3E0),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                cerebrasApiKey = apiKey,
+                cerebrasModel = defaultModel,
+                cerebrasModelSource = modelSource,
+                cerebrasManualModels = manualModels,
+                cerebrasAdminUrl = adminUrl,
+                cerebrasModelListUrl = modelListUrl,
+                cerebrasParamsId = selectedParamsId
+            ).withEndpoints(AiService.CEREBRAS, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.CEREBRAS, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.CEREBRAS, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.CEREBRAS.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.CEREBRAS),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * SambaNova settings screen.
+ */
+@Composable
+fun SambaNovaSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.sambaNovaApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.sambaNovaModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.sambaNovaModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.sambaNovaManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.sambaNovaAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.sambaNovaModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.sambaNovaParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.sambaNovaParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultSambaNovaEndpoints = listOf(
+        AiEndpoint(
+            id = "sambanova-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.sambanova.ai/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.SAMBANOVA).ifEmpty { defaultSambaNovaEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.sambaNovaApiKey ||
+            defaultModel != aiSettings.sambaNovaModel ||
+            modelSource != aiSettings.sambaNovaModelSource ||
+            manualModels != aiSettings.sambaNovaManualModels ||
+            adminUrl != aiSettings.sambaNovaAdminUrl ||
+            modelListUrl != aiSettings.sambaNovaModelListUrl ||
+            selectedParamsId != aiSettings.sambaNovaParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.SAMBANOVA)
+
+    AiServiceSettingsScreenTemplate(
+        title = "SambaNova",
+        accentColor = Color(0xFF6B21A8),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                sambaNovaApiKey = apiKey,
+                sambaNovaModel = defaultModel,
+                sambaNovaModelSource = modelSource,
+                sambaNovaManualModels = manualModels,
+                sambaNovaAdminUrl = adminUrl,
+                sambaNovaModelListUrl = modelListUrl,
+                sambaNovaParamsId = selectedParamsId
+            ).withEndpoints(AiService.SAMBANOVA, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.SAMBANOVA, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.SAMBANOVA, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.SAMBANOVA.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.SAMBANOVA),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Baichuan settings screen.
+ */
+@Composable
+fun BaichuanSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.baichuanApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.baichuanModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.baichuanModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.baichuanManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.baichuanAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.baichuanModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.baichuanParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.baichuanParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultBaichuanEndpoints = listOf(
+        AiEndpoint(
+            id = "baichuan-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.baichuan-ai.com/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.BAICHUAN).ifEmpty { defaultBaichuanEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.baichuanApiKey ||
+            defaultModel != aiSettings.baichuanModel ||
+            modelSource != aiSettings.baichuanModelSource ||
+            manualModels != aiSettings.baichuanManualModels ||
+            adminUrl != aiSettings.baichuanAdminUrl ||
+            modelListUrl != aiSettings.baichuanModelListUrl ||
+            selectedParamsId != aiSettings.baichuanParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.BAICHUAN)
+
+    AiServiceSettingsScreenTemplate(
+        title = "Baichuan",
+        accentColor = Color(0xFF1E88E5),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                baichuanApiKey = apiKey,
+                baichuanModel = defaultModel,
+                baichuanModelSource = modelSource,
+                baichuanManualModels = manualModels,
+                baichuanAdminUrl = adminUrl,
+                baichuanModelListUrl = modelListUrl,
+                baichuanParamsId = selectedParamsId
+            ).withEndpoints(AiService.BAICHUAN, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.BAICHUAN, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.BAICHUAN, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.BAICHUAN.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.BAICHUAN),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * StepFun settings screen.
+ */
+@Composable
+fun StepFunSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.stepFunApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.stepFunModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.stepFunModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.stepFunManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.stepFunAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.stepFunModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.stepFunParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.stepFunParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultStepFunEndpoints = listOf(
+        AiEndpoint(
+            id = "stepfun-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.stepfun.com/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.STEPFUN).ifEmpty { defaultStepFunEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.stepFunApiKey ||
+            defaultModel != aiSettings.stepFunModel ||
+            modelSource != aiSettings.stepFunModelSource ||
+            manualModels != aiSettings.stepFunManualModels ||
+            adminUrl != aiSettings.stepFunAdminUrl ||
+            modelListUrl != aiSettings.stepFunModelListUrl ||
+            selectedParamsId != aiSettings.stepFunParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.STEPFUN)
+
+    AiServiceSettingsScreenTemplate(
+        title = "StepFun",
+        accentColor = Color(0xFF00BFA5),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                stepFunApiKey = apiKey,
+                stepFunModel = defaultModel,
+                stepFunModelSource = modelSource,
+                stepFunManualModels = manualModels,
+                stepFunAdminUrl = adminUrl,
+                stepFunModelListUrl = modelListUrl,
+                stepFunParamsId = selectedParamsId
+            ).withEndpoints(AiService.STEPFUN, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.STEPFUN, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.STEPFUN, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.STEPFUN.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.STEPFUN),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * MiniMax settings screen.
+ */
+@Composable
+fun MiniMaxSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onFetchModels: (String) -> Unit,
+    onCreateAgent: () -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.miniMaxApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.miniMaxModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.miniMaxModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.miniMaxManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.miniMaxAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.miniMaxModelListUrl) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.miniMaxParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.miniMaxParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val defaultMiniMaxEndpoints = listOf(
+        AiEndpoint(
+            id = "minimax-chat-completions",
+            name = "Chat Completions",
+            url = "https://api.minimax.io/v1/chat/completions",
+            isDefault = true
+        )
+    )
+    var endpoints by remember {
+        mutableStateOf(
+            aiSettings.getEndpointsForProvider(AiService.MINIMAX).ifEmpty { defaultMiniMaxEndpoints }
+        )
+    }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.miniMaxApiKey ||
+            defaultModel != aiSettings.miniMaxModel ||
+            modelSource != aiSettings.miniMaxModelSource ||
+            manualModels != aiSettings.miniMaxManualModels ||
+            adminUrl != aiSettings.miniMaxAdminUrl ||
+            modelListUrl != aiSettings.miniMaxModelListUrl ||
+            selectedParamsId != aiSettings.miniMaxParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.MINIMAX)
+
+    AiServiceSettingsScreenTemplate(
+        title = "MiniMax",
+        accentColor = Color(0xFFEC407A),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                miniMaxApiKey = apiKey,
+                miniMaxModel = defaultModel,
+                miniMaxModelSource = modelSource,
+                miniMaxManualModels = manualModels,
+                miniMaxAdminUrl = adminUrl,
+                miniMaxModelListUrl = modelListUrl,
+                miniMaxParamsId = selectedParamsId
+            ).withEndpoints(AiService.MINIMAX, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.MINIMAX, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.MINIMAX, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.MINIMAX.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.MINIMAX),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
  * Dummy settings screen (for testing with local HTTP server).
  */
 @Composable
