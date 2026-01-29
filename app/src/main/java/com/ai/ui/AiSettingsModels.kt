@@ -130,32 +130,32 @@ data class AiAgent(
 )
 
 /**
- * AI Swarm - a named group of AI Agents that work together.
+ * AI Flock - a named group of AI Agents that work together.
  */
-data class AiSwarm(
+data class AiFlock(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
-    val agentIds: List<String> = emptyList(),  // List of agent IDs in this swarm
+    val agentIds: List<String> = emptyList(),  // List of agent IDs in this flock
     val paramsId: String? = null       // Reference to AiParams ID (optional parameter preset)
 )
 
 /**
- * AI Flock Member - a provider/model combination within a flock.
- * Unlike agents, flock members have no custom settings - they use provider defaults.
+ * AI Swarm Member - a provider/model combination within a swarm.
+ * Unlike agents, swarm members have no custom settings - they use provider defaults.
  */
-data class AiFlockMember(
+data class AiSwarmMember(
     val provider: AiService,           // Provider enum
     val model: String                  // Model name
 )
 
 /**
- * AI Flock - a named group of provider/model combinations.
- * Unlike swarms which reference agents, flocks contain lightweight provider/model pairs.
+ * AI Swarm - a named group of provider/model combinations.
+ * Unlike flocks which reference agents, swarms contain lightweight provider/model pairs.
  */
-data class AiFlock(
+data class AiSwarm(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
-    val members: List<AiFlockMember> = emptyList(),  // List of provider/model combinations
+    val members: List<AiSwarmMember> = emptyList(),  // List of provider/model combinations
     val paramsId: String? = null       // Reference to AiParams ID (optional parameter preset)
 )
 
@@ -217,13 +217,13 @@ data class AiPrompt(
         model: String? = null,
         provider: String? = null,
         agent: String? = null,
-        swarm: String? = null
+        flock: String? = null
     ): String {
         var resolved = promptText
         if (model != null) resolved = resolved.replace("@MODEL@", model)
         if (provider != null) resolved = resolved.replace("@PROVIDER@", provider)
         if (agent != null) resolved = resolved.replace("@AGENT@", agent)
-        if (swarm != null) resolved = resolved.replace("@SWARM@", swarm)
+        if (flock != null) resolved = resolved.replace("@SWARM@", flock)
         resolved = resolved.replace("@NOW@", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date()))
         return resolved
     }
@@ -326,10 +326,10 @@ data class AiSettings(
     val dummyParamsId: String? = null,
     // AI Agents
     val agents: List<AiAgent> = emptyList(),
-    // AI Swarms
-    val swarms: List<AiSwarm> = emptyList(),
     // AI Flocks
     val flocks: List<AiFlock> = emptyList(),
+    // AI Swarms
+    val swarms: List<AiSwarm> = emptyList(),
     // AI Params (reusable parameter presets)
     val params: List<AiParams> = emptyList(),
     // AI Prompts (internal app prompts)
@@ -467,25 +467,25 @@ data class AiSettings(
         it.apiKey.isNotBlank() || getApiKey(it.provider).isNotBlank()
     }
 
-    // Helper methods for swarms
-    fun getSwarmById(id: String): AiSwarm? = swarms.find { it.id == id }
-
-    fun getAgentsForSwarm(swarm: AiSwarm): List<AiAgent> =
-        swarm.agentIds.mapNotNull { agentId -> getAgentById(agentId) }
-
-    fun getAgentsForSwarms(swarmIds: Set<String>): List<AiAgent> =
-        swarmIds.flatMap { swarmId ->
-            getSwarmById(swarmId)?.let { getAgentsForSwarm(it) } ?: emptyList()
-        }.distinctBy { it.id }
-
     // Helper methods for flocks
     fun getFlockById(id: String): AiFlock? = flocks.find { it.id == id }
 
-    fun getMembersForFlock(flock: AiFlock): List<AiFlockMember> = flock.members
+    fun getAgentsForFlock(flock: AiFlock): List<AiAgent> =
+        flock.agentIds.mapNotNull { agentId -> getAgentById(agentId) }
 
-    fun getMembersForFlocks(flockIds: Set<String>): List<AiFlockMember> =
+    fun getAgentsForFlocks(flockIds: Set<String>): List<AiAgent> =
         flockIds.flatMap { flockId ->
-            getFlockById(flockId)?.members ?: emptyList()
+            getFlockById(flockId)?.let { getAgentsForFlock(it) } ?: emptyList()
+        }.distinctBy { it.id }
+
+    // Helper methods for swarms
+    fun getSwarmById(id: String): AiSwarm? = swarms.find { it.id == id }
+
+    fun getMembersForSwarm(swarm: AiSwarm): List<AiSwarmMember> = swarm.members
+
+    fun getMembersForSwarms(swarmIds: Set<String>): List<AiSwarmMember> =
+        swarmIds.flatMap { swarmId ->
+            getSwarmById(swarmId)?.members ?: emptyList()
         }.distinctBy { "${it.provider.name}:${it.model}" }
 
     // Helper methods for prompts

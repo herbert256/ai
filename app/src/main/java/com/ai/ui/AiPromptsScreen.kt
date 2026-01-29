@@ -346,7 +346,7 @@ fun PromptEditScreen(
 
             // Variable help
             Text(
-                text = "Variables: @MODEL@ (model name), @PROVIDER@ (provider name), @AGENT@ (agent name), @SWARM@ (swarm name), @NOW@ (current date/time)",
+                text = "Variables: @MODEL@ (model name), @PROVIDER@ (provider name), @AGENT@ (agent name), @SWARM@ (flock name), @NOW@ (current date/time)",
                 fontSize = 12.sp,
                 color = Color(0xFF888888)
             )

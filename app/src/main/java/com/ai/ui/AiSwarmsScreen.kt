@@ -62,7 +62,7 @@ fun AiSwarmsScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No swarms configured.\nAdd a swarm to group agents together.",
+                    text = "No swarms configured.\nAdd a swarm to group provider/model combinations.",
                     color = Color(0xFF888888),
                     fontSize = 16.sp
                 )
@@ -75,13 +75,13 @@ fun AiSwarmsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
-                    // Filter DUMMY agents when not in developer mode
-                    val swarmAgents = aiSettings.getAgentsForSwarm(swarm).filter { agent ->
-                        developerMode || agent.provider != AiService.DUMMY
+                    // Filter DUMMY members when not in developer mode
+                    val swarmMembers = swarm.members.filter { member ->
+                        developerMode || member.provider != AiService.DUMMY
                     }
                     SwarmListItem(
                         swarm = swarm,
-                        agents = swarmAgents,
+                        members = swarmMembers,
                         onClick = { onEditSwarm(swarm.id) },
                         onDelete = { showDeleteDialog = swarm }
                     )
@@ -117,12 +117,12 @@ fun AiSwarmsScreen(
 }
 
 /**
- * List item for a swarm showing name and agent count.
+ * List item for a swarm showing name and member count.
  */
 @Composable
 private fun SwarmListItem(
     swarm: AiSwarm,
-    agents: List<AiAgent>,
+    members: List<AiSwarmMember>,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -150,10 +150,10 @@ private fun SwarmListItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (agents.isEmpty()) {
-                        "No agents"
+                    text = if (members.isEmpty()) {
+                        "No members"
                     } else {
-                        "${agents.size} agent${if (agents.size == 1) "" else "s"}: ${agents.take(3).joinToString(", ") { it.name }}${if (agents.size > 3) "..." else ""}"
+                        "${members.size} member${if (members.size == 1) "" else "s"}: ${members.take(3).joinToString(", ") { "${it.provider.displayName}/${it.model.take(20)}" }}${if (members.size > 3) "..." else ""}"
                     },
                     fontSize = 14.sp,
                     color = Color(0xFF888888)
@@ -175,6 +175,7 @@ fun SwarmEditScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     existingNames: Set<String>,
+    availableModels: Map<AiService, List<String>>,
     onSave: (AiSwarm) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
@@ -182,7 +183,7 @@ fun SwarmEditScreen(
     val isEditing = swarm != null
 
     var name by remember { mutableStateOf(swarm?.name ?: "") }
-    var selectedAgentIds by remember { mutableStateOf(swarm?.agentIds?.toSet() ?: emptySet()) }
+    var selectedMembers by remember { mutableStateOf(swarm?.members?.toSet() ?: emptySet()) }
     var nameError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -190,19 +191,31 @@ fun SwarmEditScreen(
     var selectedParamsId by remember { mutableStateOf(swarm?.paramsId) }
     var selectedParamsName by remember { mutableStateOf(swarm?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
-    // Get all configured agents (filter DUMMY when not in developer mode)
-    val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
-        developerMode || agent.provider != AiService.DUMMY
+    // Get all available provider/model combinations, sorted by provider name
+    val allProviderModels = remember(aiSettings, availableModels, developerMode) {
+        val result = mutableListOf<AiSwarmMember>()
+        AiService.entries.filter { developerMode || it != AiService.DUMMY }.sortedBy { it.displayName.lowercase() }.forEach { provider ->
+            val apiKey = aiSettings.getApiKey(provider)
+            if (apiKey.isNotBlank()) {
+                // Get models for this provider (from availableModels or manual models)
+                val models = availableModels[provider]?.takeIf { it.isNotEmpty() }
+                    ?: aiSettings.getManualModels(provider).takeIf { it.isNotEmpty() }
+                    ?: listOf(aiSettings.getModel(provider))
+                models.forEach { model ->
+                    result.add(AiSwarmMember(provider, model))
+                }
+            }
+        }
+        result
     }
 
-    // Filter agents based on search query
-    val filteredAgents = if (searchQuery.isBlank()) {
-        configuredAgents
+    // Filter based on search query
+    val filteredProviderModels = if (searchQuery.isBlank()) {
+        allProviderModels
     } else {
-        configuredAgents.filter { agent ->
-            agent.name.contains(searchQuery, ignoreCase = true) ||
-            agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
-            agent.model.contains(searchQuery, ignoreCase = true)
+        allProviderModels.filter { member ->
+            member.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+            member.model.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -259,17 +272,17 @@ fun SwarmEditScreen(
                 }
             )
 
-            // Agent selection section
+            // Member selection section
             Text(
-                text = "Select Agents",
+                text = "Select Provider/Model Combinations",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
                 color = Color(0xFF8B5CF6)
             )
 
-            if (configuredAgents.isEmpty()) {
+            if (allProviderModels.isEmpty()) {
                 Text(
-                    text = "No agents configured. Create agents first.",
+                    text = "No providers configured with API keys. Configure providers first.",
                     color = Color(0xFF888888),
                     fontSize = 14.sp
                 )
@@ -278,8 +291,8 @@ fun SwarmEditScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("Search agents") },
-                    placeholder = { Text("Filter by name, provider, or model") },
+                    label = { Text("Search") },
+                    placeholder = { Text("Filter by provider or model") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -291,19 +304,19 @@ fun SwarmEditScreen(
                     )
                 )
 
-                // Select all / Select none buttons (operate on filtered agents)
+                // Select all / Select none buttons (operate on filtered items)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { selectedAgentIds = selectedAgentIds + filteredAgents.map { it.id }.toSet() },
+                        onClick = { selectedMembers = selectedMembers + filteredProviderModels.toSet() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Select all")
                     }
                     OutlinedButton(
-                        onClick = { selectedAgentIds = selectedAgentIds - filteredAgents.map { it.id }.toSet() },
+                        onClick = { selectedMembers = selectedMembers - filteredProviderModels.toSet() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Select none")
@@ -313,7 +326,7 @@ fun SwarmEditScreen(
                 // Show count of filtered vs total
                 if (searchQuery.isNotBlank()) {
                     Text(
-                        text = "Showing ${filteredAgents.size} of ${configuredAgents.size} agents",
+                        text = "Showing ${filteredProviderModels.size} of ${allProviderModels.size} models",
                         fontSize = 12.sp,
                         color = Color(0xFF888888)
                     )
@@ -321,43 +334,45 @@ fun SwarmEditScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Agent checkboxes (filtered)
-                filteredAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                selectedAgentIds = if (agent.id in selectedAgentIds) {
-                                    selectedAgentIds - agent.id
-                                } else {
-                                    selectedAgentIds + agent.id
+                // Group by provider for better organization
+                val groupedByProvider = filteredProviderModels.groupBy { it.provider }
+                groupedByProvider.toSortedMap(compareBy { it.displayName }).forEach { (provider, members) ->
+                    members.sortedBy { it.model.lowercase() }.forEach { member ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedMembers = if (member in selectedMembers) {
+                                        selectedMembers - member
+                                    } else {
+                                        selectedMembers + member
+                                    }
                                 }
-                            }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = agent.id in selectedAgentIds,
-                            onCheckedChange = { checked ->
-                                selectedAgentIds = if (checked) {
-                                    selectedAgentIds + agent.id
-                                } else {
-                                    selectedAgentIds - agent.id
+                                .padding(vertical = 6.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = member in selectedMembers,
+                                onCheckedChange = { checked ->
+                                    selectedMembers = if (checked) {
+                                        selectedMembers + member
+                                    } else {
+                                        selectedMembers - member
+                                    }
                                 }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = member.provider.displayName,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF888888)
+                                )
+                                Text(
+                                    text = member.model,
+                                    color = Color.White
+                                )
                             }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = agent.name,
-                                fontWeight = FontWeight.Medium,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "${agent.provider.displayName} - ${agent.model.ifBlank { agent.provider.defaultModel }}",
-                                fontSize = 12.sp,
-                                color = Color(0xFF888888)
-                            )
                         }
                     }
                 }
@@ -377,14 +392,14 @@ fun SwarmEditScreen(
                     name in existingNames -> {
                         nameError = "A swarm with this name already exists"
                     }
-                    selectedAgentIds.isEmpty() -> {
-                        nameError = "Select at least one agent"
+                    selectedMembers.isEmpty() -> {
+                        nameError = "Select at least one provider/model"
                     }
                     else -> {
                         val newSwarm = AiSwarm(
                             id = swarm?.id ?: UUID.randomUUID().toString(),
                             name = name.trim(),
-                            agentIds = selectedAgentIds.toList(),
+                            members = selectedMembers.toList(),
                             paramsId = selectedParamsId
                         )
                         onSave(newSwarm)

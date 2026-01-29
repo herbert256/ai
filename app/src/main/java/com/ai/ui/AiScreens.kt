@@ -2355,15 +2355,15 @@ fun AiReportsScreenNav(
     AiReportsScreen(
         uiState = uiState,
         savedAgentIds = viewModel.loadAiReportAgents(),
-        savedSwarmIds = viewModel.loadAiReportSwarms(),
         savedFlockIds = viewModel.loadAiReportFlocks(),
+        savedSwarmIds = viewModel.loadAiReportSwarms(),
         savedModelIds = viewModel.loadAiReportModels(),
-        onGenerate = { combinedAgentIds, directAgentIds, selectedSwarmIds, selectedFlockIds, directModelIds, paramsId ->
+        onGenerate = { combinedAgentIds, directAgentIds, selectedFlockIds, selectedSwarmIds, directModelIds, paramsId ->
             viewModel.saveAiReportAgents(directAgentIds)
-            viewModel.saveAiReportSwarms(selectedSwarmIds)
             viewModel.saveAiReportFlocks(selectedFlockIds)
+            viewModel.saveAiReportSwarms(selectedSwarmIds)
             viewModel.saveAiReportModels(directModelIds)
-            viewModel.generateGenericAiReports(combinedAgentIds, selectedFlockIds, directModelIds, paramsId)
+            viewModel.generateGenericAiReports(combinedAgentIds, selectedSwarmIds, directModelIds, paramsId)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -2394,10 +2394,10 @@ private enum class ReportSelectionMode { SWARMS, AGENTS, FLOCKS, MODELS }
 fun AiReportsScreen(
     uiState: AiUiState,
     savedAgentIds: Set<String>,
-    savedSwarmIds: Set<String>,
-    savedFlockIds: Set<String> = emptySet(),
+    savedFlockIds: Set<String>,
+    savedSwarmIds: Set<String> = emptySet(),
     savedModelIds: Set<String> = emptySet(),
-    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, String?) -> Unit,  // combinedAgentIds, directAgentIds, swarmIds, flockIds, directModelIds, paramsId
+    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, String?) -> Unit,  // combinedAgentIds, directAgentIds, flockIds, swarmIds, directModelIds, paramsId
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -2511,7 +2511,7 @@ fun AiReportsScreen(
         return
     }
 
-    // Selection mode: Swarms, Agents, or Flocks
+    // Selection mode: Flocks, Agents, or Swarms
     var selectionMode by remember { mutableStateOf(ReportSelectionMode.SWARMS) }
 
     // Search query
@@ -2525,49 +2525,49 @@ fun AiReportsScreen(
         allConfiguredAgents.filter { it.provider != com.ai.data.AiService.DUMMY }
     }
 
-    // Swarm selection state
-    val swarms = uiState.aiSettings.swarms
-    val validSwarmIds = swarms.map { it.id }.toSet()
-    val validSavedSwarms = savedSwarmIds.filter { it in validSwarmIds }.toSet()
-    var selectedSwarmIds by remember {
-        mutableStateOf(
-            // Use saved swarm IDs if available, otherwise default to none selected
-            validSavedSwarms
-        )
-    }
-
     // Flock selection state
     val flocks = uiState.aiSettings.flocks
     val validFlockIds = flocks.map { it.id }.toSet()
     val validSavedFlocks = savedFlockIds.filter { it in validFlockIds }.toSet()
-    var selectedFlockIds by remember { mutableStateOf(validSavedFlocks) }
+    var selectedFlockIds by remember {
+        mutableStateOf(
+            // Use saved flock IDs if available, otherwise default to none selected
+            validSavedFlocks
+        )
+    }
 
-    // Direct model selection state (provider/model combinations selected directly, not via flock)
+    // Swarm selection state
+    val swarms = uiState.aiSettings.swarms
+    val validSwarmIds = swarms.map { it.id }.toSet()
+    val validSavedSwarms = savedSwarmIds.filter { it in validSwarmIds }.toSet()
+    var selectedSwarmIds by remember { mutableStateOf(validSavedSwarms) }
+
+    // Direct model selection state (provider/model combinations selected directly, not via swarm)
     var directlySelectedModelIds by remember { mutableStateOf(savedModelIds) }
 
-    // Direct agent selection state (separate from swarm-based selection)
+    // Direct agent selection state (separate from flock-based selection)
     // Filter to only include agents that still exist (excluding DUMMY when not in dev mode)
     val validAgentIds = configuredAgents.map { it.id }.toSet()
     val validSavedAgents = savedAgentIds.filter { it in validAgentIds }.toSet()
     var directlySelectedAgentIds by remember { mutableStateOf(validSavedAgents) }
 
-    // Get agents from selected swarms (excluding DUMMY when not in dev mode)
-    val swarmAgentIds = uiState.aiSettings.getAgentsForSwarms(selectedSwarmIds)
+    // Get agents from selected flocks (excluding DUMMY when not in dev mode)
+    val flockAgentIds = uiState.aiSettings.getAgentsForFlocks(selectedFlockIds)
         .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
         .map { it.id }.toSet()
 
-    // Get members from selected flocks (excluding DUMMY when not in dev mode)
-    val flockMembers = uiState.aiSettings.getMembersForFlocks(selectedFlockIds)
+    // Get members from selected swarms (excluding DUMMY when not in dev mode)
+    val swarmMembers = uiState.aiSettings.getMembersForSwarms(selectedSwarmIds)
         .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
 
-    // Get synthetic IDs for flock members (to check which models are already selected via flock)
-    val flockMemberIds = flockMembers.map { "flock:${it.provider.name}:${it.model}" }.toSet()
+    // Get synthetic IDs for swarm members (to check which models are already selected via swarm)
+    val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.name}:${it.model}" }.toSet()
 
-    // Combined unique agent IDs (from swarms + directly selected)
-    val combinedAgentIds = swarmAgentIds + directlySelectedAgentIds
+    // Combined unique agent IDs (from flocks + directly selected)
+    val combinedAgentIds = flockAgentIds + directlySelectedAgentIds
 
-    // Combined model IDs (from flocks + directly selected, avoiding duplicates)
-    val combinedModelIds = flockMemberIds + directlySelectedModelIds.filter { it !in flockMemberIds }
+    // Combined model IDs (from swarms + directly selected, avoiding duplicates)
+    val combinedModelIds = swarmMemberIds + directlySelectedModelIds.filter { it !in swarmMemberIds }
 
     // Total worker count (agents + all model selections)
     val totalWorkers = combinedAgentIds.size + combinedModelIds.size
@@ -2586,9 +2586,9 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Reports Ready"
                 isGenerating -> "Generating Reports"
-                selectionMode == ReportSelectionMode.SWARMS -> "Select Swarm(s)"
+                selectionMode == ReportSelectionMode.SWARMS -> "Select Flock(s)"
                 selectionMode == ReportSelectionMode.AGENTS -> "Select Agent(s)"
-                selectionMode == ReportSelectionMode.FLOCKS -> "Select Flock(s)"
+                selectionMode == ReportSelectionMode.FLOCKS -> "Select Swarm(s)"
                 else -> "Select Model(s)"
             },
             onBackClick = onDismiss,
@@ -2614,7 +2614,7 @@ fun AiReportsScreen(
 
             // Generate button at top
             Button(
-                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedSwarmIds, selectedFlockIds, directlySelectedModelIds, selectedParamsId) },
+                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParamsId) },
                 enabled = totalWorkers > 0,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
@@ -2641,7 +2641,7 @@ fun AiReportsScreen(
                         containerColor = if (selectionMode == ReportSelectionMode.SWARMS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
-                    Text("Swarms", fontSize = 13.sp)
+                    Text("Flocks", fontSize = 13.sp)
                 }
                 Button(
                     onClick = { selectionMode = ReportSelectionMode.AGENTS },
@@ -2661,7 +2661,7 @@ fun AiReportsScreen(
                         containerColor = if (selectionMode == ReportSelectionMode.FLOCKS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
-                    Text("Flocks", fontSize = 13.sp)
+                    Text("Swarms", fontSize = 13.sp)
                 }
                 Button(
                     onClick = { selectionMode = ReportSelectionMode.MODELS },
@@ -2683,9 +2683,9 @@ fun AiReportsScreen(
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
                 placeholder = { Text(when (selectionMode) {
-                    ReportSelectionMode.SWARMS -> "Search swarms..."
+                    ReportSelectionMode.SWARMS -> "Search flocks..."
                     ReportSelectionMode.AGENTS -> "Search agents..."
-                    ReportSelectionMode.FLOCKS -> "Search flocks..."
+                    ReportSelectionMode.FLOCKS -> "Search swarms..."
                     ReportSelectionMode.MODELS -> "Search models..."
                 }) },
                 singleLine = true,
@@ -2718,62 +2718,62 @@ fun AiReportsScreen(
                 ) {
                     when (selectionMode) {
                         ReportSelectionMode.SWARMS -> {
-                            // Swarm selection mode
-                            val filteredSwarms = swarms
+                            // Flock selection mode
+                            val filteredFlocks = flocks
                                 .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
                                 .sortedBy { it.name.lowercase() }
-                            if (swarms.isEmpty()) {
+                            if (flocks.isEmpty()) {
                                 Text(
-                                    text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > Swarms.",
+                                    text = "No AI flocks configured. Please configure flocks in Settings > AI Setup > Flocks.",
                                     color = Color(0xFFAAAAAA)
                                 )
-                            } else if (filteredSwarms.isEmpty()) {
+                            } else if (filteredFlocks.isEmpty()) {
                                 Text(
-                                    text = "No swarms match \"$searchQuery\"",
+                                    text = "No flocks match \"$searchQuery\"",
                                     color = Color(0xFFAAAAAA)
                                 )
                             } else {
-                                filteredSwarms.forEach { swarm ->
-                                    val swarmAgentsList = uiState.aiSettings.getAgentsForSwarm(swarm)
+                                filteredFlocks.forEach { flock ->
+                                    val flockAgentsList = uiState.aiSettings.getAgentsForFlock(flock)
                                         .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
-                                    val swarmAgentIdsList = swarmAgentsList.map { it.id }.toSet()
+                                    val flockAgentIdsList = flockAgentsList.map { it.id }.toSet()
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                if (swarm.id in selectedSwarmIds) {
-                                                    selectedSwarmIds = selectedSwarmIds - swarm.id
-                                                    directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
+                                                if (flock.id in selectedFlockIds) {
+                                                    selectedFlockIds = selectedFlockIds - flock.id
+                                                    directlySelectedAgentIds = directlySelectedAgentIds - flockAgentIdsList
                                                 } else {
-                                                    selectedSwarmIds = selectedSwarmIds + swarm.id
+                                                    selectedFlockIds = selectedFlockIds + flock.id
                                                 }
                                             }
                                             .padding(vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
-                                            checked = swarm.id in selectedSwarmIds,
+                                            checked = flock.id in selectedFlockIds,
                                             onCheckedChange = { checked ->
                                                 if (checked) {
-                                                    selectedSwarmIds = selectedSwarmIds + swarm.id
+                                                    selectedFlockIds = selectedFlockIds + flock.id
                                                 } else {
-                                                    selectedSwarmIds = selectedSwarmIds - swarm.id
-                                                    directlySelectedAgentIds = directlySelectedAgentIds - swarmAgentIdsList
+                                                    selectedFlockIds = selectedFlockIds - flock.id
+                                                    directlySelectedAgentIds = directlySelectedAgentIds - flockAgentIdsList
                                                 }
                                             }
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
-                                                text = swarm.name,
+                                                text = flock.name,
                                                 fontWeight = FontWeight.Medium,
                                                 color = Color.White
                                             )
                                             Text(
-                                                text = if (swarmAgentsList.isEmpty()) {
+                                                text = if (flockAgentsList.isEmpty()) {
                                                     "No agents"
                                                 } else {
-                                                    "${swarmAgentsList.size} agent${if (swarmAgentsList.size == 1) "" else "s"}: ${swarmAgentsList.take(3).joinToString(", ") { it.name }}${if (swarmAgentsList.size > 3) "..." else ""}"
+                                                    "${flockAgentsList.size} agent${if (flockAgentsList.size == 1) "" else "s"}: ${flockAgentsList.take(3).joinToString(", ") { it.name }}${if (flockAgentsList.size > 3) "..." else ""}"
                                                 },
                                                 fontSize = 12.sp,
                                                 color = Color(0xFFAAAAAA)
@@ -2784,7 +2784,7 @@ fun AiReportsScreen(
                             }
                         }
                         ReportSelectionMode.AGENTS -> {
-                            // Agent selection mode - show all agents, but swarm agents are locked
+                            // Agent selection mode - show all agents, but flock agents are locked
                             val filteredAgents = configuredAgents
                                 .filter { agent ->
                                     searchQuery.isBlank() ||
@@ -2805,13 +2805,13 @@ fun AiReportsScreen(
                                 )
                             } else {
                                 filteredAgents.forEach { agent ->
-                                    val isFromSwarm = agent.id in swarmAgentIds
-                                    val isChecked = isFromSwarm || agent.id in directlySelectedAgentIds
+                                    val isFromFlock = agent.id in flockAgentIds
+                                    val isChecked = isFromFlock || agent.id in directlySelectedAgentIds
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .then(
-                                                if (isFromSwarm) Modifier
+                                                if (isFromFlock) Modifier
                                                 else Modifier.clickable {
                                                     directlySelectedAgentIds = if (agent.id in directlySelectedAgentIds) {
                                                         directlySelectedAgentIds - agent.id
@@ -2825,26 +2825,26 @@ fun AiReportsScreen(
                                     ) {
                                         Checkbox(
                                             checked = isChecked,
-                                            onCheckedChange = if (isFromSwarm) null else { checked ->
+                                            onCheckedChange = if (isFromFlock) null else { checked ->
                                                 directlySelectedAgentIds = if (checked) {
                                                     directlySelectedAgentIds + agent.id
                                                 } else {
                                                     directlySelectedAgentIds - agent.id
                                                 }
                                             },
-                                            enabled = !isFromSwarm
+                                            enabled = !isFromFlock
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
                                                 text = "${agent.name} / ${agent.model.ifBlank { agent.provider.defaultModel }}",
                                                 fontWeight = FontWeight.Medium,
-                                                color = if (isFromSwarm) Color(0xFF888888) else Color.White
+                                                color = if (isFromFlock) Color(0xFF888888) else Color.White
                                             )
                                             Text(
-                                                text = if (isFromSwarm) "${agent.provider.displayName} (via swarm)" else agent.provider.displayName,
+                                                text = if (isFromFlock) "${agent.provider.displayName} (via flock)" else agent.provider.displayName,
                                                 fontSize = 12.sp,
-                                                color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA)
+                                                color = if (isFromFlock) Color(0xFF666666) else Color(0xFFAAAAAA)
                                             )
                                         }
                                     }
@@ -2852,59 +2852,59 @@ fun AiReportsScreen(
                             }
                         }
                         ReportSelectionMode.FLOCKS -> {
-                            // Flock selection mode
-                            val filteredFlocks = flocks
+                            // Swarm selection mode
+                            val filteredSwarms = swarms
                                 .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
                                 .sortedBy { it.name.lowercase() }
-                            if (flocks.isEmpty()) {
+                            if (swarms.isEmpty()) {
                                 Text(
-                                    text = "No AI flocks configured. Please configure flocks in Settings > AI Setup > Flocks.",
+                                    text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > Swarms.",
                                     color = Color(0xFFAAAAAA)
                                 )
-                            } else if (filteredFlocks.isEmpty()) {
+                            } else if (filteredSwarms.isEmpty()) {
                                 Text(
-                                    text = "No flocks match \"$searchQuery\"",
+                                    text = "No swarms match \"$searchQuery\"",
                                     color = Color(0xFFAAAAAA)
                                 )
                             } else {
-                                filteredFlocks.forEach { flock ->
-                                    val flockMembersList = flock.members
+                                filteredSwarms.forEach { swarm ->
+                                    val swarmMembersList = swarm.members
                                         .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                selectedFlockIds = if (flock.id in selectedFlockIds) {
-                                                    selectedFlockIds - flock.id
+                                                selectedSwarmIds = if (swarm.id in selectedSwarmIds) {
+                                                    selectedSwarmIds - swarm.id
                                                 } else {
-                                                    selectedFlockIds + flock.id
+                                                    selectedSwarmIds + swarm.id
                                                 }
                                             }
                                             .padding(vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
-                                            checked = flock.id in selectedFlockIds,
+                                            checked = swarm.id in selectedSwarmIds,
                                             onCheckedChange = { checked ->
-                                                selectedFlockIds = if (checked) {
-                                                    selectedFlockIds + flock.id
+                                                selectedSwarmIds = if (checked) {
+                                                    selectedSwarmIds + swarm.id
                                                 } else {
-                                                    selectedFlockIds - flock.id
+                                                    selectedSwarmIds - swarm.id
                                                 }
                                             }
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
-                                                text = flock.name,
+                                                text = swarm.name,
                                                 fontWeight = FontWeight.Medium,
                                                 color = Color.White
                                             )
                                             Text(
-                                                text = if (flockMembersList.isEmpty()) {
+                                                text = if (swarmMembersList.isEmpty()) {
                                                     "No members"
                                                 } else {
-                                                    "${flockMembersList.size} member${if (flockMembersList.size == 1) "" else "s"}: ${flockMembersList.take(2).joinToString(", ") { "${it.provider.displayName}/${it.model.take(15)}" }}${if (flockMembersList.size > 2) "..." else ""}"
+                                                    "${swarmMembersList.size} member${if (swarmMembersList.size == 1) "" else "s"}: ${swarmMembersList.take(2).joinToString(", ") { "${it.provider.displayName}/${it.model.take(15)}" }}${if (swarmMembersList.size > 2) "..." else ""}"
                                                 },
                                                 fontSize = 12.sp,
                                                 color = Color(0xFFAAAAAA)
@@ -2963,15 +2963,15 @@ fun AiReportsScreen(
                                 )
                             } else {
                                 filteredModels.forEach { (provider, model) ->
-                                    val syntheticId = "flock:${provider.name}:$model"
-                                    val isFromFlock = syntheticId in flockMemberIds
-                                    val isChecked = isFromFlock || syntheticId in directlySelectedModelIds
+                                    val syntheticId = "swarm:${provider.name}:$model"
+                                    val isFromSwarm = syntheticId in swarmMemberIds
+                                    val isChecked = isFromSwarm || syntheticId in directlySelectedModelIds
 
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .then(
-                                                if (isFromFlock) Modifier
+                                                if (isFromSwarm) Modifier
                                                 else Modifier.clickable {
                                                     directlySelectedModelIds = if (syntheticId in directlySelectedModelIds) {
                                                         directlySelectedModelIds - syntheticId
@@ -2985,26 +2985,26 @@ fun AiReportsScreen(
                                     ) {
                                         Checkbox(
                                             checked = isChecked,
-                                            onCheckedChange = if (isFromFlock) null else { checked ->
+                                            onCheckedChange = if (isFromSwarm) null else { checked ->
                                                 directlySelectedModelIds = if (checked) {
                                                     directlySelectedModelIds + syntheticId
                                                 } else {
                                                     directlySelectedModelIds - syntheticId
                                                 }
                                             },
-                                            enabled = !isFromFlock
+                                            enabled = !isFromSwarm
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text(
                                                 text = model,
                                                 fontWeight = FontWeight.Medium,
-                                                color = if (isFromFlock) Color(0xFF888888) else Color.White
+                                                color = if (isFromSwarm) Color(0xFF888888) else Color.White
                                             )
                                             Text(
-                                                text = if (isFromFlock) "${provider.displayName} (via flock)" else provider.displayName,
+                                                text = if (isFromSwarm) "${provider.displayName} (via swarm)" else provider.displayName,
                                                 fontSize = 12.sp,
-                                                color = if (isFromFlock) Color(0xFF666666) else Color(0xFFAAAAAA)
+                                                color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA)
                                             )
                                         }
                                     }
@@ -3025,11 +3025,11 @@ fun AiReportsScreen(
                 OutlinedButton(
                     onClick = {
                         when (selectionMode) {
-                            ReportSelectionMode.SWARMS -> selectedSwarmIds = swarms.map { it.id }.toSet()
+                            ReportSelectionMode.SWARMS -> selectedFlockIds = flocks.map { it.id }.toSet()
                             ReportSelectionMode.AGENTS -> directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
-                            ReportSelectionMode.FLOCKS -> selectedFlockIds = flocks.map { it.id }.toSet()
+                            ReportSelectionMode.FLOCKS -> selectedSwarmIds = swarms.map { it.id }.toSet()
                             ReportSelectionMode.MODELS -> {
-                                // Select all models not already selected via flock
+                                // Select all models not already selected via swarm
                                 val allModelIds = com.ai.data.AiService.entries
                                     .filter { uiState.generalSettings.developerMode || it != com.ai.data.AiService.DUMMY }
                                     .flatMap { provider ->
@@ -3051,10 +3051,10 @@ fun AiReportsScreen(
                                                 com.ai.data.AiService.ZAI -> uiState.availableZaiModels
                                                 com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                             }
-                                            models.map { "flock:${provider.name}:$it" }
+                                            models.map { "swarm:${provider.name}:$it" }
                                         }
                                     }
-                                    .filter { it !in flockMemberIds }
+                                    .filter { it !in swarmMemberIds }
                                     .toSet()
                                 directlySelectedModelIds = allModelIds
                             }
@@ -3067,9 +3067,9 @@ fun AiReportsScreen(
                 OutlinedButton(
                     onClick = {
                         when (selectionMode) {
-                            ReportSelectionMode.SWARMS -> selectedSwarmIds = emptySet()
+                            ReportSelectionMode.SWARMS -> selectedFlockIds = emptySet()
                             ReportSelectionMode.AGENTS -> directlySelectedAgentIds = emptySet()
-                            ReportSelectionMode.FLOCKS -> selectedFlockIds = emptySet()
+                            ReportSelectionMode.FLOCKS -> selectedSwarmIds = emptySet()
                             ReportSelectionMode.MODELS -> directlySelectedModelIds = emptySet()
                         }
                     },
@@ -3156,14 +3156,14 @@ fun AiReportsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Calculate costs for each agent and flock member
+            // Calculate costs for each agent and swarm member
             val agentCosts = remember(reportsAgentResults) {
                 reportsAgentResults.mapNotNull { (agentId, result) ->
                     val tokenUsage = result.tokenUsage ?: return@mapNotNull null
 
-                    // Check if it's a flock member (synthetic ID)
-                    if (agentId.startsWith("flock:")) {
-                        val parts = agentId.removePrefix("flock:").split(":", limit = 2)
+                    // Check if it's a swarm member (synthetic ID)
+                    if (agentId.startsWith("swarm:")) {
+                        val parts = agentId.removePrefix("swarm:").split(":", limit = 2)
                         val providerName = parts.getOrNull(0) ?: return@mapNotNull null
                         val modelName = parts.getOrNull(1) ?: return@mapNotNull null
                         val provider = com.ai.data.AiService.entries.find { it.name == providerName } ?: return@mapNotNull null
@@ -3324,18 +3324,18 @@ fun AiReportsScreen(
                         }
                     }
 
-                    // Show flock members (synthetic IDs starting with "flock:")
-                    reportsSelectedAgents.filter { it.startsWith("flock:") }
+                    // Show swarm members (synthetic IDs starting with "swarm:")
+                    reportsSelectedAgents.filter { it.startsWith("swarm:") }
                         .sortedBy { it.lowercase() }
-                        .forEach { flockId ->
-                            // Parse synthetic ID: "flock:PROVIDER:model"
-                            val parts = flockId.removePrefix("flock:").split(":", limit = 2)
+                        .forEach { swarmId ->
+                            // Parse synthetic ID: "swarm:PROVIDER:model"
+                            val parts = swarmId.removePrefix("swarm:").split(":", limit = 2)
                             val providerName = parts.getOrNull(0) ?: ""
                             val modelName = parts.getOrNull(1) ?: ""
                             val provider = com.ai.data.AiService.entries.find { it.name == providerName }
 
-                            val result = reportsAgentResults[flockId]
-                            val cost = agentCosts[flockId]
+                            val result = reportsAgentResults[swarmId]
+                            val cost = agentCosts[swarmId]
                             val tokenUsage = result?.tokenUsage
 
                             Row(
@@ -3361,7 +3361,7 @@ fun AiReportsScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(2.dp))
-                                // Flock member: Model on line 1, Provider on line 2
+                                // Swarm member: Model on line 1, Provider on line 2
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = modelName,

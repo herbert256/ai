@@ -41,12 +41,12 @@ enum class SettingsSubScreen {
     AI_PROVIDERS,   // Provider model configuration
     AI_AGENTS,      // Agents CRUD
     AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
-    AI_SWARMS,      // Swarms CRUD
-    AI_ADD_SWARM,   // Add new swarm
-    AI_EDIT_SWARM,  // Edit existing swarm
-    AI_FLOCKS,      // Flocks CRUD
-    AI_ADD_FLOCK,   // Add new flock
-    AI_EDIT_FLOCK,  // Edit existing flock
+    AI_SWARMS,      // Flocks CRUD
+    AI_ADD_SWARM,   // Add new flock
+    AI_EDIT_SWARM,  // Edit existing flock
+    AI_FLOCKS,      // Swarms CRUD
+    AI_ADD_FLOCK,   // Add new swarm
+    AI_EDIT_FLOCK,  // Edit existing swarm
     AI_PROMPTS,     // AI Prompts CRUD
     AI_ADD_PROMPT,  // Add new prompt
     AI_EDIT_PROMPT, // Edit existing prompt
@@ -121,11 +121,11 @@ fun SettingsScreen(
     var prefillAgentApiKey by remember { mutableStateOf("") }
     var prefillAgentModel by remember { mutableStateOf("") }
 
-    // State for swarm editing
-    var editingSwarmId by remember { mutableStateOf<String?>(null) }
-
     // State for flock editing
     var editingFlockId by remember { mutableStateOf<String?>(null) }
+
+    // State for swarm editing
+    var editingSwarmId by remember { mutableStateOf<String?>(null) }
 
     // State for prompt editing
     var editingPromptId by remember { mutableStateOf<String?>(null) }
@@ -184,9 +184,9 @@ fun SettingsScreen(
             SettingsSubScreen.AI_PROMPTS -> {
                 currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
             }
-            // AI Params goes back to AI_SETUP
+            // AI Params goes back to AI_AI_SETTINGS
             SettingsSubScreen.AI_PARAMS -> {
-                currentSubScreen = SettingsSubScreen.AI_SETUP
+                currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
             }
             // AI_SETUP goes back home if it was the initial screen, otherwise to MAIN
             SettingsSubScreen.AI_SETUP -> {
@@ -206,7 +206,7 @@ fun SettingsScreen(
             }
             // Add agent goes back to AI_PROVIDERS
             SettingsSubScreen.AI_ADD_AGENT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            // Swarm screens go back to AI_SWARMS
+            // Flock screens go back to AI_SWARMS
             SettingsSubScreen.AI_ADD_SWARM,
             SettingsSubScreen.AI_EDIT_SWARM -> currentSubScreen = SettingsSubScreen.AI_SWARMS
             // Prompt screens go back to AI_PROMPTS
@@ -514,68 +514,68 @@ fun SettingsScreen(
                 onNavigateHome = onNavigateHome
             )
         }
-        SettingsSubScreen.AI_SWARMS -> AiSwarmsScreen(
+        SettingsSubScreen.AI_SWARMS -> AiFlocksScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onAddSwarm = { currentSubScreen = SettingsSubScreen.AI_ADD_SWARM },
-            onEditSwarm = { swarmId ->
-                editingSwarmId = swarmId
+            onAddFlock = { currentSubScreen = SettingsSubScreen.AI_ADD_SWARM },
+            onEditFlock = { flockId ->
+                editingFlockId = flockId
                 currentSubScreen = SettingsSubScreen.AI_EDIT_SWARM
             }
         )
-        SettingsSubScreen.AI_ADD_SWARM -> SwarmEditScreen(
-            swarm = null,
+        SettingsSubScreen.AI_ADD_SWARM -> FlockEditScreen(
+            flock = null,
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
-            existingNames = aiSettings.swarms.map { it.name }.toSet(),
-            onSave = { newSwarm ->
-                val newSwarms = aiSettings.swarms + newSwarm
-                onSaveAi(aiSettings.copy(swarms = newSwarms))
+            existingNames = aiSettings.flocks.map { it.name }.toSet(),
+            onSave = { newFlock ->
+                val newFlocks = aiSettings.flocks + newFlock
+                onSaveAi(aiSettings.copy(flocks = newFlocks))
                 currentSubScreen = SettingsSubScreen.AI_SWARMS
             },
             onBack = { currentSubScreen = SettingsSubScreen.AI_SWARMS },
             onNavigateHome = onNavigateHome
         )
         SettingsSubScreen.AI_EDIT_SWARM -> {
-            val swarm = editingSwarmId?.let { aiSettings.getSwarmById(it) }
-            SwarmEditScreen(
-                swarm = swarm,
+            val flock = editingFlockId?.let { aiSettings.getFlockById(it) }
+            FlockEditScreen(
+                flock = flock,
                 aiSettings = aiSettings,
                 developerMode = generalSettings.developerMode,
-                existingNames = aiSettings.swarms.filter { it.id != editingSwarmId }.map { it.name }.toSet(),
-                onSave = { updatedSwarm ->
-                    val newSwarms = aiSettings.swarms.map { if (it.id == updatedSwarm.id) updatedSwarm else it }
-                    onSaveAi(aiSettings.copy(swarms = newSwarms))
-                    editingSwarmId = null
+                existingNames = aiSettings.flocks.filter { it.id != editingFlockId }.map { it.name }.toSet(),
+                onSave = { updatedFlock ->
+                    val newFlocks = aiSettings.flocks.map { if (it.id == updatedFlock.id) updatedFlock else it }
+                    onSaveAi(aiSettings.copy(flocks = newFlocks))
+                    editingFlockId = null
                     currentSubScreen = SettingsSubScreen.AI_SWARMS
                 },
                 onBack = {
-                    editingSwarmId = null
+                    editingFlockId = null
                     currentSubScreen = SettingsSubScreen.AI_SWARMS
                 },
                 onNavigateHome = onNavigateHome
             )
         }
-        SettingsSubScreen.AI_FLOCKS -> AiFlocksScreen(
+        SettingsSubScreen.AI_FLOCKS -> AiSwarmsScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onAddFlock = { currentSubScreen = SettingsSubScreen.AI_ADD_FLOCK },
-            onEditFlock = { flockId ->
-                editingFlockId = flockId
+            onAddSwarm = { currentSubScreen = SettingsSubScreen.AI_ADD_FLOCK },
+            onEditSwarm = { swarmId ->
+                editingSwarmId = swarmId
                 currentSubScreen = SettingsSubScreen.AI_EDIT_FLOCK
             }
         )
-        SettingsSubScreen.AI_ADD_FLOCK -> FlockEditScreen(
-            flock = null,
+        SettingsSubScreen.AI_ADD_FLOCK -> SwarmEditScreen(
+            swarm = null,
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
-            existingNames = aiSettings.flocks.map { it.name }.toSet(),
+            existingNames = aiSettings.swarms.map { it.name }.toSet(),
             availableModels = mapOf(
                 AiService.OPENAI to availableChatGptModels,
                 AiService.ANTHROPIC to availableClaudeModels,
@@ -591,21 +591,21 @@ fun SettingsScreen(
                 AiService.ZAI to availableZaiModels,
                 AiService.DUMMY to availableDummyModels
             ),
-            onSave = { newFlock ->
-                val newFlocks = aiSettings.flocks + newFlock
-                onSaveAi(aiSettings.copy(flocks = newFlocks))
+            onSave = { newSwarm ->
+                val newSwarms = aiSettings.swarms + newSwarm
+                onSaveAi(aiSettings.copy(swarms = newSwarms))
                 currentSubScreen = SettingsSubScreen.AI_FLOCKS
             },
             onBack = { currentSubScreen = SettingsSubScreen.AI_FLOCKS },
             onNavigateHome = onNavigateHome
         )
         SettingsSubScreen.AI_EDIT_FLOCK -> {
-            val flock = editingFlockId?.let { aiSettings.getFlockById(it) }
-            FlockEditScreen(
-                flock = flock,
+            val swarm = editingSwarmId?.let { aiSettings.getSwarmById(it) }
+            SwarmEditScreen(
+                swarm = swarm,
                 aiSettings = aiSettings,
                 developerMode = generalSettings.developerMode,
-                existingNames = aiSettings.flocks.filter { it.id != editingFlockId }.map { it.name }.toSet(),
+                existingNames = aiSettings.swarms.filter { it.id != editingSwarmId }.map { it.name }.toSet(),
                 availableModels = mapOf(
                     AiService.OPENAI to availableChatGptModels,
                     AiService.ANTHROPIC to availableClaudeModels,
@@ -621,14 +621,14 @@ fun SettingsScreen(
                     AiService.ZAI to availableZaiModels,
                     AiService.DUMMY to availableDummyModels
                 ),
-                onSave = { updatedFlock ->
-                    val newFlocks = aiSettings.flocks.map { if (it.id == updatedFlock.id) updatedFlock else it }
-                    onSaveAi(aiSettings.copy(flocks = newFlocks))
-                    editingFlockId = null
+                onSave = { updatedSwarm ->
+                    val newSwarms = aiSettings.swarms.map { if (it.id == updatedSwarm.id) updatedSwarm else it }
+                    onSaveAi(aiSettings.copy(swarms = newSwarms))
+                    editingSwarmId = null
                     currentSubScreen = SettingsSubScreen.AI_FLOCKS
                 },
                 onBack = {
-                    editingFlockId = null
+                    editingSwarmId = null
                     currentSubScreen = SettingsSubScreen.AI_FLOCKS
                 },
                 onNavigateHome = onNavigateHome
@@ -681,7 +681,7 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_PARAMS -> AiParamsListScreen(
             aiSettings = aiSettings,
-            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onAddParams = { currentSubScreen = SettingsSubScreen.AI_ADD_PARAMS },

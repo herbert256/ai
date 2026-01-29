@@ -150,24 +150,24 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putStringSet(AI_REPORT_AGENTS_KEY, agentIds).apply()
     }
 
-    // ========== AI Reports Swarm Selection ==========
+    // ========== AI Reports Flock Selection ==========
 
-    fun loadAiReportSwarms(): Set<String> {
+    fun loadAiReportFlocks(): Set<String> {
         val stored = prefs.getStringSet(AI_REPORT_SWARMS_KEY, emptySet()) ?: emptySet()
         return stored.toSet()
     }
 
-    fun saveAiReportSwarms(swarmIds: Set<String>) {
-        prefs.edit().putStringSet(AI_REPORT_SWARMS_KEY, swarmIds).apply()
+    fun saveAiReportFlocks(flockIds: Set<String>) {
+        prefs.edit().putStringSet(AI_REPORT_SWARMS_KEY, flockIds).apply()
     }
 
-    fun loadAiReportFlocks(): Set<String> {
+    fun loadAiReportSwarms(): Set<String> {
         val stored = prefs.getStringSet(AI_REPORT_FLOCKS_KEY, emptySet()) ?: emptySet()
         return stored.toSet()
     }
 
-    fun saveAiReportFlocks(flockIds: Set<String>) {
-        prefs.edit().putStringSet(AI_REPORT_FLOCKS_KEY, flockIds).apply()
+    fun saveAiReportSwarms(swarmIds: Set<String>) {
+        prefs.edit().putStringSet(AI_REPORT_FLOCKS_KEY, swarmIds).apply()
     }
 
     // ========== AI Reports Direct Model Selection ==========
@@ -204,7 +204,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedFlockIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), paramsId: String? = null) {
+    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedSwarmIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), paramsId: String? = null) {
         viewModelScope.launch {
             val context = getApplication<Application>()
             val aiSettings = _uiState.value.aiSettings
@@ -219,30 +219,30 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 aiSettings.getAgentById(agentId)
             }
 
-            // Get flock members from selected flocks
-            val flockMembers = aiSettings.getMembersForFlocks(selectedFlockIds)
+            // Get swarm members from selected swarms
+            val swarmMembers = aiSettings.getMembersForSwarms(selectedSwarmIds)
 
-            // Generate synthetic IDs for flock members
-            val flockMemberIds = flockMembers.map { member ->
-                "flock:${member.provider.name}:${member.model}"
+            // Generate synthetic IDs for swarm members
+            val swarmMemberIds = swarmMembers.map { member ->
+                "swarm:${member.provider.name}:${member.model}"
             }.toSet()
 
-            // Filter direct model IDs to exclude those already in flocks
-            val uniqueDirectModelIds = directModelIds.filter { it !in flockMemberIds }.toSet()
+            // Filter direct model IDs to exclude those already in swarms
+            val uniqueDirectModelIds = directModelIds.filter { it !in swarmMemberIds }.toSet()
 
-            // Parse direct model IDs into AiFlockMember-like structures
+            // Parse direct model IDs into AiSwarmMember-like structures
             val directModels = uniqueDirectModelIds.mapNotNull { modelId ->
-                // Parse synthetic ID: "flock:PROVIDER:model"
-                val parts = modelId.removePrefix("flock:").split(":", limit = 2)
+                // Parse synthetic ID: "swarm:PROVIDER:model"
+                val parts = modelId.removePrefix("swarm:").split(":", limit = 2)
                 val providerName = parts.getOrNull(0) ?: return@mapNotNull null
                 val modelName = parts.getOrNull(1) ?: return@mapNotNull null
                 val provider = com.ai.data.AiService.entries.find { it.name == providerName } ?: return@mapNotNull null
-                AiFlockMember(provider, modelName)
+                AiSwarmMember(provider, modelName)
             }
 
-            // Combine flock members and direct models
-            val allModelMembers = flockMembers + directModels
-            val allModelIds = flockMemberIds + uniqueDirectModelIds
+            // Combine swarm members and direct models
+            val allModelMembers = swarmMembers + directModels
+            val allModelIds = swarmMemberIds + uniqueDirectModelIds
 
             // Total worker count
             val totalWorkers = agents.size + allModelMembers.size
@@ -268,9 +268,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
 
-            // Create AI Report objects for all model members (from flocks and direct selection)
+            // Create AI Report objects for all model members (from swarms and direct selection)
             val reportModelMembers = allModelMembers.map { member ->
-                val syntheticId = "flock:${member.provider.name}:${member.model}"
+                val syntheticId = "swarm:${member.provider.name}:${member.model}"
                 AiReportAgent(
                     agentId = syntheticId,
                     agentName = "${member.provider.displayName} / ${member.model}",
@@ -392,10 +392,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // Process all model members in parallel (from flocks and direct selection)
-            val flockJobs = allModelMembers.map { member ->
+            // Process all model members in parallel (from swarms and direct selection)
+            val swarmJobs = allModelMembers.map { member ->
                 async {
-                    val syntheticId = "flock:${member.provider.name}:${member.model}"
+                    val syntheticId = "swarm:${member.provider.name}:${member.model}"
 
                     // Mark as running
                     AiReportStorage.markAgentRunning(
@@ -486,7 +486,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
 
-                    // Update state immediately when this flock member completes
+                    // Update state immediately when this swarm member completes
                     _uiState.value = _uiState.value.copy(
                         genericAiReportsProgress = _uiState.value.genericAiReportsProgress + 1,
                         genericAiReportsAgentResults = _uiState.value.genericAiReportsAgentResults + (syntheticId to response)
@@ -495,7 +495,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             // Wait for all jobs to complete
-            (agentJobs + flockJobs).awaitAll()
+            (agentJobs + swarmJobs).awaitAll()
 
             // Clear the current report ID for API tracing
             ApiTracer.currentReportId = null
@@ -1099,8 +1099,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val AI_REPORT_AGENTS_KEY = "ai_report_agents"
-        private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms"
-        private const val AI_REPORT_FLOCKS_KEY = "ai_report_flocks"
+        private const val AI_REPORT_SWARMS_KEY = "ai_report_flocks"
+        private const val AI_REPORT_FLOCKS_KEY = "ai_report_swarms"
         private const val AI_REPORT_MODELS_KEY = "ai_report_models"
     }
 }

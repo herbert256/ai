@@ -256,9 +256,9 @@ fun AiSetupScreen(
             onAiClick = onBackToHome
         )
 
-        // Import AI configuration button - only show if no swarm named "default agents"
-        val hasDefaultAgentsSwarm = aiSettings.swarms.any { it.name.equals("default agents", ignoreCase = true) }
-        if (!hasDefaultAgentsSwarm) {
+        // Import AI configuration button - only show if no flock named "default agents"
+        val hasDefaultAgentsFlock = aiSettings.flocks.any { it.name.equals("default agents", ignoreCase = true) }
+        if (!hasDefaultAgentsFlock) {
             Button(
                 onClick = {
                     filePickerLauncher.launch(arrayOf("application/json", "*/*"))
@@ -297,36 +297,26 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
-        // Swarms card
-        val configuredSwarms = aiSettings.swarms.size
-        AiSetupNavigationCard(
-            title = "Swarms",
-            description = "Group agents into swarms for report generation",
-            icon = "🐝",
-            count = "$configuredSwarms configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) },
-            enabled = hasApiKey
-        )
-
         // Flocks card
         val configuredFlocks = aiSettings.flocks.size
         AiSetupNavigationCard(
             title = "Flocks",
-            description = "Group provider/model combinations for report generation",
+            description = "Group agents into flocks for report generation",
             icon = "🦆",
             count = "$configuredFlocks configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) },
+            onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) },
             enabled = hasApiKey
         )
 
-        // Parameters card
-        val configuredParams = aiSettings.params.size
+        // Swarms card
+        val configuredSwarms = aiSettings.swarms.size
         AiSetupNavigationCard(
-            title = "Parameters",
-            description = "Reusable parameter presets for agents",
-            icon = "🎛",
-            count = "$configuredParams configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_PARAMS) }
+            title = "Swarms",
+            description = "Group provider/model combinations for report generation",
+            icon = "🐝",
+            count = "$configuredSwarms configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) },
+            enabled = hasApiKey
         )
 
     }
@@ -357,6 +347,16 @@ fun AiAiSettingsContentScreen(
             title = "AI Settings",
             onBackClick = onBackToSettings,
             onAiClick = onBackToHome
+        )
+
+        // Parameters card
+        val configuredParams = aiSettings.params.size
+        AiSetupNavigationCard(
+            title = "Parameters",
+            description = "Reusable parameter presets for agents",
+            icon = "🎛",
+            count = "$configuredParams configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PARAMS) }
         )
 
         // Prompts card
@@ -1601,7 +1601,7 @@ fun HousekeepingScreen(
 
     // State for delete all confirmations
     var showDeleteAllAgentsConfirm by remember { mutableStateOf(false) }
-    var showDeleteAllSwarmsConfirm by remember { mutableStateOf(false) }
+    var showDeleteAllFlocksConfirm by remember { mutableStateOf(false) }
 
     // File picker launcher for importing model costs CSV
     val costsCsvPickerLauncher = rememberLauncherForActivityResult(
@@ -1691,27 +1691,27 @@ fun HousekeepingScreen(
                                 }
                                 .map { it.id }
 
-                            val updatedSwarms = importedSettings.swarms.toMutableList()
-                            val existingSwarmIndex = updatedSwarms.indexOfFirst {
+                            val updatedFlocks = importedSettings.flocks.toMutableList()
+                            val existingFlockIndex = updatedFlocks.indexOfFirst {
                                 it.name == "default agents"
                             }
 
-                            if (existingSwarmIndex >= 0) {
-                                updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
+                            if (existingFlockIndex >= 0) {
+                                updatedFlocks[existingFlockIndex] = updatedFlocks[existingFlockIndex].copy(
                                     agentIds = defaultAgentIds
                                 )
                             } else {
-                                val newSwarm = AiSwarm(
+                                val newFlock = AiFlock(
                                     id = java.util.UUID.randomUUID().toString(),
                                     name = "default agents",
                                     agentIds = defaultAgentIds
                                 )
-                                updatedSwarms.add(newSwarm)
+                                updatedFlocks.add(newFlock)
                             }
 
                             onSave(importedSettings.copy(
                                 agents = updatedAgents,
-                                swarms = updatedSwarms
+                                flocks = updatedFlocks
                             ))
                         }
 
@@ -1780,7 +1780,7 @@ fun HousekeepingScreen(
 
                     if (successCount > 0) {
                         Text("✅ Created/updated $successCount agent(s)")
-                        Text("Added to 'default agents' swarm")
+                        Text("Added to 'default agents' flock")
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     if (failCount > 0) {
@@ -2003,27 +2003,27 @@ fun HousekeepingScreen(
                                     }
                                     .map { it.id }
 
-                                val updatedSwarms = aiSettings.swarms.toMutableList()
-                                val existingSwarmIndex = updatedSwarms.indexOfFirst {
+                                val updatedFlocks = aiSettings.flocks.toMutableList()
+                                val existingFlockIndex = updatedFlocks.indexOfFirst {
                                     it.name == "default agents"
                                 }
 
-                                if (existingSwarmIndex >= 0) {
-                                    updatedSwarms[existingSwarmIndex] = updatedSwarms[existingSwarmIndex].copy(
+                                if (existingFlockIndex >= 0) {
+                                    updatedFlocks[existingFlockIndex] = updatedFlocks[existingFlockIndex].copy(
                                         agentIds = defaultAgentIds
                                     )
                                 } else {
-                                    val newSwarm = AiSwarm(
+                                    val newFlock = AiFlock(
                                         id = java.util.UUID.randomUUID().toString(),
                                         name = "default agents",
                                         agentIds = defaultAgentIds
                                     )
-                                    updatedSwarms.add(newSwarm)
+                                    updatedFlocks.add(newFlock)
                                 }
 
                                 onSave(aiSettings.copy(
                                     agents = updatedAgents,
-                                    swarms = updatedSwarms
+                                    flocks = updatedFlocks
                                 ))
                             }
 
@@ -2067,7 +2067,7 @@ fun HousekeepingScreen(
         val visibleAgentsForExport = if (developerMode) aiSettings.agents else aiSettings.agents.filter { it.provider != AiService.DUMMY }
         val canExportConfig = hasApiKeyForExport &&
                 visibleAgentsForExport.isNotEmpty() &&
-                aiSettings.swarms.isNotEmpty()
+                aiSettings.flocks.isNotEmpty()
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -2192,7 +2192,7 @@ fun HousekeepingScreen(
             )
         }
 
-        // Delete card - agents and swarms
+        // Delete card - agents and flocks
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
@@ -2221,12 +2221,12 @@ fun HousekeepingScreen(
                         Text("All agents", fontSize = 12.sp)
                     }
                     Button(
-                        onClick = { showDeleteAllSwarmsConfirm = true },
+                        onClick = { showDeleteAllFlocksConfirm = true },
                         modifier = Modifier.weight(1f),
-                        enabled = aiSettings.swarms.isNotEmpty(),
+                        enabled = aiSettings.flocks.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
                     ) {
-                        Text("All swarms", fontSize = 12.sp)
+                        Text("All flocks", fontSize = 12.sp)
                     }
                 }
             }
@@ -2257,17 +2257,17 @@ fun HousekeepingScreen(
             )
         }
 
-        // Delete all swarms confirmation dialog
-        if (showDeleteAllSwarmsConfirm) {
+        // Delete all flocks confirmation dialog
+        if (showDeleteAllFlocksConfirm) {
             AlertDialog(
-                onDismissRequest = { showDeleteAllSwarmsConfirm = false },
-                title = { Text("Delete All Swarms", fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to delete all ${aiSettings.swarms.size} swarms? This cannot be undone.") },
+                onDismissRequest = { showDeleteAllFlocksConfirm = false },
+                title = { Text("Delete All Flocks", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete all ${aiSettings.flocks.size} flocks? This cannot be undone.") },
                 confirmButton = {
                     Button(
                         onClick = {
-                            onSave(aiSettings.copy(swarms = emptyList()))
-                            showDeleteAllSwarmsConfirm = false
+                            onSave(aiSettings.copy(flocks = emptyList()))
+                            showDeleteAllFlocksConfirm = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
                     ) {
@@ -2275,7 +2275,7 @@ fun HousekeepingScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteAllSwarmsConfirm = false }) {
+                    TextButton(onClick = { showDeleteAllFlocksConfirm = false }) {
                         Text("Cancel")
                     }
                 }

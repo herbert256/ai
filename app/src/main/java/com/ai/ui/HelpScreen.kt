@@ -48,7 +48,7 @@ fun HelpScreen(
             HelpSection(
                 title = "Welcome to AI",
                 content = "Create AI-powered reports and have conversations using 13 different AI services. " +
-                    "Configure multiple agents with custom parameters and endpoints, organize them into swarms, " +
+                    "Configure multiple agents with custom parameters and endpoints, organize them into flocks, " +
                     "compare responses side-by-side, track costs, and chat with any AI model using real-time streaming."
             )
 
@@ -62,8 +62,8 @@ fun HelpScreen(
                     "3. (Optional) Configure endpoints if needed\n" +
                     "4. Go to AI Setup > AI Agents\n" +
                     "5. Tap '+ Add Agent' or 'Create default agents'\n" +
-                    "6. Go to AI Setup > AI Swarms\n" +
-                    "7. Create a swarm with your agents\n" +
+                    "6. Go to AI Setup > AI Flocks\n" +
+                    "7. Create a flock with your agents\n" +
                     "8. Return to AI Hub and start using the app!\n\n" +
                     "Tip: Use 'Create default agents' to quickly create one agent per configured provider.\n\n" +
                     "The home screen will guide you with warnings if setup is incomplete."
@@ -79,7 +79,7 @@ fun HelpScreen(
                     "• AI Models - Search and explore all available models\n" +
                     "• AI Statistics - Track API calls and token usage\n" +
                     "• AI Costs - View estimated costs per model\n" +
-                    "• AI Setup - Configure providers, agents, swarms\n" +
+                    "• AI Setup - Configure providers, agents, flocks\n" +
                     "• Settings - App preferences and cost configuration\n" +
                     "• Help - This documentation\n" +
                     "• Developer Options - API Test and Traces (developer mode)\n\n" +
@@ -98,7 +98,7 @@ fun HelpScreen(
                     "Creating a report:\n" +
                     "1. Enter a title (optional) and your prompt\n" +
                     "2. Use @DATE@ to insert current date automatically\n" +
-                    "3. Tap 'Generate' and select agents/swarms\n" +
+                    "3. Tap 'Generate' and select agents/flocks\n" +
                     "4. Watch real-time progress with token counts\n" +
                     "5. View results, share, or open in browser\n\n" +
                     "Reports are stored persistently and can be exported as JSON or HTML."
@@ -299,19 +299,19 @@ fun HelpScreen(
                     "Create multiple agents to compare services or configurations."
             )
 
-            // AI Swarms
+            // AI Flocks
             HelpSection(
-                title = "AI Swarms",
+                title = "AI Flocks",
                 icon = "\uD83D\uDC1D",
                 content = "Group agents for quick selection:\n\n" +
-                    "Creating a swarm:\n" +
-                    "1. Go to AI Setup > AI Swarms\n" +
-                    "2. Tap 'Add Swarm'\n" +
+                    "Creating a flock:\n" +
+                    "1. Go to AI Setup > AI Flocks\n" +
+                    "2. Tap 'Add Flock'\n" +
                     "3. Enter a name\n" +
                     "4. Select agents to include\n" +
                     "5. Save\n\n" +
-                    "Using swarms:\n" +
-                    "• Select swarms when generating reports\n" +
+                    "Using flocks:\n" +
+                    "• Select flocks when generating reports\n" +
                     "• Combine with individual agent selection\n" +
                     "• Selections are remembered for next time"
             )
@@ -334,7 +334,7 @@ fun HelpScreen(
                     "• @MODEL@ - Model name\n" +
                     "• @PROVIDER@ - Provider name\n" +
                     "• @AGENT@ - Agent name\n" +
-                    "• @SWARM@ - Swarm name\n" +
+                    "• @SWARM@ - Flock name\n" +
                     "• @NOW@ - Current date/time"
             )
 
@@ -417,7 +417,7 @@ fun HelpScreen(
                 icon = "\uD83D\uDCBE",
                 content = "Backup and restore your setup:\n\n" +
                     "Export (AI Setup page):\n" +
-                    "• Saves all providers, agents, swarms, prompts\n" +
+                    "• Saves all providers, agents, flocks, prompts\n" +
                     "• Includes API keys, parameters, endpoints\n" +
                     "• Includes model list URLs and admin URLs\n" +
                     "• Includes manual pricing overrides\n" +
@@ -449,7 +449,7 @@ fun HelpScreen(
                     "AI Setup:\n" +
                     "• Provider configuration (keys, endpoints, models)\n" +
                     "• Agent management (create, edit, duplicate)\n" +
-                    "• Swarm management (group agents)\n" +
+                    "• Flock management (group agents)\n" +
                     "• AI Prompts (internal app prompts)\n" +
                     "• Create default agents (one per provider)\n" +
                     "• Refresh model lists (all providers)\n" +

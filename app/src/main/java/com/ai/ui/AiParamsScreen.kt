@@ -605,7 +605,7 @@ private fun ParameterToggleField(
 
 /**
  * Reusable Parameters selector field with text display and Select button.
- * Can be used in Agent, Swarm, Flock, and Report screens.
+ * Can be used in Agent, Flock, Swarm, and Report screens.
  */
 @Composable
 fun ParametersSelector(

@@ -62,7 +62,7 @@ fun AiFlocksScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No flocks configured.\nAdd a flock to group provider/model combinations.",
+                    text = "No flocks configured.\nAdd a flock to group agents together.",
                     color = Color(0xFF888888),
                     fontSize = 16.sp
                 )
@@ -75,13 +75,13 @@ fun AiFlocksScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { flock ->
-                    // Filter DUMMY members when not in developer mode
-                    val flockMembers = flock.members.filter { member ->
-                        developerMode || member.provider != AiService.DUMMY
+                    // Filter DUMMY agents when not in developer mode
+                    val flockAgents = aiSettings.getAgentsForFlock(flock).filter { agent ->
+                        developerMode || agent.provider != AiService.DUMMY
                     }
                     FlockListItem(
                         flock = flock,
-                        members = flockMembers,
+                        agents = flockAgents,
                         onClick = { onEditFlock(flock.id) },
                         onDelete = { showDeleteDialog = flock }
                     )
@@ -117,12 +117,12 @@ fun AiFlocksScreen(
 }
 
 /**
- * List item for a flock showing name and member count.
+ * List item for a flock showing name and agent count.
  */
 @Composable
 private fun FlockListItem(
     flock: AiFlock,
-    members: List<AiFlockMember>,
+    agents: List<AiAgent>,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -150,10 +150,10 @@ private fun FlockListItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (members.isEmpty()) {
-                        "No members"
+                    text = if (agents.isEmpty()) {
+                        "No agents"
                     } else {
-                        "${members.size} member${if (members.size == 1) "" else "s"}: ${members.take(3).joinToString(", ") { "${it.provider.displayName}/${it.model.take(20)}" }}${if (members.size > 3) "..." else ""}"
+                        "${agents.size} agent${if (agents.size == 1) "" else "s"}: ${agents.take(3).joinToString(", ") { it.name }}${if (agents.size > 3) "..." else ""}"
                     },
                     fontSize = 14.sp,
                     color = Color(0xFF888888)
@@ -175,7 +175,6 @@ fun FlockEditScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     existingNames: Set<String>,
-    availableModels: Map<AiService, List<String>>,
     onSave: (AiFlock) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
@@ -183,7 +182,7 @@ fun FlockEditScreen(
     val isEditing = flock != null
 
     var name by remember { mutableStateOf(flock?.name ?: "") }
-    var selectedMembers by remember { mutableStateOf(flock?.members?.toSet() ?: emptySet()) }
+    var selectedAgentIds by remember { mutableStateOf(flock?.agentIds?.toSet() ?: emptySet()) }
     var nameError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -191,31 +190,19 @@ fun FlockEditScreen(
     var selectedParamsId by remember { mutableStateOf(flock?.paramsId) }
     var selectedParamsName by remember { mutableStateOf(flock?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
-    // Get all available provider/model combinations, sorted by provider name
-    val allProviderModels = remember(aiSettings, availableModels, developerMode) {
-        val result = mutableListOf<AiFlockMember>()
-        AiService.entries.filter { developerMode || it != AiService.DUMMY }.sortedBy { it.displayName.lowercase() }.forEach { provider ->
-            val apiKey = aiSettings.getApiKey(provider)
-            if (apiKey.isNotBlank()) {
-                // Get models for this provider (from availableModels or manual models)
-                val models = availableModels[provider]?.takeIf { it.isNotEmpty() }
-                    ?: aiSettings.getManualModels(provider).takeIf { it.isNotEmpty() }
-                    ?: listOf(aiSettings.getModel(provider))
-                models.forEach { model ->
-                    result.add(AiFlockMember(provider, model))
-                }
-            }
-        }
-        result
+    // Get all configured agents (filter DUMMY when not in developer mode)
+    val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
+        developerMode || agent.provider != AiService.DUMMY
     }
 
-    // Filter based on search query
-    val filteredProviderModels = if (searchQuery.isBlank()) {
-        allProviderModels
+    // Filter agents based on search query
+    val filteredAgents = if (searchQuery.isBlank()) {
+        configuredAgents
     } else {
-        allProviderModels.filter { member ->
-            member.provider.displayName.contains(searchQuery, ignoreCase = true) ||
-            member.model.contains(searchQuery, ignoreCase = true)
+        configuredAgents.filter { agent ->
+            agent.name.contains(searchQuery, ignoreCase = true) ||
+            agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
+            agent.model.contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -272,17 +259,17 @@ fun FlockEditScreen(
                 }
             )
 
-            // Member selection section
+            // Agent selection section
             Text(
-                text = "Select Provider/Model Combinations",
+                text = "Select Agents",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
                 color = Color(0xFF8B5CF6)
             )
 
-            if (allProviderModels.isEmpty()) {
+            if (configuredAgents.isEmpty()) {
                 Text(
-                    text = "No providers configured with API keys. Configure providers first.",
+                    text = "No agents configured. Create agents first.",
                     color = Color(0xFF888888),
                     fontSize = 14.sp
                 )
@@ -291,8 +278,8 @@ fun FlockEditScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("Search") },
-                    placeholder = { Text("Filter by provider or model") },
+                    label = { Text("Search agents") },
+                    placeholder = { Text("Filter by name, provider, or model") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -304,19 +291,19 @@ fun FlockEditScreen(
                     )
                 )
 
-                // Select all / Select none buttons (operate on filtered items)
+                // Select all / Select none buttons (operate on filtered agents)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { selectedMembers = selectedMembers + filteredProviderModels.toSet() },
+                        onClick = { selectedAgentIds = selectedAgentIds + filteredAgents.map { it.id }.toSet() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Select all")
                     }
                     OutlinedButton(
-                        onClick = { selectedMembers = selectedMembers - filteredProviderModels.toSet() },
+                        onClick = { selectedAgentIds = selectedAgentIds - filteredAgents.map { it.id }.toSet() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Select none")
@@ -326,7 +313,7 @@ fun FlockEditScreen(
                 // Show count of filtered vs total
                 if (searchQuery.isNotBlank()) {
                     Text(
-                        text = "Showing ${filteredProviderModels.size} of ${allProviderModels.size} models",
+                        text = "Showing ${filteredAgents.size} of ${configuredAgents.size} agents",
                         fontSize = 12.sp,
                         color = Color(0xFF888888)
                     )
@@ -334,45 +321,43 @@ fun FlockEditScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Group by provider for better organization
-                val groupedByProvider = filteredProviderModels.groupBy { it.provider }
-                groupedByProvider.toSortedMap(compareBy { it.displayName }).forEach { (provider, members) ->
-                    members.sortedBy { it.model.lowercase() }.forEach { member ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedMembers = if (member in selectedMembers) {
-                                        selectedMembers - member
-                                    } else {
-                                        selectedMembers + member
-                                    }
+                // Agent checkboxes (filtered)
+                filteredAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedAgentIds = if (agent.id in selectedAgentIds) {
+                                    selectedAgentIds - agent.id
+                                } else {
+                                    selectedAgentIds + agent.id
                                 }
-                                .padding(vertical = 6.dp, horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = member in selectedMembers,
-                                onCheckedChange = { checked ->
-                                    selectedMembers = if (checked) {
-                                        selectedMembers + member
-                                    } else {
-                                        selectedMembers - member
-                                    }
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = member.provider.displayName,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF888888)
-                                )
-                                Text(
-                                    text = member.model,
-                                    color = Color.White
-                                )
                             }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = agent.id in selectedAgentIds,
+                            onCheckedChange = { checked ->
+                                selectedAgentIds = if (checked) {
+                                    selectedAgentIds + agent.id
+                                } else {
+                                    selectedAgentIds - agent.id
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = agent.name,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "${agent.provider.displayName} - ${agent.model.ifBlank { agent.provider.defaultModel }}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF888888)
+                            )
                         }
                     }
                 }
@@ -392,14 +377,14 @@ fun FlockEditScreen(
                     name in existingNames -> {
                         nameError = "A flock with this name already exists"
                     }
-                    selectedMembers.isEmpty() -> {
-                        nameError = "Select at least one provider/model"
+                    selectedAgentIds.isEmpty() -> {
+                        nameError = "Select at least one agent"
                     }
                     else -> {
                         val newFlock = AiFlock(
                             id = flock?.id ?: UUID.randomUUID().toString(),
                             name = name.trim(),
-                            members = selectedMembers.toList(),
+                            agentIds = selectedAgentIds.toList(),
                             paramsId = selectedParamsId
                         )
                         onSave(newFlock)
