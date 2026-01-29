@@ -413,7 +413,7 @@ internal fun AgentEditScreen(
     prefillName: String = ""
 ) {
     val isEditing = agent != null && !forceAddMode
-    // Filter providers: must have API key configured, exclude DUMMY unless developer mode
+    // Filter providers: must have API key configured, exclude DUMMY unless developer mode, sorted by name
     val availableProviders = AiService.entries.filter { provider ->
         // Always include current agent's provider when editing
         if (isEditing && provider == agent?.provider) return@filter true
@@ -421,7 +421,7 @@ internal fun AgentEditScreen(
         if (provider == AiService.DUMMY && !developerMode) return@filter false
         // Only include providers with an API key configured
         aiSettings.getApiKey(provider).isNotBlank()
-    }
+    }.sortedBy { it.displayName.lowercase() }
     val coroutineScope = rememberCoroutineScope()
 
     // State - default to first available provider when creating new agent, or prefill values
@@ -797,54 +797,54 @@ internal fun AgentEditScreen(
                     singleLine = true,
                     visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation()
                 )
-                TextButton(onClick = { showKey = !showKey }) {
-                    Text(if (showKey) "Hide" else "Show", color = Color(0xFF6B9BFF))
+                // Only show Show/Hide button when API key field has content
+                if (apiKey.isNotBlank()) {
+                    TextButton(onClick = { showKey = !showKey }) {
+                        Text(if (showKey) "Hide" else "Show", color = Color(0xFF6B9BFF))
+                    }
                 }
             }
 
-            // Test API Key button - uses provider key/model if agent values are empty
-            val effectiveApiKey = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
-            val effectiveModel = model.ifBlank { aiSettings.getModel(selectedProvider) }
-            Button(
-                onClick = {
-                    testResult = null
-                    isTesting = true
-                    coroutineScope.launch {
-                        val error = if (effectiveApiKey.isBlank()) {
-                            "No API key available (agent or provider)"
-                        } else {
-                            onTestAiModel(selectedProvider, effectiveApiKey.trim(), effectiveModel)
+            // Test API Key button - only show when agent has its own API key
+            if (apiKey.isNotBlank()) {
+                val effectiveModel = model.ifBlank { aiSettings.getModel(selectedProvider) }
+                Button(
+                    onClick = {
+                        testResult = null
+                        isTesting = true
+                        coroutineScope.launch {
+                            val error = onTestAiModel(selectedProvider, apiKey.trim(), effectiveModel)
+                            isTesting = false
+                            if (error != null) {
+                                testResult = error
+                                testSuccess = false
+                            } else {
+                                testResult = "API key is valid"
+                                testSuccess = true
+                            }
                         }
-                        isTesting = false
-                        if (error != null) {
-                            testResult = error
-                            testSuccess = false
-                        } else {
-                            testResult = "API key is valid"
-                            testSuccess = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isTesting,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2196F3)
+                    )
+                ) {
+                    if (isTesting) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                            Text("Testing...")
                         }
+                    } else {
+                        Text("Test API Key")
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isTesting && effectiveApiKey.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2196F3)
-                )
-            ) {
-                if (isTesting) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                        )
-                        Text("Testing...")
-                    }
-                } else {
-                    Text("Test API Key")
                 }
             }
 

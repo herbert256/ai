@@ -191,10 +191,10 @@ fun FlockEditScreen(
     var selectedParamsId by remember { mutableStateOf(flock?.paramsId) }
     var selectedParamsName by remember { mutableStateOf(flock?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
-    // Get all available provider/model combinations
+    // Get all available provider/model combinations, sorted by provider name
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
         val result = mutableListOf<AiFlockMember>()
-        AiService.entries.filter { developerMode || it != AiService.DUMMY }.forEach { provider ->
+        AiService.entries.filter { developerMode || it != AiService.DUMMY }.sortedBy { it.displayName.lowercase() }.forEach { provider ->
             val apiKey = aiSettings.getApiKey(provider)
             if (apiKey.isNotBlank()) {
                 // Get models for this provider (from availableModels or manual models)

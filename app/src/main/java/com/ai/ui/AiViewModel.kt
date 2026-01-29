@@ -989,7 +989,18 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun testAiModel(service: AiService, apiKey: String, model: String): String? {
         return try {
-            aiAnalysisRepository.testModel(service, apiKey, model)
+            val result = aiAnalysisRepository.testModel(service, apiKey, model)
+            // Record statistics for successful test (minimal tokens for test prompt)
+            if (result == null) {
+                settingsPrefs.updateUsageStats(
+                    provider = service,
+                    model = model,
+                    inputTokens = 10,  // Estimated for "Reply with exactly: OK"
+                    outputTokens = 2,  // "OK" response
+                    totalTokens = 12
+                )
+            }
+            result
         } catch (e: Exception) {
             e.message ?: "Test failed"
         }
@@ -1025,11 +1036,44 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 messages = messages,
                 params = _uiState.value.chatParameters
             )
+            // Estimate tokens and record statistics
+            val inputTokens = messages.sumOf { estimateTokens(it.content) }
+            val outputTokens = estimateTokens(response)
+            settingsPrefs.updateUsageStats(
+                provider = service,
+                model = model,
+                inputTokens = inputTokens,
+                outputTokens = outputTokens,
+                totalTokens = inputTokens + outputTokens
+            )
             ChatMessage(role = "assistant", content = response)
         } catch (e: Exception) {
             null
         }
     }
+
+    /**
+     * Record usage statistics for streaming chat (call after stream completes).
+     */
+    fun recordChatStatistics(
+        service: AiService,
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int
+    ) {
+        settingsPrefs.updateUsageStats(
+            provider = service,
+            model = model,
+            inputTokens = inputTokens,
+            outputTokens = outputTokens,
+            totalTokens = inputTokens + outputTokens
+        )
+    }
+
+    /**
+     * Estimate token count from text (roughly 4 characters per token).
+     */
+    private fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
 
     /**
      * Send a chat message with streaming response.

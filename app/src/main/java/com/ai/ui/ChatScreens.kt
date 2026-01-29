@@ -49,7 +49,7 @@ fun ChatSelectProviderScreen(
 ) {
     BackHandler { onNavigateBack() }
 
-    // Get providers with API keys configured
+    // Get providers with API keys configured, sorted by display name
     val configuredProviders = AiService.entries.filter { service ->
         val hasApiKey = when (service) {
             AiService.OPENAI -> aiSettings.chatGptApiKey.isNotBlank()
@@ -67,7 +67,7 @@ fun ChatSelectProviderScreen(
             AiService.DUMMY -> developerMode && aiSettings.dummyApiKey.isNotBlank()
         }
         hasApiKey
-    }
+    }.sortedBy { it.displayName.lowercase() }
 
     Column(
         modifier = Modifier
@@ -527,7 +527,8 @@ fun ChatSessionScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSendMessage: suspend (List<ChatMessage>, String) -> ChatMessage?,
-    onSendMessageStream: ((List<ChatMessage>) -> Flow<String>)? = null
+    onSendMessageStream: ((List<ChatMessage>) -> Flow<String>)? = null,
+    onRecordStatistics: (Int, Int) -> Unit = { _, _ -> }
 ) {
     BackHandler { onNavigateBack() }
 
@@ -621,7 +622,7 @@ fun ChatSessionScreen(
             )
             if (totalCost > 0) {
                 Text(
-                    text = "$${String.format("%.6f", totalCost)}",
+                    text = "${String.format("%.4f", totalCost * 100)} ¢",
                     color = Color(0xFF4CAF50),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
@@ -796,6 +797,8 @@ fun ChatSessionScreen(
                                         totalOutputTokens += outputTokens
                                         totalCost += (inputTokensForThisRequest * pricing.promptPrice) +
                                                 (outputTokens * pricing.completionPrice)
+                                        // Record statistics
+                                        onRecordStatistics(inputTokensForThisRequest, outputTokens)
                                     } else {
                                         error = "No response received"
                                     }

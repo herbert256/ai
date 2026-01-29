@@ -1002,6 +1002,7 @@ fun CostConfigurationScreen(
                         ) {
                             com.ai.data.AiService.entries
                                 .filter { it != com.ai.data.AiService.DUMMY }
+                                .sortedBy { it.displayName.lowercase() }
                                 .forEach { provider ->
                                     DropdownMenuItem(
                                         text = { Text(provider.displayName) },

@@ -474,6 +474,9 @@ fun AiNavHost(
                     },
                     onSendMessageStream = { messages ->
                         viewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl)
+                    },
+                    onRecordStatistics = { inputTokens, outputTokens ->
+                        viewModel.recordChatStatistics(agent.provider, effectiveModel, inputTokens, outputTokens)
                     }
                 )
             } else {
@@ -618,6 +621,9 @@ fun AiNavHost(
                     },
                     onSendMessageStream = { messages ->
                         viewModel.sendChatMessageStream(provider, apiKey, model, messages)
+                    },
+                    onRecordStatistics = { inputTokens, outputTokens ->
+                        viewModel.recordChatStatistics(provider, model, inputTokens, outputTokens)
                     }
                 )
             }
@@ -660,6 +666,9 @@ fun AiNavHost(
                     },
                     onSendMessageStream = { messages ->
                         viewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages)
+                    },
+                    onRecordStatistics = { inputTokens, outputTokens ->
+                        viewModel.recordChatStatistics(session.provider, session.model, inputTokens, outputTokens)
                     }
                 )
             } else {

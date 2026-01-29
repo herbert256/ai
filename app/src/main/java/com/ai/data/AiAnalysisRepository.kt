@@ -2412,6 +2412,58 @@ class AiAnalysisRepository {
     }
 
     /**
+     * Parse SSE stream for OpenAI Responses API format (GPT-5.x, o3, o4).
+     * Events: response.output_text.delta with delta containing text
+     */
+    private fun parseOpenAiResponsesSseStream(responseBody: ResponseBody): Flow<String> = flow {
+        val reader = responseBody.charStream().buffered()
+        try {
+            var line: String?
+            var eventType: String? = null
+
+            while (reader.readLine().also { line = it } != null) {
+                val currentLine = line ?: continue
+
+                // Skip empty lines
+                if (currentLine.isBlank()) {
+                    eventType = null
+                    continue
+                }
+
+                // Parse event type
+                if (currentLine.startsWith("event: ")) {
+                    eventType = currentLine.removePrefix("event: ").trim()
+                    continue
+                }
+
+                // Parse data
+                if (currentLine.startsWith("data: ")) {
+                    val data = currentLine.removePrefix("data: ").trim()
+
+                    // Check for stream termination
+                    if (data == "[DONE]") break
+
+                    // Only process text delta events
+                    if (eventType == "response.output_text.delta") {
+                        try {
+                            val jsonObject = gson.fromJson(data, com.google.gson.JsonObject::class.java)
+                            val delta = jsonObject?.get("delta")?.asString
+                            if (!delta.isNullOrEmpty()) {
+                                emit(delta)
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.w("StreamParse", "Failed to parse Responses API chunk: $data")
+                        }
+                    }
+                }
+            }
+        } finally {
+            reader.close()
+            responseBody.close()
+        }
+    }
+
+    /**
      * Parse SSE stream for Anthropic Claude format.
      * Events: content_block_delta with delta.text
      */
@@ -2502,18 +2554,6 @@ class AiAnalysisRepository {
         params: com.ai.ui.ChatParameters,
         baseUrl: String
     ): Flow<String> = flow {
-        val openAiMessages = convertToOpenAiMessages(messages)
-        val request = OpenAiStreamRequest(
-            model = model,
-            messages = openAiMessages,
-            stream = true,
-            max_tokens = params.maxTokens,
-            temperature = params.temperature,
-            top_p = params.topP,
-            frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
-        )
-
         // Use custom URL if different from default
         val api = if (baseUrl != AiService.OPENAI.baseUrl) {
             AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
@@ -2521,16 +2561,57 @@ class AiAnalysisRepository {
             openAiStreamApi
         }
 
-        val response = withContext(Dispatchers.IO) {
-            api.createChatCompletionStream("Bearer $apiKey", request)
-        }
+        // Check if model requires Responses API (gpt-5.x, o3, o4)
+        if (usesResponsesApi(model)) {
+            // Use Responses API for newer models
+            val inputMessages = messages.map { msg ->
+                OpenAiResponsesInputMessage(role = msg.role, content = msg.content)
+            }
+            val systemPrompt = messages.find { it.role == "system" }?.content
 
-        if (response.isSuccessful) {
-            response.body()?.let { body ->
-                parseOpenAiSseStream(body).collect { emit(it) }
-            } ?: throw Exception("Empty response body")
+            val request = OpenAiResponsesStreamRequest(
+                model = model,
+                input = inputMessages.filter { it.role != "system" },
+                instructions = systemPrompt,
+                stream = true
+            )
+
+            val response = withContext(Dispatchers.IO) {
+                api.createResponseStream("Bearer $apiKey", request)
+            }
+
+            if (response.isSuccessful) {
+                response.body()?.let { body ->
+                    parseOpenAiResponsesSseStream(body).collect { emit(it) }
+                } ?: throw Exception("Empty response body")
+            } else {
+                throw Exception("API error: ${response.code()} ${response.message()}")
+            }
         } else {
-            throw Exception("API error: ${response.code()} ${response.message()}")
+            // Use Chat Completions API for older models
+            val openAiMessages = convertToOpenAiMessages(messages)
+            val request = OpenAiStreamRequest(
+                model = model,
+                messages = openAiMessages,
+                stream = true,
+                max_tokens = params.maxTokens,
+                temperature = params.temperature,
+                top_p = params.topP,
+                frequency_penalty = params.frequencyPenalty,
+                presence_penalty = params.presencePenalty
+            )
+
+            val response = withContext(Dispatchers.IO) {
+                api.createChatCompletionStream("Bearer $apiKey", request)
+            }
+
+            if (response.isSuccessful) {
+                response.body()?.let { body ->
+                    parseOpenAiSseStream(body).collect { emit(it) }
+                } ?: throw Exception("Empty response body")
+            } else {
+                throw Exception("API error: ${response.code()} ${response.message()}")
+            }
         }
     }
 

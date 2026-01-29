@@ -79,12 +79,7 @@ fun AiSettingsScreen(
             modifier = Modifier.padding(top = 8.dp)
         )
 
-        AiServiceNavigationCard(
-            title = "OpenAI",
-            accentColor = Color(0xFF10A37F),
-            adminUrl = AiService.OPENAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
-        )
+        // Provider cards sorted alphabetically
         AiServiceNavigationCard(
             title = "Anthropic",
             accentColor = Color(0xFFD97706),
@@ -92,64 +87,10 @@ fun AiSettingsScreen(
             onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
-            title = "Google",
-            accentColor = Color(0xFF4285F4),
-            adminUrl = AiService.GOOGLE.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
-        )
-        AiServiceNavigationCard(
-            title = "xAI",
-            accentColor = Color(0xFFFFFFFF),
-            adminUrl = AiService.XAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
-        )
-        AiServiceNavigationCard(
-            title = "Groq",
-            accentColor = Color(0xFFF55036),
-            adminUrl = AiService.GROQ.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
-        )
-        AiServiceNavigationCard(
             title = "DeepSeek",
             accentColor = Color(0xFF4D6BFE),
             adminUrl = AiService.DEEPSEEK.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
-        )
-        AiServiceNavigationCard(
-            title = "Mistral",
-            accentColor = Color(0xFFFF7000),
-            adminUrl = AiService.MISTRAL.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
-        )
-        AiServiceNavigationCard(
-            title = "Perplexity",
-            accentColor = Color(0xFF20B2AA),
-            adminUrl = AiService.PERPLEXITY.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
-        )
-        AiServiceNavigationCard(
-            title = "Together",
-            accentColor = Color(0xFF6366F1),
-            adminUrl = AiService.TOGETHER.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
-        )
-        AiServiceNavigationCard(
-            title = "OpenRouter",
-            accentColor = Color(0xFF6B5AED),
-            adminUrl = AiService.OPENROUTER.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
-        )
-        AiServiceNavigationCard(
-            title = "SiliconFlow",
-            accentColor = Color(0xFF00B4D8),
-            adminUrl = AiService.SILICONFLOW.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
-        )
-        AiServiceNavigationCard(
-            title = "Z.AI",
-            accentColor = Color(0xFF6366F1),
-            adminUrl = AiService.ZAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
         )
         // Dummy provider only visible in developer mode
         if (developerMode) {
@@ -160,6 +101,66 @@ fun AiSettingsScreen(
                 onEdit = { onNavigate(SettingsSubScreen.AI_DUMMY) }
             )
         }
+        AiServiceNavigationCard(
+            title = "Google",
+            accentColor = Color(0xFF4285F4),
+            adminUrl = AiService.GOOGLE.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
+        )
+        AiServiceNavigationCard(
+            title = "Groq",
+            accentColor = Color(0xFFF55036),
+            adminUrl = AiService.GROQ.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
+        )
+        AiServiceNavigationCard(
+            title = "Mistral",
+            accentColor = Color(0xFFFF7000),
+            adminUrl = AiService.MISTRAL.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
+        )
+        AiServiceNavigationCard(
+            title = "OpenAI",
+            accentColor = Color(0xFF10A37F),
+            adminUrl = AiService.OPENAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
+        )
+        AiServiceNavigationCard(
+            title = "OpenRouter",
+            accentColor = Color(0xFF6B5AED),
+            adminUrl = AiService.OPENROUTER.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
+        )
+        AiServiceNavigationCard(
+            title = "Perplexity",
+            accentColor = Color(0xFF20B2AA),
+            adminUrl = AiService.PERPLEXITY.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
+        )
+        AiServiceNavigationCard(
+            title = "SiliconFlow",
+            accentColor = Color(0xFF00B4D8),
+            adminUrl = AiService.SILICONFLOW.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
+        )
+        AiServiceNavigationCard(
+            title = "Together",
+            accentColor = Color(0xFF6366F1),
+            adminUrl = AiService.TOGETHER.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
+        )
+        AiServiceNavigationCard(
+            title = "xAI",
+            accentColor = Color(0xFFFFFFFF),
+            adminUrl = AiService.XAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
+        )
+        AiServiceNavigationCard(
+            title = "Z.AI",
+            accentColor = Color(0xFF6366F1),
+            adminUrl = AiService.ZAI.adminUrl,
+            onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -2905,7 +2906,7 @@ fun ApiTestScreen(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                com.ai.data.AiService.entries.forEach { provider ->
+                com.ai.data.AiService.entries.sortedBy { it.displayName.lowercase() }.forEach { provider ->
                     DropdownMenuItem(
                         text = { Text(provider.displayName) },
                         onClick = {

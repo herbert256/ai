@@ -146,6 +146,19 @@ data class OpenAiResponsesRequest(
     val instructions: String? = null
 )
 
+// OpenAI Responses API streaming request
+data class OpenAiResponsesStreamRequest(
+    val model: String,
+    val input: List<OpenAiResponsesInputMessage>,
+    val instructions: String? = null,
+    val stream: Boolean = true
+)
+
+data class OpenAiResponsesInputMessage(
+    val role: String,
+    val content: String
+)
+
 data class OpenAiResponsesOutputContent(
     val type: String?,
     val text: String?,
@@ -1128,6 +1141,13 @@ interface OpenAiStreamApi {
     suspend fun createChatCompletionStream(
         @Header("Authorization") authorization: String,
         @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+
+    @retrofit2.http.Streaming
+    @POST("v1/responses")
+    suspend fun createResponseStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiResponsesStreamRequest
     ): Response<okhttp3.ResponseBody>
 }
 
