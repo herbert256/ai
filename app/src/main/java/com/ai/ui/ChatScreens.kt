@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
 import com.ai.data.ChatHistoryManager
+import com.ai.data.PricingCache
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -532,6 +534,7 @@ fun ChatSessionScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
+    val context = LocalContext.current
 
     // Chat state - use initial messages if provided (for continuing a session)
     var messages by remember { mutableStateOf(initialMessages) }
@@ -542,6 +545,19 @@ fun ChatSessionScreen(
     // Streaming state
     var isStreaming by remember { mutableStateOf(false) }
     var streamingContent by remember { mutableStateOf("") }
+
+    // Cost tracking state
+    var totalInputTokens by remember { mutableIntStateOf(0) }
+    var totalOutputTokens by remember { mutableIntStateOf(0) }
+    var totalCost by remember { mutableStateOf(0.0) }
+
+    // Get pricing for this model
+    val pricing = remember(provider, model) {
+        PricingCache.getPricing(context, provider, model)
+    }
+
+    // Helper to estimate tokens from text (roughly 4 chars per token)
+    fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
 
     // Current session ID (create new one if not continuing an existing session)
     val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }
@@ -593,11 +609,25 @@ fun ChatSessionScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Text(
-            text = "${provider.displayName} / $model",
-            color = Color(0xFF6B9BFF),
-            fontSize = 14.sp
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${provider.displayName} / $model",
+                color = Color(0xFF6B9BFF),
+                fontSize = 14.sp
+            )
+            if (totalCost > 0) {
+                Text(
+                    text = "$${String.format("%.6f", totalCost)}",
+                    color = Color(0xFF4CAF50),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -611,11 +641,12 @@ fun ChatSessionScreen(
             if (messages.isEmpty() || (messages.size == 1 && messages[0].role == "system")) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.BottomStart
                 ) {
                     Text(
                         text = "Start a conversation...",
-                        color = Color(0xFF666666)
+                        color = Color(0xFF666666),
+                        modifier = Modifier.padding(12.dp)
                     )
                 }
             } else {
@@ -624,9 +655,10 @@ fun ChatSessionScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(12.dp),
+                    reverseLayout = true,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Show streaming message at top (newest first layout)
+                    // Show streaming message at bottom (newest first in reverse layout)
                     if (isStreaming && streamingContent.isNotEmpty()) {
                         item {
                             StreamingMessageBubble(content = streamingContent)
@@ -681,6 +713,7 @@ fun ChatSessionScreen(
                         }
                     }
 
+                    // Messages in reverse order (newest at bottom with reverseLayout)
                     items(messages.filter { it.role != "system" }.reversed()) { message ->
                         ChatMessageBubble(message = message, userName = userName)
                     }
@@ -733,6 +766,10 @@ fun ChatSessionScreen(
                         val userMessage = ChatMessage(role = "user", content = input)
                         messages = messages + userMessage
 
+                        // Track input tokens (user message + all previous messages for context)
+                        val inputTokensForThisRequest = messages.sumOf { estimateTokens(it.content) }
+                        totalInputTokens += inputTokensForThisRequest
+
                         // Save session with user message
                         saveSession(messages)
 
@@ -753,6 +790,12 @@ fun ChatSessionScreen(
                                         )
                                         messages = messages + assistantMessage
                                         saveSession(messages)
+
+                                        // Track output tokens and calculate cost
+                                        val outputTokens = estimateTokens(streamingContent)
+                                        totalOutputTokens += outputTokens
+                                        totalCost += (inputTokensForThisRequest * pricing.promptPrice) +
+                                                (outputTokens * pricing.completionPrice)
                                     } else {
                                         error = "No response received"
                                     }
@@ -781,6 +824,12 @@ fun ChatSessionScreen(
                                     if (response != null) {
                                         messages = messages + response
                                         saveSession(messages)
+
+                                        // Track output tokens and calculate cost
+                                        val outputTokens = estimateTokens(response.content)
+                                        totalOutputTokens += outputTokens
+                                        totalCost += (inputTokensForThisRequest * pricing.promptPrice) +
+                                                (outputTokens * pricing.completionPrice)
                                     } else {
                                         error = "Failed to get response"
                                     }
