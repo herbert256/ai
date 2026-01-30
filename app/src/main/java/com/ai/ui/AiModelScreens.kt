@@ -322,65 +322,101 @@ fun ModelSearchScreen(
         availableMiniMaxModels, availableDummyModels, aiSettings
     ) {
         buildList {
+            fun isActive(s: AiService) = aiSettings.isProviderActive(s, developerMode)
             // OpenAI models
-            availableChatGptModels.forEach { add(ModelSearchItem(AiService.OPENAI, "OpenAI", it, Color(0xFF10A37F))) }
+            if (isActive(AiService.OPENAI))
+                availableChatGptModels.forEach { add(ModelSearchItem(AiService.OPENAI, "OpenAI", it, Color(0xFF10A37F))) }
             // Anthropic models (API or fallback to manual)
-            val claudeModels = if (availableClaudeModels.isNotEmpty()) availableClaudeModels else aiSettings.claudeManualModels
-            claudeModels.forEach { add(ModelSearchItem(AiService.ANTHROPIC, "Anthropic", it, Color(0xFFD97706))) }
+            if (isActive(AiService.ANTHROPIC)) {
+                val claudeModels = if (availableClaudeModels.isNotEmpty()) availableClaudeModels else aiSettings.claudeManualModels
+                claudeModels.forEach { add(ModelSearchItem(AiService.ANTHROPIC, "Anthropic", it, Color(0xFFD97706))) }
+            }
             // Google models
-            availableGeminiModels.forEach { add(ModelSearchItem(AiService.GOOGLE, "Google", it, Color(0xFF4285F4))) }
+            if (isActive(AiService.GOOGLE))
+                availableGeminiModels.forEach { add(ModelSearchItem(AiService.GOOGLE, "Google", it, Color(0xFF4285F4))) }
             // xAI models
-            availableGrokModels.forEach { add(ModelSearchItem(AiService.XAI, "xAI", it, Color(0xFFFFFFFF))) }
+            if (isActive(AiService.XAI))
+                availableGrokModels.forEach { add(ModelSearchItem(AiService.XAI, "xAI", it, Color(0xFFFFFFFF))) }
             // Groq models
-            availableGroqModels.forEach { add(ModelSearchItem(AiService.GROQ, "Groq", it, Color(0xFFF55036))) }
+            if (isActive(AiService.GROQ))
+                availableGroqModels.forEach { add(ModelSearchItem(AiService.GROQ, "Groq", it, Color(0xFFF55036))) }
             // DeepSeek models
-            availableDeepSeekModels.forEach { add(ModelSearchItem(AiService.DEEPSEEK, "DeepSeek", it, Color(0xFF4D6BFE))) }
+            if (isActive(AiService.DEEPSEEK))
+                availableDeepSeekModels.forEach { add(ModelSearchItem(AiService.DEEPSEEK, "DeepSeek", it, Color(0xFF4D6BFE))) }
             // Mistral models
-            availableMistralModels.forEach { add(ModelSearchItem(AiService.MISTRAL, "Mistral", it, Color(0xFFFF7000))) }
+            if (isActive(AiService.MISTRAL))
+                availableMistralModels.forEach { add(ModelSearchItem(AiService.MISTRAL, "Mistral", it, Color(0xFFFF7000))) }
             // Perplexity models (hardcoded - no API)
-            aiSettings.perplexityManualModels.forEach { add(ModelSearchItem(AiService.PERPLEXITY, "Perplexity", it, Color(0xFF20B2AA))) }
+            if (isActive(AiService.PERPLEXITY))
+                aiSettings.perplexityManualModels.forEach { add(ModelSearchItem(AiService.PERPLEXITY, "Perplexity", it, Color(0xFF20B2AA))) }
             // Together models
-            availableTogetherModels.forEach { add(ModelSearchItem(AiService.TOGETHER, "Together", it, Color(0xFF6366F1))) }
+            if (isActive(AiService.TOGETHER))
+                availableTogetherModels.forEach { add(ModelSearchItem(AiService.TOGETHER, "Together", it, Color(0xFF6366F1))) }
             // OpenRouter models
-            availableOpenRouterModels.forEach { add(ModelSearchItem(AiService.OPENROUTER, "OpenRouter", it, Color(0xFF6B5AED))) }
+            if (isActive(AiService.OPENROUTER))
+                availableOpenRouterModels.forEach { add(ModelSearchItem(AiService.OPENROUTER, "OpenRouter", it, Color(0xFF6B5AED))) }
             // SiliconFlow models (API or fallback to manual)
-            val siliconFlowModels = if (availableSiliconFlowModels.isNotEmpty()) availableSiliconFlowModels else aiSettings.siliconFlowManualModels
-            siliconFlowModels.forEach { add(ModelSearchItem(AiService.SILICONFLOW, "SiliconFlow", it, Color(0xFF00B4D8))) }
+            if (isActive(AiService.SILICONFLOW)) {
+                val siliconFlowModels = if (availableSiliconFlowModels.isNotEmpty()) availableSiliconFlowModels else aiSettings.siliconFlowManualModels
+                siliconFlowModels.forEach { add(ModelSearchItem(AiService.SILICONFLOW, "SiliconFlow", it, Color(0xFF00B4D8))) }
+            }
             // Z.AI models (API or fallback to manual)
-            val zaiModels = if (availableZaiModels.isNotEmpty()) availableZaiModels else aiSettings.zaiManualModels
-            zaiModels.forEach { add(ModelSearchItem(AiService.ZAI, "Z.AI", it, Color(0xFF6366F1))) }
+            if (isActive(AiService.ZAI)) {
+                val zaiModels = if (availableZaiModels.isNotEmpty()) availableZaiModels else aiSettings.zaiManualModels
+                zaiModels.forEach { add(ModelSearchItem(AiService.ZAI, "Z.AI", it, Color(0xFF6366F1))) }
+            }
             // Moonshot models (API or fallback to manual)
-            val moonshotModels = if (availableMoonshotModels.isNotEmpty()) availableMoonshotModels else aiSettings.moonshotManualModels
-            moonshotModels.forEach { add(ModelSearchItem(AiService.MOONSHOT, "Moonshot", it, Color(0xFF7C3AED))) }
+            if (isActive(AiService.MOONSHOT)) {
+                val moonshotModels = if (availableMoonshotModels.isNotEmpty()) availableMoonshotModels else aiSettings.moonshotManualModels
+                moonshotModels.forEach { add(ModelSearchItem(AiService.MOONSHOT, "Moonshot", it, Color(0xFF7C3AED))) }
+            }
             // Cohere models (API or fallback to manual)
-            val cohereModels = if (availableCohereModels.isNotEmpty()) availableCohereModels else aiSettings.cohereManualModels
-            cohereModels.forEach { add(ModelSearchItem(AiService.COHERE, "Cohere", it, Color(0xFF39594D))) }
+            if (isActive(AiService.COHERE)) {
+                val cohereModels = if (availableCohereModels.isNotEmpty()) availableCohereModels else aiSettings.cohereManualModels
+                cohereModels.forEach { add(ModelSearchItem(AiService.COHERE, "Cohere", it, Color(0xFF39594D))) }
+            }
             // AI21 models (API or fallback to manual)
-            val ai21Models = if (availableAi21Models.isNotEmpty()) availableAi21Models else aiSettings.ai21ManualModels
-            ai21Models.forEach { add(ModelSearchItem(AiService.AI21, "AI21", it, Color(0xFFFF6F00))) }
+            if (isActive(AiService.AI21)) {
+                val ai21Models = if (availableAi21Models.isNotEmpty()) availableAi21Models else aiSettings.ai21ManualModels
+                ai21Models.forEach { add(ModelSearchItem(AiService.AI21, "AI21", it, Color(0xFFFF6F00))) }
+            }
             // DashScope models (API or fallback to manual)
-            val dashScopeModels = if (availableDashScopeModels.isNotEmpty()) availableDashScopeModels else aiSettings.dashScopeManualModels
-            dashScopeModels.forEach { add(ModelSearchItem(AiService.DASHSCOPE, "DashScope", it, Color(0xFFFF6A00))) }
+            if (isActive(AiService.DASHSCOPE)) {
+                val dashScopeModels = if (availableDashScopeModels.isNotEmpty()) availableDashScopeModels else aiSettings.dashScopeManualModels
+                dashScopeModels.forEach { add(ModelSearchItem(AiService.DASHSCOPE, "DashScope", it, Color(0xFFFF6A00))) }
+            }
             // Fireworks models (API or fallback to manual)
-            val fireworksModels = if (availableFireworksModels.isNotEmpty()) availableFireworksModels else aiSettings.fireworksManualModels
-            fireworksModels.forEach { add(ModelSearchItem(AiService.FIREWORKS, "Fireworks", it, Color(0xFFE34234))) }
+            if (isActive(AiService.FIREWORKS)) {
+                val fireworksModels = if (availableFireworksModels.isNotEmpty()) availableFireworksModels else aiSettings.fireworksManualModels
+                fireworksModels.forEach { add(ModelSearchItem(AiService.FIREWORKS, "Fireworks", it, Color(0xFFE34234))) }
+            }
             // Cerebras models (API or fallback to manual)
-            val cerebrasModels = if (availableCerebrasModels.isNotEmpty()) availableCerebrasModels else aiSettings.cerebrasManualModels
-            cerebrasModels.forEach { add(ModelSearchItem(AiService.CEREBRAS, "Cerebras", it, Color(0xFF00A3E0))) }
+            if (isActive(AiService.CEREBRAS)) {
+                val cerebrasModels = if (availableCerebrasModels.isNotEmpty()) availableCerebrasModels else aiSettings.cerebrasManualModels
+                cerebrasModels.forEach { add(ModelSearchItem(AiService.CEREBRAS, "Cerebras", it, Color(0xFF00A3E0))) }
+            }
             // SambaNova models (API or fallback to manual)
-            val sambaNovaModels = if (availableSambaNovaModels.isNotEmpty()) availableSambaNovaModels else aiSettings.sambaNovaManualModels
-            sambaNovaModels.forEach { add(ModelSearchItem(AiService.SAMBANOVA, "SambaNova", it, Color(0xFF6B21A8))) }
+            if (isActive(AiService.SAMBANOVA)) {
+                val sambaNovaModels = if (availableSambaNovaModels.isNotEmpty()) availableSambaNovaModels else aiSettings.sambaNovaManualModels
+                sambaNovaModels.forEach { add(ModelSearchItem(AiService.SAMBANOVA, "SambaNova", it, Color(0xFF6B21A8))) }
+            }
             // Baichuan models (API or fallback to manual)
-            val baichuanModels = if (availableBaichuanModels.isNotEmpty()) availableBaichuanModels else aiSettings.baichuanManualModels
-            baichuanModels.forEach { add(ModelSearchItem(AiService.BAICHUAN, "Baichuan", it, Color(0xFF1E88E5))) }
+            if (isActive(AiService.BAICHUAN)) {
+                val baichuanModels = if (availableBaichuanModels.isNotEmpty()) availableBaichuanModels else aiSettings.baichuanManualModels
+                baichuanModels.forEach { add(ModelSearchItem(AiService.BAICHUAN, "Baichuan", it, Color(0xFF1E88E5))) }
+            }
             // StepFun models (API or fallback to manual)
-            val stepFunModels = if (availableStepFunModels.isNotEmpty()) availableStepFunModels else aiSettings.stepFunManualModels
-            stepFunModels.forEach { add(ModelSearchItem(AiService.STEPFUN, "StepFun", it, Color(0xFF00BFA5))) }
+            if (isActive(AiService.STEPFUN)) {
+                val stepFunModels = if (availableStepFunModels.isNotEmpty()) availableStepFunModels else aiSettings.stepFunManualModels
+                stepFunModels.forEach { add(ModelSearchItem(AiService.STEPFUN, "StepFun", it, Color(0xFF00BFA5))) }
+            }
             // MiniMax models (API or fallback to manual)
-            val miniMaxModels = if (availableMiniMaxModels.isNotEmpty()) availableMiniMaxModels else aiSettings.miniMaxManualModels
-            miniMaxModels.forEach { add(ModelSearchItem(AiService.MINIMAX, "MiniMax", it, Color(0xFFEC407A))) }
+            if (isActive(AiService.MINIMAX)) {
+                val miniMaxModels = if (availableMiniMaxModels.isNotEmpty()) availableMiniMaxModels else aiSettings.miniMaxManualModels
+                miniMaxModels.forEach { add(ModelSearchItem(AiService.MINIMAX, "MiniMax", it, Color(0xFFEC407A))) }
+            }
             // Dummy models (only in developer mode)
-            if (developerMode) {
+            if (isActive(AiService.DUMMY)) {
                 availableDummyModels.forEach { add(ModelSearchItem(AiService.DUMMY, "Dummy", it, Color(0xFF888888))) }
             }
         }

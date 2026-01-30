@@ -101,9 +101,9 @@ fun AiPromptsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 aiSettings.prompts.sortedBy { it.name.lowercase() }.forEach { prompt ->
-                    // Get the agent for this prompt (filter DUMMY when not in developer mode)
+                    // Get the agent for this prompt (filter to active providers)
                     val agent = aiSettings.getAgentForPrompt(prompt)
-                    val agentVisible = agent != null && (developerMode || agent.provider != AiService.DUMMY)
+                    val agentVisible = agent != null && aiSettings.isProviderActive(agent.provider, developerMode)
 
                     PromptListItem(
                         prompt = prompt,
@@ -216,9 +216,9 @@ fun PromptEditScreen(
     var nameError by remember { mutableStateOf<String?>(null) }
     var agentDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Get all configured agents (filter DUMMY when not in developer mode)
+    // Get all configured agents with active providers
     val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
-        developerMode || agent.provider != AiService.DUMMY
+        aiSettings.isProviderActive(agent.provider, developerMode)
     }.sortedBy { it.name.lowercase() }
 
     // Find selected agent

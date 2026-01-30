@@ -648,11 +648,27 @@ data class AiSettings(
     /**
      * Get the provider state for a service.
      * Returns "ok", "error", or "not-used" based on API key presence and stored state.
+     * Untested providers (key present but no stored state) default to "ok" for cold-start.
      */
     fun getProviderState(service: AiService): String {
         if (getApiKey(service).isBlank()) return "not-used"
         val stored = providerStates[service.name]
-        return if (stored == "ok") "ok" else "error"
+        return stored ?: "ok"
+    }
+
+    /**
+     * Check if a provider is active (status "ok" and respects DUMMY dev-mode gate).
+     */
+    fun isProviderActive(service: AiService, developerMode: Boolean): Boolean {
+        if (service == AiService.DUMMY && !developerMode) return false
+        return getProviderState(service) == "ok"
+    }
+
+    /**
+     * Get all active providers (status "ok", respecting DUMMY dev-mode gate).
+     */
+    fun getActiveServices(developerMode: Boolean): List<AiService> {
+        return AiService.entries.filter { isProviderActive(it, developerMode) }
     }
 
     /**

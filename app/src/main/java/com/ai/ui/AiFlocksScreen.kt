@@ -75,9 +75,9 @@ fun AiFlocksScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { flock ->
-                    // Filter DUMMY agents when not in developer mode
+                    // Filter to agents with active providers
                     val flockAgents = aiSettings.getAgentsForFlock(flock).filter { agent ->
-                        developerMode || agent.provider != AiService.DUMMY
+                        aiSettings.isProviderActive(agent.provider, developerMode)
                     }
                     FlockListItem(
                         flock = flock,
@@ -190,9 +190,9 @@ fun FlockEditScreen(
     var selectedParamsId by remember { mutableStateOf(flock?.paramsId) }
     var selectedParamsName by remember { mutableStateOf(flock?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
 
-    // Get all configured agents (filter DUMMY when not in developer mode)
+    // Get all configured agents with active providers
     val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
-        developerMode || agent.provider != AiService.DUMMY
+        aiSettings.isProviderActive(agent.provider, developerMode)
     }
 
     // Filter agents based on search query

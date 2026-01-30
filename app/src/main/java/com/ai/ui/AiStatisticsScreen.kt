@@ -791,6 +791,7 @@ private fun formatCurrency(value: Double): String {
 @Composable
 fun CostConfigurationScreen(
     aiSettings: AiSettings,
+    developerMode: Boolean = false,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack
 ) {
@@ -1019,8 +1020,7 @@ fun CostConfigurationScreen(
                             expanded = providerExpanded,
                             onDismissRequest = { providerExpanded = false }
                         ) {
-                            com.ai.data.AiService.entries
-                                .filter { it != com.ai.data.AiService.DUMMY }
+                            aiSettings.getActiveServices(developerMode)
                                 .sortedBy { it.displayName.lowercase() }
                                 .forEach { provider ->
                                     DropdownMenuItem(

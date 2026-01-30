@@ -299,6 +299,7 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             CostConfigurationScreen(
                 aiSettings = uiState.aiSettings,
+                developerMode = uiState.generalSettings.developerMode,
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )

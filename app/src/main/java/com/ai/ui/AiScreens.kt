@@ -620,12 +620,10 @@ fun AiReportsScreen(
     // Search query
     var searchQuery by remember { mutableStateOf("") }
 
-    // Filter out DUMMY agents when not in developer mode
+    // Filter agents to only those with an active provider
     val allConfiguredAgents = uiState.aiSettings.getConfiguredAgents()
-    val configuredAgents = if (uiState.generalSettings.developerMode) {
-        allConfiguredAgents
-    } else {
-        allConfiguredAgents.filter { it.provider != com.ai.data.AiService.DUMMY }
+    val configuredAgents = allConfiguredAgents.filter {
+        uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode)
     }
 
     // Flock selection state
@@ -654,14 +652,14 @@ fun AiReportsScreen(
     val validSavedAgents = savedAgentIds.filter { it in validAgentIds }.toSet()
     var directlySelectedAgentIds by remember { mutableStateOf(validSavedAgents) }
 
-    // Get agents from selected flocks (excluding DUMMY when not in dev mode)
+    // Get agents from selected flocks (only active providers)
     val flockAgentIds = uiState.aiSettings.getAgentsForFlocks(selectedFlockIds)
-        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
         .map { it.id }.toSet()
 
-    // Get members from selected swarms (excluding DUMMY when not in dev mode)
+    // Get members from selected swarms (only active providers)
     val swarmMembers = uiState.aiSettings.getMembersForSwarms(selectedSwarmIds)
-        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
 
     // Get synthetic IDs for swarm members (to check which models are already selected via swarm)
     val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.name}:${it.model}" }.toSet()
@@ -1019,50 +1017,44 @@ fun AiReportsScreen(
                         }
                         ReportSelectionMode.MODELS -> {
                             // Models selection mode - select provider/model combinations directly
-                            // Build list of all available provider/model combinations
-                            val allProviderModels = com.ai.data.AiService.entries
-                                .filter { uiState.generalSettings.developerMode || it != com.ai.data.AiService.DUMMY }
+                            // Build list of all available provider/model combinations (active providers only)
+                            val allProviderModels = uiState.aiSettings.getActiveServices(uiState.generalSettings.developerMode)
                                 .flatMap { provider ->
-                                    val apiKey = uiState.aiSettings.getApiKey(provider)
-                                    if (apiKey.isBlank()) {
-                                        emptyList()
-                                    } else {
-                                        val models = when (provider) {
-                                            com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
-                                            com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
-                                            com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
-                                            com.ai.data.AiService.XAI -> uiState.availableGrokModels
-                                            com.ai.data.AiService.GROQ -> uiState.availableGroqModels
-                                            com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
-                                            com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
-                                            com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
-                                            com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
-                                            com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
-                                            com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
-                                            com.ai.data.AiService.ZAI -> uiState.availableZaiModels
-                                            com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
-                                            com.ai.data.AiService.COHERE -> uiState.availableCohereModels
-                                            com.ai.data.AiService.AI21 -> uiState.availableAi21Models
-                                            com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
-                                            com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
-                                            com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
-                                            com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
-                                            com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
-                                            com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
-                                            com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
-                                            com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
-                                            com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
-                                            com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
-                                            com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
-                                            com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
-                                            com.ai.data.AiService.YI -> uiState.availableYiModels
-                                            com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
-                                            com.ai.data.AiService.REKA -> uiState.availableRekaModels
-                                            com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                                            com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
-                                        }
-                                        models.map { model -> provider to model }
+                                    val models = when (provider) {
+                                        com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
+                                        com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
+                                        com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
+                                        com.ai.data.AiService.XAI -> uiState.availableGrokModels
+                                        com.ai.data.AiService.GROQ -> uiState.availableGroqModels
+                                        com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
+                                        com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
+                                        com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
+                                        com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
+                                        com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
+                                        com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
+                                        com.ai.data.AiService.ZAI -> uiState.availableZaiModels
+                                        com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
+                                        com.ai.data.AiService.COHERE -> uiState.availableCohereModels
+                                        com.ai.data.AiService.AI21 -> uiState.availableAi21Models
+                                        com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
+                                        com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
+                                        com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
+                                        com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
+                                        com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
+                                        com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
+                                        com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
+                                        com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
+                                        com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
+                                        com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
+                                        com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
+                                        com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
+                                        com.ai.data.AiService.YI -> uiState.availableYiModels
+                                        com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
+                                        com.ai.data.AiService.REKA -> uiState.availableRekaModels
+                                        com.ai.data.AiService.WRITER -> uiState.availableWriterModels
+                                        com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                     }
+                                    models.map { model -> provider to model }
                                 }
 
                             val filteredModels = allProviderModels
@@ -1151,49 +1143,44 @@ fun AiReportsScreen(
                             ReportSelectionMode.AGENTS -> directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
                             ReportSelectionMode.FLOCKS -> selectedSwarmIds = swarms.map { it.id }.toSet()
                             ReportSelectionMode.MODELS -> {
-                                // Select all models not already selected via swarm
-                                val allModelIds = com.ai.data.AiService.entries
-                                    .filter { uiState.generalSettings.developerMode || it != com.ai.data.AiService.DUMMY }
+                                // Select all models not already selected via swarm (active providers only)
+                                val allModelIds = uiState.aiSettings.getActiveServices(uiState.generalSettings.developerMode)
                                     .flatMap { provider ->
-                                        val apiKey = uiState.aiSettings.getApiKey(provider)
-                                        if (apiKey.isBlank()) emptyList()
-                                        else {
-                                            val models = when (provider) {
-                                                com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
-                                                com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
-                                                com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
-                                                com.ai.data.AiService.XAI -> uiState.availableGrokModels
-                                                com.ai.data.AiService.GROQ -> uiState.availableGroqModels
-                                                com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
-                                                com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
-                                                com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
-                                                com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
-                                                com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
-                                                com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
-                                                com.ai.data.AiService.ZAI -> uiState.availableZaiModels
-                                                com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
-                                                com.ai.data.AiService.COHERE -> uiState.availableCohereModels
-                                                com.ai.data.AiService.AI21 -> uiState.availableAi21Models
-                                                com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
-                                                com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
-                                                com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
-                                                com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
-                                                com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
-                                                com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
-                                                com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
-                                                com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
-                                                com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
-                                                com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
-                                                com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
-                                                com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
-                                                com.ai.data.AiService.YI -> uiState.availableYiModels
-                                                com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
-                                                com.ai.data.AiService.REKA -> uiState.availableRekaModels
-                                                com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                                                com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
-                                            }
-                                            models.map { "swarm:${provider.name}:$it" }
+                                        val models = when (provider) {
+                                            com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
+                                            com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
+                                            com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
+                                            com.ai.data.AiService.XAI -> uiState.availableGrokModels
+                                            com.ai.data.AiService.GROQ -> uiState.availableGroqModels
+                                            com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
+                                            com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
+                                            com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
+                                            com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
+                                            com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
+                                            com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
+                                            com.ai.data.AiService.ZAI -> uiState.availableZaiModels
+                                            com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
+                                            com.ai.data.AiService.COHERE -> uiState.availableCohereModels
+                                            com.ai.data.AiService.AI21 -> uiState.availableAi21Models
+                                            com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
+                                            com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
+                                            com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
+                                            com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
+                                            com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
+                                            com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
+                                            com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
+                                            com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
+                                            com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
+                                            com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
+                                            com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
+                                            com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
+                                            com.ai.data.AiService.YI -> uiState.availableYiModels
+                                            com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
+                                            com.ai.data.AiService.REKA -> uiState.availableRekaModels
+                                            com.ai.data.AiService.WRITER -> uiState.availableWriterModels
+                                            com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                         }
+                                        models.map { "swarm:${provider.name}:$it" }
                                     }
                                     .filter { it !in swarmMemberIds }
                                     .toSet()

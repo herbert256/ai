@@ -49,44 +49,9 @@ fun ChatSelectProviderScreen(
 ) {
     BackHandler { onNavigateBack() }
 
-    // Get providers with API keys configured, sorted by display name
-    val configuredProviders = AiService.entries.filter { service ->
-        val hasApiKey = when (service) {
-            AiService.OPENAI -> aiSettings.chatGptApiKey.isNotBlank()
-            AiService.ANTHROPIC -> aiSettings.claudeApiKey.isNotBlank()
-            AiService.GOOGLE -> aiSettings.geminiApiKey.isNotBlank()
-            AiService.XAI -> aiSettings.grokApiKey.isNotBlank()
-            AiService.GROQ -> aiSettings.groqApiKey.isNotBlank()
-            AiService.DEEPSEEK -> aiSettings.deepSeekApiKey.isNotBlank()
-            AiService.MISTRAL -> aiSettings.mistralApiKey.isNotBlank()
-            AiService.PERPLEXITY -> aiSettings.perplexityApiKey.isNotBlank()
-            AiService.TOGETHER -> aiSettings.togetherApiKey.isNotBlank()
-            AiService.OPENROUTER -> aiSettings.openRouterApiKey.isNotBlank()
-            AiService.SILICONFLOW -> aiSettings.siliconFlowApiKey.isNotBlank()
-            AiService.ZAI -> aiSettings.zaiApiKey.isNotBlank()
-            AiService.MOONSHOT -> aiSettings.moonshotApiKey.isNotBlank()
-            AiService.COHERE -> aiSettings.cohereApiKey.isNotBlank()
-            AiService.AI21 -> aiSettings.ai21ApiKey.isNotBlank()
-            AiService.DASHSCOPE -> aiSettings.dashScopeApiKey.isNotBlank()
-            AiService.FIREWORKS -> aiSettings.fireworksApiKey.isNotBlank()
-            AiService.CEREBRAS -> aiSettings.cerebrasApiKey.isNotBlank()
-            AiService.SAMBANOVA -> aiSettings.sambaNovaApiKey.isNotBlank()
-            AiService.BAICHUAN -> aiSettings.baichuanApiKey.isNotBlank()
-            AiService.STEPFUN -> aiSettings.stepFunApiKey.isNotBlank()
-            AiService.MINIMAX -> aiSettings.miniMaxApiKey.isNotBlank()
-            AiService.NVIDIA -> aiSettings.nvidiaApiKey.isNotBlank()
-            AiService.REPLICATE -> aiSettings.replicateApiKey.isNotBlank()
-            AiService.HUGGINGFACE -> aiSettings.huggingFaceInferenceApiKey.isNotBlank()
-            AiService.LAMBDA -> aiSettings.lambdaApiKey.isNotBlank()
-            AiService.LEPTON -> aiSettings.leptonApiKey.isNotBlank()
-            AiService.YI -> aiSettings.yiApiKey.isNotBlank()
-            AiService.DOUBAO -> aiSettings.doubaoApiKey.isNotBlank()
-            AiService.REKA -> aiSettings.rekaApiKey.isNotBlank()
-            AiService.WRITER -> aiSettings.writerApiKey.isNotBlank()
-            AiService.DUMMY -> developerMode && aiSettings.dummyApiKey.isNotBlank()
-        }
-        hasApiKey
-    }.sortedBy { it.displayName.lowercase() }
+    // Get active providers (status "ok"), sorted by display name
+    val configuredProviders = aiSettings.getActiveServices(developerMode)
+        .sortedBy { it.displayName.lowercase() }
 
     Column(
         modifier = Modifier
@@ -1211,9 +1176,9 @@ fun AiChatsHubScreen(
     onNavigateToChatHistory: () -> Unit,
     onNavigateToChatSearch: () -> Unit
 ) {
-    // Check if there are any agents configured (with their own or provider's API key)
+    // Check if there are any agents with an active provider
     val hasAgents = aiSettings.agents.any { agent ->
-        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
     }
 
     // Check if there are any chat sessions
@@ -1345,9 +1310,9 @@ fun ChatAgentSelectScreen(
     onNavigateHome: () -> Unit,
     onSelectAgent: (String) -> Unit
 ) {
-    // Filter agents - only show those with API keys configured (their own or provider's)
+    // Filter agents - only show those with API keys and an active provider
     val availableAgents = aiSettings.agents.filter { agent ->
-        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
     }
 
     Column(

@@ -194,16 +194,13 @@ fun SwarmEditScreen(
     // Get all available provider/model combinations, sorted by provider name
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
         val result = mutableListOf<AiSwarmMember>()
-        AiService.entries.filter { developerMode || it != AiService.DUMMY }.sortedBy { it.displayName.lowercase() }.forEach { provider ->
-            val apiKey = aiSettings.getApiKey(provider)
-            if (apiKey.isNotBlank()) {
-                // Get models for this provider (from availableModels or manual models)
-                val models = availableModels[provider]?.takeIf { it.isNotEmpty() }
-                    ?: aiSettings.getManualModels(provider).takeIf { it.isNotEmpty() }
-                    ?: listOf(aiSettings.getModel(provider))
-                models.forEach { model ->
-                    result.add(AiSwarmMember(provider, model))
-                }
+        aiSettings.getActiveServices(developerMode).sortedBy { it.displayName.lowercase() }.forEach { provider ->
+            // Get models for this provider (from availableModels or manual models)
+            val models = availableModels[provider]?.takeIf { it.isNotEmpty() }
+                ?: aiSettings.getManualModels(provider).takeIf { it.isNotEmpty() }
+                ?: listOf(aiSettings.getModel(provider))
+            models.forEach { model ->
+                result.add(AiSwarmMember(provider, model))
             }
         }
         result

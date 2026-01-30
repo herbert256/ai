@@ -490,14 +490,11 @@ internal fun AgentEditScreen(
     prefillName: String = ""
 ) {
     val isEditing = agent != null && !forceAddMode
-    // Filter providers: must have API key configured, exclude DUMMY unless developer mode, sorted by name
+    // Filter providers: must be active (status "ok"), always include current agent's provider when editing
     val availableProviders = AiService.entries.filter { provider ->
         // Always include current agent's provider when editing
         if (isEditing && provider == agent?.provider) return@filter true
-        // Exclude DUMMY unless in developer mode
-        if (provider == AiService.DUMMY && !developerMode) return@filter false
-        // Only include providers with an API key configured
-        aiSettings.getApiKey(provider).isNotBlank()
+        aiSettings.isProviderActive(provider, developerMode)
     }.sortedBy { it.displayName.lowercase() }
     val coroutineScope = rememberCoroutineScope()
 
