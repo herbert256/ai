@@ -299,14 +299,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
             val allReportAgents = reportAgents + reportModelMembers
 
-            // Split prompt at "-- rapport --" line if present
-            // Only send text above the line to AI, text below goes to HTML export
-            val rapportDelimiter = "-- rapport --"
-            val (aiPrompt, rapportText) = if (prompt.contains(rapportDelimiter)) {
-                val parts = prompt.split(rapportDelimiter, limit = 2)
-                Pair(parts[0].trim(), parts.getOrNull(1)?.trim())
+            // Extract <user>...</user> content from prompt if present
+            // Content inside tags goes to HTML export, tags are stripped from AI prompt
+            val userTagRegex = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)
+            val userMatch = userTagRegex.find(prompt)
+            val rapportText = userMatch?.groupValues?.get(1)?.trim()
+            val aiPrompt = if (userMatch != null) {
+                prompt.replace(userMatch.value, "").trim()
             } else {
-                Pair(prompt, null)
+                prompt
             }
 
             val report = AiReportStorage.createReport(

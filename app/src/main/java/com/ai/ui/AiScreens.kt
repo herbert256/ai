@@ -311,9 +311,13 @@ fun AiNewReportScreen(
         val lastTitle = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: ""
         mutableStateOf(initialTitle.ifEmpty { lastTitle })
     }
+    // Extract and preserve <user>...</user> block separately from display prompt
+    val userTagRegex = Regex("""<user>.*?</user>""", RegexOption.DOT_MATCHES_ALL)
+    val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
+    val userTagBlock = remember { userTagRegex.find(rawPrompt)?.value ?: "" }
     var prompt by remember {
-        val lastPrompt = prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: ""
-        mutableStateOf(initialPrompt.ifEmpty { lastPrompt })
+        // Strip <user>...</user> content from display (it goes to HTML export only)
+        mutableStateOf(rawPrompt.replace(userTagRegex, "").trim())
     }
 
     // Navigate to AI Reports screen when agent selection is triggered
@@ -358,17 +362,20 @@ fun AiNewReportScreen(
             Button(
                 onClick = {
                     if (title.isNotBlank() && prompt.isNotBlank()) {
-                        // Save as last prompt (persistent)
+                        // Re-attach <user> block for ViewModel extraction
+                        val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
+
+                        // Save as last prompt (persistent) - include <user> block
                         prefs.edit()
                             .putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
-                            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, prompt)
+                            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt)
                             .apply()
 
                         // Save to prompt history
                         val settingsPrefs = SettingsPreferences(prefs)
-                        settingsPrefs.savePromptToHistory(title, prompt)
+                        settingsPrefs.savePromptToHistory(title, fullPrompt)
 
-                        viewModel.showGenericAiAgentSelection(title, prompt)
+                        viewModel.showGenericAiAgentSelection(title, fullPrompt)
                     }
                 },
                 enabled = title.isNotBlank() && prompt.isNotBlank(),

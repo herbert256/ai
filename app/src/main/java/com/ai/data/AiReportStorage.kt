@@ -52,7 +52,7 @@ data class AiReport(
     val agents: MutableList<AiReportAgent>,
     var totalCost: Double = 0.0,
     var completedAt: Long? = null,
-    val rapportText: String? = null  // Text below "-- rapport --" line, shown in HTML export
+    val rapportText: String? = null  // Content from <user>...</user> tags, shown in HTML export
 )
 
 /**
