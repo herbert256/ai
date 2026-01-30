@@ -8,8 +8,9 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -61,7 +62,8 @@ object ApiTracer {
     private const val TRACE_DIR = "trace"
     private var traceDir: File? = null
     private val gson = GsonBuilder().setPrettyPrinting().create()
-    private val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US)
+    private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US)
+        .withZone(ZoneId.systemDefault())
     private val tracingLock = Any()
 
     @Volatile
@@ -97,7 +99,7 @@ object ApiTracer {
             dir.mkdirs()
         }
 
-        val timestamp = dateFormat.format(Date(trace.timestamp))
+        val timestamp = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
         val filename = "${trace.hostname}_$timestamp.json"
         val file = File(dir, filename)
 

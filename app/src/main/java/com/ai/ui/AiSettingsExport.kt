@@ -74,13 +74,14 @@ data class AgentExport(
 
 /**
  * Data class for flock in JSON export/import (version 6+).
- * Version 14+: Added paramsId.
+ * Version 14+: Added parametersId.
  */
 data class FlockExport(
     val id: String,
     val name: String,
     val agentIds: List<String>,
-    val paramsId: String? = null  // Version 14+
+    val parametersId: String? = null,  // Version 14 (legacy, single ID)
+    val parametersIds: List<String>? = null  // Version 15+ (multi-select)
 )
 
 /**
@@ -93,13 +94,14 @@ data class SwarmMemberExport(
 
 /**
  * Data class for swarm in JSON export/import (version 13+).
- * Version 14+: Added paramsId.
+ * Version 14+: Added parametersId.
  */
 data class SwarmExport(
     val id: String,
     val name: String,
     val members: List<SwarmMemberExport>,
-    val paramsId: String? = null  // Version 14+
+    val parametersId: String? = null,  // Version 14 (legacy, single ID)
+    val parametersIds: List<String>? = null  // Version 15+ (multi-select)
 )
 
 // ============================================================================
@@ -116,7 +118,7 @@ data class LegacySwarmExport(
     val id: String,
     val name: String,
     val agentIds: List<String>,
-    val paramsId: String? = null
+    val parametersId: String? = null
 )
 
 /**
@@ -134,7 +136,7 @@ data class LegacyFlockExport(
     val id: String,
     val name: String,
     val members: List<LegacyFlockMemberExport>,
-    val paramsId: String? = null
+    val parametersId: String? = null
 )
 
 /**
@@ -147,7 +149,7 @@ data class LegacyAiConfigExport(
     // Legacy fields - before the Swarms/Flocks rename
     val swarms: List<LegacySwarmExport>? = null,  // Old swarms had agentIds
     val flocks: List<LegacyFlockExport>? = null,  // Old flocks had members
-    val params: List<ParamsExport>? = null,
+    val parameters: List<ParametersExport>? = null,
     val huggingFaceApiKey: String? = null,
     val aiPrompts: List<PromptExport>? = null,
     val manualPricing: List<ManualPricingExport>? = null,
@@ -168,7 +170,7 @@ data class PromptExport(
 /**
  * Data class for params (parameter presets) in JSON export/import (version 14+).
  */
-data class ParamsExport(
+data class ParametersExport(
     val id: String,
     val name: String,
     val temperature: Float? = null,
@@ -221,12 +223,12 @@ data class ProviderEndpointsExport(
  * Version 14: Added params (reusable parameter presets).
  */
 data class AiConfigExport(
-    val version: Int = 14,
+    val version: Int = 15,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,  // Version 6+
     val swarms: List<SwarmExport>? = null,  // Version 13+
-    val params: List<ParamsExport>? = null,  // Version 14+
+    val parameters: List<ParametersExport>? = null,  // Version 14+
     val huggingFaceApiKey: String? = null,  // Version 7+
     val aiPrompts: List<PromptExport>? = null,  // Version 8+
     val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
@@ -389,7 +391,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             id = flock.id,
             name = flock.name,
             agentIds = flock.agentIds,
-            paramsId = flock.paramsId
+            parametersIds = flock.paramsIds.ifEmpty { null }
         )
     }
 
@@ -404,7 +406,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
                     model = member.model
                 )
             },
-            paramsId = swarm.paramsId
+            parametersIds = swarm.paramsIds.ifEmpty { null }
         )
     }
 
@@ -419,8 +421,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
     }
 
     // Convert params (parameter presets)
-    val params = aiSettings.params.map { param ->
-        ParamsExport(
+    val parameters = aiSettings.parameters.map { param ->
+        ParametersExport(
             id = param.id,
             name = param.name,
             temperature = param.temperature,
@@ -471,7 +473,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         agents = agents,
         flocks = flocks,
         swarms = swarms.ifEmpty { null },
-        params = params.ifEmpty { null },
+        parameters = parameters.ifEmpty { null },
         huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
         aiPrompts = aiPrompts.ifEmpty { null },
         manualPricing = manualPricing.ifEmpty { null },
@@ -515,73 +517,9 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
  * Export API keys only to clipboard as JSON array.
  */
 fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
-    val keys = mutableListOf<ApiKeyEntry>()
-
-    if (aiSettings.chatGptApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("OpenAI", aiSettings.chatGptApiKey))
-    }
-    if (aiSettings.claudeApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Anthropic", aiSettings.claudeApiKey))
-    }
-    if (aiSettings.geminiApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Google", aiSettings.geminiApiKey))
-    }
-    if (aiSettings.grokApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("xAI", aiSettings.grokApiKey))
-    }
-    if (aiSettings.groqApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Groq", aiSettings.groqApiKey))
-    }
-    if (aiSettings.deepSeekApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("DeepSeek", aiSettings.deepSeekApiKey))
-    }
-    if (aiSettings.mistralApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Mistral", aiSettings.mistralApiKey))
-    }
-    if (aiSettings.perplexityApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Perplexity", aiSettings.perplexityApiKey))
-    }
-    if (aiSettings.togetherApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Together", aiSettings.togetherApiKey))
-    }
-    if (aiSettings.openRouterApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("OpenRouter", aiSettings.openRouterApiKey))
-    }
-    if (aiSettings.siliconFlowApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("SiliconFlow", aiSettings.siliconFlowApiKey))
-    }
-    if (aiSettings.zaiApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Z.AI", aiSettings.zaiApiKey))
-    }
-    if (aiSettings.moonshotApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Moonshot", aiSettings.moonshotApiKey))
-    }
-    if (aiSettings.cohereApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Cohere", aiSettings.cohereApiKey))
-    }
-    if (aiSettings.ai21ApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("AI21", aiSettings.ai21ApiKey))
-    }
-    if (aiSettings.dashScopeApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("DashScope", aiSettings.dashScopeApiKey))
-    }
-    if (aiSettings.fireworksApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Fireworks", aiSettings.fireworksApiKey))
-    }
-    if (aiSettings.cerebrasApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Cerebras", aiSettings.cerebrasApiKey))
-    }
-    if (aiSettings.sambaNovaApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("SambaNova", aiSettings.sambaNovaApiKey))
-    }
-    if (aiSettings.baichuanApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("Baichuan", aiSettings.baichuanApiKey))
-    }
-    if (aiSettings.stepFunApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("StepFun", aiSettings.stepFunApiKey))
-    }
-    if (aiSettings.miniMaxApiKey.isNotBlank()) {
-        keys.add(ApiKeyEntry("MiniMax", aiSettings.miniMaxApiKey))
+    val keys = AiService.entries.mapNotNull { service ->
+        val apiKey = aiSettings.getApiKey(service)
+        if (apiKey.isNotBlank()) ApiKeyEntry(service.displayName, apiKey) else null
     }
 
     val gson = Gson()
@@ -645,7 +583,9 @@ private fun processImportedConfig(
             id = flockExport.id,
             name = flockExport.name,
             agentIds = flockExport.agentIds,
-            paramsId = flockExport.paramsId
+            paramsIds = flockExport.parametersIds
+                ?: flockExport.parametersId?.let { listOf(it) }
+                ?: emptyList()
         )
     } ?: emptyList()
 
@@ -665,7 +605,9 @@ private fun processImportedConfig(
                         null  // Skip invalid provider
                     }
                 },
-                paramsId = swarmExport.paramsId
+                paramsIds = swarmExport.parametersIds
+                    ?: swarmExport.parametersId?.let { listOf(it) }
+                    ?: emptyList()
             )
         } catch (e: Exception) {
             null
@@ -683,23 +625,23 @@ private fun processImportedConfig(
     } ?: emptyList()
 
     // Import params (parameter presets)
-    val params = export.params?.map { paramsExport ->
-        AiParams(
-            id = paramsExport.id,
-            name = paramsExport.name,
-            temperature = paramsExport.temperature,
-            maxTokens = paramsExport.maxTokens,
-            topP = paramsExport.topP,
-            topK = paramsExport.topK,
-            frequencyPenalty = paramsExport.frequencyPenalty,
-            presencePenalty = paramsExport.presencePenalty,
-            systemPrompt = paramsExport.systemPrompt,
-            stopSequences = paramsExport.stopSequences,
-            seed = paramsExport.seed,
-            responseFormatJson = paramsExport.responseFormatJson,
-            searchEnabled = paramsExport.searchEnabled,
-            returnCitations = paramsExport.returnCitations,
-            searchRecency = paramsExport.searchRecency
+    val parameters = export.parameters?.map { parametersExport ->
+        AiParameters(
+            id = parametersExport.id,
+            name = parametersExport.name,
+            temperature = parametersExport.temperature,
+            maxTokens = parametersExport.maxTokens,
+            topP = parametersExport.topP,
+            topK = parametersExport.topK,
+            frequencyPenalty = parametersExport.frequencyPenalty,
+            presencePenalty = parametersExport.presencePenalty,
+            systemPrompt = parametersExport.systemPrompt,
+            stopSequences = parametersExport.stopSequences,
+            seed = parametersExport.seed,
+            responseFormatJson = parametersExport.responseFormatJson,
+            searchEnabled = parametersExport.searchEnabled,
+            returnCitations = parametersExport.returnCitations,
+            searchRecency = parametersExport.searchRecency
         )
     } ?: emptyList()
 
@@ -708,7 +650,7 @@ private fun processImportedConfig(
         agents = agents,
         flocks = flocks,
         swarms = swarms,
-        params = params,
+        parameters = parameters,
         prompts = aiPrompts
     )
 
@@ -1123,7 +1065,7 @@ private fun convertLegacyExport(legacyExport: LegacyAiConfigExport): AiConfigExp
             id = oldSwarm.id,
             name = oldSwarm.name,
             agentIds = oldSwarm.agentIds,
-            paramsId = oldSwarm.paramsId
+            parametersIds = oldSwarm.parametersId?.let { listOf(it) }
         )
     }
 
@@ -1138,7 +1080,7 @@ private fun convertLegacyExport(legacyExport: LegacyAiConfigExport): AiConfigExp
                     model = member.model
                 )
             },
-            paramsId = oldFlock.paramsId
+            parametersIds = oldFlock.parametersId?.let { listOf(it) }
         )
     }
 
@@ -1148,7 +1090,7 @@ private fun convertLegacyExport(legacyExport: LegacyAiConfigExport): AiConfigExp
         agents = legacyExport.agents ?: emptyList(),
         flocks = newFlocks,
         swarms = newSwarms,
-        params = legacyExport.params,
+        parameters = legacyExport.parameters,
         huggingFaceApiKey = legacyExport.huggingFaceApiKey,
         aiPrompts = legacyExport.aiPrompts,
         manualPricing = legacyExport.manualPricing,
@@ -1187,8 +1129,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..14) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-14.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..15) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-15.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -1233,8 +1175,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..14) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-14.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..15) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-15.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -1279,7 +1221,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 11 or 12).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 11-15).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )

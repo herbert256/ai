@@ -41,7 +41,7 @@ class FlexibleCostDeserializer : JsonDeserializer<Double?> {
 }
 
 /**
- * Enum representing the supported AI services for chess position analysis.
+ * Enum representing the supported AI services.
  */
 enum class AiService(
     val displayName: String,

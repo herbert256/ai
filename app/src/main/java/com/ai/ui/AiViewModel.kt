@@ -221,15 +221,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedSwarmIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), paramsId: String? = null) {
+    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedSwarmIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), parametersIds: List<String> = emptyList()) {
         viewModelScope.launch {
             val context = getApplication<Application>()
             val aiSettings = _uiState.value.aiSettings
             val prompt = _uiState.value.genericAiPromptText
             val title = _uiState.value.genericAiPromptTitle
-            // Use the paramsId to get the params preset, or fall back to advanced parameters
-            val paramsPreset = paramsId?.let { aiSettings.getParamsById(it) }
-            val overrideParams = paramsPreset?.toAgentParameters() ?: _uiState.value.reportAdvancedParameters
+            // Use the parametersIds to merge params presets, or fall back to advanced parameters
+            val mergedParams = aiSettings.mergeParameters(parametersIds)
+            val overrideParams = mergedParams ?: _uiState.value.reportAdvancedParameters
 
             // Get actual agents from settings
             val agents = selectedAgentIds.mapNotNull { agentId ->

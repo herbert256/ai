@@ -460,12 +460,12 @@ fun AiReportsScreenNav(
         savedFlockIds = viewModel.loadAiReportFlocks(),
         savedSwarmIds = viewModel.loadAiReportSwarms(),
         savedModelIds = viewModel.loadAiReportModels(),
-        onGenerate = { combinedAgentIds, directAgentIds, selectedFlockIds, selectedSwarmIds, directModelIds, paramsId ->
+        onGenerate = { combinedAgentIds, directAgentIds, selectedFlockIds, selectedSwarmIds, directModelIds, paramsIds ->
             viewModel.saveAiReportAgents(directAgentIds)
             viewModel.saveAiReportFlocks(selectedFlockIds)
             viewModel.saveAiReportSwarms(selectedSwarmIds)
             viewModel.saveAiReportModels(directModelIds)
-            viewModel.generateGenericAiReports(combinedAgentIds, selectedSwarmIds, directModelIds, paramsId)
+            viewModel.generateGenericAiReports(combinedAgentIds, selectedSwarmIds, directModelIds, paramsIds)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -499,7 +499,7 @@ fun AiReportsScreen(
     savedFlockIds: Set<String>,
     savedSwarmIds: Set<String> = emptySet(),
     savedModelIds: Set<String> = emptySet(),
-    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, String?) -> Unit,  // combinedAgentIds, directAgentIds, flockIds, swarmIds, directModelIds, paramsId
+    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, List<String>) -> Unit,  // combinedAgentIds, directAgentIds, flockIds, swarmIds, directModelIds, paramsIds
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -672,9 +672,8 @@ fun AiReportsScreen(
     // Total worker count (agents + all model selections)
     val totalWorkers = combinedAgentIds.size + combinedModelIds.size
 
-    // Parameters preset selection for the report
-    var selectedParamsId by remember { mutableStateOf<String?>(null) }
-    var selectedParamsName by remember { mutableStateOf("") }
+    // Parameters preset selection for the report (multi-select)
+    var selectedParametersIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
     Column(
         modifier = Modifier
@@ -701,20 +700,16 @@ fun AiReportsScreen(
             // Parameters selector for the report
             ParametersSelector(
                 aiSettings = uiState.aiSettings,
-                selectedParamsId = selectedParamsId,
-                selectedParamsName = selectedParamsName,
-                onParamsSelected = { id, name ->
-                    selectedParamsId = id
-                    selectedParamsName = name
-                },
-                label = "Report Parameters (optional - applies to all workers)"
+                selectedParametersIds = selectedParametersIds,
+                onParamsSelected = { ids -> selectedParametersIds = ids },
+                label = "Report Parameters"
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             // Generate button at top
             Button(
-                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParamsId) },
+                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds) },
                 enabled = totalWorkers > 0,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(

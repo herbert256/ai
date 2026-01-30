@@ -505,16 +505,14 @@ internal fun AgentEditScreen(
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
 
-    // Parameters preset selection
-    var selectedParamsId by remember { mutableStateOf<String?>(null) }
-    var selectedParamsName by remember { mutableStateOf("") }
-    var showParamsDialog by remember { mutableStateOf(false) }
+    // Parameters preset selection (multi-select)
+    var selectedParametersIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
-    // Initialize selectedParamsName from existing agent parameters if they match a preset
+    // Initialize selectedParametersIds from existing agent parameters if they match presets
     LaunchedEffect(Unit) {
         if (agent != null) {
-            // Try to find a matching params preset
-            val matchingParams = aiSettings.params.find { params ->
+            // Try to find matching params presets
+            val matchingParams = aiSettings.parameters.filter { params ->
                 params.temperature == agent.parameters.temperature &&
                 params.maxTokens == agent.parameters.maxTokens &&
                 params.topP == agent.parameters.topP &&
@@ -528,9 +526,8 @@ internal fun AgentEditScreen(
                 params.returnCitations == agent.parameters.returnCitations &&
                 params.searchRecency == agent.parameters.searchRecency
             }
-            if (matchingParams != null) {
-                selectedParamsId = matchingParams.id
-                selectedParamsName = matchingParams.name
+            if (matchingParams.isNotEmpty()) {
+                selectedParametersIds = matchingParams.map { it.id }
             }
         }
     }
@@ -790,10 +787,9 @@ internal fun AgentEditScreen(
                     saveError = null
                     isSaving = true
                     coroutineScope.launch {
-                        // Get parameters from selected preset or use empty parameters
-                        val params = selectedParamsId?.let { id ->
-                            aiSettings.getParamsById(id)?.toAgentParameters()
-                        } ?: AiAgentParameters()
+                        // Get parameters from selected presets (merged) or use empty parameters
+                        val params = aiSettings.mergeParameters(selectedParametersIds)
+                            ?: AiAgentParameters()
                         val newAgent = AiAgent(
                             id = agent?.id ?: java.util.UUID.randomUUID().toString(),
                             name = name.trim(),
@@ -1032,33 +1028,12 @@ internal fun AgentEditScreen(
                 )
             }
 
-            // Parameters preset selection
-            Text(
-                text = "Parameters (optional - select a preset)",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
+            // Parameters preset selection (multi-select)
+            ParametersSelector(
+                aiSettings = aiSettings,
+                selectedParametersIds = selectedParametersIds,
+                onParamsSelected = { ids -> selectedParametersIds = ids }
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = selectedParamsName,
-                    onValueChange = { /* Read-only - use Select button */ },
-                    placeholder = { Text("No parameters selected", color = Color(0xFF666666)) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    readOnly = true
-                )
-                Button(
-                    onClick = { showParamsDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text("Select", fontSize = 12.sp)
-                }
-            }
 
             // Save error message
             if (saveError != null) {
@@ -1087,10 +1062,9 @@ internal fun AgentEditScreen(
                     saveError = null
                     isSaving = true
                     coroutineScope.launch {
-                        // Get parameters from selected preset or use empty parameters
-                        val params = selectedParamsId?.let { id ->
-                            aiSettings.getParamsById(id)?.toAgentParameters()
-                        } ?: AiAgentParameters()
+                        // Get parameters from selected presets (merged) or use empty parameters
+                        val params = aiSettings.mergeParameters(selectedParametersIds)
+                            ?: AiAgentParameters()
                         val newAgent = AiAgent(
                             id = agent?.id ?: java.util.UUID.randomUUID().toString(),
                             name = name.trim(),
@@ -1127,100 +1101,6 @@ internal fun AgentEditScreen(
                 }
             }
         }
-    }
-
-    // Parameters Selection Dialog
-    if (showParamsDialog) {
-        AlertDialog(
-            onDismissRequest = { showParamsDialog = false },
-            title = { Text("Select Parameters", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // None option (clears parameters)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                selectedParamsId = null
-                                selectedParamsName = ""
-                                showParamsDialog = false
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (selectedParamsId == null) Color(0xFF6366F1).copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("None", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("No parameters preset", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-
-                    // Available params presets
-                    if (aiSettings.params.isNotEmpty()) {
-                        Text(
-                            "Available Presets",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        aiSettings.params.sortedBy { it.name.lowercase() }.forEach { params ->
-                            val configuredCount = listOfNotNull(
-                                params.temperature,
-                                params.maxTokens,
-                                params.topP,
-                                params.topK,
-                                params.frequencyPenalty,
-                                params.presencePenalty,
-                                params.systemPrompt?.takeIf { it.isNotBlank() },
-                                params.seed
-                            ).size + listOf(
-                                params.responseFormatJson,
-                                params.searchEnabled,
-                                params.returnCitations
-                            ).count { it } + (if (params.searchRecency != null) 1 else 0)
-
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedParamsId = params.id
-                                        selectedParamsName = params.name
-                                        showParamsDialog = false
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (selectedParamsId == params.id) Color(0xFF6366F1).copy(alpha = 0.3f)
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(params.name, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                    Text("$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured", fontSize = 12.sp, color = Color.Gray)
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            "No parameter presets configured.\nGo to AI Setup > Parameters to create presets.",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showParamsDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
     }
 
     // Endpoint Selection Dialog

@@ -18,18 +18,18 @@ import androidx.compose.ui.unit.sp
 import java.util.UUID
 
 /**
- * AI Params list screen - shows all parameter presets with add/edit/delete.
+ * AI Parameters list screen - shows all parameter presets with add/edit/delete.
  */
 @Composable
-fun AiParamsListScreen(
+fun AiParametersListScreen(
     aiSettings: AiSettings,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onAddParams: () -> Unit,
-    onEditParams: (String) -> Unit
+    onAddParameters: () -> Unit,
+    onEditParameters: (String) -> Unit
 ) {
-    var showDeleteDialog by remember { mutableStateOf<AiParams?>(null) }
+    var showDeleteDialog by remember { mutableStateOf<AiParameters?>(null) }
 
     Column(
         modifier = Modifier
@@ -38,25 +38,25 @@ fun AiParamsListScreen(
             .padding(16.dp)
     ) {
         AiTitleBar(
-            title = "AI Params",
+            title = "AI Parameters",
             onBackClick = onBackToAiSetup,
             onAiClick = onBackToHome
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Add params button
+        // Add parameters button
         Button(
-            onClick = onAddParams,
+            onClick = onAddParameters,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
         ) {
-            Text("Add Params")
+            Text("Add Parameters")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (aiSettings.params.isEmpty()) {
+        if (aiSettings.parameters.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -74,10 +74,10 @@ fun AiParamsListScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                aiSettings.params.sortedBy { it.name.lowercase() }.forEach { params ->
-                    ParamsListItem(
+                aiSettings.parameters.sortedBy { it.name.lowercase() }.forEach { params ->
+                    ParametersListItem(
                         params = params,
-                        onClick = { onEditParams(params.id) },
+                        onClick = { onEditParameters(params.id) },
                         onDelete = { showDeleteDialog = params }
                     )
                 }
@@ -89,13 +89,13 @@ fun AiParamsListScreen(
     showDeleteDialog?.let { params ->
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
-            title = { Text("Delete Params") },
+            title = { Text("Delete Parameters") },
             text = { Text("Are you sure you want to delete \"${params.name}\"?") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val newParams = aiSettings.params.filter { it.id != params.id }
-                        onSave(aiSettings.copy(params = newParams))
+                        val newParams = aiSettings.parameters.filter { it.id != params.id }
+                        onSave(aiSettings.copy(parameters = newParams))
                         showDeleteDialog = null
                     }
                 ) {
@@ -112,11 +112,11 @@ fun AiParamsListScreen(
 }
 
 /**
- * List item for a params preset showing name and configured parameters count.
+ * List item for a parameters preset showing name and configured parameters count.
  */
 @Composable
-private fun ParamsListItem(
-    params: AiParams,
+private fun ParametersListItem(
+    params: AiParameters,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -174,13 +174,13 @@ private fun ParamsListItem(
 }
 
 /**
- * Params edit screen for creating or editing parameter presets.
+ * Parameters edit screen for creating or editing parameter presets.
  */
 @Composable
-fun ParamsEditScreen(
-    params: AiParams?,
+fun ParametersEditScreen(
+    params: AiParameters?,
     existingNames: Set<String>,
-    onSave: (AiParams) -> Unit,
+    onSave: (AiParameters) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -228,7 +228,7 @@ fun ParamsEditScreen(
             .padding(16.dp)
     ) {
         AiTitleBar(
-            title = if (isEditing) "Edit Params" else "Add Params",
+            title = if (isEditing) "Edit Parameters" else "Add Parameters",
             onBackClick = onBack,
             onAiClick = onNavigateHome
         )
@@ -241,7 +241,7 @@ fun ParamsEditScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Params name field
+            // Parameters name field
             OutlinedTextField(
                 value = name,
                 onValueChange = {
@@ -523,7 +523,7 @@ fun ParamsEditScreen(
                         nameError = "A preset with this name already exists"
                     }
                     else -> {
-                        val newParams = AiParams(
+                        val newParams = AiParameters(
                             id = params?.id ?: UUID.randomUUID().toString(),
                             name = name.trim(),
                             temperature = if (temperatureEnabled) temperature.toFloatOrNull() else null,
@@ -604,71 +604,42 @@ private fun ParameterToggleField(
 }
 
 /**
- * Reusable Parameters selector field with text display and Select button.
- * Can be used in Agent, Flock, Swarm, and Report screens.
+ * Reusable Parameters selector with multi-select support.
+ * Shows a "Parameters" button that opens a multi-select dialog with checkboxes.
+ * A paperclip icon is shown when parameters are connected.
+ * Can be used in Agent, Flock, Swarm, Provider settings, and Report screens.
  */
 @Composable
 fun ParametersSelector(
     aiSettings: AiSettings,
-    selectedParamsId: String?,
-    selectedParamsName: String,
-    onParamsSelected: (String?, String) -> Unit,
+    selectedParametersIds: List<String>,
+    onParamsSelected: (List<String>) -> Unit,
     label: String = "Parameters"
 ) {
-    var showParamsDialog by remember { mutableStateOf(false) }
+    var showParametersDialog by remember { mutableStateOf(false) }
+    val hasParams = selectedParametersIds.isNotEmpty()
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
+    Button(
+        onClick = { showParametersDialog = true },
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = selectedParamsName,
-                    onValueChange = { /* Read-only - use Select button */ },
-                    placeholder = { Text("No parameters selected", color = Color(0xFF666666)) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    readOnly = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF8B5CF6),
-                        unfocusedBorderColor = Color(0xFF444444),
-                        cursorColor = Color.White,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    )
-                )
-                Button(
-                    onClick = { showParamsDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text("Select", fontSize = 12.sp)
-                }
-            }
+        if (hasParams) {
+            Text("\uD83D\uDCCE ", fontSize = 14.sp)
         }
+        Text(
+            if (hasParams) "$label (${selectedParametersIds.size})" else label,
+            fontSize = 14.sp
+        )
     }
 
-    // Parameters Selection Dialog
-    if (showParamsDialog) {
+    // Multi-select Parameters Dialog
+    if (showParametersDialog) {
+        var localSelection by remember { mutableStateOf(selectedParametersIds.toSet()) }
+
         AlertDialog(
-            onDismissRequest = { showParamsDialog = false },
+            onDismissRequest = { showParametersDialog = false },
             title = { Text("Select Parameters", fontWeight = FontWeight.Bold) },
             text = {
                 Column(
@@ -676,36 +647,18 @@ fun ParametersSelector(
                         .fillMaxWidth()
                         .heightIn(max = 400.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // None option (clears parameters)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onParamsSelected(null, "")
-                                showParamsDialog = false
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (selectedParamsId == null) Color(0xFF6366F1).copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
+                    // Clear All option
+                    TextButton(
+                        onClick = { localSelection = emptySet() },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("None", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text("No parameters preset", fontSize = 12.sp, color = Color.Gray)
-                        }
+                        Text("Clear All", color = Color(0xFFFF6B6B))
                     }
 
-                    // Available params presets
-                    if (aiSettings.params.isNotEmpty()) {
-                        Text(
-                            "Available Presets",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        aiSettings.params.sortedBy { it.name.lowercase() }.forEach { params ->
+                    if (aiSettings.parameters.isNotEmpty()) {
+                        aiSettings.parameters.sortedBy { it.name.lowercase() }.forEach { params ->
                             val configuredCount = listOfNotNull(
                                 params.temperature,
                                 params.maxTokens,
@@ -721,21 +674,37 @@ fun ParametersSelector(
                                 params.returnCitations
                             ).count { it } + (if (params.searchRecency != null) 1 else 0)
 
-                            Card(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        onParamsSelected(params.id, params.name)
-                                        showParamsDialog = false
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (selectedParamsId == params.id) Color(0xFF6366F1).copy(alpha = 0.3f)
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
+                                        localSelection = if (params.id in localSelection) {
+                                            localSelection - params.id
+                                        } else {
+                                            localSelection + params.id
+                                        }
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
+                                Checkbox(
+                                    checked = params.id in localSelection,
+                                    onCheckedChange = { checked ->
+                                        localSelection = if (checked) {
+                                            localSelection + params.id
+                                        } else {
+                                            localSelection - params.id
+                                        }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
                                     Text(params.name, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                    Text("$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured", fontSize = 12.sp, color = Color.Gray)
+                                    Text(
+                                        "$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
                                 }
                             }
                         }
@@ -750,7 +719,18 @@ fun ParametersSelector(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showParamsDialog = false }) {
+                TextButton(onClick = {
+                    // Preserve order: keep existing order for items still selected, append new ones
+                    val orderedIds = selectedParametersIds.filter { it in localSelection } +
+                        localSelection.filter { it !in selectedParametersIds }
+                    onParamsSelected(orderedIds)
+                    showParametersDialog = false
+                }) {
+                    Text("Done")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showParametersDialog = false }) {
                     Text("Cancel")
                 }
             }

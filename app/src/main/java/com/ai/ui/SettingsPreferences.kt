@@ -63,11 +63,11 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val agents = loadAgents()
         val flocks = loadFlocks()
         val swarms = loadSwarms()
-        val params = loadParams()
+        val parameters = loadParameters()
         val prompts = loadPrompts()
         val endpoints = loadEndpoints()
         val providerStates = loadProviderStates()
-        return baseSettings.copy(agents = agents, flocks = flocks, swarms = swarms, params = params, prompts = prompts, endpoints = endpoints, providerStates = providerStates)
+        return baseSettings.copy(agents = agents, flocks = flocks, swarms = swarms, parameters = parameters, prompts = prompts, endpoints = endpoints, providerStates = providerStates)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -78,217 +78,217 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             chatGptManualModels = loadManualModels(KEY_AI_OPENAI_MANUAL_MODELS),
             chatGptAdminUrl = prefs.getString(KEY_AI_OPENAI_ADMIN_URL, AiService.OPENAI.adminUrl) ?: AiService.OPENAI.adminUrl,
             chatGptModelListUrl = prefs.getString(KEY_AI_OPENAI_MODEL_LIST_URL, "") ?: "",
-            chatGptParamsId = prefs.getString(KEY_AI_OPENAI_PARAMS_ID, null),
+            chatGptParametersIds = loadParametersIds(KEY_AI_OPENAI_PARAMETERS_ID),
             claudeApiKey = prefs.getString(KEY_AI_ANTHROPIC_API_KEY, "") ?: "",
             claudeModel = prefs.getString(KEY_AI_ANTHROPIC_MODEL, AiService.ANTHROPIC.defaultModel) ?: AiService.ANTHROPIC.defaultModel,
             claudeModelSource = loadModelSource(KEY_AI_ANTHROPIC_MODEL_SOURCE, ModelSource.API),
             claudeManualModels = loadManualModelsWithDefault(KEY_AI_ANTHROPIC_MANUAL_MODELS, CLAUDE_MODELS),
             claudeAdminUrl = prefs.getString(KEY_AI_ANTHROPIC_ADMIN_URL, AiService.ANTHROPIC.adminUrl) ?: AiService.ANTHROPIC.adminUrl,
             claudeModelListUrl = prefs.getString(KEY_AI_ANTHROPIC_MODEL_LIST_URL, "") ?: "",
-            claudeParamsId = prefs.getString(KEY_AI_ANTHROPIC_PARAMS_ID, null),
+            claudeParametersIds = loadParametersIds(KEY_AI_ANTHROPIC_PARAMETERS_ID),
             geminiApiKey = prefs.getString(KEY_AI_GOOGLE_API_KEY, "") ?: "",
             geminiModel = prefs.getString(KEY_AI_GOOGLE_MODEL, AiService.GOOGLE.defaultModel) ?: AiService.GOOGLE.defaultModel,
             geminiModelSource = loadModelSource(KEY_AI_GOOGLE_MODEL_SOURCE, ModelSource.API),
             geminiManualModels = loadManualModels(KEY_AI_GOOGLE_MANUAL_MODELS),
             geminiAdminUrl = prefs.getString(KEY_AI_GOOGLE_ADMIN_URL, AiService.GOOGLE.adminUrl) ?: AiService.GOOGLE.adminUrl,
             geminiModelListUrl = prefs.getString(KEY_AI_GOOGLE_MODEL_LIST_URL, "") ?: "",
-            geminiParamsId = prefs.getString(KEY_AI_GOOGLE_PARAMS_ID, null),
+            geminiParametersIds = loadParametersIds(KEY_AI_GOOGLE_PARAMETERS_ID),
             grokApiKey = prefs.getString(KEY_AI_XAI_API_KEY, "") ?: "",
             grokModel = prefs.getString(KEY_AI_XAI_MODEL, AiService.XAI.defaultModel) ?: AiService.XAI.defaultModel,
             grokModelSource = loadModelSource(KEY_AI_XAI_MODEL_SOURCE, ModelSource.API),
             grokManualModels = loadManualModels(KEY_AI_XAI_MANUAL_MODELS),
             grokAdminUrl = prefs.getString(KEY_AI_XAI_ADMIN_URL, AiService.XAI.adminUrl) ?: AiService.XAI.adminUrl,
             grokModelListUrl = prefs.getString(KEY_AI_XAI_MODEL_LIST_URL, "") ?: "",
-            grokParamsId = prefs.getString(KEY_AI_XAI_PARAMS_ID, null),
+            grokParametersIds = loadParametersIds(KEY_AI_XAI_PARAMETERS_ID),
             groqApiKey = prefs.getString(KEY_AI_GROQ_API_KEY, "") ?: "",
             groqModel = prefs.getString(KEY_AI_GROQ_MODEL, AiService.GROQ.defaultModel) ?: AiService.GROQ.defaultModel,
             groqModelSource = loadModelSource(KEY_AI_GROQ_MODEL_SOURCE, ModelSource.API),
             groqManualModels = loadManualModels(KEY_AI_GROQ_MANUAL_MODELS),
             groqAdminUrl = prefs.getString(KEY_AI_GROQ_ADMIN_URL, AiService.GROQ.adminUrl) ?: AiService.GROQ.adminUrl,
             groqModelListUrl = prefs.getString(KEY_AI_GROQ_MODEL_LIST_URL, "") ?: "",
-            groqParamsId = prefs.getString(KEY_AI_GROQ_PARAMS_ID, null),
+            groqParametersIds = loadParametersIds(KEY_AI_GROQ_PARAMETERS_ID),
             deepSeekApiKey = prefs.getString(KEY_AI_DEEPSEEK_API_KEY, "") ?: "",
             deepSeekModel = prefs.getString(KEY_AI_DEEPSEEK_MODEL, AiService.DEEPSEEK.defaultModel) ?: AiService.DEEPSEEK.defaultModel,
             deepSeekModelSource = loadModelSource(KEY_AI_DEEPSEEK_MODEL_SOURCE, ModelSource.API),
             deepSeekManualModels = loadManualModels(KEY_AI_DEEPSEEK_MANUAL_MODELS),
             deepSeekAdminUrl = prefs.getString(KEY_AI_DEEPSEEK_ADMIN_URL, AiService.DEEPSEEK.adminUrl) ?: AiService.DEEPSEEK.adminUrl,
             deepSeekModelListUrl = prefs.getString(KEY_AI_DEEPSEEK_MODEL_LIST_URL, "") ?: "",
-            deepSeekParamsId = prefs.getString(KEY_AI_DEEPSEEK_PARAMS_ID, null),
+            deepSeekParametersIds = loadParametersIds(KEY_AI_DEEPSEEK_PARAMETERS_ID),
             mistralApiKey = prefs.getString(KEY_AI_MISTRAL_API_KEY, "") ?: "",
             mistralModel = prefs.getString(KEY_AI_MISTRAL_MODEL, AiService.MISTRAL.defaultModel) ?: AiService.MISTRAL.defaultModel,
             mistralModelSource = loadModelSource(KEY_AI_MISTRAL_MODEL_SOURCE, ModelSource.API),
             mistralManualModels = loadManualModels(KEY_AI_MISTRAL_MANUAL_MODELS),
             mistralAdminUrl = prefs.getString(KEY_AI_MISTRAL_ADMIN_URL, AiService.MISTRAL.adminUrl) ?: AiService.MISTRAL.adminUrl,
             mistralModelListUrl = prefs.getString(KEY_AI_MISTRAL_MODEL_LIST_URL, "") ?: "",
-            mistralParamsId = prefs.getString(KEY_AI_MISTRAL_PARAMS_ID, null),
+            mistralParametersIds = loadParametersIds(KEY_AI_MISTRAL_PARAMETERS_ID),
             perplexityApiKey = prefs.getString(KEY_AI_PERPLEXITY_API_KEY, "") ?: "",
             perplexityModel = prefs.getString(KEY_AI_PERPLEXITY_MODEL, AiService.PERPLEXITY.defaultModel) ?: AiService.PERPLEXITY.defaultModel,
             perplexityModelSource = loadModelSource(KEY_AI_PERPLEXITY_MODEL_SOURCE, ModelSource.MANUAL),
             perplexityManualModels = loadManualModelsWithDefault(KEY_AI_PERPLEXITY_MANUAL_MODELS, PERPLEXITY_MODELS),
             perplexityAdminUrl = prefs.getString(KEY_AI_PERPLEXITY_ADMIN_URL, AiService.PERPLEXITY.adminUrl) ?: AiService.PERPLEXITY.adminUrl,
             perplexityModelListUrl = prefs.getString(KEY_AI_PERPLEXITY_MODEL_LIST_URL, "") ?: "",
-            perplexityParamsId = prefs.getString(KEY_AI_PERPLEXITY_PARAMS_ID, null),
+            perplexityParametersIds = loadParametersIds(KEY_AI_PERPLEXITY_PARAMETERS_ID),
             togetherApiKey = prefs.getString(KEY_AI_TOGETHER_API_KEY, "") ?: "",
             togetherModel = prefs.getString(KEY_AI_TOGETHER_MODEL, AiService.TOGETHER.defaultModel) ?: AiService.TOGETHER.defaultModel,
             togetherModelSource = loadModelSource(KEY_AI_TOGETHER_MODEL_SOURCE, ModelSource.API),
             togetherManualModels = loadManualModels(KEY_AI_TOGETHER_MANUAL_MODELS),
             togetherAdminUrl = prefs.getString(KEY_AI_TOGETHER_ADMIN_URL, AiService.TOGETHER.adminUrl) ?: AiService.TOGETHER.adminUrl,
             togetherModelListUrl = prefs.getString(KEY_AI_TOGETHER_MODEL_LIST_URL, "") ?: "",
-            togetherParamsId = prefs.getString(KEY_AI_TOGETHER_PARAMS_ID, null),
+            togetherParametersIds = loadParametersIds(KEY_AI_TOGETHER_PARAMETERS_ID),
             openRouterApiKey = prefs.getString(KEY_AI_OPENROUTER_API_KEY, "") ?: "",
             openRouterModel = prefs.getString(KEY_AI_OPENROUTER_MODEL, AiService.OPENROUTER.defaultModel) ?: AiService.OPENROUTER.defaultModel,
             openRouterModelSource = loadModelSource(KEY_AI_OPENROUTER_MODEL_SOURCE, ModelSource.API),
             openRouterManualModels = loadManualModels(KEY_AI_OPENROUTER_MANUAL_MODELS),
             openRouterAdminUrl = prefs.getString(KEY_AI_OPENROUTER_ADMIN_URL, AiService.OPENROUTER.adminUrl) ?: AiService.OPENROUTER.adminUrl,
             openRouterModelListUrl = prefs.getString(KEY_AI_OPENROUTER_MODEL_LIST_URL, "") ?: "",
-            openRouterParamsId = prefs.getString(KEY_AI_OPENROUTER_PARAMS_ID, null),
+            openRouterParametersIds = loadParametersIds(KEY_AI_OPENROUTER_PARAMETERS_ID),
             siliconFlowApiKey = prefs.getString(KEY_AI_SILICONFLOW_API_KEY, "") ?: "",
             siliconFlowModel = prefs.getString(KEY_AI_SILICONFLOW_MODEL, AiService.SILICONFLOW.defaultModel) ?: AiService.SILICONFLOW.defaultModel,
             siliconFlowModelSource = loadModelSource(KEY_AI_SILICONFLOW_MODEL_SOURCE, ModelSource.API),
             siliconFlowManualModels = loadManualModelsWithDefault(KEY_AI_SILICONFLOW_MANUAL_MODELS, SILICONFLOW_MODELS),
             siliconFlowAdminUrl = prefs.getString(KEY_AI_SILICONFLOW_ADMIN_URL, AiService.SILICONFLOW.adminUrl) ?: AiService.SILICONFLOW.adminUrl,
             siliconFlowModelListUrl = prefs.getString(KEY_AI_SILICONFLOW_MODEL_LIST_URL, "") ?: "",
-            siliconFlowParamsId = prefs.getString(KEY_AI_SILICONFLOW_PARAMS_ID, null),
+            siliconFlowParametersIds = loadParametersIds(KEY_AI_SILICONFLOW_PARAMETERS_ID),
             zaiApiKey = prefs.getString(KEY_AI_ZAI_API_KEY, "") ?: "",
             zaiModel = prefs.getString(KEY_AI_ZAI_MODEL, AiService.ZAI.defaultModel) ?: AiService.ZAI.defaultModel,
             zaiModelSource = loadModelSource(KEY_AI_ZAI_MODEL_SOURCE, ModelSource.API),
             zaiManualModels = loadManualModelsWithDefault(KEY_AI_ZAI_MANUAL_MODELS, ZAI_MODELS),
             zaiAdminUrl = prefs.getString(KEY_AI_ZAI_ADMIN_URL, AiService.ZAI.adminUrl) ?: AiService.ZAI.adminUrl,
             zaiModelListUrl = prefs.getString(KEY_AI_ZAI_MODEL_LIST_URL, "") ?: "",
-            zaiParamsId = prefs.getString(KEY_AI_ZAI_PARAMS_ID, null),
+            zaiParametersIds = loadParametersIds(KEY_AI_ZAI_PARAMETERS_ID),
             moonshotApiKey = prefs.getString(KEY_AI_MOONSHOT_API_KEY, "") ?: "",
             moonshotModel = prefs.getString(KEY_AI_MOONSHOT_MODEL, AiService.MOONSHOT.defaultModel) ?: AiService.MOONSHOT.defaultModel,
             moonshotModelSource = loadModelSource(KEY_AI_MOONSHOT_MODEL_SOURCE, ModelSource.API),
             moonshotManualModels = loadManualModelsWithDefault(KEY_AI_MOONSHOT_MANUAL_MODELS, MOONSHOT_MODELS),
             moonshotAdminUrl = prefs.getString(KEY_AI_MOONSHOT_ADMIN_URL, AiService.MOONSHOT.adminUrl) ?: AiService.MOONSHOT.adminUrl,
             moonshotModelListUrl = prefs.getString(KEY_AI_MOONSHOT_MODEL_LIST_URL, "") ?: "",
-            moonshotParamsId = prefs.getString(KEY_AI_MOONSHOT_PARAMS_ID, null),
+            moonshotParametersIds = loadParametersIds(KEY_AI_MOONSHOT_PARAMETERS_ID),
             cohereApiKey = prefs.getString(KEY_AI_COHERE_API_KEY, "") ?: "",
             cohereModel = prefs.getString(KEY_AI_COHERE_MODEL, AiService.COHERE.defaultModel) ?: AiService.COHERE.defaultModel,
             cohereModelSource = loadModelSource(KEY_AI_COHERE_MODEL_SOURCE, ModelSource.MANUAL),
             cohereManualModels = loadManualModelsWithDefault(KEY_AI_COHERE_MANUAL_MODELS, COHERE_MODELS),
             cohereAdminUrl = prefs.getString(KEY_AI_COHERE_ADMIN_URL, AiService.COHERE.adminUrl) ?: AiService.COHERE.adminUrl,
             cohereModelListUrl = prefs.getString(KEY_AI_COHERE_MODEL_LIST_URL, "") ?: "",
-            cohereParamsId = prefs.getString(KEY_AI_COHERE_PARAMS_ID, null),
+            cohereParametersIds = loadParametersIds(KEY_AI_COHERE_PARAMETERS_ID),
             ai21ApiKey = prefs.getString(KEY_AI_AI21_API_KEY, "") ?: "",
             ai21Model = prefs.getString(KEY_AI_AI21_MODEL, AiService.AI21.defaultModel) ?: AiService.AI21.defaultModel,
             ai21ModelSource = loadModelSource(KEY_AI_AI21_MODEL_SOURCE, ModelSource.MANUAL),
             ai21ManualModels = loadManualModelsWithDefault(KEY_AI_AI21_MANUAL_MODELS, AI21_MODELS),
             ai21AdminUrl = prefs.getString(KEY_AI_AI21_ADMIN_URL, AiService.AI21.adminUrl) ?: AiService.AI21.adminUrl,
             ai21ModelListUrl = prefs.getString(KEY_AI_AI21_MODEL_LIST_URL, "") ?: "",
-            ai21ParamsId = prefs.getString(KEY_AI_AI21_PARAMS_ID, null),
+            ai21ParametersIds = loadParametersIds(KEY_AI_AI21_PARAMETERS_ID),
             dashScopeApiKey = prefs.getString(KEY_AI_DASHSCOPE_API_KEY, "") ?: "",
             dashScopeModel = prefs.getString(KEY_AI_DASHSCOPE_MODEL, AiService.DASHSCOPE.defaultModel) ?: AiService.DASHSCOPE.defaultModel,
             dashScopeModelSource = loadModelSource(KEY_AI_DASHSCOPE_MODEL_SOURCE, ModelSource.MANUAL),
             dashScopeManualModels = loadManualModelsWithDefault(KEY_AI_DASHSCOPE_MANUAL_MODELS, DASHSCOPE_MODELS),
             dashScopeAdminUrl = prefs.getString(KEY_AI_DASHSCOPE_ADMIN_URL, AiService.DASHSCOPE.adminUrl) ?: AiService.DASHSCOPE.adminUrl,
             dashScopeModelListUrl = prefs.getString(KEY_AI_DASHSCOPE_MODEL_LIST_URL, "") ?: "",
-            dashScopeParamsId = prefs.getString(KEY_AI_DASHSCOPE_PARAMS_ID, null),
+            dashScopeParametersIds = loadParametersIds(KEY_AI_DASHSCOPE_PARAMETERS_ID),
             fireworksApiKey = prefs.getString(KEY_AI_FIREWORKS_API_KEY, "") ?: "",
             fireworksModel = prefs.getString(KEY_AI_FIREWORKS_MODEL, AiService.FIREWORKS.defaultModel) ?: AiService.FIREWORKS.defaultModel,
             fireworksModelSource = loadModelSource(KEY_AI_FIREWORKS_MODEL_SOURCE, ModelSource.MANUAL),
             fireworksManualModels = loadManualModelsWithDefault(KEY_AI_FIREWORKS_MANUAL_MODELS, FIREWORKS_MODELS),
             fireworksAdminUrl = prefs.getString(KEY_AI_FIREWORKS_ADMIN_URL, AiService.FIREWORKS.adminUrl) ?: AiService.FIREWORKS.adminUrl,
             fireworksModelListUrl = prefs.getString(KEY_AI_FIREWORKS_MODEL_LIST_URL, "") ?: "",
-            fireworksParamsId = prefs.getString(KEY_AI_FIREWORKS_PARAMS_ID, null),
+            fireworksParametersIds = loadParametersIds(KEY_AI_FIREWORKS_PARAMETERS_ID),
             cerebrasApiKey = prefs.getString(KEY_AI_CEREBRAS_API_KEY, "") ?: "",
             cerebrasModel = prefs.getString(KEY_AI_CEREBRAS_MODEL, AiService.CEREBRAS.defaultModel) ?: AiService.CEREBRAS.defaultModel,
             cerebrasModelSource = loadModelSource(KEY_AI_CEREBRAS_MODEL_SOURCE, ModelSource.MANUAL),
             cerebrasManualModels = loadManualModelsWithDefault(KEY_AI_CEREBRAS_MANUAL_MODELS, CEREBRAS_MODELS),
             cerebrasAdminUrl = prefs.getString(KEY_AI_CEREBRAS_ADMIN_URL, AiService.CEREBRAS.adminUrl) ?: AiService.CEREBRAS.adminUrl,
             cerebrasModelListUrl = prefs.getString(KEY_AI_CEREBRAS_MODEL_LIST_URL, "") ?: "",
-            cerebrasParamsId = prefs.getString(KEY_AI_CEREBRAS_PARAMS_ID, null),
+            cerebrasParametersIds = loadParametersIds(KEY_AI_CEREBRAS_PARAMETERS_ID),
             sambaNovaApiKey = prefs.getString(KEY_AI_SAMBANOVA_API_KEY, "") ?: "",
             sambaNovaModel = prefs.getString(KEY_AI_SAMBANOVA_MODEL, AiService.SAMBANOVA.defaultModel) ?: AiService.SAMBANOVA.defaultModel,
             sambaNovaModelSource = loadModelSource(KEY_AI_SAMBANOVA_MODEL_SOURCE, ModelSource.MANUAL),
             sambaNovaManualModels = loadManualModelsWithDefault(KEY_AI_SAMBANOVA_MANUAL_MODELS, SAMBANOVA_MODELS),
             sambaNovaAdminUrl = prefs.getString(KEY_AI_SAMBANOVA_ADMIN_URL, AiService.SAMBANOVA.adminUrl) ?: AiService.SAMBANOVA.adminUrl,
             sambaNovaModelListUrl = prefs.getString(KEY_AI_SAMBANOVA_MODEL_LIST_URL, "") ?: "",
-            sambaNovaParamsId = prefs.getString(KEY_AI_SAMBANOVA_PARAMS_ID, null),
+            sambaNovaParametersIds = loadParametersIds(KEY_AI_SAMBANOVA_PARAMETERS_ID),
             baichuanApiKey = prefs.getString(KEY_AI_BAICHUAN_API_KEY, "") ?: "",
             baichuanModel = prefs.getString(KEY_AI_BAICHUAN_MODEL, AiService.BAICHUAN.defaultModel) ?: AiService.BAICHUAN.defaultModel,
             baichuanModelSource = loadModelSource(KEY_AI_BAICHUAN_MODEL_SOURCE, ModelSource.MANUAL),
             baichuanManualModels = loadManualModelsWithDefault(KEY_AI_BAICHUAN_MANUAL_MODELS, BAICHUAN_MODELS),
             baichuanAdminUrl = prefs.getString(KEY_AI_BAICHUAN_ADMIN_URL, AiService.BAICHUAN.adminUrl) ?: AiService.BAICHUAN.adminUrl,
             baichuanModelListUrl = prefs.getString(KEY_AI_BAICHUAN_MODEL_LIST_URL, "") ?: "",
-            baichuanParamsId = prefs.getString(KEY_AI_BAICHUAN_PARAMS_ID, null),
+            baichuanParametersIds = loadParametersIds(KEY_AI_BAICHUAN_PARAMETERS_ID),
             stepFunApiKey = prefs.getString(KEY_AI_STEPFUN_API_KEY, "") ?: "",
             stepFunModel = prefs.getString(KEY_AI_STEPFUN_MODEL, AiService.STEPFUN.defaultModel) ?: AiService.STEPFUN.defaultModel,
             stepFunModelSource = loadModelSource(KEY_AI_STEPFUN_MODEL_SOURCE, ModelSource.MANUAL),
             stepFunManualModels = loadManualModelsWithDefault(KEY_AI_STEPFUN_MANUAL_MODELS, STEPFUN_MODELS),
             stepFunAdminUrl = prefs.getString(KEY_AI_STEPFUN_ADMIN_URL, AiService.STEPFUN.adminUrl) ?: AiService.STEPFUN.adminUrl,
             stepFunModelListUrl = prefs.getString(KEY_AI_STEPFUN_MODEL_LIST_URL, "") ?: "",
-            stepFunParamsId = prefs.getString(KEY_AI_STEPFUN_PARAMS_ID, null),
+            stepFunParametersIds = loadParametersIds(KEY_AI_STEPFUN_PARAMETERS_ID),
             miniMaxApiKey = prefs.getString(KEY_AI_MINIMAX_API_KEY, "") ?: "",
             miniMaxModel = prefs.getString(KEY_AI_MINIMAX_MODEL, AiService.MINIMAX.defaultModel) ?: AiService.MINIMAX.defaultModel,
             miniMaxModelSource = loadModelSource(KEY_AI_MINIMAX_MODEL_SOURCE, ModelSource.MANUAL),
             miniMaxManualModels = loadManualModelsWithDefault(KEY_AI_MINIMAX_MANUAL_MODELS, MINIMAX_MODELS),
             miniMaxAdminUrl = prefs.getString(KEY_AI_MINIMAX_ADMIN_URL, AiService.MINIMAX.adminUrl) ?: AiService.MINIMAX.adminUrl,
             miniMaxModelListUrl = prefs.getString(KEY_AI_MINIMAX_MODEL_LIST_URL, "") ?: "",
-            miniMaxParamsId = prefs.getString(KEY_AI_MINIMAX_PARAMS_ID, null),
+            miniMaxParametersIds = loadParametersIds(KEY_AI_MINIMAX_PARAMETERS_ID),
             nvidiaApiKey = prefs.getString(KEY_AI_NVIDIA_API_KEY, "") ?: "",
             nvidiaModel = prefs.getString(KEY_AI_NVIDIA_MODEL, AiService.NVIDIA.defaultModel) ?: AiService.NVIDIA.defaultModel,
             nvidiaModelSource = loadModelSource(KEY_AI_NVIDIA_MODEL_SOURCE, ModelSource.API),
             nvidiaManualModels = loadManualModels(KEY_AI_NVIDIA_MANUAL_MODELS),
             nvidiaAdminUrl = prefs.getString(KEY_AI_NVIDIA_ADMIN_URL, AiService.NVIDIA.adminUrl) ?: AiService.NVIDIA.adminUrl,
             nvidiaModelListUrl = prefs.getString(KEY_AI_NVIDIA_MODEL_LIST_URL, "") ?: "",
-            nvidiaParamsId = prefs.getString(KEY_AI_NVIDIA_PARAMS_ID, null),
+            nvidiaParametersIds = loadParametersIds(KEY_AI_NVIDIA_PARAMETERS_ID),
             replicateApiKey = prefs.getString(KEY_AI_REPLICATE_API_KEY, "") ?: "",
             replicateModel = prefs.getString(KEY_AI_REPLICATE_MODEL, AiService.REPLICATE.defaultModel) ?: AiService.REPLICATE.defaultModel,
             replicateModelSource = loadModelSource(KEY_AI_REPLICATE_MODEL_SOURCE, ModelSource.MANUAL),
             replicateManualModels = loadManualModelsWithDefault(KEY_AI_REPLICATE_MANUAL_MODELS, REPLICATE_MODELS),
             replicateAdminUrl = prefs.getString(KEY_AI_REPLICATE_ADMIN_URL, AiService.REPLICATE.adminUrl) ?: AiService.REPLICATE.adminUrl,
             replicateModelListUrl = prefs.getString(KEY_AI_REPLICATE_MODEL_LIST_URL, "") ?: "",
-            replicateParamsId = prefs.getString(KEY_AI_REPLICATE_PARAMS_ID, null),
+            replicateParametersIds = loadParametersIds(KEY_AI_REPLICATE_PARAMETERS_ID),
             huggingFaceInferenceApiKey = prefs.getString(KEY_AI_HUGGINGFACE_API_KEY_INFERENCE, "") ?: "",
             huggingFaceInferenceModel = prefs.getString(KEY_AI_HUGGINGFACE_MODEL_INFERENCE, AiService.HUGGINGFACE.defaultModel) ?: AiService.HUGGINGFACE.defaultModel,
             huggingFaceInferenceModelSource = loadModelSource(KEY_AI_HUGGINGFACE_MODEL_SOURCE_INFERENCE, ModelSource.MANUAL),
             huggingFaceInferenceManualModels = loadManualModelsWithDefault(KEY_AI_HUGGINGFACE_MANUAL_MODELS_INFERENCE, HUGGINGFACE_INFERENCE_MODELS),
             huggingFaceInferenceAdminUrl = prefs.getString(KEY_AI_HUGGINGFACE_ADMIN_URL_INFERENCE, AiService.HUGGINGFACE.adminUrl) ?: AiService.HUGGINGFACE.adminUrl,
             huggingFaceInferenceModelListUrl = prefs.getString(KEY_AI_HUGGINGFACE_MODEL_LIST_URL_INFERENCE, "") ?: "",
-            huggingFaceInferenceParamsId = prefs.getString(KEY_AI_HUGGINGFACE_PARAMS_ID_INFERENCE, null),
+            huggingFaceInferenceParametersIds = loadParametersIds(KEY_AI_HUGGINGFACE_PARAMETERS_ID_INFERENCE),
             lambdaApiKey = prefs.getString(KEY_AI_LAMBDA_API_KEY, "") ?: "",
             lambdaModel = prefs.getString(KEY_AI_LAMBDA_MODEL, AiService.LAMBDA.defaultModel) ?: AiService.LAMBDA.defaultModel,
             lambdaModelSource = loadModelSource(KEY_AI_LAMBDA_MODEL_SOURCE, ModelSource.API),
             lambdaManualModels = loadManualModels(KEY_AI_LAMBDA_MANUAL_MODELS),
             lambdaAdminUrl = prefs.getString(KEY_AI_LAMBDA_ADMIN_URL, AiService.LAMBDA.adminUrl) ?: AiService.LAMBDA.adminUrl,
             lambdaModelListUrl = prefs.getString(KEY_AI_LAMBDA_MODEL_LIST_URL, "") ?: "",
-            lambdaParamsId = prefs.getString(KEY_AI_LAMBDA_PARAMS_ID, null),
+            lambdaParametersIds = loadParametersIds(KEY_AI_LAMBDA_PARAMETERS_ID),
             leptonApiKey = prefs.getString(KEY_AI_LEPTON_API_KEY, "") ?: "",
             leptonModel = prefs.getString(KEY_AI_LEPTON_MODEL, AiService.LEPTON.defaultModel) ?: AiService.LEPTON.defaultModel,
             leptonModelSource = loadModelSource(KEY_AI_LEPTON_MODEL_SOURCE, ModelSource.MANUAL),
             leptonManualModels = loadManualModelsWithDefault(KEY_AI_LEPTON_MANUAL_MODELS, LEPTON_MODELS),
             leptonAdminUrl = prefs.getString(KEY_AI_LEPTON_ADMIN_URL, AiService.LEPTON.adminUrl) ?: AiService.LEPTON.adminUrl,
             leptonModelListUrl = prefs.getString(KEY_AI_LEPTON_MODEL_LIST_URL, "") ?: "",
-            leptonParamsId = prefs.getString(KEY_AI_LEPTON_PARAMS_ID, null),
+            leptonParametersIds = loadParametersIds(KEY_AI_LEPTON_PARAMETERS_ID),
             yiApiKey = prefs.getString(KEY_AI_YI_API_KEY, "") ?: "",
             yiModel = prefs.getString(KEY_AI_YI_MODEL, AiService.YI.defaultModel) ?: AiService.YI.defaultModel,
             yiModelSource = loadModelSource(KEY_AI_YI_MODEL_SOURCE, ModelSource.API),
             yiManualModels = loadManualModelsWithDefault(KEY_AI_YI_MANUAL_MODELS, YI_MODELS),
             yiAdminUrl = prefs.getString(KEY_AI_YI_ADMIN_URL, AiService.YI.adminUrl) ?: AiService.YI.adminUrl,
             yiModelListUrl = prefs.getString(KEY_AI_YI_MODEL_LIST_URL, "") ?: "",
-            yiParamsId = prefs.getString(KEY_AI_YI_PARAMS_ID, null),
+            yiParametersIds = loadParametersIds(KEY_AI_YI_PARAMETERS_ID),
             doubaoApiKey = prefs.getString(KEY_AI_DOUBAO_API_KEY, "") ?: "",
             doubaoModel = prefs.getString(KEY_AI_DOUBAO_MODEL, AiService.DOUBAO.defaultModel) ?: AiService.DOUBAO.defaultModel,
             doubaoModelSource = loadModelSource(KEY_AI_DOUBAO_MODEL_SOURCE, ModelSource.MANUAL),
             doubaoManualModels = loadManualModelsWithDefault(KEY_AI_DOUBAO_MANUAL_MODELS, DOUBAO_MODELS),
             doubaoAdminUrl = prefs.getString(KEY_AI_DOUBAO_ADMIN_URL, AiService.DOUBAO.adminUrl) ?: AiService.DOUBAO.adminUrl,
             doubaoModelListUrl = prefs.getString(KEY_AI_DOUBAO_MODEL_LIST_URL, "") ?: "",
-            doubaoParamsId = prefs.getString(KEY_AI_DOUBAO_PARAMS_ID, null),
+            doubaoParametersIds = loadParametersIds(KEY_AI_DOUBAO_PARAMETERS_ID),
             rekaApiKey = prefs.getString(KEY_AI_REKA_API_KEY, "") ?: "",
             rekaModel = prefs.getString(KEY_AI_REKA_MODEL, AiService.REKA.defaultModel) ?: AiService.REKA.defaultModel,
             rekaModelSource = loadModelSource(KEY_AI_REKA_MODEL_SOURCE, ModelSource.MANUAL),
             rekaManualModels = loadManualModelsWithDefault(KEY_AI_REKA_MANUAL_MODELS, REKA_MODELS),
             rekaAdminUrl = prefs.getString(KEY_AI_REKA_ADMIN_URL, AiService.REKA.adminUrl) ?: AiService.REKA.adminUrl,
             rekaModelListUrl = prefs.getString(KEY_AI_REKA_MODEL_LIST_URL, "") ?: "",
-            rekaParamsId = prefs.getString(KEY_AI_REKA_PARAMS_ID, null),
+            rekaParametersIds = loadParametersIds(KEY_AI_REKA_PARAMETERS_ID),
             writerApiKey = prefs.getString(KEY_AI_WRITER_API_KEY, "") ?: "",
             writerModel = prefs.getString(KEY_AI_WRITER_MODEL, AiService.WRITER.defaultModel) ?: AiService.WRITER.defaultModel,
             writerModelSource = loadModelSource(KEY_AI_WRITER_MODEL_SOURCE, ModelSource.API),
             writerManualModels = loadManualModelsWithDefault(KEY_AI_WRITER_MANUAL_MODELS, WRITER_MODELS),
             writerAdminUrl = prefs.getString(KEY_AI_WRITER_ADMIN_URL, AiService.WRITER.adminUrl) ?: AiService.WRITER.adminUrl,
             writerModelListUrl = prefs.getString(KEY_AI_WRITER_MODEL_LIST_URL, "") ?: "",
-            writerParamsId = prefs.getString(KEY_AI_WRITER_PARAMS_ID, null)
+            writerParametersIds = loadParametersIds(KEY_AI_WRITER_PARAMETERS_ID)
         )
     }
 
@@ -323,6 +323,52 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         }
     }
 
+    /**
+     * Load parameter IDs list from SharedPreferences.
+     * Handles backward compatibility: if the stored value is a plain string (old format),
+     * converts it to a single-element list.
+     */
+    private fun loadParametersIds(key: String): List<String> {
+        val raw = prefs.getString(key, null) ?: return emptyList()
+        // Try to parse as JSON list first (new format)
+        if (raw.startsWith("[")) {
+            return try {
+                val type = object : TypeToken<List<String>>() {}.type
+                gson.fromJson<List<String>>(raw, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        // Old format: single ID string - convert to single-element list
+        return listOf(raw)
+    }
+
+    /**
+     * Save parameter IDs list to SharedPreferences as JSON.
+     * Returns null if the list is empty (to clear the preference).
+     */
+    private fun saveParametersIds(ids: List<String>): String? {
+        if (ids.isEmpty()) return null
+        return gson.toJson(ids)
+    }
+
+    /**
+     * Migrate old "paramsId" (String?) JSON field to new "paramsIds" (List<String>) format.
+     * If the JSON object has "paramsId" but not "paramsIds", converts the single string
+     * to a single-element JSON array under "paramsIds".
+     */
+    private fun migrateParamsIdToParamsIds(obj: com.google.gson.JsonObject) {
+        if (obj.has("paramsId") && !obj.has("paramsIds")) {
+            val oldValue = obj.get("paramsId")
+            if (oldValue != null && !oldValue.isJsonNull) {
+                val array = com.google.gson.JsonArray()
+                array.add(oldValue.asString)
+                obj.add("paramsIds", array)
+            }
+            obj.remove("paramsId")
+        }
+    }
+
     fun saveAiSettings(settings: AiSettings) {
         prefs.edit()
             .putString(KEY_AI_OPENAI_API_KEY, settings.chatGptApiKey)
@@ -331,217 +377,217 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_OPENAI_MANUAL_MODELS, gson.toJson(settings.chatGptManualModels))
             .putString(KEY_AI_OPENAI_ADMIN_URL, settings.chatGptAdminUrl)
             .putString(KEY_AI_OPENAI_MODEL_LIST_URL, settings.chatGptModelListUrl)
-            .putString(KEY_AI_OPENAI_PARAMS_ID, settings.chatGptParamsId)
+            .putString(KEY_AI_OPENAI_PARAMETERS_ID, saveParametersIds(settings.chatGptParametersIds))
             .putString(KEY_AI_ANTHROPIC_API_KEY, settings.claudeApiKey)
             .putString(KEY_AI_ANTHROPIC_MODEL, settings.claudeModel)
             .putString(KEY_AI_ANTHROPIC_MODEL_SOURCE, settings.claudeModelSource.name)
             .putString(KEY_AI_ANTHROPIC_MANUAL_MODELS, gson.toJson(settings.claudeManualModels))
             .putString(KEY_AI_ANTHROPIC_ADMIN_URL, settings.claudeAdminUrl)
             .putString(KEY_AI_ANTHROPIC_MODEL_LIST_URL, settings.claudeModelListUrl)
-            .putString(KEY_AI_ANTHROPIC_PARAMS_ID, settings.claudeParamsId)
+            .putString(KEY_AI_ANTHROPIC_PARAMETERS_ID, saveParametersIds(settings.claudeParametersIds))
             .putString(KEY_AI_GOOGLE_API_KEY, settings.geminiApiKey)
             .putString(KEY_AI_GOOGLE_MODEL, settings.geminiModel)
             .putString(KEY_AI_GOOGLE_MODEL_SOURCE, settings.geminiModelSource.name)
             .putString(KEY_AI_GOOGLE_MANUAL_MODELS, gson.toJson(settings.geminiManualModels))
             .putString(KEY_AI_GOOGLE_ADMIN_URL, settings.geminiAdminUrl)
             .putString(KEY_AI_GOOGLE_MODEL_LIST_URL, settings.geminiModelListUrl)
-            .putString(KEY_AI_GOOGLE_PARAMS_ID, settings.geminiParamsId)
+            .putString(KEY_AI_GOOGLE_PARAMETERS_ID, saveParametersIds(settings.geminiParametersIds))
             .putString(KEY_AI_XAI_API_KEY, settings.grokApiKey)
             .putString(KEY_AI_XAI_MODEL, settings.grokModel)
             .putString(KEY_AI_XAI_MODEL_SOURCE, settings.grokModelSource.name)
             .putString(KEY_AI_XAI_MANUAL_MODELS, gson.toJson(settings.grokManualModels))
             .putString(KEY_AI_XAI_ADMIN_URL, settings.grokAdminUrl)
             .putString(KEY_AI_XAI_MODEL_LIST_URL, settings.grokModelListUrl)
-            .putString(KEY_AI_XAI_PARAMS_ID, settings.grokParamsId)
+            .putString(KEY_AI_XAI_PARAMETERS_ID, saveParametersIds(settings.grokParametersIds))
             .putString(KEY_AI_GROQ_API_KEY, settings.groqApiKey)
             .putString(KEY_AI_GROQ_MODEL, settings.groqModel)
             .putString(KEY_AI_GROQ_MODEL_SOURCE, settings.groqModelSource.name)
             .putString(KEY_AI_GROQ_MANUAL_MODELS, gson.toJson(settings.groqManualModels))
             .putString(KEY_AI_GROQ_ADMIN_URL, settings.groqAdminUrl)
             .putString(KEY_AI_GROQ_MODEL_LIST_URL, settings.groqModelListUrl)
-            .putString(KEY_AI_GROQ_PARAMS_ID, settings.groqParamsId)
+            .putString(KEY_AI_GROQ_PARAMETERS_ID, saveParametersIds(settings.groqParametersIds))
             .putString(KEY_AI_DEEPSEEK_API_KEY, settings.deepSeekApiKey)
             .putString(KEY_AI_DEEPSEEK_MODEL, settings.deepSeekModel)
             .putString(KEY_AI_DEEPSEEK_MODEL_SOURCE, settings.deepSeekModelSource.name)
             .putString(KEY_AI_DEEPSEEK_MANUAL_MODELS, gson.toJson(settings.deepSeekManualModels))
             .putString(KEY_AI_DEEPSEEK_ADMIN_URL, settings.deepSeekAdminUrl)
             .putString(KEY_AI_DEEPSEEK_MODEL_LIST_URL, settings.deepSeekModelListUrl)
-            .putString(KEY_AI_DEEPSEEK_PARAMS_ID, settings.deepSeekParamsId)
+            .putString(KEY_AI_DEEPSEEK_PARAMETERS_ID, saveParametersIds(settings.deepSeekParametersIds))
             .putString(KEY_AI_MISTRAL_API_KEY, settings.mistralApiKey)
             .putString(KEY_AI_MISTRAL_MODEL, settings.mistralModel)
             .putString(KEY_AI_MISTRAL_MODEL_SOURCE, settings.mistralModelSource.name)
             .putString(KEY_AI_MISTRAL_MANUAL_MODELS, gson.toJson(settings.mistralManualModels))
             .putString(KEY_AI_MISTRAL_ADMIN_URL, settings.mistralAdminUrl)
             .putString(KEY_AI_MISTRAL_MODEL_LIST_URL, settings.mistralModelListUrl)
-            .putString(KEY_AI_MISTRAL_PARAMS_ID, settings.mistralParamsId)
+            .putString(KEY_AI_MISTRAL_PARAMETERS_ID, saveParametersIds(settings.mistralParametersIds))
             .putString(KEY_AI_PERPLEXITY_API_KEY, settings.perplexityApiKey)
             .putString(KEY_AI_PERPLEXITY_MODEL, settings.perplexityModel)
             .putString(KEY_AI_PERPLEXITY_MODEL_SOURCE, settings.perplexityModelSource.name)
             .putString(KEY_AI_PERPLEXITY_MANUAL_MODELS, gson.toJson(settings.perplexityManualModels))
             .putString(KEY_AI_PERPLEXITY_ADMIN_URL, settings.perplexityAdminUrl)
             .putString(KEY_AI_PERPLEXITY_MODEL_LIST_URL, settings.perplexityModelListUrl)
-            .putString(KEY_AI_PERPLEXITY_PARAMS_ID, settings.perplexityParamsId)
+            .putString(KEY_AI_PERPLEXITY_PARAMETERS_ID, saveParametersIds(settings.perplexityParametersIds))
             .putString(KEY_AI_TOGETHER_API_KEY, settings.togetherApiKey)
             .putString(KEY_AI_TOGETHER_MODEL, settings.togetherModel)
             .putString(KEY_AI_TOGETHER_MODEL_SOURCE, settings.togetherModelSource.name)
             .putString(KEY_AI_TOGETHER_MANUAL_MODELS, gson.toJson(settings.togetherManualModels))
             .putString(KEY_AI_TOGETHER_ADMIN_URL, settings.togetherAdminUrl)
             .putString(KEY_AI_TOGETHER_MODEL_LIST_URL, settings.togetherModelListUrl)
-            .putString(KEY_AI_TOGETHER_PARAMS_ID, settings.togetherParamsId)
+            .putString(KEY_AI_TOGETHER_PARAMETERS_ID, saveParametersIds(settings.togetherParametersIds))
             .putString(KEY_AI_OPENROUTER_API_KEY, settings.openRouterApiKey)
             .putString(KEY_AI_OPENROUTER_MODEL, settings.openRouterModel)
             .putString(KEY_AI_OPENROUTER_MODEL_SOURCE, settings.openRouterModelSource.name)
             .putString(KEY_AI_OPENROUTER_MANUAL_MODELS, gson.toJson(settings.openRouterManualModels))
             .putString(KEY_AI_OPENROUTER_ADMIN_URL, settings.openRouterAdminUrl)
             .putString(KEY_AI_OPENROUTER_MODEL_LIST_URL, settings.openRouterModelListUrl)
-            .putString(KEY_AI_OPENROUTER_PARAMS_ID, settings.openRouterParamsId)
+            .putString(KEY_AI_OPENROUTER_PARAMETERS_ID, saveParametersIds(settings.openRouterParametersIds))
             .putString(KEY_AI_SILICONFLOW_API_KEY, settings.siliconFlowApiKey)
             .putString(KEY_AI_SILICONFLOW_MODEL, settings.siliconFlowModel)
             .putString(KEY_AI_SILICONFLOW_MODEL_SOURCE, settings.siliconFlowModelSource.name)
             .putString(KEY_AI_SILICONFLOW_MANUAL_MODELS, gson.toJson(settings.siliconFlowManualModels))
             .putString(KEY_AI_SILICONFLOW_ADMIN_URL, settings.siliconFlowAdminUrl)
             .putString(KEY_AI_SILICONFLOW_MODEL_LIST_URL, settings.siliconFlowModelListUrl)
-            .putString(KEY_AI_SILICONFLOW_PARAMS_ID, settings.siliconFlowParamsId)
+            .putString(KEY_AI_SILICONFLOW_PARAMETERS_ID, saveParametersIds(settings.siliconFlowParametersIds))
             .putString(KEY_AI_ZAI_API_KEY, settings.zaiApiKey)
             .putString(KEY_AI_ZAI_MODEL, settings.zaiModel)
             .putString(KEY_AI_ZAI_MODEL_SOURCE, settings.zaiModelSource.name)
             .putString(KEY_AI_ZAI_MANUAL_MODELS, gson.toJson(settings.zaiManualModels))
             .putString(KEY_AI_ZAI_ADMIN_URL, settings.zaiAdminUrl)
             .putString(KEY_AI_ZAI_MODEL_LIST_URL, settings.zaiModelListUrl)
-            .putString(KEY_AI_ZAI_PARAMS_ID, settings.zaiParamsId)
+            .putString(KEY_AI_ZAI_PARAMETERS_ID, saveParametersIds(settings.zaiParametersIds))
             .putString(KEY_AI_MOONSHOT_API_KEY, settings.moonshotApiKey)
             .putString(KEY_AI_MOONSHOT_MODEL, settings.moonshotModel)
             .putString(KEY_AI_MOONSHOT_MODEL_SOURCE, settings.moonshotModelSource.name)
             .putString(KEY_AI_MOONSHOT_MANUAL_MODELS, gson.toJson(settings.moonshotManualModels))
             .putString(KEY_AI_MOONSHOT_ADMIN_URL, settings.moonshotAdminUrl)
             .putString(KEY_AI_MOONSHOT_MODEL_LIST_URL, settings.moonshotModelListUrl)
-            .putString(KEY_AI_MOONSHOT_PARAMS_ID, settings.moonshotParamsId)
+            .putString(KEY_AI_MOONSHOT_PARAMETERS_ID, saveParametersIds(settings.moonshotParametersIds))
             .putString(KEY_AI_COHERE_API_KEY, settings.cohereApiKey)
             .putString(KEY_AI_COHERE_MODEL, settings.cohereModel)
             .putString(KEY_AI_COHERE_MODEL_SOURCE, settings.cohereModelSource.name)
             .putString(KEY_AI_COHERE_MANUAL_MODELS, gson.toJson(settings.cohereManualModels))
             .putString(KEY_AI_COHERE_ADMIN_URL, settings.cohereAdminUrl)
             .putString(KEY_AI_COHERE_MODEL_LIST_URL, settings.cohereModelListUrl)
-            .putString(KEY_AI_COHERE_PARAMS_ID, settings.cohereParamsId)
+            .putString(KEY_AI_COHERE_PARAMETERS_ID, saveParametersIds(settings.cohereParametersIds))
             .putString(KEY_AI_AI21_API_KEY, settings.ai21ApiKey)
             .putString(KEY_AI_AI21_MODEL, settings.ai21Model)
             .putString(KEY_AI_AI21_MODEL_SOURCE, settings.ai21ModelSource.name)
             .putString(KEY_AI_AI21_MANUAL_MODELS, gson.toJson(settings.ai21ManualModels))
             .putString(KEY_AI_AI21_ADMIN_URL, settings.ai21AdminUrl)
             .putString(KEY_AI_AI21_MODEL_LIST_URL, settings.ai21ModelListUrl)
-            .putString(KEY_AI_AI21_PARAMS_ID, settings.ai21ParamsId)
+            .putString(KEY_AI_AI21_PARAMETERS_ID, saveParametersIds(settings.ai21ParametersIds))
             .putString(KEY_AI_DASHSCOPE_API_KEY, settings.dashScopeApiKey)
             .putString(KEY_AI_DASHSCOPE_MODEL, settings.dashScopeModel)
             .putString(KEY_AI_DASHSCOPE_MODEL_SOURCE, settings.dashScopeModelSource.name)
             .putString(KEY_AI_DASHSCOPE_MANUAL_MODELS, gson.toJson(settings.dashScopeManualModels))
             .putString(KEY_AI_DASHSCOPE_ADMIN_URL, settings.dashScopeAdminUrl)
             .putString(KEY_AI_DASHSCOPE_MODEL_LIST_URL, settings.dashScopeModelListUrl)
-            .putString(KEY_AI_DASHSCOPE_PARAMS_ID, settings.dashScopeParamsId)
+            .putString(KEY_AI_DASHSCOPE_PARAMETERS_ID, saveParametersIds(settings.dashScopeParametersIds))
             .putString(KEY_AI_FIREWORKS_API_KEY, settings.fireworksApiKey)
             .putString(KEY_AI_FIREWORKS_MODEL, settings.fireworksModel)
             .putString(KEY_AI_FIREWORKS_MODEL_SOURCE, settings.fireworksModelSource.name)
             .putString(KEY_AI_FIREWORKS_MANUAL_MODELS, gson.toJson(settings.fireworksManualModels))
             .putString(KEY_AI_FIREWORKS_ADMIN_URL, settings.fireworksAdminUrl)
             .putString(KEY_AI_FIREWORKS_MODEL_LIST_URL, settings.fireworksModelListUrl)
-            .putString(KEY_AI_FIREWORKS_PARAMS_ID, settings.fireworksParamsId)
+            .putString(KEY_AI_FIREWORKS_PARAMETERS_ID, saveParametersIds(settings.fireworksParametersIds))
             .putString(KEY_AI_CEREBRAS_API_KEY, settings.cerebrasApiKey)
             .putString(KEY_AI_CEREBRAS_MODEL, settings.cerebrasModel)
             .putString(KEY_AI_CEREBRAS_MODEL_SOURCE, settings.cerebrasModelSource.name)
             .putString(KEY_AI_CEREBRAS_MANUAL_MODELS, gson.toJson(settings.cerebrasManualModels))
             .putString(KEY_AI_CEREBRAS_ADMIN_URL, settings.cerebrasAdminUrl)
             .putString(KEY_AI_CEREBRAS_MODEL_LIST_URL, settings.cerebrasModelListUrl)
-            .putString(KEY_AI_CEREBRAS_PARAMS_ID, settings.cerebrasParamsId)
+            .putString(KEY_AI_CEREBRAS_PARAMETERS_ID, saveParametersIds(settings.cerebrasParametersIds))
             .putString(KEY_AI_SAMBANOVA_API_KEY, settings.sambaNovaApiKey)
             .putString(KEY_AI_SAMBANOVA_MODEL, settings.sambaNovaModel)
             .putString(KEY_AI_SAMBANOVA_MODEL_SOURCE, settings.sambaNovaModelSource.name)
             .putString(KEY_AI_SAMBANOVA_MANUAL_MODELS, gson.toJson(settings.sambaNovaManualModels))
             .putString(KEY_AI_SAMBANOVA_ADMIN_URL, settings.sambaNovaAdminUrl)
             .putString(KEY_AI_SAMBANOVA_MODEL_LIST_URL, settings.sambaNovaModelListUrl)
-            .putString(KEY_AI_SAMBANOVA_PARAMS_ID, settings.sambaNovaParamsId)
+            .putString(KEY_AI_SAMBANOVA_PARAMETERS_ID, saveParametersIds(settings.sambaNovaParametersIds))
             .putString(KEY_AI_BAICHUAN_API_KEY, settings.baichuanApiKey)
             .putString(KEY_AI_BAICHUAN_MODEL, settings.baichuanModel)
             .putString(KEY_AI_BAICHUAN_MODEL_SOURCE, settings.baichuanModelSource.name)
             .putString(KEY_AI_BAICHUAN_MANUAL_MODELS, gson.toJson(settings.baichuanManualModels))
             .putString(KEY_AI_BAICHUAN_ADMIN_URL, settings.baichuanAdminUrl)
             .putString(KEY_AI_BAICHUAN_MODEL_LIST_URL, settings.baichuanModelListUrl)
-            .putString(KEY_AI_BAICHUAN_PARAMS_ID, settings.baichuanParamsId)
+            .putString(KEY_AI_BAICHUAN_PARAMETERS_ID, saveParametersIds(settings.baichuanParametersIds))
             .putString(KEY_AI_STEPFUN_API_KEY, settings.stepFunApiKey)
             .putString(KEY_AI_STEPFUN_MODEL, settings.stepFunModel)
             .putString(KEY_AI_STEPFUN_MODEL_SOURCE, settings.stepFunModelSource.name)
             .putString(KEY_AI_STEPFUN_MANUAL_MODELS, gson.toJson(settings.stepFunManualModels))
             .putString(KEY_AI_STEPFUN_ADMIN_URL, settings.stepFunAdminUrl)
             .putString(KEY_AI_STEPFUN_MODEL_LIST_URL, settings.stepFunModelListUrl)
-            .putString(KEY_AI_STEPFUN_PARAMS_ID, settings.stepFunParamsId)
+            .putString(KEY_AI_STEPFUN_PARAMETERS_ID, saveParametersIds(settings.stepFunParametersIds))
             .putString(KEY_AI_MINIMAX_API_KEY, settings.miniMaxApiKey)
             .putString(KEY_AI_MINIMAX_MODEL, settings.miniMaxModel)
             .putString(KEY_AI_MINIMAX_MODEL_SOURCE, settings.miniMaxModelSource.name)
             .putString(KEY_AI_MINIMAX_MANUAL_MODELS, gson.toJson(settings.miniMaxManualModels))
             .putString(KEY_AI_MINIMAX_ADMIN_URL, settings.miniMaxAdminUrl)
             .putString(KEY_AI_MINIMAX_MODEL_LIST_URL, settings.miniMaxModelListUrl)
-            .putString(KEY_AI_MINIMAX_PARAMS_ID, settings.miniMaxParamsId)
+            .putString(KEY_AI_MINIMAX_PARAMETERS_ID, saveParametersIds(settings.miniMaxParametersIds))
             .putString(KEY_AI_NVIDIA_API_KEY, settings.nvidiaApiKey)
             .putString(KEY_AI_NVIDIA_MODEL, settings.nvidiaModel)
             .putString(KEY_AI_NVIDIA_MODEL_SOURCE, settings.nvidiaModelSource.name)
             .putString(KEY_AI_NVIDIA_MANUAL_MODELS, gson.toJson(settings.nvidiaManualModels))
             .putString(KEY_AI_NVIDIA_ADMIN_URL, settings.nvidiaAdminUrl)
             .putString(KEY_AI_NVIDIA_MODEL_LIST_URL, settings.nvidiaModelListUrl)
-            .putString(KEY_AI_NVIDIA_PARAMS_ID, settings.nvidiaParamsId)
+            .putString(KEY_AI_NVIDIA_PARAMETERS_ID, saveParametersIds(settings.nvidiaParametersIds))
             .putString(KEY_AI_REPLICATE_API_KEY, settings.replicateApiKey)
             .putString(KEY_AI_REPLICATE_MODEL, settings.replicateModel)
             .putString(KEY_AI_REPLICATE_MODEL_SOURCE, settings.replicateModelSource.name)
             .putString(KEY_AI_REPLICATE_MANUAL_MODELS, gson.toJson(settings.replicateManualModels))
             .putString(KEY_AI_REPLICATE_ADMIN_URL, settings.replicateAdminUrl)
             .putString(KEY_AI_REPLICATE_MODEL_LIST_URL, settings.replicateModelListUrl)
-            .putString(KEY_AI_REPLICATE_PARAMS_ID, settings.replicateParamsId)
+            .putString(KEY_AI_REPLICATE_PARAMETERS_ID, saveParametersIds(settings.replicateParametersIds))
             .putString(KEY_AI_HUGGINGFACE_API_KEY_INFERENCE, settings.huggingFaceInferenceApiKey)
             .putString(KEY_AI_HUGGINGFACE_MODEL_INFERENCE, settings.huggingFaceInferenceModel)
             .putString(KEY_AI_HUGGINGFACE_MODEL_SOURCE_INFERENCE, settings.huggingFaceInferenceModelSource.name)
             .putString(KEY_AI_HUGGINGFACE_MANUAL_MODELS_INFERENCE, gson.toJson(settings.huggingFaceInferenceManualModels))
             .putString(KEY_AI_HUGGINGFACE_ADMIN_URL_INFERENCE, settings.huggingFaceInferenceAdminUrl)
             .putString(KEY_AI_HUGGINGFACE_MODEL_LIST_URL_INFERENCE, settings.huggingFaceInferenceModelListUrl)
-            .putString(KEY_AI_HUGGINGFACE_PARAMS_ID_INFERENCE, settings.huggingFaceInferenceParamsId)
+            .putString(KEY_AI_HUGGINGFACE_PARAMETERS_ID_INFERENCE, saveParametersIds(settings.huggingFaceInferenceParametersIds))
             .putString(KEY_AI_LAMBDA_API_KEY, settings.lambdaApiKey)
             .putString(KEY_AI_LAMBDA_MODEL, settings.lambdaModel)
             .putString(KEY_AI_LAMBDA_MODEL_SOURCE, settings.lambdaModelSource.name)
             .putString(KEY_AI_LAMBDA_MANUAL_MODELS, gson.toJson(settings.lambdaManualModels))
             .putString(KEY_AI_LAMBDA_ADMIN_URL, settings.lambdaAdminUrl)
             .putString(KEY_AI_LAMBDA_MODEL_LIST_URL, settings.lambdaModelListUrl)
-            .putString(KEY_AI_LAMBDA_PARAMS_ID, settings.lambdaParamsId)
+            .putString(KEY_AI_LAMBDA_PARAMETERS_ID, saveParametersIds(settings.lambdaParametersIds))
             .putString(KEY_AI_LEPTON_API_KEY, settings.leptonApiKey)
             .putString(KEY_AI_LEPTON_MODEL, settings.leptonModel)
             .putString(KEY_AI_LEPTON_MODEL_SOURCE, settings.leptonModelSource.name)
             .putString(KEY_AI_LEPTON_MANUAL_MODELS, gson.toJson(settings.leptonManualModels))
             .putString(KEY_AI_LEPTON_ADMIN_URL, settings.leptonAdminUrl)
             .putString(KEY_AI_LEPTON_MODEL_LIST_URL, settings.leptonModelListUrl)
-            .putString(KEY_AI_LEPTON_PARAMS_ID, settings.leptonParamsId)
+            .putString(KEY_AI_LEPTON_PARAMETERS_ID, saveParametersIds(settings.leptonParametersIds))
             .putString(KEY_AI_YI_API_KEY, settings.yiApiKey)
             .putString(KEY_AI_YI_MODEL, settings.yiModel)
             .putString(KEY_AI_YI_MODEL_SOURCE, settings.yiModelSource.name)
             .putString(KEY_AI_YI_MANUAL_MODELS, gson.toJson(settings.yiManualModels))
             .putString(KEY_AI_YI_ADMIN_URL, settings.yiAdminUrl)
             .putString(KEY_AI_YI_MODEL_LIST_URL, settings.yiModelListUrl)
-            .putString(KEY_AI_YI_PARAMS_ID, settings.yiParamsId)
+            .putString(KEY_AI_YI_PARAMETERS_ID, saveParametersIds(settings.yiParametersIds))
             .putString(KEY_AI_DOUBAO_API_KEY, settings.doubaoApiKey)
             .putString(KEY_AI_DOUBAO_MODEL, settings.doubaoModel)
             .putString(KEY_AI_DOUBAO_MODEL_SOURCE, settings.doubaoModelSource.name)
             .putString(KEY_AI_DOUBAO_MANUAL_MODELS, gson.toJson(settings.doubaoManualModels))
             .putString(KEY_AI_DOUBAO_ADMIN_URL, settings.doubaoAdminUrl)
             .putString(KEY_AI_DOUBAO_MODEL_LIST_URL, settings.doubaoModelListUrl)
-            .putString(KEY_AI_DOUBAO_PARAMS_ID, settings.doubaoParamsId)
+            .putString(KEY_AI_DOUBAO_PARAMETERS_ID, saveParametersIds(settings.doubaoParametersIds))
             .putString(KEY_AI_REKA_API_KEY, settings.rekaApiKey)
             .putString(KEY_AI_REKA_MODEL, settings.rekaModel)
             .putString(KEY_AI_REKA_MODEL_SOURCE, settings.rekaModelSource.name)
             .putString(KEY_AI_REKA_MANUAL_MODELS, gson.toJson(settings.rekaManualModels))
             .putString(KEY_AI_REKA_ADMIN_URL, settings.rekaAdminUrl)
             .putString(KEY_AI_REKA_MODEL_LIST_URL, settings.rekaModelListUrl)
-            .putString(KEY_AI_REKA_PARAMS_ID, settings.rekaParamsId)
+            .putString(KEY_AI_REKA_PARAMETERS_ID, saveParametersIds(settings.rekaParametersIds))
             .putString(KEY_AI_WRITER_API_KEY, settings.writerApiKey)
             .putString(KEY_AI_WRITER_MODEL, settings.writerModel)
             .putString(KEY_AI_WRITER_MODEL_SOURCE, settings.writerModelSource.name)
             .putString(KEY_AI_WRITER_MANUAL_MODELS, gson.toJson(settings.writerManualModels))
             .putString(KEY_AI_WRITER_ADMIN_URL, settings.writerAdminUrl)
             .putString(KEY_AI_WRITER_MODEL_LIST_URL, settings.writerModelListUrl)
-            .putString(KEY_AI_WRITER_PARAMS_ID, settings.writerParamsId)
+            .putString(KEY_AI_WRITER_PARAMETERS_ID, saveParametersIds(settings.writerParametersIds))
             // Save agents
             .putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
             // Save flocks
@@ -549,7 +595,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             // Save swarms
             .putString(KEY_AI_FLOCKS, gson.toJson(settings.swarms))
             // Save params
-            .putString(KEY_AI_PARAMS, gson.toJson(settings.params))
+            .putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             // Save prompts
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             // Save endpoints (convert to Map<String, List<AiEndpoint>> for storage)
@@ -598,8 +644,13 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     private fun loadFlocks(): List<AiFlock> {
         val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiFlock>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            // Migrate old "paramsId" (String?) to new "paramsIds" (List<String>) format
+            val jsonArray = com.google.gson.JsonParser().parse(json).asJsonArray
+            jsonArray.map { element ->
+                val obj = element.asJsonObject
+                migrateParamsIdToParamsIds(obj)
+                gson.fromJson<AiFlock>(obj, AiFlock::class.java)
+            }
         } catch (e: Exception) {
             emptyList()
         }
@@ -612,21 +663,26 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     private fun loadSwarms(): List<AiSwarm> {
         val json = prefs.getString(KEY_AI_FLOCKS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiSwarm>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            // Migrate old "paramsId" (String?) to new "paramsIds" (List<String>) format
+            val jsonArray = com.google.gson.JsonParser().parse(json).asJsonArray
+            jsonArray.map { element ->
+                val obj = element.asJsonObject
+                migrateParamsIdToParamsIds(obj)
+                gson.fromJson<AiSwarm>(obj, AiSwarm::class.java)
+            }
         } catch (e: Exception) {
             emptyList()
         }
     }
 
     // ============================================================================
-    // AI Params
+    // AI Parameters
     // ============================================================================
 
-    private fun loadParams(): List<AiParams> {
-        val json = prefs.getString(KEY_AI_PARAMS, null) ?: return emptyList()
+    private fun loadParameters(): List<AiParameters> {
+        val json = prefs.getString(KEY_AI_PARAMETERS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiParams>>() {}.type
+            val type = object : TypeToken<List<AiParameters>>() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -940,38 +996,38 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_REKA_MODEL_LIST_URL = "ai_reka_model_list_url"
         private const val KEY_AI_WRITER_MODEL_LIST_URL = "ai_writer_model_list_url"
 
-        // AI params ID per provider
-        private const val KEY_AI_OPENAI_PARAMS_ID = "ai_openai_params_id"
-        private const val KEY_AI_ANTHROPIC_PARAMS_ID = "ai_anthropic_params_id"
-        private const val KEY_AI_GOOGLE_PARAMS_ID = "ai_google_params_id"
-        private const val KEY_AI_XAI_PARAMS_ID = "ai_xai_params_id"
-        private const val KEY_AI_GROQ_PARAMS_ID = "ai_groq_params_id"
-        private const val KEY_AI_DEEPSEEK_PARAMS_ID = "ai_deepseek_params_id"
-        private const val KEY_AI_MISTRAL_PARAMS_ID = "ai_mistral_params_id"
-        private const val KEY_AI_PERPLEXITY_PARAMS_ID = "ai_perplexity_params_id"
-        private const val KEY_AI_TOGETHER_PARAMS_ID = "ai_together_params_id"
-        private const val KEY_AI_OPENROUTER_PARAMS_ID = "ai_openrouter_params_id"
-        private const val KEY_AI_SILICONFLOW_PARAMS_ID = "ai_siliconflow_params_id"
-        private const val KEY_AI_ZAI_PARAMS_ID = "ai_zai_params_id"
-        private const val KEY_AI_MOONSHOT_PARAMS_ID = "ai_moonshot_params_id"
-        private const val KEY_AI_COHERE_PARAMS_ID = "ai_cohere_params_id"
-        private const val KEY_AI_AI21_PARAMS_ID = "ai_ai21_params_id"
-        private const val KEY_AI_DASHSCOPE_PARAMS_ID = "ai_dashscope_params_id"
-        private const val KEY_AI_FIREWORKS_PARAMS_ID = "ai_fireworks_params_id"
-        private const val KEY_AI_CEREBRAS_PARAMS_ID = "ai_cerebras_params_id"
-        private const val KEY_AI_SAMBANOVA_PARAMS_ID = "ai_sambanova_params_id"
-        private const val KEY_AI_BAICHUAN_PARAMS_ID = "ai_baichuan_params_id"
-        private const val KEY_AI_STEPFUN_PARAMS_ID = "ai_stepfun_params_id"
-        private const val KEY_AI_MINIMAX_PARAMS_ID = "ai_minimax_params_id"
-        private const val KEY_AI_NVIDIA_PARAMS_ID = "ai_nvidia_params_id"
-        private const val KEY_AI_REPLICATE_PARAMS_ID = "ai_replicate_params_id"
-        private const val KEY_AI_HUGGINGFACE_PARAMS_ID_INFERENCE = "ai_huggingface_inference_params_id"
-        private const val KEY_AI_LAMBDA_PARAMS_ID = "ai_lambda_params_id"
-        private const val KEY_AI_LEPTON_PARAMS_ID = "ai_lepton_params_id"
-        private const val KEY_AI_YI_PARAMS_ID = "ai_yi_params_id"
-        private const val KEY_AI_DOUBAO_PARAMS_ID = "ai_doubao_params_id"
-        private const val KEY_AI_REKA_PARAMS_ID = "ai_reka_params_id"
-        private const val KEY_AI_WRITER_PARAMS_ID = "ai_writer_params_id"
+        // AI parameters ID per provider
+        private const val KEY_AI_OPENAI_PARAMETERS_ID = "ai_openai_parameters_id"
+        private const val KEY_AI_ANTHROPIC_PARAMETERS_ID = "ai_anthropic_parameters_id"
+        private const val KEY_AI_GOOGLE_PARAMETERS_ID = "ai_google_parameters_id"
+        private const val KEY_AI_XAI_PARAMETERS_ID = "ai_xai_parameters_id"
+        private const val KEY_AI_GROQ_PARAMETERS_ID = "ai_groq_parameters_id"
+        private const val KEY_AI_DEEPSEEK_PARAMETERS_ID = "ai_deepseek_parameters_id"
+        private const val KEY_AI_MISTRAL_PARAMETERS_ID = "ai_mistral_parameters_id"
+        private const val KEY_AI_PERPLEXITY_PARAMETERS_ID = "ai_perplexity_parameters_id"
+        private const val KEY_AI_TOGETHER_PARAMETERS_ID = "ai_together_parameters_id"
+        private const val KEY_AI_OPENROUTER_PARAMETERS_ID = "ai_openrouter_parameters_id"
+        private const val KEY_AI_SILICONFLOW_PARAMETERS_ID = "ai_siliconflow_parameters_id"
+        private const val KEY_AI_ZAI_PARAMETERS_ID = "ai_zai_parameters_id"
+        private const val KEY_AI_MOONSHOT_PARAMETERS_ID = "ai_moonshot_parameters_id"
+        private const val KEY_AI_COHERE_PARAMETERS_ID = "ai_cohere_parameters_id"
+        private const val KEY_AI_AI21_PARAMETERS_ID = "ai_ai21_parameters_id"
+        private const val KEY_AI_DASHSCOPE_PARAMETERS_ID = "ai_dashscope_parameters_id"
+        private const val KEY_AI_FIREWORKS_PARAMETERS_ID = "ai_fireworks_parameters_id"
+        private const val KEY_AI_CEREBRAS_PARAMETERS_ID = "ai_cerebras_parameters_id"
+        private const val KEY_AI_SAMBANOVA_PARAMETERS_ID = "ai_sambanova_parameters_id"
+        private const val KEY_AI_BAICHUAN_PARAMETERS_ID = "ai_baichuan_parameters_id"
+        private const val KEY_AI_STEPFUN_PARAMETERS_ID = "ai_stepfun_parameters_id"
+        private const val KEY_AI_MINIMAX_PARAMETERS_ID = "ai_minimax_parameters_id"
+        private const val KEY_AI_NVIDIA_PARAMETERS_ID = "ai_nvidia_parameters_id"
+        private const val KEY_AI_REPLICATE_PARAMETERS_ID = "ai_replicate_parameters_id"
+        private const val KEY_AI_HUGGINGFACE_PARAMETERS_ID_INFERENCE = "ai_huggingface_inference_parameters_id"
+        private const val KEY_AI_LAMBDA_PARAMETERS_ID = "ai_lambda_parameters_id"
+        private const val KEY_AI_LEPTON_PARAMETERS_ID = "ai_lepton_parameters_id"
+        private const val KEY_AI_YI_PARAMETERS_ID = "ai_yi_parameters_id"
+        private const val KEY_AI_DOUBAO_PARAMETERS_ID = "ai_doubao_parameters_id"
+        private const val KEY_AI_REKA_PARAMETERS_ID = "ai_reka_parameters_id"
+        private const val KEY_AI_WRITER_PARAMETERS_ID = "ai_writer_parameters_id"
 
         // AI agents
         private const val KEY_AI_AGENTS = "ai_agents"
@@ -982,8 +1038,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         // AI swarms
         private const val KEY_AI_FLOCKS = "ai_swarms"
 
-        // AI params (reusable parameter presets)
-        private const val KEY_AI_PARAMS = "ai_params"
+        // AI parameters (reusable parameter presets)
+        private const val KEY_AI_PARAMETERS = "ai_parameters"
 
         // AI prompts (internal app prompts)
         private const val KEY_AI_PROMPTS = "ai_prompts"

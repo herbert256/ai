@@ -2,8 +2,9 @@ package com.ai.data
 
 import android.content.Context
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -36,8 +37,10 @@ data class AiHistoryFileInfo(
 object AiHistoryManager {
     private const val HISTORY_DIR = "ai-history"
     private var historyDir: File? = null
-    private val dateFormat = SimpleDateFormat("yyyyMMdd", Locale.US)
-    private val timeFormat = SimpleDateFormat("HHmmss", Locale.US)
+    private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd", Locale.US)
+        .withZone(ZoneId.systemDefault())
+    private val timeFormat = DateTimeFormatter.ofPattern("HHmmss", Locale.US)
+        .withZone(ZoneId.systemDefault())
 
     /**
      * Initialize the manager with the app context.
@@ -64,7 +67,7 @@ object AiHistoryManager {
             dir.mkdirs()
         }
 
-        val now = Date()
+        val now = Instant.now()
         val dateStr = dateFormat.format(now)
         val timeStr = timeFormat.format(now)
         val filename = "${reportType.prefix}_${dateStr}_${timeStr}.html"
@@ -119,8 +122,10 @@ object AiHistoryManager {
             val dateTimePart = "${parts[parts.size - 2]}_${parts[parts.size - 1]}"
             val timePart = parts[parts.size - 1]
             val format = if (timePart.length == 6) "yyyyMMdd_HHmmss" else "yyyyMMdd_HHmm"
-            val combinedFormat = SimpleDateFormat(format, Locale.US)
-            combinedFormat.parse(dateTimePart)?.time ?: file.lastModified()
+            val combinedFormat = DateTimeFormatter.ofPattern(format, Locale.US)
+                .withZone(ZoneId.systemDefault())
+            java.time.LocalDateTime.parse(dateTimePart, combinedFormat)
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         } catch (e: Exception) {
             file.lastModified()
         }

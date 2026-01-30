@@ -186,9 +186,8 @@ fun FlockEditScreen(
     var nameError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Parameters preset selection
-    var selectedParamsId by remember { mutableStateOf(flock?.paramsId) }
-    var selectedParamsName by remember { mutableStateOf(flock?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+    // Parameters preset selection (multi-select)
+    var selectedParametersIds by remember { mutableStateOf(flock?.paramsIds ?: emptyList()) }
 
     // Get all configured agents with active providers
     val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
@@ -251,12 +250,8 @@ fun FlockEditScreen(
             // Parameters preset selection
             ParametersSelector(
                 aiSettings = aiSettings,
-                selectedParamsId = selectedParamsId,
-                selectedParamsName = selectedParamsName,
-                onParamsSelected = { id, name ->
-                    selectedParamsId = id
-                    selectedParamsName = name
-                }
+                selectedParametersIds = selectedParametersIds,
+                onParamsSelected = { ids -> selectedParametersIds = ids }
             )
 
             // Agent selection section
@@ -385,7 +380,7 @@ fun FlockEditScreen(
                             id = flock?.id ?: UUID.randomUUID().toString(),
                             name = name.trim(),
                             agentIds = selectedAgentIds.toList(),
-                            paramsId = selectedParamsId
+                            paramsIds = selectedParametersIds
                         )
                         onSave(newFlock)
                     }

@@ -335,13 +335,13 @@ fun AiAiSettingsContentScreen(
         )
 
         // Parameters card
-        val configuredParams = aiSettings.params.size
+        val configuredParameters = aiSettings.parameters.size
         AiSetupNavigationCard(
             title = "Parameters",
             description = "Reusable parameter presets for agents",
             icon = "🎛",
-            count = "$configuredParams configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_PARAMS) }
+            count = "$configuredParameters configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) }
         )
 
         // Prompts card

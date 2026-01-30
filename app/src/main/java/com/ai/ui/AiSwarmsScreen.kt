@@ -187,9 +187,8 @@ fun SwarmEditScreen(
     var nameError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Parameters preset selection
-    var selectedParamsId by remember { mutableStateOf(swarm?.paramsId) }
-    var selectedParamsName by remember { mutableStateOf(swarm?.paramsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+    // Parameters preset selection (multi-select)
+    var selectedParametersIds by remember { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
 
     // Get all available provider/model combinations, sorted by provider name
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
@@ -261,12 +260,8 @@ fun SwarmEditScreen(
             // Parameters preset selection
             ParametersSelector(
                 aiSettings = aiSettings,
-                selectedParamsId = selectedParamsId,
-                selectedParamsName = selectedParamsName,
-                onParamsSelected = { id, name ->
-                    selectedParamsId = id
-                    selectedParamsName = name
-                }
+                selectedParametersIds = selectedParametersIds,
+                onParamsSelected = { ids -> selectedParametersIds = ids }
             )
 
             // Member selection section
@@ -397,7 +392,7 @@ fun SwarmEditScreen(
                             id = swarm?.id ?: UUID.randomUUID().toString(),
                             name = name.trim(),
                             members = selectedMembers.toList(),
-                            paramsId = selectedParamsId
+                            paramsIds = selectedParametersIds
                         )
                         onSave(newSwarm)
                     }

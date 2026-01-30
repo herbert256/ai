@@ -68,9 +68,9 @@ enum class SettingsSubScreen {
     AI_PROMPTS,     // AI Prompts CRUD
     AI_ADD_PROMPT,  // Add new prompt
     AI_EDIT_PROMPT, // Edit existing prompt
-    AI_PARAMS,      // AI Params CRUD
-    AI_ADD_PARAMS,  // Add new params
-    AI_EDIT_PARAMS  // Edit existing params
+    AI_PARAMETERS,      // AI Parameters CRUD
+    AI_ADD_PARAMETERS,  // Add new parameters
+    AI_EDIT_PARAMETERS  // Edit existing parameters
 }
 
 /**
@@ -204,7 +204,7 @@ fun SettingsScreen(
     var editingPromptId by remember { mutableStateOf<String?>(null) }
 
     // State for params editing
-    var editingParamsId by remember { mutableStateOf<String?>(null) }
+    var editingParametersId by remember { mutableStateOf<String?>(null) }
 
     // Helper to generate unique agent name
     fun generateUniqueAgentName(baseName: String): String {
@@ -260,23 +260,19 @@ fun SettingsScreen(
             SettingsSubScreen.AI_DOUBAO,
             SettingsSubScreen.AI_REKA,
             SettingsSubScreen.AI_WRITER -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
+            // AI screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
             SettingsSubScreen.AI_SWARMS,
             SettingsSubScreen.AI_FLOCKS -> {
-                if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
-                    currentSubScreen = SettingsSubScreen.AI_SETUP
-                } else {
-                    currentSubScreen = SettingsSubScreen.AI_SETUP
-                }
+                currentSubScreen = SettingsSubScreen.AI_SETUP
             }
             // AI Prompts goes back to AI_AI_SETTINGS
             SettingsSubScreen.AI_PROMPTS -> {
                 currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
             }
-            // AI Params goes back to AI_AI_SETTINGS
-            SettingsSubScreen.AI_PARAMS -> {
+            // AI Parameters goes back to AI_AI_SETTINGS
+            SettingsSubScreen.AI_PARAMETERS -> {
                 currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
             }
             // AI_SETUP goes back home if it was the initial screen, otherwise to MAIN
@@ -303,9 +299,9 @@ fun SettingsScreen(
             // Prompt screens go back to AI_PROMPTS
             SettingsSubScreen.AI_ADD_PROMPT,
             SettingsSubScreen.AI_EDIT_PROMPT -> currentSubScreen = SettingsSubScreen.AI_PROMPTS
-            // Params screens go back to AI_PARAMS
-            SettingsSubScreen.AI_ADD_PARAMS,
-            SettingsSubScreen.AI_EDIT_PARAMS -> currentSubScreen = SettingsSubScreen.AI_PARAMS
+            // Parameters screens go back to AI_PARAMETERS
+            SettingsSubScreen.AI_ADD_PARAMETERS,
+            SettingsSubScreen.AI_EDIT_PARAMETERS -> currentSubScreen = SettingsSubScreen.AI_PARAMETERS
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -963,7 +959,16 @@ fun SettingsScreen(
                 AiService.SAMBANOVA to availableSambaNovaModels,
                 AiService.BAICHUAN to availableBaichuanModels,
                 AiService.STEPFUN to availableStepFunModels,
-                AiService.MINIMAX to availableMiniMaxModels
+                AiService.MINIMAX to availableMiniMaxModels,
+                AiService.NVIDIA to availableNvidiaModels,
+                AiService.REPLICATE to availableReplicateModels,
+                AiService.HUGGINGFACE to availableHuggingFaceInferenceModels,
+                AiService.LAMBDA to availableLambdaModels,
+                AiService.LEPTON to availableLeptonModels,
+                AiService.YI to availableYiModels,
+                AiService.DOUBAO to availableDoubaoModels,
+                AiService.REKA to availableRekaModels,
+                AiService.WRITER to availableWriterModels
             ),
             onSave = { newSwarm ->
                 val newSwarms = aiSettings.swarms + newSwarm
@@ -1002,7 +1007,16 @@ fun SettingsScreen(
                     AiService.SAMBANOVA to availableSambaNovaModels,
                     AiService.BAICHUAN to availableBaichuanModels,
                     AiService.STEPFUN to availableStepFunModels,
-                    AiService.MINIMAX to availableMiniMaxModels
+                    AiService.MINIMAX to availableMiniMaxModels,
+                    AiService.NVIDIA to availableNvidiaModels,
+                    AiService.REPLICATE to availableReplicateModels,
+                    AiService.HUGGINGFACE to availableHuggingFaceInferenceModels,
+                    AiService.LAMBDA to availableLambdaModels,
+                    AiService.LEPTON to availableLeptonModels,
+                    AiService.YI to availableYiModels,
+                    AiService.DOUBAO to availableDoubaoModels,
+                    AiService.REKA to availableRekaModels,
+                    AiService.WRITER to availableWriterModels
                 ),
                 onSave = { updatedSwarm ->
                     val newSwarms = aiSettings.swarms.map { if (it.id == updatedSwarm.id) updatedSwarm else it }
@@ -1062,42 +1076,42 @@ fun SettingsScreen(
                 onNavigateHome = onNavigateHome
             )
         }
-        SettingsSubScreen.AI_PARAMS -> AiParamsListScreen(
+        SettingsSubScreen.AI_PARAMETERS -> AiParametersListScreen(
             aiSettings = aiSettings,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
-            onAddParams = { currentSubScreen = SettingsSubScreen.AI_ADD_PARAMS },
-            onEditParams = { paramsId ->
-                editingParamsId = paramsId
-                currentSubScreen = SettingsSubScreen.AI_EDIT_PARAMS
+            onAddParameters = { currentSubScreen = SettingsSubScreen.AI_ADD_PARAMETERS },
+            onEditParameters = { paramsId ->
+                editingParametersId = paramsId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_PARAMETERS
             }
         )
-        SettingsSubScreen.AI_ADD_PARAMS -> ParamsEditScreen(
+        SettingsSubScreen.AI_ADD_PARAMETERS -> ParametersEditScreen(
             params = null,
-            existingNames = aiSettings.params.map { it.name }.toSet(),
+            existingNames = aiSettings.parameters.map { it.name }.toSet(),
             onSave = { newParams ->
-                val newParamsList = aiSettings.params + newParams
-                onSaveAi(aiSettings.copy(params = newParamsList))
-                currentSubScreen = SettingsSubScreen.AI_PARAMS
+                val newParamsList = aiSettings.parameters + newParams
+                onSaveAi(aiSettings.copy(parameters = newParamsList))
+                currentSubScreen = SettingsSubScreen.AI_PARAMETERS
             },
-            onBack = { currentSubScreen = SettingsSubScreen.AI_PARAMS },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_PARAMETERS },
             onNavigateHome = onNavigateHome
         )
-        SettingsSubScreen.AI_EDIT_PARAMS -> {
-            val params = editingParamsId?.let { aiSettings.getParamsById(it) }
-            ParamsEditScreen(
+        SettingsSubScreen.AI_EDIT_PARAMETERS -> {
+            val params = editingParametersId?.let { aiSettings.getParametersById(it) }
+            ParametersEditScreen(
                 params = params,
-                existingNames = aiSettings.params.filter { it.id != editingParamsId }.map { it.name }.toSet(),
+                existingNames = aiSettings.parameters.filter { it.id != editingParametersId }.map { it.name }.toSet(),
                 onSave = { updatedParams ->
-                    val newParamsList = aiSettings.params.map { if (it.id == updatedParams.id) updatedParams else it }
-                    onSaveAi(aiSettings.copy(params = newParamsList))
-                    editingParamsId = null
-                    currentSubScreen = SettingsSubScreen.AI_PARAMS
+                    val newParamsList = aiSettings.parameters.map { if (it.id == updatedParams.id) updatedParams else it }
+                    onSaveAi(aiSettings.copy(parameters = newParamsList))
+                    editingParametersId = null
+                    currentSubScreen = SettingsSubScreen.AI_PARAMETERS
                 },
                 onBack = {
-                    editingParamsId = null
-                    currentSubScreen = SettingsSubScreen.AI_PARAMS
+                    editingParametersId = null
+                    currentSubScreen = SettingsSubScreen.AI_PARAMETERS
                 },
                 onNavigateHome = onNavigateHome
             )

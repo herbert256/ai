@@ -65,6 +65,7 @@ object AiReportStorage {
     private val gson = Gson()
     private val lock = ReentrantLock()
 
+    @Volatile
     private var prefs: SharedPreferences? = null
 
     /**
@@ -72,7 +73,11 @@ object AiReportStorage {
      */
     fun init(context: Context) {
         if (prefs == null) {
-            prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            lock.withLock {
+                if (prefs == null) {
+                    prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                }
+            }
         }
     }
 

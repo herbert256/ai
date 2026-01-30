@@ -47,7 +47,7 @@ fun HelpScreen(
             // Welcome section
             HelpSection(
                 title = "Welcome to AI",
-                content = "Create AI-powered reports and have conversations using 13 different AI services. " +
+                content = "Create AI-powered reports and have conversations using ${com.ai.data.AiService.entries.size} different AI services. " +
                     "Configure multiple agents with custom parameters and endpoints, organize them into flocks, " +
                     "compare responses side-by-side, track costs, and chat with any AI model using real-time streaming."
             )
@@ -254,7 +254,7 @@ fun HelpScreen(
             HelpSection(
                 title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
-                content = "13 AI services supported:\n\n" +
+                content = "${com.ai.data.AiService.entries.size} AI services supported:\n\n" +
                     "• OpenAI - GPT-4o, GPT-5.x, o3, o4\n" +
                     "  Endpoints: Chat Completions, Responses API\n" +
                     "• Anthropic - Claude 4, Claude 3.5 (hardcoded list)\n" +
@@ -422,10 +422,10 @@ fun HelpScreen(
                     "• Includes model list URLs and admin URLs\n" +
                     "• Includes manual pricing overrides\n" +
                     "• Includes Hugging Face API key\n" +
-                    "• JSON format (version 11)\n\n" +
+                    "• JSON format (version 14)\n\n" +
                     "Import:\n" +
                     "• From file picker or clipboard\n" +
-                    "• Requires version 11\n" +
+                    "• Requires version 11-14\n" +
                     "• All settings restored including endpoints\n\n" +
                     "Refresh model lists: Updates all API-source providers at once."
             )

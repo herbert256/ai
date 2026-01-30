@@ -21,13 +21,14 @@ object PricingCache {
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000  // 7 days in milliseconds
 
     private val gson = Gson()
+    private val lock = Any()
 
     // In-memory cache for quick access
-    private var manualPricing: MutableMap<String, ModelPricing>? = null
-    private var openRouterPricing: Map<String, ModelPricing>? = null
-    private var litellmPricing: Map<String, ModelPricing>? = null
-    private var openRouterTimestamp: Long = 0
-    private var litellmTimestamp: Long = 0
+    @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
+    @Volatile private var openRouterPricing: Map<String, ModelPricing>? = null
+    @Volatile private var litellmPricing: Map<String, ModelPricing>? = null
+    @Volatile private var openRouterTimestamp: Long = 0
+    @Volatile private var litellmTimestamp: Long = 0
 
     /**
      * Model pricing information.
@@ -91,16 +92,16 @@ object PricingCache {
      * Prices are per token (not per million).
      */
     fun setManualPricing(context: Context, provider: AiService, model: String, promptPrice: Double, completionPrice: Double) {
-        ensureLoaded(context)
-        val key = "${provider.name}:$model"
-        val pricing = ModelPricing(model, promptPrice, completionPrice, "OVERRIDE")
+        synchronized(lock) {
+            ensureLoaded(context)
+            val key = "${provider.name}:$model"
+            val pricing = ModelPricing(model, promptPrice, completionPrice, "OVERRIDE")
 
-        if (manualPricing == null) {
-            manualPricing = mutableMapOf()
+            val map = manualPricing ?: mutableMapOf<String, ModelPricing>().also { manualPricing = it }
+            map[key] = pricing
+            saveManualPricing(context)
+            android.util.Log.d("PricingCache", "Set manual pricing for $key")
         }
-        manualPricing!![key] = pricing
-        saveManualPricing(context)
-        android.util.Log.d("PricingCache", "Set manual pricing for $key")
     }
 
     /**
@@ -185,9 +186,9 @@ object PricingCache {
             pricing[model]?.let { return it }
 
             // Try with provider prefix
-            val LITELLMPrefix = getLiteLLMPrefix(provider)
-            if (LITELLMPrefix != null) {
-                pricing["$LITELLMPrefix/$model"]?.let { return it }
+            val litellmPrefix = getLiteLLMPrefix(provider)
+            if (litellmPrefix != null) {
+                pricing["$litellmPrefix/$model"]?.let { return it }
             }
         }
 
@@ -312,28 +313,30 @@ object PricingCache {
     }
 
     private fun ensureLoaded(context: Context) {
-        if (manualPricing == null) {
-            loadManualPricing(context)
-        }
-        if (openRouterPricing == null) {
-            loadFromPrefs(context)
-        }
-        if (litellmPricing == null) {
-            // First try loading from prefs cache
-            val prefs = getPrefs(context)
-            val LITELLMJson = prefs.getString(KEY_LITELLM_PRICING, null)
-            if (LITELLMJson != null) {
-                try {
-                    val type = object : TypeToken<Map<String, ModelPricing>>() {}.type
-                    litellmPricing = gson.fromJson(LITELLMJson, type)
-                    litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0)
-                } catch (e: Exception) {
-                    android.util.Log.w("PricingCache", "Failed to load LiteLLM cache: ${e.message}")
-                }
+        synchronized(lock) {
+            if (manualPricing == null) {
+                loadManualPricing(context)
             }
-            // If still null, parse from assets
+            if (openRouterPricing == null) {
+                loadFromPrefs(context)
+            }
             if (litellmPricing == null) {
-                refreshLiteLLMPricing(context)
+                // First try loading from prefs cache
+                val prefs = getPrefs(context)
+                val litellmJson = prefs.getString(KEY_LITELLM_PRICING, null)
+                if (litellmJson != null) {
+                    try {
+                        val type = object : TypeToken<Map<String, ModelPricing>>() {}.type
+                        litellmPricing = gson.fromJson(litellmJson, type)
+                        litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0)
+                    } catch (e: Exception) {
+                        android.util.Log.w("PricingCache", "Failed to load LiteLLM cache: ${e.message}")
+                    }
+                }
+                // If still null, parse from assets
+                if (litellmPricing == null) {
+                    refreshLiteLLMPricing(context)
+                }
             }
         }
     }

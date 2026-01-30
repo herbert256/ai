@@ -53,7 +53,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithChatGptChatCompletions(apiK
             // Strategy 2: Get reasoning_content from first choice (DeepSeek)
                 ?: choices.firstOrNull()?.message?.reasoning_content
             // Strategy 3: Try any choice with non-null content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
             // Strategy 4: Try any choice with reasoning_content
                 ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
         }
@@ -253,7 +253,6 @@ internal suspend fun AiAnalysisRepository.analyzeWithGrok(apiKey: String, prompt
     }
 
     val searchValue = if (params?.searchEnabled == true) true else null
-    android.util.Log.d("GrokAPI", "analyzeWithGrok - params.searchEnabled=${params?.searchEnabled}, searchValue=$searchValue")
     val request = GrokRequest(
         model = model,
         messages = messages,
@@ -267,7 +266,6 @@ internal suspend fun AiAnalysisRepository.analyzeWithGrok(apiKey: String, prompt
         seed = params?.seed,
         search = searchValue
     )
-    android.util.Log.d("GrokAPI", "analyzeWithGrok - request.search=${request.search}")
     val response = grokApi.createChatCompletion(
         authorization = "Bearer $apiKey",
         request = request
@@ -281,7 +279,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithGrok(apiKey: String, prompt
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val searchResults = body?.search_results  // Grok may return search results
         val rawUsageJson = formatUsageJson(body?.usage)
@@ -340,7 +338,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithGroq(apiKey: String, prompt
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -400,7 +398,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithDeepSeek(apiKey: String, pr
             val message = choices.firstOrNull()?.message
             message?.content
                 ?: message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
                 ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
         }
         val searchResults = body?.search_results
@@ -460,7 +458,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithMistral(apiKey: String, pro
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val searchResults = body?.search_results
         val rawUsageJson = formatUsageJson(body?.usage)
@@ -515,18 +513,13 @@ internal suspend fun AiAnalysisRepository.analyzeWithPerplexity(apiKey: String, 
 
     val headers = formatHeaders(response.headers())
     val statusCode = response.code()
-    android.util.Log.d("PerplexityAPI", "Response code: $statusCode, isSuccessful: ${response.isSuccessful}")
     return if (response.isSuccessful) {
         val body = response.body()
-        android.util.Log.d("PerplexityAPI", "Body: choices=${body?.choices?.size}, error=${body?.error?.message}")
-        // Try multiple parsing strategies for content extraction
         val content = body?.choices?.let { choices ->
-            android.util.Log.d("PerplexityAPI", "First choice message: ${choices.firstOrNull()?.message}")
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
-        android.util.Log.d("PerplexityAPI", "Extracted content: ${content?.take(100) ?: "NULL"}")
         val citations = body?.citations  // Extract citations from Perplexity response
         val searchResults = body?.search_results  // Extract search results
         val relatedQuestions = body?.related_questions  // Extract related questions
@@ -588,7 +581,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithTogether(apiKey: String, pr
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val searchResults = body?.search_results
         val rawUsageJson = formatUsageJson(body?.usage)
@@ -647,7 +640,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenRouter(apiKey: String, 
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val searchResults = body?.search_results
         val rawUsageJson = formatUsageJson(body?.usage)
@@ -706,7 +699,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithSiliconFlow(apiKey: String,
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -765,7 +758,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithZai(apiKey: String, prompt:
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -823,7 +816,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithMoonshot(apiKey: String, pr
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -876,7 +869,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithCohere(apiKey: String, prom
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -929,7 +922,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithAi21(apiKey: String, prompt
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -982,7 +975,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithDashScope(apiKey: String, p
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1035,7 +1028,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithFireworks(apiKey: String, p
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1088,7 +1081,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithCerebras(apiKey: String, pr
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1141,7 +1134,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithSambaNova(apiKey: String, p
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1194,7 +1187,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithBaichuan(apiKey: String, pr
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1247,7 +1240,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithStepFun(apiKey: String, pro
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1300,7 +1293,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithMiniMax(apiKey: String, pro
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1353,7 +1346,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithNvidia(apiKey: String, prom
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1406,7 +1399,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithReplicate(apiKey: String, p
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1459,7 +1452,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithHuggingFaceInference(apiKey
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1512,7 +1505,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithLambda(apiKey: String, prom
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1565,7 +1558,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithLepton(apiKey: String, prom
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1618,7 +1611,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithYi(apiKey: String, prompt: 
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1671,7 +1664,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithDoubao(apiKey: String, prom
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1724,7 +1717,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithReka(apiKey: String, prompt
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {
@@ -1777,7 +1770,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithWriter(apiKey: String, prom
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.content
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.content }
+                ?: choices.firstNotNullOfOrNull { it.message.content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.let {

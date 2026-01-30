@@ -309,8 +309,12 @@ data class AiFlock(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val agentIds: List<String> = emptyList(),  // List of agent IDs in this flock
-    val paramsId: String? = null       // Reference to AiParams ID (optional parameter preset)
-)
+    val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
+) {
+    // Backward compatibility: read old single paramsId
+    @Deprecated("Use paramsIds instead", ReplaceWith("paramsIds"))
+    val parametersId: String? get() = paramsIds.firstOrNull()
+}
 
 /**
  * AI Swarm Member - a provider/model combination within a swarm.
@@ -329,14 +333,18 @@ data class AiSwarm(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val members: List<AiSwarmMember> = emptyList(),  // List of provider/model combinations
-    val paramsId: String? = null       // Reference to AiParams ID (optional parameter preset)
-)
+    val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
+) {
+    // Backward compatibility: read old single paramsId
+    @Deprecated("Use paramsIds instead", ReplaceWith("paramsIds"))
+    val parametersId: String? get() = paramsIds.firstOrNull()
+}
 
 /**
- * AI Params - a named parameter preset that can be reused across agents or reports.
+ * AI Parameters - a named parameter preset that can be reused across agents or reports.
  * All parameters default to null/off, meaning they won't override provider defaults.
  */
-data class AiParams(
+data class AiParameters(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val temperature: Float? = null,
@@ -412,225 +420,225 @@ data class AiSettings(
     val chatGptManualModels: List<String> = emptyList(),
     val chatGptAdminUrl: String = AiService.OPENAI.adminUrl,
     val chatGptModelListUrl: String = "",  // Custom model list URL (empty = use default)
-    val chatGptParamsId: String? = null,   // Default parameters preset for this provider
+    val chatGptParametersIds: List<String> = emptyList(),   // Default parameters presets for this provider
     val claudeApiKey: String = "",
     val claudeModel: String = AiService.ANTHROPIC.defaultModel,
     val claudeModelSource: ModelSource = ModelSource.API,
     val claudeManualModels: List<String> = CLAUDE_MODELS,
     val claudeAdminUrl: String = AiService.ANTHROPIC.adminUrl,
     val claudeModelListUrl: String = "",
-    val claudeParamsId: String? = null,
+    val claudeParametersIds: List<String> = emptyList(),
     val geminiApiKey: String = "",
     val geminiModel: String = AiService.GOOGLE.defaultModel,
     val geminiModelSource: ModelSource = ModelSource.API,
     val geminiManualModels: List<String> = emptyList(),
     val geminiAdminUrl: String = AiService.GOOGLE.adminUrl,
     val geminiModelListUrl: String = "",
-    val geminiParamsId: String? = null,
+    val geminiParametersIds: List<String> = emptyList(),
     val grokApiKey: String = "",
     val grokModel: String = AiService.XAI.defaultModel,
     val grokModelSource: ModelSource = ModelSource.API,
     val grokManualModels: List<String> = emptyList(),
     val grokAdminUrl: String = AiService.XAI.adminUrl,
     val grokModelListUrl: String = "",
-    val grokParamsId: String? = null,
+    val grokParametersIds: List<String> = emptyList(),
     val groqApiKey: String = "",
     val groqModel: String = AiService.GROQ.defaultModel,
     val groqModelSource: ModelSource = ModelSource.API,
     val groqManualModels: List<String> = emptyList(),
     val groqAdminUrl: String = AiService.GROQ.adminUrl,
     val groqModelListUrl: String = "",
-    val groqParamsId: String? = null,
+    val groqParametersIds: List<String> = emptyList(),
     val deepSeekApiKey: String = "",
     val deepSeekModel: String = AiService.DEEPSEEK.defaultModel,
     val deepSeekModelSource: ModelSource = ModelSource.API,
     val deepSeekManualModels: List<String> = emptyList(),
     val deepSeekAdminUrl: String = AiService.DEEPSEEK.adminUrl,
     val deepSeekModelListUrl: String = "",
-    val deepSeekParamsId: String? = null,
+    val deepSeekParametersIds: List<String> = emptyList(),
     val mistralApiKey: String = "",
     val mistralModel: String = AiService.MISTRAL.defaultModel,
     val mistralModelSource: ModelSource = ModelSource.API,
     val mistralManualModels: List<String> = emptyList(),
     val mistralAdminUrl: String = AiService.MISTRAL.adminUrl,
     val mistralModelListUrl: String = "",
-    val mistralParamsId: String? = null,
+    val mistralParametersIds: List<String> = emptyList(),
     val perplexityApiKey: String = "",
     val perplexityModel: String = AiService.PERPLEXITY.defaultModel,
     val perplexityModelSource: ModelSource = ModelSource.MANUAL,
     val perplexityManualModels: List<String> = PERPLEXITY_MODELS,
     val perplexityAdminUrl: String = AiService.PERPLEXITY.adminUrl,
     val perplexityModelListUrl: String = "",
-    val perplexityParamsId: String? = null,
+    val perplexityParametersIds: List<String> = emptyList(),
     val togetherApiKey: String = "",
     val togetherModel: String = AiService.TOGETHER.defaultModel,
     val togetherModelSource: ModelSource = ModelSource.API,
     val togetherManualModels: List<String> = emptyList(),
     val togetherAdminUrl: String = AiService.TOGETHER.adminUrl,
     val togetherModelListUrl: String = "",
-    val togetherParamsId: String? = null,
+    val togetherParametersIds: List<String> = emptyList(),
     val openRouterApiKey: String = "",
     val openRouterModel: String = AiService.OPENROUTER.defaultModel,
     val openRouterModelSource: ModelSource = ModelSource.API,
     val openRouterManualModels: List<String> = emptyList(),
     val openRouterAdminUrl: String = AiService.OPENROUTER.adminUrl,
     val openRouterModelListUrl: String = "",
-    val openRouterParamsId: String? = null,
+    val openRouterParametersIds: List<String> = emptyList(),
     val siliconFlowApiKey: String = "",
     val siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
     val siliconFlowModelSource: ModelSource = ModelSource.API,
     val siliconFlowManualModels: List<String> = SILICONFLOW_MODELS,
     val siliconFlowAdminUrl: String = AiService.SILICONFLOW.adminUrl,
     val siliconFlowModelListUrl: String = "",
-    val siliconFlowParamsId: String? = null,
+    val siliconFlowParametersIds: List<String> = emptyList(),
     val zaiApiKey: String = "",
     val zaiModel: String = AiService.ZAI.defaultModel,
     val zaiModelSource: ModelSource = ModelSource.API,
     val zaiManualModels: List<String> = ZAI_MODELS,
     val zaiAdminUrl: String = AiService.ZAI.adminUrl,
     val zaiModelListUrl: String = "",
-    val zaiParamsId: String? = null,
+    val zaiParametersIds: List<String> = emptyList(),
     val moonshotApiKey: String = "",
     val moonshotModel: String = AiService.MOONSHOT.defaultModel,
     val moonshotModelSource: ModelSource = ModelSource.API,
     val moonshotManualModels: List<String> = MOONSHOT_MODELS,
     val moonshotAdminUrl: String = AiService.MOONSHOT.adminUrl,
     val moonshotModelListUrl: String = "",
-    val moonshotParamsId: String? = null,
+    val moonshotParametersIds: List<String> = emptyList(),
     val cohereApiKey: String = "",
     val cohereModel: String = AiService.COHERE.defaultModel,
     val cohereModelSource: ModelSource = ModelSource.MANUAL,
     val cohereManualModels: List<String> = COHERE_MODELS,
     val cohereAdminUrl: String = AiService.COHERE.adminUrl,
     val cohereModelListUrl: String = "",
-    val cohereParamsId: String? = null,
+    val cohereParametersIds: List<String> = emptyList(),
     val ai21ApiKey: String = "",
     val ai21Model: String = AiService.AI21.defaultModel,
     val ai21ModelSource: ModelSource = ModelSource.MANUAL,
     val ai21ManualModels: List<String> = AI21_MODELS,
     val ai21AdminUrl: String = AiService.AI21.adminUrl,
     val ai21ModelListUrl: String = "",
-    val ai21ParamsId: String? = null,
+    val ai21ParametersIds: List<String> = emptyList(),
     val dashScopeApiKey: String = "",
     val dashScopeModel: String = AiService.DASHSCOPE.defaultModel,
     val dashScopeModelSource: ModelSource = ModelSource.MANUAL,
     val dashScopeManualModels: List<String> = DASHSCOPE_MODELS,
     val dashScopeAdminUrl: String = AiService.DASHSCOPE.adminUrl,
     val dashScopeModelListUrl: String = "",
-    val dashScopeParamsId: String? = null,
+    val dashScopeParametersIds: List<String> = emptyList(),
     val fireworksApiKey: String = "",
     val fireworksModel: String = AiService.FIREWORKS.defaultModel,
     val fireworksModelSource: ModelSource = ModelSource.MANUAL,
     val fireworksManualModels: List<String> = FIREWORKS_MODELS,
     val fireworksAdminUrl: String = AiService.FIREWORKS.adminUrl,
     val fireworksModelListUrl: String = "",
-    val fireworksParamsId: String? = null,
+    val fireworksParametersIds: List<String> = emptyList(),
     val cerebrasApiKey: String = "",
     val cerebrasModel: String = AiService.CEREBRAS.defaultModel,
     val cerebrasModelSource: ModelSource = ModelSource.MANUAL,
     val cerebrasManualModels: List<String> = CEREBRAS_MODELS,
     val cerebrasAdminUrl: String = AiService.CEREBRAS.adminUrl,
     val cerebrasModelListUrl: String = "",
-    val cerebrasParamsId: String? = null,
+    val cerebrasParametersIds: List<String> = emptyList(),
     val sambaNovaApiKey: String = "",
     val sambaNovaModel: String = AiService.SAMBANOVA.defaultModel,
     val sambaNovaModelSource: ModelSource = ModelSource.MANUAL,
     val sambaNovaManualModels: List<String> = SAMBANOVA_MODELS,
     val sambaNovaAdminUrl: String = AiService.SAMBANOVA.adminUrl,
     val sambaNovaModelListUrl: String = "",
-    val sambaNovaParamsId: String? = null,
+    val sambaNovaParametersIds: List<String> = emptyList(),
     val baichuanApiKey: String = "",
     val baichuanModel: String = AiService.BAICHUAN.defaultModel,
     val baichuanModelSource: ModelSource = ModelSource.MANUAL,
     val baichuanManualModels: List<String> = BAICHUAN_MODELS,
     val baichuanAdminUrl: String = AiService.BAICHUAN.adminUrl,
     val baichuanModelListUrl: String = "",
-    val baichuanParamsId: String? = null,
+    val baichuanParametersIds: List<String> = emptyList(),
     val stepFunApiKey: String = "",
     val stepFunModel: String = AiService.STEPFUN.defaultModel,
     val stepFunModelSource: ModelSource = ModelSource.MANUAL,
     val stepFunManualModels: List<String> = STEPFUN_MODELS,
     val stepFunAdminUrl: String = AiService.STEPFUN.adminUrl,
     val stepFunModelListUrl: String = "",
-    val stepFunParamsId: String? = null,
+    val stepFunParametersIds: List<String> = emptyList(),
     val miniMaxApiKey: String = "",
     val miniMaxModel: String = AiService.MINIMAX.defaultModel,
     val miniMaxModelSource: ModelSource = ModelSource.MANUAL,
     val miniMaxManualModels: List<String> = MINIMAX_MODELS,
     val miniMaxAdminUrl: String = AiService.MINIMAX.adminUrl,
     val miniMaxModelListUrl: String = "",
-    val miniMaxParamsId: String? = null,
+    val miniMaxParametersIds: List<String> = emptyList(),
     val nvidiaApiKey: String = "",
     val nvidiaModel: String = AiService.NVIDIA.defaultModel,
     val nvidiaModelSource: ModelSource = ModelSource.API,
     val nvidiaManualModels: List<String> = emptyList(),
     val nvidiaAdminUrl: String = AiService.NVIDIA.adminUrl,
     val nvidiaModelListUrl: String = "",
-    val nvidiaParamsId: String? = null,
+    val nvidiaParametersIds: List<String> = emptyList(),
     val replicateApiKey: String = "",
     val replicateModel: String = AiService.REPLICATE.defaultModel,
     val replicateModelSource: ModelSource = ModelSource.MANUAL,
     val replicateManualModels: List<String> = REPLICATE_MODELS,
     val replicateAdminUrl: String = AiService.REPLICATE.adminUrl,
     val replicateModelListUrl: String = "",
-    val replicateParamsId: String? = null,
+    val replicateParametersIds: List<String> = emptyList(),
     val huggingFaceInferenceApiKey: String = "",
     val huggingFaceInferenceModel: String = AiService.HUGGINGFACE.defaultModel,
     val huggingFaceInferenceModelSource: ModelSource = ModelSource.MANUAL,
     val huggingFaceInferenceManualModels: List<String> = HUGGINGFACE_INFERENCE_MODELS,
     val huggingFaceInferenceAdminUrl: String = AiService.HUGGINGFACE.adminUrl,
     val huggingFaceInferenceModelListUrl: String = "",
-    val huggingFaceInferenceParamsId: String? = null,
+    val huggingFaceInferenceParametersIds: List<String> = emptyList(),
     val lambdaApiKey: String = "",
     val lambdaModel: String = AiService.LAMBDA.defaultModel,
     val lambdaModelSource: ModelSource = ModelSource.API,
     val lambdaManualModels: List<String> = emptyList(),
     val lambdaAdminUrl: String = AiService.LAMBDA.adminUrl,
     val lambdaModelListUrl: String = "",
-    val lambdaParamsId: String? = null,
+    val lambdaParametersIds: List<String> = emptyList(),
     val leptonApiKey: String = "",
     val leptonModel: String = AiService.LEPTON.defaultModel,
     val leptonModelSource: ModelSource = ModelSource.MANUAL,
     val leptonManualModels: List<String> = LEPTON_MODELS,
     val leptonAdminUrl: String = AiService.LEPTON.adminUrl,
     val leptonModelListUrl: String = "",
-    val leptonParamsId: String? = null,
+    val leptonParametersIds: List<String> = emptyList(),
     val yiApiKey: String = "",
     val yiModel: String = AiService.YI.defaultModel,
     val yiModelSource: ModelSource = ModelSource.API,
     val yiManualModels: List<String> = YI_MODELS,
     val yiAdminUrl: String = AiService.YI.adminUrl,
     val yiModelListUrl: String = "",
-    val yiParamsId: String? = null,
+    val yiParametersIds: List<String> = emptyList(),
     val doubaoApiKey: String = "",
     val doubaoModel: String = AiService.DOUBAO.defaultModel,
     val doubaoModelSource: ModelSource = ModelSource.MANUAL,
     val doubaoManualModels: List<String> = DOUBAO_MODELS,
     val doubaoAdminUrl: String = AiService.DOUBAO.adminUrl,
     val doubaoModelListUrl: String = "",
-    val doubaoParamsId: String? = null,
+    val doubaoParametersIds: List<String> = emptyList(),
     val rekaApiKey: String = "",
     val rekaModel: String = AiService.REKA.defaultModel,
     val rekaModelSource: ModelSource = ModelSource.MANUAL,
     val rekaManualModels: List<String> = REKA_MODELS,
     val rekaAdminUrl: String = AiService.REKA.adminUrl,
     val rekaModelListUrl: String = "",
-    val rekaParamsId: String? = null,
+    val rekaParametersIds: List<String> = emptyList(),
     val writerApiKey: String = "",
     val writerModel: String = AiService.WRITER.defaultModel,
     val writerModelSource: ModelSource = ModelSource.API,
     val writerManualModels: List<String> = WRITER_MODELS,
     val writerAdminUrl: String = AiService.WRITER.adminUrl,
     val writerModelListUrl: String = "",
-    val writerParamsId: String? = null,
+    val writerParametersIds: List<String> = emptyList(),
     // AI Agents
     val agents: List<AiAgent> = emptyList(),
     // AI Flocks
     val flocks: List<AiFlock> = emptyList(),
     // AI Swarms
     val swarms: List<AiSwarm> = emptyList(),
-    // AI Params (reusable parameter presets)
-    val params: List<AiParams> = emptyList(),
+    // AI Parameters (reusable parameter presets)
+    val parameters: List<AiParameters> = emptyList(),
     // AI Prompts (internal app prompts)
     val prompts: List<AiPrompt> = emptyList(),
     // API Endpoints per provider (multiple endpoints allowed, one can be default)
@@ -931,9 +939,9 @@ data class AiSettings(
     fun getPromptByName(name: String): AiPrompt? = prompts.find { it.name.equals(name, ignoreCase = true) }
 
     // Helper methods for params
-    fun getParamsById(id: String): AiParams? = params.find { it.id == id }
+    fun getParametersById(id: String): AiParameters? = parameters.find { it.id == id }
 
-    fun getParamsByName(name: String): AiParams? = params.find { it.name.equals(name, ignoreCase = true) }
+    fun getParametersByName(name: String): AiParameters? = parameters.find { it.name.equals(name, ignoreCase = true) }
 
     fun getPromptById(id: String): AiPrompt? = prompts.find { it.id == id }
 
@@ -1172,80 +1180,113 @@ data class AiSettings(
     }
 
     /**
-     * Get the default parameters preset ID for a provider.
+     * Get the default parameters preset IDs for a provider.
      */
-    fun getParamsId(service: AiService): String? {
+    fun getParametersIds(service: AiService): List<String> {
         return when (service) {
-            AiService.OPENAI -> chatGptParamsId
-            AiService.ANTHROPIC -> claudeParamsId
-            AiService.GOOGLE -> geminiParamsId
-            AiService.XAI -> grokParamsId
-            AiService.GROQ -> groqParamsId
-            AiService.DEEPSEEK -> deepSeekParamsId
-            AiService.MISTRAL -> mistralParamsId
-            AiService.PERPLEXITY -> perplexityParamsId
-            AiService.TOGETHER -> togetherParamsId
-            AiService.OPENROUTER -> openRouterParamsId
-            AiService.SILICONFLOW -> siliconFlowParamsId
-            AiService.ZAI -> zaiParamsId
-            AiService.MOONSHOT -> moonshotParamsId
-            AiService.COHERE -> cohereParamsId
-            AiService.AI21 -> ai21ParamsId
-            AiService.DASHSCOPE -> dashScopeParamsId
-            AiService.FIREWORKS -> fireworksParamsId
-            AiService.CEREBRAS -> cerebrasParamsId
-            AiService.SAMBANOVA -> sambaNovaParamsId
-            AiService.BAICHUAN -> baichuanParamsId
-            AiService.STEPFUN -> stepFunParamsId
-            AiService.MINIMAX -> miniMaxParamsId
-            AiService.NVIDIA -> nvidiaParamsId
-            AiService.REPLICATE -> replicateParamsId
-            AiService.HUGGINGFACE -> huggingFaceInferenceParamsId
-            AiService.LAMBDA -> lambdaParamsId
-            AiService.LEPTON -> leptonParamsId
-            AiService.YI -> yiParamsId
-            AiService.DOUBAO -> doubaoParamsId
-            AiService.REKA -> rekaParamsId
-            AiService.WRITER -> writerParamsId
+            AiService.OPENAI -> chatGptParametersIds
+            AiService.ANTHROPIC -> claudeParametersIds
+            AiService.GOOGLE -> geminiParametersIds
+            AiService.XAI -> grokParametersIds
+            AiService.GROQ -> groqParametersIds
+            AiService.DEEPSEEK -> deepSeekParametersIds
+            AiService.MISTRAL -> mistralParametersIds
+            AiService.PERPLEXITY -> perplexityParametersIds
+            AiService.TOGETHER -> togetherParametersIds
+            AiService.OPENROUTER -> openRouterParametersIds
+            AiService.SILICONFLOW -> siliconFlowParametersIds
+            AiService.ZAI -> zaiParametersIds
+            AiService.MOONSHOT -> moonshotParametersIds
+            AiService.COHERE -> cohereParametersIds
+            AiService.AI21 -> ai21ParametersIds
+            AiService.DASHSCOPE -> dashScopeParametersIds
+            AiService.FIREWORKS -> fireworksParametersIds
+            AiService.CEREBRAS -> cerebrasParametersIds
+            AiService.SAMBANOVA -> sambaNovaParametersIds
+            AiService.BAICHUAN -> baichuanParametersIds
+            AiService.STEPFUN -> stepFunParametersIds
+            AiService.MINIMAX -> miniMaxParametersIds
+            AiService.NVIDIA -> nvidiaParametersIds
+            AiService.REPLICATE -> replicateParametersIds
+            AiService.HUGGINGFACE -> huggingFaceInferenceParametersIds
+            AiService.LAMBDA -> lambdaParametersIds
+            AiService.LEPTON -> leptonParametersIds
+            AiService.YI -> yiParametersIds
+            AiService.DOUBAO -> doubaoParametersIds
+            AiService.REKA -> rekaParametersIds
+            AiService.WRITER -> writerParametersIds
         }
     }
 
     /**
-     * Set the default parameters preset ID for a provider.
+     * Set the default parameters preset IDs for a provider.
      */
-    fun withParamsId(service: AiService, paramsId: String?): AiSettings {
+    fun withParametersIds(service: AiService, paramsIds: List<String>): AiSettings {
         return when (service) {
-            AiService.OPENAI -> copy(chatGptParamsId = paramsId)
-            AiService.ANTHROPIC -> copy(claudeParamsId = paramsId)
-            AiService.GOOGLE -> copy(geminiParamsId = paramsId)
-            AiService.XAI -> copy(grokParamsId = paramsId)
-            AiService.GROQ -> copy(groqParamsId = paramsId)
-            AiService.DEEPSEEK -> copy(deepSeekParamsId = paramsId)
-            AiService.MISTRAL -> copy(mistralParamsId = paramsId)
-            AiService.PERPLEXITY -> copy(perplexityParamsId = paramsId)
-            AiService.TOGETHER -> copy(togetherParamsId = paramsId)
-            AiService.OPENROUTER -> copy(openRouterParamsId = paramsId)
-            AiService.SILICONFLOW -> copy(siliconFlowParamsId = paramsId)
-            AiService.ZAI -> copy(zaiParamsId = paramsId)
-            AiService.MOONSHOT -> copy(moonshotParamsId = paramsId)
-            AiService.COHERE -> copy(cohereParamsId = paramsId)
-            AiService.AI21 -> copy(ai21ParamsId = paramsId)
-            AiService.DASHSCOPE -> copy(dashScopeParamsId = paramsId)
-            AiService.FIREWORKS -> copy(fireworksParamsId = paramsId)
-            AiService.CEREBRAS -> copy(cerebrasParamsId = paramsId)
-            AiService.SAMBANOVA -> copy(sambaNovaParamsId = paramsId)
-            AiService.BAICHUAN -> copy(baichuanParamsId = paramsId)
-            AiService.STEPFUN -> copy(stepFunParamsId = paramsId)
-            AiService.MINIMAX -> copy(miniMaxParamsId = paramsId)
-            AiService.NVIDIA -> copy(nvidiaParamsId = paramsId)
-            AiService.REPLICATE -> copy(replicateParamsId = paramsId)
-            AiService.HUGGINGFACE -> copy(huggingFaceInferenceParamsId = paramsId)
-            AiService.LAMBDA -> copy(lambdaParamsId = paramsId)
-            AiService.LEPTON -> copy(leptonParamsId = paramsId)
-            AiService.YI -> copy(yiParamsId = paramsId)
-            AiService.DOUBAO -> copy(doubaoParamsId = paramsId)
-            AiService.REKA -> copy(rekaParamsId = paramsId)
-            AiService.WRITER -> copy(writerParamsId = paramsId)
+            AiService.OPENAI -> copy(chatGptParametersIds = paramsIds)
+            AiService.ANTHROPIC -> copy(claudeParametersIds = paramsIds)
+            AiService.GOOGLE -> copy(geminiParametersIds = paramsIds)
+            AiService.XAI -> copy(grokParametersIds = paramsIds)
+            AiService.GROQ -> copy(groqParametersIds = paramsIds)
+            AiService.DEEPSEEK -> copy(deepSeekParametersIds = paramsIds)
+            AiService.MISTRAL -> copy(mistralParametersIds = paramsIds)
+            AiService.PERPLEXITY -> copy(perplexityParametersIds = paramsIds)
+            AiService.TOGETHER -> copy(togetherParametersIds = paramsIds)
+            AiService.OPENROUTER -> copy(openRouterParametersIds = paramsIds)
+            AiService.SILICONFLOW -> copy(siliconFlowParametersIds = paramsIds)
+            AiService.ZAI -> copy(zaiParametersIds = paramsIds)
+            AiService.MOONSHOT -> copy(moonshotParametersIds = paramsIds)
+            AiService.COHERE -> copy(cohereParametersIds = paramsIds)
+            AiService.AI21 -> copy(ai21ParametersIds = paramsIds)
+            AiService.DASHSCOPE -> copy(dashScopeParametersIds = paramsIds)
+            AiService.FIREWORKS -> copy(fireworksParametersIds = paramsIds)
+            AiService.CEREBRAS -> copy(cerebrasParametersIds = paramsIds)
+            AiService.SAMBANOVA -> copy(sambaNovaParametersIds = paramsIds)
+            AiService.BAICHUAN -> copy(baichuanParametersIds = paramsIds)
+            AiService.STEPFUN -> copy(stepFunParametersIds = paramsIds)
+            AiService.MINIMAX -> copy(miniMaxParametersIds = paramsIds)
+            AiService.NVIDIA -> copy(nvidiaParametersIds = paramsIds)
+            AiService.REPLICATE -> copy(replicateParametersIds = paramsIds)
+            AiService.HUGGINGFACE -> copy(huggingFaceInferenceParametersIds = paramsIds)
+            AiService.LAMBDA -> copy(lambdaParametersIds = paramsIds)
+            AiService.LEPTON -> copy(leptonParametersIds = paramsIds)
+            AiService.YI -> copy(yiParametersIds = paramsIds)
+            AiService.DOUBAO -> copy(doubaoParametersIds = paramsIds)
+            AiService.REKA -> copy(rekaParametersIds = paramsIds)
+            AiService.WRITER -> copy(writerParametersIds = paramsIds)
+        }
+    }
+
+    /**
+     * Resolve a list of parameter preset IDs to AiParameters objects.
+     */
+    fun getParametersByIds(ids: List<String>): List<AiParameters> =
+        ids.mapNotNull { getParametersById(it) }
+
+    /**
+     * Merge multiple parameter presets in order. Later non-null fields override earlier ones.
+     * Returns null if no valid presets are found.
+     */
+    fun mergeParameters(ids: List<String>): AiAgentParameters? {
+        if (ids.isEmpty()) return null
+        val presets = getParametersByIds(ids)
+        if (presets.isEmpty()) return null
+        return presets.map { it.toAgentParameters() }.reduce { acc, params ->
+            AiAgentParameters(
+                temperature = params.temperature ?: acc.temperature,
+                maxTokens = params.maxTokens ?: acc.maxTokens,
+                topP = params.topP ?: acc.topP,
+                topK = params.topK ?: acc.topK,
+                frequencyPenalty = params.frequencyPenalty ?: acc.frequencyPenalty,
+                presencePenalty = params.presencePenalty ?: acc.presencePenalty,
+                systemPrompt = params.systemPrompt ?: acc.systemPrompt,
+                stopSequences = params.stopSequences ?: acc.stopSequences,
+                seed = params.seed ?: acc.seed,
+                responseFormatJson = if (params.responseFormatJson) true else acc.responseFormatJson,
+                searchEnabled = if (params.searchEnabled) true else acc.searchEnabled,
+                returnCitations = if (params.returnCitations) true else acc.returnCitations,
+                searchRecency = params.searchRecency ?: acc.searchRecency
+            )
         }
     }
 }
