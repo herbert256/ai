@@ -216,7 +216,8 @@ fun AiSetupScreen(
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onProviderStateChange: (AiService, String) -> Unit = { _, _ -> }
+    onProviderStateChange: (AiService, String) -> Unit = { _, _ -> },
+    onNavigateToCostConfig: () -> Unit = {}
 ) {
     val context = LocalContext.current
     // File picker launcher for importing AI configuration
@@ -310,6 +311,42 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
+        Spacer(modifier = Modifier.height(4.dp))
+        HorizontalDivider(color = Color(0xFF404040))
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Parameters card
+        val configuredParameters = aiSettings.parameters.size
+        AiSetupNavigationCard(
+            title = "Parameters",
+            description = "Reusable parameter presets for agents",
+            icon = "🎛",
+            count = "$configuredParameters configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) }
+        )
+
+        // Prompts card
+        val configuredPrompts = aiSettings.prompts.size
+        AiSetupNavigationCard(
+            title = "Prompts",
+            description = "Internal prompts for AI-powered features",
+            icon = "📝",
+            count = "$configuredPrompts configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
+        )
+
+        // Costs card
+        val manualPricingCount = remember(aiSettings) {
+            com.ai.data.PricingCache.getAllManualPricing(context).size
+        }
+        AiSetupNavigationCard(
+            title = "Costs",
+            description = "Configure manual price overrides per model",
+            icon = "💰",
+            count = "$manualPricingCount configured",
+            onClick = onNavigateToCostConfig
+        )
+
     }
 }
 
@@ -397,7 +434,7 @@ internal fun AiSetupNavigationCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {

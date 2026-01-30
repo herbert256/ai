@@ -35,7 +35,6 @@ fun AiHubScreen(
     onNavigateToCosts: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
-    onNavigateToAiSettings: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
     onNavigateToModelSearch: () -> Unit,
     viewModel: AiViewModel
@@ -61,7 +60,7 @@ fun AiHubScreen(
     val cardSpacing = 12.dp
 
     // Count cards that will be shown (all cards always shown, some may be disabled)
-    var cardCount = 10  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Settings, AI Housekeeping, Settings, Help
+    var cardCount = 9  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Housekeeping, Settings, Help
     val extraSpacing = if (uiState.generalSettings.developerMode) 64.dp else 32.dp  // 32dp before Settings + 32dp before Developer Options
 
     if (uiState.generalSettings.developerMode) cardCount += 1  // Developer Options
@@ -110,10 +109,6 @@ fun AiHubScreen(
 
             // AI Setup always shown and enabled
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // AI Settings requires at least 1 provider with API key
-            HubCard(icon = "\uD83D\uDCCB", title = "AI Settings", onClick = onNavigateToAiSettings, enabled = hasAnyProviderApiKey)
             Spacer(modifier = Modifier.height(12.dp))
 
             // AI Housekeeping requires at least 1 provider with API key
@@ -699,10 +694,10 @@ fun AiReportsScreen(
         Spacer(modifier = Modifier.height(6.dp))
 
         if (!isGenerating) {
-            // Action row: Parameters, Clear, Generate
+            // Action row: Parameters + Clear (left), Generate (right)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // Parameters button
                 var showParamsDialog by remember { mutableStateOf(false) }
@@ -710,11 +705,11 @@ fun AiReportsScreen(
                     onClick = { showParamsDialog = true },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
+                        containerColor = Color(0xFF8B5CF6)
                     )
                 ) {
                     Text(
-                        if (selectedParametersIds.isNotEmpty()) "\uD83D\uDCCE Params" else "Params",
+                        if (selectedParametersIds.isNotEmpty()) "\uD83D\uDCCE Parameters" else "Parameters",
                         fontSize = 13.sp, maxLines = 1
                     )
                 }
@@ -726,6 +721,8 @@ fun AiReportsScreen(
                         onDismiss = { showParamsDialog = false }
                     )
                 }
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Clear button
                 Button(
@@ -739,13 +736,15 @@ fun AiReportsScreen(
                     },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
+                        containerColor = Color(0xFF8B5CF6)
                     )
                 ) {
                     Text("Clear", fontSize = 13.sp, maxLines = 1)
                 }
 
-                // Generate button
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Generate button (right-aligned)
                 Button(
                     onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds) },
                     enabled = totalWorkers > 0,
@@ -1030,7 +1029,7 @@ fun AiReportsScreen(
                             // Build list of all available provider/model combinations (active providers only)
                             val allProviderModels = uiState.aiSettings.getActiveServices(uiState.generalSettings.developerMode)
                                 .flatMap { provider ->
-                                    val models = when (provider) {
+                                    val apiModels = when (provider) {
                                         com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
                                         com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
                                         com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
@@ -1063,7 +1062,9 @@ fun AiReportsScreen(
                                         com.ai.data.AiService.REKA -> uiState.availableRekaModels
                                         com.ai.data.AiService.WRITER -> uiState.availableWriterModels
                                     }
-                                    models.map { model -> provider to model }
+                                    val manualModels = uiState.aiSettings.getManualModels(provider)
+                                    val combined = (apiModels + manualModels).distinct()
+                                    combined.map { model -> provider to model }
                                 }
 
                             val filteredModels = allProviderModels

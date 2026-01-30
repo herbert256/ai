@@ -129,7 +129,7 @@ private fun JsonTreeView(nodes: List<JsonTreeNode>, isRootArray: Boolean = false
         } else {
             item { Text("{", color = JsonBraceColor, fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
         }
-        jsonTreeItems(this, nodes, depth = 1, pathPrefix = "", expandedPaths = expandedPaths, isTopLevel = true)
+        jsonTreeItems(this, nodes, depth = 1, pathPrefix = "", expandedPaths = expandedPaths)
         if (isRootArray) {
             item { Text("]", color = JsonBraceColor, fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
         } else {
@@ -143,8 +143,7 @@ private fun jsonTreeItems(
     nodes: List<JsonTreeNode>,
     depth: Int,
     pathPrefix: String,
-    expandedPaths: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
-    isTopLevel: Boolean
+    expandedPaths: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>
 ) {
     nodes.forEachIndexed { index, node ->
         val path = if (pathPrefix.isEmpty()) (node.key ?: "$index") else "$pathPrefix.${node.key ?: "$index"}"
@@ -152,7 +151,7 @@ private fun jsonTreeItems(
 
         when (node.type) {
             JsonNodeType.OBJECT, JsonNodeType.ARRAY -> {
-                val isExpanded = expandedPaths.getOrPut(path) { isTopLevel }
+                val isExpanded = expandedPaths.getOrPut(path) { true }
                 val bracket = if (node.type == JsonNodeType.OBJECT) "{" else "["
                 val closeBracket = if (node.type == JsonNodeType.OBJECT) "}" else "]"
                 val count = node.children.size
@@ -198,7 +197,7 @@ private fun jsonTreeItems(
                 }
 
                 if (isExpanded) {
-                    jsonTreeItems(listScope, node.children, depth + 1, path, expandedPaths, isTopLevel = false)
+                    jsonTreeItems(listScope, node.children, depth + 1, path, expandedPaths)
                     listScope.item(key = "$path-close") {
                         Text(
                             text = "${"  ".repeat(depth)}$closeBracket$comma",

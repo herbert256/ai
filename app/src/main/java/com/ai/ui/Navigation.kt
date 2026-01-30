@@ -124,7 +124,6 @@ fun AiNavHost(
                 onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS) },
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
-                onNavigateToAiSettings = { navController.navigate(NavRoutes.AI_AI_SETTINGS) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 viewModel = viewModel
@@ -144,7 +143,8 @@ fun AiNavHost(
             AiSetupScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
             )
         }
 
@@ -919,12 +919,14 @@ fun SettingsScreenNav(
 fun AiSetupScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onNavigateToCostConfig: () -> Unit = {}
 ) {
     SettingsScreenNav(
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
+        onNavigateToCostConfig = onNavigateToCostConfig,
         initialSubScreen = SettingsSubScreen.AI_SETUP
     )
 }

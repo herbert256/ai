@@ -267,13 +267,13 @@ fun SettingsScreen(
             SettingsSubScreen.AI_FLOCKS -> {
                 currentSubScreen = SettingsSubScreen.AI_SETUP
             }
-            // AI Prompts goes back to AI_AI_SETTINGS
+            // AI Prompts goes back to AI_SETUP
             SettingsSubScreen.AI_PROMPTS -> {
-                currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
+                currentSubScreen = SettingsSubScreen.AI_SETUP
             }
-            // AI Parameters goes back to AI_AI_SETTINGS
+            // AI Parameters goes back to AI_SETUP
             SettingsSubScreen.AI_PARAMETERS -> {
-                currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS
+                currentSubScreen = SettingsSubScreen.AI_SETUP
             }
             // AI_SETUP goes back home if it was the initial screen, otherwise to MAIN
             SettingsSubScreen.AI_SETUP -> {
@@ -283,13 +283,9 @@ fun SettingsScreen(
                     currentSubScreen = SettingsSubScreen.MAIN
                 }
             }
-            // AI_AI_SETTINGS goes back home if it was the initial screen, otherwise to MAIN
+            // AI_AI_SETTINGS is deprecated - redirect to AI_SETUP
             SettingsSubScreen.AI_AI_SETTINGS -> {
-                if (initialSubScreen == SettingsSubScreen.AI_AI_SETTINGS) {
-                    onBack()
-                } else {
-                    currentSubScreen = SettingsSubScreen.MAIN
-                }
+                currentSubScreen = SettingsSubScreen.AI_SETUP
             }
             // Add agent goes back to AI_PROVIDERS
             SettingsSubScreen.AI_ADD_AGENT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
@@ -710,23 +706,13 @@ fun SettingsScreen(
             onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
             onRefreshAllModels = onRefreshAllModels,
             onTestApiKey = onTestAiModel,
-            onProviderStateChange = onProviderStateChange
-        )
-        SettingsSubScreen.AI_AI_SETTINGS -> AiAiSettingsContentScreen(
-            aiSettings = aiSettings,
-            onBackToSettings = {
-                // If AI_AI_SETTINGS is the initial screen (accessed from home), go home
-                // Otherwise go back to Settings main screen
-                if (initialSubScreen == SettingsSubScreen.AI_AI_SETTINGS) {
-                    onBack()
-                } else {
-                    currentSubScreen = SettingsSubScreen.MAIN
-                }
-            },
-            onBackToHome = onNavigateHome,
-            onNavigate = { currentSubScreen = it },
+            onProviderStateChange = onProviderStateChange,
             onNavigateToCostConfig = onNavigateToCostConfig
         )
+        // AI_AI_SETTINGS is deprecated - redirect to AI_SETUP
+        SettingsSubScreen.AI_AI_SETTINGS -> {
+            LaunchedEffect(Unit) { currentSubScreen = SettingsSubScreen.AI_SETUP }
+        }
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,

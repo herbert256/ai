@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import com.ai.data.AiService
 import java.util.UUID
 
@@ -194,11 +195,11 @@ fun SwarmEditScreen(
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
         val result = mutableListOf<AiSwarmMember>()
         aiSettings.getActiveServices(developerMode).sortedBy { it.displayName.lowercase() }.forEach { provider ->
-            // Get models for this provider (from availableModels or manual models)
-            val models = availableModels[provider]?.takeIf { it.isNotEmpty() }
-                ?: aiSettings.getManualModels(provider).takeIf { it.isNotEmpty() }
-                ?: listOf(aiSettings.getModel(provider))
-            models.forEach { model ->
+            // Combine API models and manual models, deduplicated
+            val apiModels = availableModels[provider] ?: emptyList()
+            val manualModels = aiSettings.getManualModels(provider)
+            val combined = (apiModels + manualModels).distinct().ifEmpty { listOf(aiSettings.getModel(provider)) }
+            combined.forEach { model ->
                 result.add(AiSwarmMember(provider, model))
             }
         }
@@ -227,15 +228,15 @@ fun SwarmEditScreen(
             onAiClick = onNavigateHome
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        // Swarm name field + Create/Save + Parameters buttons
+        var showParamsDialog by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Swarm name field
             OutlinedTextField(
                 value = name,
                 onValueChange = {
@@ -243,8 +244,7 @@ fun SwarmEditScreen(
                     nameError = null
                 },
                 label = { Text("Swarm Name") },
-                placeholder = { Text("Enter a name for this swarm") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 singleLine = true,
                 isError = nameError != null,
                 supportingText = nameError?.let { { Text(it, color = Color(0xFFFF6B6B)) } },
@@ -256,152 +256,141 @@ fun SwarmEditScreen(
                     cursorColor = Color.White
                 )
             )
-
-            // Parameters preset selection
-            ParametersSelector(
+            Button(
+                onClick = {
+                    when {
+                        name.isBlank() -> {
+                            nameError = "Name is required"
+                        }
+                        name in existingNames -> {
+                            nameError = "A swarm with this name already exists"
+                        }
+                        selectedMembers.isEmpty() -> {
+                            nameError = "Select at least one provider/model"
+                        }
+                        else -> {
+                            val newSwarm = AiSwarm(
+                                id = swarm?.id ?: UUID.randomUUID().toString(),
+                                name = name.trim(),
+                                members = selectedMembers.toList(),
+                                paramsIds = selectedParametersIds
+                            )
+                            onSave(newSwarm)
+                        }
+                    }
+                },
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text(if (isEditing) "Save" else "Create", fontSize = 13.sp, maxLines = 1)
+            }
+            Button(
+                onClick = { showParamsDialog = true },
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text(
+                    if (selectedParametersIds.isNotEmpty()) "\uD83D\uDCCE Parameters" else "Parameters",
+                    fontSize = 13.sp, maxLines = 1
+                )
+            }
+        }
+        if (showParamsDialog) {
+            ParametersSelectorDialog(
                 aiSettings = aiSettings,
                 selectedParametersIds = selectedParametersIds,
-                onParamsSelected = { ids -> selectedParametersIds = ids }
+                onParamsSelected = { ids ->
+                    selectedParametersIds = ids
+                    showParamsDialog = false
+                },
+                onDismiss = { showParamsDialog = false }
             )
+        }
 
-            // Member selection section
+        if (allProviderModels.isEmpty()) {
             Text(
-                text = "Select Provider/Model Combinations",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                color = Color(0xFF8B5CF6)
+                text = "No providers configured with API keys. Configure providers first.",
+                color = Color(0xFF888888),
+                fontSize = 14.sp
+            )
+        } else {
+            // Search box
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Search models...") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF8B5CF6),
+                    unfocusedBorderColor = Color(0xFF444444),
+                    focusedLabelColor = Color(0xFF8B5CF6),
+                    unfocusedLabelColor = Color.Gray,
+                    cursorColor = Color.White
+                )
             )
 
-            if (allProviderModels.isEmpty()) {
+            // Show count of filtered vs total
+            if (searchQuery.isNotBlank()) {
                 Text(
-                    text = "No providers configured with API keys. Configure providers first.",
-                    color = Color(0xFF888888),
-                    fontSize = 14.sp
+                    text = "Showing ${filteredProviderModels.size} of ${allProviderModels.size} models",
+                    fontSize = 12.sp,
+                    color = Color(0xFF888888)
                 )
-            } else {
-                // Search box
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("Search") },
-                    placeholder = { Text("Filter by provider or model") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF8B5CF6),
-                        unfocusedBorderColor = Color(0xFF444444),
-                        focusedLabelColor = Color(0xFF8B5CF6),
-                        unfocusedLabelColor = Color.Gray,
-                        cursorColor = Color.White
-                    )
-                )
+            }
 
-                // Select all / Select none buttons (operate on filtered items)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { selectedMembers = selectedMembers + filteredProviderModels.toSet() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Select all")
-                    }
-                    OutlinedButton(
-                        onClick = { selectedMembers = selectedMembers - filteredProviderModels.toSet() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Select none")
-                    }
-                }
+            // Sort selected to top, then by provider/model
+            val sortedModels = filteredProviderModels
+                .sortedWith(compareByDescending<AiSwarmMember> { it in selectedMembers }
+                    .thenBy { it.provider.displayName.lowercase() }
+                    .thenBy { it.model.lowercase() })
 
-                // Show count of filtered vs total
-                if (searchQuery.isNotBlank()) {
-                    Text(
-                        text = "Showing ${filteredProviderModels.size} of ${allProviderModels.size} models",
-                        fontSize = 12.sp,
-                        color = Color(0xFF888888)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Group by provider for better organization
-                val groupedByProvider = filteredProviderModels.groupBy { it.provider }
-                groupedByProvider.toSortedMap(compareBy { it.displayName }).forEach { (provider, members) ->
-                    members.sortedBy { it.model.lowercase() }.forEach { member ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedMembers = if (member in selectedMembers) {
-                                        selectedMembers - member
-                                    } else {
-                                        selectedMembers + member
-                                    }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                sortedModels.forEach { member ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedMembers = if (member in selectedMembers) {
+                                    selectedMembers - member
+                                } else {
+                                    selectedMembers + member
                                 }
-                                .padding(vertical = 6.dp, horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = member in selectedMembers,
-                                onCheckedChange = { checked ->
-                                    selectedMembers = if (checked) {
-                                        selectedMembers + member
-                                    } else {
-                                        selectedMembers - member
-                                    }
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = member in selectedMembers,
+                            onCheckedChange = { checked ->
+                                selectedMembers = if (checked) {
+                                    selectedMembers + member
+                                } else {
+                                    selectedMembers - member
                                 }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = member.provider.displayName,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF888888)
-                                )
-                                Text(
-                                    text = member.model,
-                                    color = Color.White
-                                )
-                            }
-                        }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text(
+                            text = "${member.provider.displayName} ",
+                            fontSize = 11.sp,
+                            color = Color(0xFFAAAAAA),
+                            maxLines = 1
+                        )
+                        Text(
+                            text = member.model,
+                            fontSize = 13.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Save button
-        Button(
-            onClick = {
-                // Validate
-                when {
-                    name.isBlank() -> {
-                        nameError = "Name is required"
-                    }
-                    name in existingNames -> {
-                        nameError = "A swarm with this name already exists"
-                    }
-                    selectedMembers.isEmpty() -> {
-                        nameError = "Select at least one provider/model"
-                    }
-                    else -> {
-                        val newSwarm = AiSwarm(
-                            id = swarm?.id ?: UUID.randomUUID().toString(),
-                            name = name.trim(),
-                            members = selectedMembers.toList(),
-                            paramsIds = selectedParametersIds
-                        )
-                        onSave(newSwarm)
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
-        ) {
-            Text(if (isEditing) "Save Changes" else "Create Swarm")
         }
     }
 }
