@@ -271,9 +271,8 @@ fun AiCostsScreen(
     val settingsPrefs = remember { SettingsPreferences(prefs) }
     val scope = rememberCoroutineScope()
 
-    // Filter out DUMMY provider stats
     val stats = remember {
-        settingsPrefs.loadUsageStats().filterValues { it.provider != com.ai.data.AiService.DUMMY }
+        settingsPrefs.loadUsageStats()
     }
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
@@ -735,7 +734,6 @@ fun CostConfigurationScreen(
             com.ai.data.AiService.DOUBAO -> DOUBAO_MODELS
             com.ai.data.AiService.REKA -> REKA_MODELS
             com.ai.data.AiService.WRITER -> WRITER_MODELS
-            com.ai.data.AiService.DUMMY -> listOf("dummy-model")
         }
     }
 

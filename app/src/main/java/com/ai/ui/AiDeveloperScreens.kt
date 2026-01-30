@@ -317,7 +317,6 @@ fun ApiTestScreen(
                                     com.ai.data.AiService.DOUBAO -> repository.fetchDoubaoModels(apiKey)
                                     com.ai.data.AiService.REKA -> repository.fetchRekaModels(apiKey)
                                     com.ai.data.AiService.WRITER -> repository.fetchWriterModels(apiKey)
-                                    com.ai.data.AiService.DUMMY -> repository.fetchDummyModels(apiKey)
                                 }
                                 isLoadingModels = false
                                 if (availableModels.isNotEmpty()) {

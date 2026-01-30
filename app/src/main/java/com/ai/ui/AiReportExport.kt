@@ -371,7 +371,7 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
         }
 
         // Add usage data for this agent when developer mode is on
-        if (developerMode && agent.provider != com.ai.data.AiService.DUMMY && response.rawUsageJson != null) {
+        if (developerMode && response.rawUsageJson != null) {
             val escapedJson = response.rawUsageJson.replace("<", "&lt;").replace(">", "&gt;")
             htmlBuilder.append("""
                     <div class="usage-label">API Usage:</div>
@@ -380,7 +380,7 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
         }
 
         // Add HTTP headers for this agent when developer mode is on
-        if (developerMode && agent.provider != com.ai.data.AiService.DUMMY && response.httpHeaders != null) {
+        if (developerMode && response.httpHeaders != null) {
             val escapedHeaders = response.httpHeaders.replace("<", "&lt;").replace(">", "&gt;")
             htmlBuilder.append("""
                     <div class="usage-label">HTTP Headers:</div>
@@ -923,7 +923,7 @@ internal fun convertAiReportToHtml(report: com.ai.data.AiReport, appVersion: Str
         }
 
         // Add HTTP headers for this agent when developer mode is on
-        if (developerMode && agent.provider != "DUMMY" && agent.responseHeaders != null) {
+        if (developerMode && agent.responseHeaders != null) {
             val escapedHeaders = agent.responseHeaders!!.replace("<", "&lt;").replace(">", "&gt;")
             htmlBuilder.append("""
                     <div class="usage-label">HTTP Headers:</div>

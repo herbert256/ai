@@ -57,7 +57,6 @@ fun HousekeepingScreen(
     availableDoubaoModels: List<String> = emptyList(),
     availableRekaModels: List<String> = emptyList(),
     availableWriterModels: List<String> = emptyList(),
-    availableDummyModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
@@ -137,7 +136,7 @@ fun HousekeepingScreen(
 
                         val providersToTest = AiService.entries.filter { provider ->
                             val apiKey = importedSettings.getApiKey(provider)
-                            apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
+                            apiKey.isNotBlank()
                         }
 
                         var updatedAgents = importedSettings.agents.toMutableList()
@@ -543,7 +542,7 @@ fun HousekeepingScreen(
 
                             val providersToTest = AiService.entries.filter { provider ->
                                 val apiKey = aiSettings.getApiKey(provider)
-                                apiKey.isNotBlank() && (provider != AiService.DUMMY || developerMode)
+                                apiKey.isNotBlank()
                             }
 
                             var updatedAgents = aiSettings.agents.toMutableList()
@@ -660,7 +659,7 @@ fun HousekeepingScreen(
                 aiSettings.openRouterApiKey.isNotBlank() ||
                 aiSettings.siliconFlowApiKey.isNotBlank() ||
                 aiSettings.zaiApiKey.isNotBlank()
-        val visibleAgentsForExport = if (developerMode) aiSettings.agents else aiSettings.agents.filter { it.provider != AiService.DUMMY }
+        val visibleAgentsForExport = aiSettings.agents
         val canExportConfig = hasApiKeyForExport &&
                 visibleAgentsForExport.isNotEmpty() &&
                 aiSettings.flocks.isNotEmpty()
@@ -730,8 +729,7 @@ fun HousekeepingScreen(
                                 availableYiModels = availableYiModels,
                                 availableDoubaoModels = availableDoubaoModels,
                                 availableRekaModels = availableRekaModels,
-                                availableWriterModels = availableWriterModels,
-                                availableDummyModels = availableDummyModels
+                                availableWriterModels = availableWriterModels
                             )
                         },
                         modifier = Modifier.weight(1f),
@@ -1111,8 +1109,7 @@ private fun exportModelCostsToCsv(
     availableYiModels: List<String>,
     availableDoubaoModels: List<String>,
     availableRekaModels: List<String>,
-    availableWriterModels: List<String>,
-    availableDummyModels: List<String>
+    availableWriterModels: List<String>
 ) {
     val pricingCache = com.ai.data.PricingCache
 
@@ -1242,11 +1239,6 @@ private fun exportModelCostsToCsv(
     // Writer models (API or fallback to manual)
     val writerModelsC = availableWriterModels.ifEmpty { aiSettings.writerManualModels }
     writerModelsC.forEach { allModels.add(ProviderModel("WRITER", it)) }
-
-    // Dummy models (only in developer mode)
-    if (developerMode) {
-        availableDummyModels.forEach { allModels.add(ProviderModel("DUMMY", it)) }
-    }
 
     // Sort by provider then model
     val sortedModels = allModels.sortedWith(compareBy({ it.provider }, { it.model }))

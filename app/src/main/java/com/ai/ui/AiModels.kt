@@ -46,8 +46,6 @@ data class AiUiState(
     val isLoadingTogetherModels: Boolean = false,
     val availableOpenRouterModels: List<String> = emptyList(),
     val isLoadingOpenRouterModels: Boolean = false,
-    val availableDummyModels: List<String> = emptyList(),
-    val isLoadingDummyModels: Boolean = false,
     val availableClaudeModels: List<String> = emptyList(),
     val isLoadingClaudeModels: Boolean = false,
     val availableSiliconFlowModels: List<String> = emptyList(),

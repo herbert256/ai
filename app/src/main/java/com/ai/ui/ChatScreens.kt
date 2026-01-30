@@ -164,7 +164,6 @@ fun ChatSelectModelScreen(
             AiService.DOUBAO -> Quadruple(aiSettings.doubaoApiKey, aiSettings.doubaoModelSource, aiSettings.doubaoManualModels, aiSettings.doubaoModel)
             AiService.REKA -> Quadruple(aiSettings.rekaApiKey, aiSettings.rekaModelSource, aiSettings.rekaManualModels, aiSettings.rekaModel)
             AiService.WRITER -> Quadruple(aiSettings.writerApiKey, aiSettings.writerModelSource, aiSettings.writerManualModels, aiSettings.writerModel)
-            AiService.DUMMY -> Quadruple(aiSettings.dummyApiKey, aiSettings.dummyModelSource, aiSettings.dummyManualModels, aiSettings.dummyModel)
         }
     }
 
@@ -591,10 +590,15 @@ fun ChatSessionScreen(
         focusRequester.requestFocus()
     }
 
-    // Auto-scroll to top when new messages arrive or streaming content changes
+    // Auto-scroll to bottom when new messages arrive or streaming content changes
+    val displayMessages = messages.filter { it.role != "system" }
+    val bottomItemCount = displayMessages.size +
+        (if (isStreaming && streamingContent.isNotEmpty()) 1 else 0) +
+        (if (isStreaming && streamingContent.isEmpty()) 1 else 0) +
+        (if (isLoading) 1 else 0)
     LaunchedEffect(messages.size, streamingContent) {
-        if (messages.isNotEmpty() || streamingContent.isNotEmpty()) {
-            listState.animateScrollToItem(0)
+        if (bottomItemCount > 0) {
+            listState.animateScrollToItem(bottomItemCount - 1)
         }
     }
 
@@ -659,10 +663,14 @@ fun ChatSessionScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(12.dp),
-                    reverseLayout = true,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom)
                 ) {
-                    // Show streaming message at bottom (newest first in reverse layout)
+                    // Messages in order (oldest first, newest at bottom)
+                    items(displayMessages) { message ->
+                        ChatMessageBubble(message = message, userName = userName)
+                    }
+
+                    // Show streaming message at bottom
                     if (isStreaming && streamingContent.isNotEmpty()) {
                         item {
                             StreamingMessageBubble(content = streamingContent)
@@ -715,11 +723,6 @@ fun ChatSessionScreen(
                                 )
                             }
                         }
-                    }
-
-                    // Messages in reverse order (newest at bottom with reverseLayout)
-                    items(messages.filter { it.role != "system" }.reversed()) { message ->
-                        ChatMessageBubble(message = message, userName = userName)
                     }
                 }
             }

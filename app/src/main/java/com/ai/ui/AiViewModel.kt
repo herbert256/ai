@@ -57,7 +57,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val mistralApiModels = settingsPrefs.loadMistralApiModels()
         val togetherApiModels = settingsPrefs.loadTogetherApiModels()
         val openRouterApiModels = settingsPrefs.loadOpenRouterApiModels()
-        val dummyApiModels = settingsPrefs.loadDummyApiModels()
         val claudeApiModels = settingsPrefs.loadClaudeApiModels()
         val siliconFlowApiModels = settingsPrefs.loadSiliconFlowApiModels()
         val zaiApiModels = settingsPrefs.loadZaiApiModels()
@@ -92,7 +91,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             availableMistralModels = mistralApiModels,
             availableTogetherModels = togetherApiModels,
             availableOpenRouterModels = openRouterApiModels,
-            availableDummyModels = dummyApiModels,
             availableClaudeModels = claudeApiModels,
             availableSiliconFlowModels = siliconFlowApiModels,
             availableZaiModels = zaiApiModels,
@@ -120,11 +118,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Enable API tracing if configured
         ApiTracer.isTracingEnabled = generalSettings.trackApiCalls
 
-        // Start DummyApiServer if developer mode is enabled
-        if (generalSettings.developerMode) {
-            DummyApiServer.start()
-        }
-
         // Refresh model lists in background for providers with API source and configured API key
         viewModelScope.launch {
             refreshAllModelLists(aiSettings)
@@ -134,18 +127,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     // ========== Settings Management ==========
 
     fun updateGeneralSettings(settings: GeneralSettings) {
-        val oldSettings = _uiState.value.generalSettings
         saveGeneralSettings(settings)
         _uiState.value = _uiState.value.copy(generalSettings = settings)
-
-        // Start/stop DummyApiServer when developer mode changes
-        if (settings.developerMode != oldSettings.developerMode) {
-            if (settings.developerMode) {
-                DummyApiServer.start()
-            } else {
-                DummyApiServer.stop()
-            }
-        }
     }
 
     fun updateAiSettings(settings: AiSettings) {
@@ -377,17 +360,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     // Calculate cost for this agent
                     // Priority: API cost > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
                     val cost: Double? = if (response.tokenUsage != null) {
-                        if (agent.provider == AiService.DUMMY) {
-                            0.0
-                        } else {
-                            // First check if API provided the cost directly
-                            response.tokenUsage.apiCost ?: run {
-                                // Otherwise calculate from pricing cache (always returns a value)
-                                val pricing = PricingCache.getPricing(context, effectiveAgent.provider, effectiveAgent.model)
-                                val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
-                                val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
-                                inputCost + outputCost
-                            }
+                        // First check if API provided the cost directly
+                        response.tokenUsage.apiCost ?: run {
+                            // Otherwise calculate from pricing cache (always returns a value)
+                            val pricing = PricingCache.getPricing(context, effectiveAgent.provider, effectiveAgent.model)
+                            val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
+                            val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
+                            inputCost + outputCost
                         }
                     } else null
 
@@ -481,15 +460,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
                     // Calculate cost
                     val cost: Double? = if (response.tokenUsage != null) {
-                        if (member.provider == AiService.DUMMY) {
-                            0.0
-                        } else {
-                            response.tokenUsage.apiCost ?: run {
-                                val pricing = PricingCache.getPricing(context, member.provider, member.model)
-                                val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
-                                val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
-                                inputCost + outputCost
-                            }
+                        response.tokenUsage.apiCost ?: run {
+                            val pricing = PricingCache.getPricing(context, member.provider, member.model)
+                            val inputCost = response.tokenUsage.inputTokens * pricing.promptPrice
+                            val outputCost = response.tokenUsage.outputTokens * pricing.completionPrice
+                            inputCost + outputCost
                         }
                     } else null
 
@@ -573,7 +548,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 agentId to AiAnalysisResponse(
-                    service = agent?.provider ?: com.ai.data.AiService.DUMMY,
+                    service = agent?.provider ?: com.ai.data.AiService.OPENAI,
                     analysis = "Not ready",
                     error = null
                 )
@@ -755,23 +730,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 settingsPrefs.saveOpenRouterApiModels(models)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingOpenRouterModels = false)
-            }
-        }
-    }
-
-    fun fetchDummyModels(apiKey: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingDummyModels = true)
-            try {
-                val models = aiAnalysisRepository.fetchDummyModels(apiKey)
-                _uiState.value = _uiState.value.copy(
-                    availableDummyModels = models,
-                    isLoadingDummyModels = false
-                )
-                // Persist the fetched models
-                settingsPrefs.saveDummyApiModels(models)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoadingDummyModels = false)
             }
         }
     }
@@ -1239,22 +1197,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     results["OpenRouter"] = models.size
                 } catch (e: Exception) {
                     results["OpenRouter"] = -1
-                }
-            }
-        }
-
-        // Dummy (if in developer mode, we'd need to check that separately)
-        if (settings.dummyModelSource == ModelSource.API && settings.dummyApiKey.isNotBlank()) {
-            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DUMMY)) {
-                onProgress?.invoke("Dummy")
-                try {
-                    val models = aiAnalysisRepository.fetchDummyModels(settings.dummyApiKey)
-                    _uiState.value = _uiState.value.copy(availableDummyModels = models)
-                    settingsPrefs.saveDummyApiModels(models)
-                    settingsPrefs.updateModelListTimestamp(AiService.DUMMY)
-                    results["Dummy"] = models.size
-                } catch (e: Exception) {
-                    results["Dummy"] = -1
                 }
             }
         }

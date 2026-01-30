@@ -272,7 +272,7 @@ fun HelpScreen(
                     "  Endpoints: OpenAI-compatible, Anthropic-compatible\n" +
                     "• Z.AI - GLM models (ZhipuAI)\n" +
                     "  Endpoints: General, Coding\n" +
-                    "• DUMMY - Testing (developer mode only)\n\n" +
+                    "\n" +
                     "Each requires an API key from the provider's website."
             )
 
@@ -462,7 +462,6 @@ fun HelpScreen(
                 icon = "\uD83D\uDC1B",
                 content = "Enable in Settings:\n\n" +
                     "Features unlocked:\n" +
-                    "• DUMMY provider for testing\n" +
                     "• API call tracing option\n" +
                     "• Token usage in reports\n" +
                     "• HTTP headers in reports\n" +

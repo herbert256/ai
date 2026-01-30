@@ -46,9 +46,8 @@ fun AiHubScreen(
     // Check if at least one AI Agent is configured
     val hasAnyAgent = uiState.aiSettings.agents.isNotEmpty()
 
-    // Check if at least one AI Provider (excluding DUMMY) has an API key configured
+    // Check if at least one AI Provider has an API key configured
     val hasAnyProviderApiKey = com.ai.data.AiService.entries
-        .filter { it != com.ai.data.AiService.DUMMY }
         .any { uiState.aiSettings.getApiKey(it).isNotBlank() }
 
     // Check if there is any statistics data
@@ -113,11 +112,11 @@ fun AiHubScreen(
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // AI Settings requires at least 1 provider with API key (excluding DUMMY)
+            // AI Settings requires at least 1 provider with API key
             HubCard(icon = "\uD83D\uDCCB", title = "AI Settings", onClick = onNavigateToAiSettings, enabled = hasAnyProviderApiKey)
             Spacer(modifier = Modifier.height(12.dp))
 
-            // AI Housekeeping requires at least 1 provider with API key (excluding DUMMY)
+            // AI Housekeeping requires at least 1 provider with API key
             HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping, enabled = hasAnyProviderApiKey)
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -647,7 +646,7 @@ fun AiReportsScreen(
     var directlySelectedModelIds by remember { mutableStateOf(savedModelIds) }
 
     // Direct agent selection state (separate from flock-based selection)
-    // Filter to only include agents that still exist (excluding DUMMY when not in dev mode)
+    // Filter to only include agents that still exist
     val validAgentIds = configuredAgents.map { it.id }.toSet()
     val validSavedAgents = savedAgentIds.filter { it in validAgentIds }.toSet()
     var directlySelectedAgentIds by remember { mutableStateOf(validSavedAgents) }
@@ -1052,7 +1051,6 @@ fun AiReportsScreen(
                                         com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
                                         com.ai.data.AiService.REKA -> uiState.availableRekaModels
                                         com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                                        com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                     }
                                     models.map { model -> provider to model }
                                 }
@@ -1178,7 +1176,6 @@ fun AiReportsScreen(
                                             com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
                                             com.ai.data.AiService.REKA -> uiState.availableRekaModels
                                             com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                                            com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                         }
                                         models.map { "swarm:${provider.name}:$it" }
                                     }
@@ -1296,9 +1293,6 @@ fun AiReportsScreen(
                         val modelName = parts.getOrNull(1) ?: return@mapNotNull null
                         val provider = com.ai.data.AiService.entries.find { it.name == providerName } ?: return@mapNotNull null
 
-                        if (provider == com.ai.data.AiService.DUMMY) {
-                            return@mapNotNull agentId to 0.0
-                        }
                         val cost = tokenUsage.apiCost ?: run {
                             val pricing = com.ai.data.PricingCache.getPricing(context, provider, modelName)
                             val inputCost = tokenUsage.inputTokens * pricing.promptPrice
@@ -1310,10 +1304,6 @@ fun AiReportsScreen(
 
                     // Regular agent
                     val agent = uiState.aiSettings.getAgentById(agentId) ?: return@mapNotNull null
-                    // DUMMY provider always has 0 cost
-                    if (agent.provider == com.ai.data.AiService.DUMMY) {
-                        return@mapNotNull agentId to 0.0
-                    }
                     // Priority: API cost > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
                     val cost = tokenUsage.apiCost ?: run {
                         val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, agent.model)

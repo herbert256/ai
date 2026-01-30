@@ -86,15 +86,6 @@ fun AiSettingsScreen(
             adminUrl = AiService.DEEPSEEK.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
         )
-        // Dummy provider only visible in developer mode
-        if (developerMode) {
-            AiServiceNavigationCard(
-                title = "Dummy",
-                accentColor = Color(0xFF888888),
-                adminUrl = AiService.DUMMY.adminUrl,
-                onEdit = { onNavigate(SettingsSubScreen.AI_DUMMY) }
-            )
-        }
         AiServiceNavigationCard(
             title = "Google",
             accentColor = Color(0xFF4285F4),
@@ -270,8 +261,8 @@ fun AiSetupScreen(
             aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
         }
 
-        // Providers card (exclude DUMMY when not in developer mode)
-        val providerCount = if (developerMode) AiService.entries.size else AiService.entries.size - 1
+        // Providers card
+        val providerCount = AiService.entries.size
         AiSetupNavigationCard(
             title = "Providers",
             description = "Configure model sources for each AI service",
@@ -524,17 +515,6 @@ fun AiProvidersScreen(
                 providerState = aiSettings.getProviderState(entry.service),
                 adminUrl = entry.service.adminUrl,
                 onEdit = { onNavigate(entry.screen) }
-            )
-        }
-
-        // Dummy provider only visible in developer mode (always last)
-        if (developerMode && (showAll || aiSettings.getProviderState(AiService.DUMMY) == "ok")) {
-            AiServiceNavigationCard(
-                title = "Dummy",
-                accentColor = Color(0xFF888888),
-                providerState = "ok",
-                adminUrl = AiService.DUMMY.adminUrl,
-                onEdit = { onNavigate(SettingsSubScreen.AI_DUMMY) }
             )
         }
 

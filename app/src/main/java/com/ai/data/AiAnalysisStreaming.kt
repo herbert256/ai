@@ -55,7 +55,6 @@ fun AiAnalysisRepository.sendChatMessageStream(
         AiService.DOUBAO -> streamChatDoubao(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         AiService.REKA -> streamChatReka(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         AiService.WRITER -> streamChatWriter(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-        AiService.DUMMY -> streamChatDummy(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
     }
 }
 
@@ -1459,43 +1458,3 @@ internal fun AiAnalysisRepository.streamChatWriter(
     }
 }
 
-internal fun AiAnalysisRepository.streamChatDummy(
-    apiKey: String,
-    model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters,
-    baseUrl: String
-): Flow<String> = flow {
-    // Ensure Dummy server is running
-    DummyApiServer.start()
-
-    val openAiMessages = convertToOpenAiMessages(messages)
-    val request = OpenAiStreamRequest(
-        model = model,
-        messages = openAiMessages,
-        stream = true,
-        max_tokens = params.maxTokens,
-        temperature = params.temperature,
-        top_p = params.topP,
-        frequency_penalty = params.frequencyPenalty,
-        presence_penalty = params.presencePenalty
-    )
-
-    val api = if (baseUrl != AiService.DUMMY.baseUrl) {
-        AiApiFactory.createDummyStreamApiWithBaseUrl(baseUrl)
-    } else {
-        dummyStreamApi
-    }
-
-    val response = withContext(Dispatchers.IO) {
-        api.createChatCompletionStream("Bearer $apiKey", request)
-    }
-
-    if (response.isSuccessful) {
-        response.body()?.let { body ->
-            parseOpenAiSseStream(body).collect { emit(it) }
-        } ?: throw Exception("Empty response body")
-    } else {
-        throw Exception("API error: ${response.code()} ${response.message()}")
-    }
-}

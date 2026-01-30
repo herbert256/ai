@@ -8,27 +8,6 @@ import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * Fetch available Dummy models.
- */
-suspend fun AiAnalysisRepository.fetchDummyModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
-    // Ensure Dummy server is running
-    DummyApiServer.start()
-    try {
-        val api = AiApiFactory.createDummyApi()
-        val response = api.listModels("Bearer $apiKey")
-
-        if (response.isSuccessful) {
-            response.body()?.data?.mapNotNull { it.id } ?: emptyList()
-        } else {
-            emptyList()
-        }
-    } catch (e: Exception) {
-        android.util.Log.e("DummyAPI", "Failed to fetch models: ${e.message}")
-        emptyList()
-    }
-}
-
-/**
  * Test if a model is accessible with the given API key.
  * Makes a minimal API call to verify the configuration works.
  * @return null if successful, error message if failed
@@ -71,7 +50,6 @@ suspend fun AiAnalysisRepository.testModel(
             AiService.DOUBAO -> analyzeWithDoubao(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
             AiService.REKA -> analyzeWithReka(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
             AiService.WRITER -> analyzeWithWriter(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
-            AiService.DUMMY -> analyzeWithDummy(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
         }
 
         if (response.isSuccess) {

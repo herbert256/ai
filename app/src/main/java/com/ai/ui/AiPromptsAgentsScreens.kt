@@ -47,7 +47,6 @@ fun AiAgentsScreen(
     availableBaichuanModels: List<String>,
     availableStepFunModels: List<String>,
     availableMiniMaxModels: List<String>,
-    availableDummyModels: List<String>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -82,8 +81,7 @@ fun AiAgentsScreen(
     onFetchYiModels: (String) -> Unit = {},
     onFetchDoubaoModels: (String) -> Unit = {},
     onFetchRekaModels: (String) -> Unit = {},
-    onFetchWriterModels: (String) -> Unit = {},
-    onFetchDummyModels: (String) -> Unit = {}
+    onFetchWriterModels: (String) -> Unit = {}
 ) {
     var showAddScreen by remember { mutableStateOf(false) }
     var editingAgent by remember { mutableStateOf<AiAgent?>(null) }
@@ -125,7 +123,6 @@ fun AiAgentsScreen(
             AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
             AiService.REKA -> onFetchRekaModels(apiKey)
             AiService.WRITER -> onFetchWriterModels(apiKey)
-            AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }
 
@@ -167,7 +164,6 @@ fun AiAgentsScreen(
             availableBaichuanModels = availableBaichuanModels,
             availableStepFunModels = availableStepFunModels,
             availableMiniMaxModels = availableMiniMaxModels,
-            availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
             onFetchModelsForProvider = fetchModelsForProvider,
@@ -474,7 +470,6 @@ internal fun AgentEditScreen(
     availableDoubaoModels: List<String> = emptyList(),
     availableRekaModels: List<String> = emptyList(),
     availableWriterModels: List<String> = emptyList(),
-    availableDummyModels: List<String>,
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
     onFetchModelsForProvider: (AiService, String) -> Unit,
@@ -701,11 +696,6 @@ internal fun AgentEditScreen(
             val manualModels = if (aiSettings.writerModelSource == ModelSource.MANUAL) aiSettings.writerManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { WRITER_MODELS }
         }
-        AiService.DUMMY -> {
-            val apiModels = if (aiSettings.dummyModelSource == ModelSource.API) availableDummyModels else emptyList()
-            val manualModels = if (aiSettings.dummyModelSource == ModelSource.MANUAL) aiSettings.dummyManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
     }
 
     // Helper to check if provider uses API model source
@@ -720,7 +710,6 @@ internal fun AgentEditScreen(
             AiService.PERPLEXITY -> aiSettings.perplexityModelSource
             AiService.TOGETHER -> aiSettings.togetherModelSource
             AiService.OPENROUTER -> aiSettings.openRouterModelSource
-            AiService.DUMMY -> aiSettings.dummyModelSource
             AiService.ANTHROPIC -> ModelSource.MANUAL // Claude has hardcoded models
             AiService.SILICONFLOW -> ModelSource.MANUAL // SiliconFlow has hardcoded models
             AiService.ZAI -> ModelSource.MANUAL // Z.AI has hardcoded models

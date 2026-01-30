@@ -46,7 +46,6 @@ suspend fun AiAnalysisRepository.sendChatMessage(
         AiService.DOUBAO -> sendChatMessageDoubao(apiKey, model, messages, params)
         AiService.REKA -> sendChatMessageReka(apiKey, model, messages, params)
         AiService.WRITER -> sendChatMessageWriter(apiKey, model, messages, params)
-        AiService.DUMMY -> sendChatMessageDummy(apiKey, model, messages, params)
     }
 }
 
@@ -876,35 +875,6 @@ internal suspend fun AiAnalysisRepository.sendChatMessageWriter(
         presence_penalty = params.presencePenalty
     )
     val response = writerApi.createChatCompletion(
-        authorization = "Bearer $apiKey",
-        request = request
-    )
-    if (response.isSuccessful) {
-        val content = response.body()?.choices?.firstOrNull()?.message?.content
-        return content ?: throw Exception("No response content")
-    } else {
-        throw Exception("API error: ${response.code()} ${response.message()}")
-    }
-}
-
-internal suspend fun AiAnalysisRepository.sendChatMessageDummy(
-    apiKey: String,
-    model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters
-): String {
-    val openAiMessages = convertToOpenAiMessages(messages)
-    val request = OpenAiRequest(
-        model = model,
-        messages = openAiMessages,
-        max_tokens = params.maxTokens,
-        temperature = params.temperature,
-        top_p = params.topP,
-        frequency_penalty = params.frequencyPenalty,
-        presence_penalty = params.presencePenalty,
-        search = if (params.searchEnabled) true else null
-    )
-    val response = dummyApi.createChatCompletion(
         authorization = "Bearer $apiKey",
         request = request
     )

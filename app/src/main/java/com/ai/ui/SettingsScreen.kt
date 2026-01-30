@@ -53,7 +53,6 @@ enum class SettingsSubScreen {
     AI_DOUBAO,
     AI_REKA,
     AI_WRITER,
-    AI_DUMMY,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
     AI_AI_SETTINGS, // AI Settings hub (Prompts, Costs)
@@ -144,8 +143,6 @@ fun SettingsScreen(
     isLoadingRekaModels: Boolean = false,
     availableWriterModels: List<String> = emptyList(),
     isLoadingWriterModels: Boolean = false,
-    availableDummyModels: List<String>,
-    isLoadingDummyModels: Boolean,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack,
     onSaveGeneral: (GeneralSettings) -> Unit,
@@ -182,7 +179,6 @@ fun SettingsScreen(
     onFetchDoubaoModels: (String) -> Unit = {},
     onFetchRekaModels: (String) -> Unit = {},
     onFetchWriterModels: (String) -> Unit = {},
-    onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onProviderStateChange: (AiService, String) -> Unit = { _, _ -> },
     onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
@@ -263,8 +259,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_YI,
             SettingsSubScreen.AI_DOUBAO,
             SettingsSubScreen.AI_REKA,
-            SettingsSubScreen.AI_WRITER,
-            SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            SettingsSubScreen.AI_WRITER -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
@@ -695,18 +690,6 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.WRITER, aiSettings.writerApiKey, aiSettings.writerModel) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.WRITER, state) }
         )
-        SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
-            aiSettings = aiSettings,
-            availableModels = availableDummyModels,
-            isLoadingModels = isLoadingDummyModels,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = onFetchDummyModels,
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.DUMMY, aiSettings.dummyApiKey, aiSettings.dummyModel) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.DUMMY, state) }
-        )
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
@@ -773,7 +756,6 @@ fun SettingsScreen(
             availableBaichuanModels = availableBaichuanModels,
             availableStepFunModels = availableStepFunModels,
             availableMiniMaxModels = availableMiniMaxModels,
-            availableDummyModels = availableDummyModels,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
@@ -799,8 +781,7 @@ fun SettingsScreen(
             onFetchSambaNovaModels = onFetchSambaNovaModels,
             onFetchBaichuanModels = onFetchBaichuanModels,
             onFetchStepFunModels = onFetchStepFunModels,
-            onFetchMiniMaxModels = onFetchMiniMaxModels,
-            onFetchDummyModels = onFetchDummyModels
+            onFetchMiniMaxModels = onFetchMiniMaxModels
         )
         SettingsSubScreen.AI_ADD_AGENT -> {
             // Helper to fetch models for a provider
@@ -837,7 +818,6 @@ fun SettingsScreen(
                     com.ai.data.AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
                     com.ai.data.AiService.REKA -> onFetchRekaModels(apiKey)
                     com.ai.data.AiService.WRITER -> onFetchWriterModels(apiKey)
-                    com.ai.data.AiService.DUMMY -> onFetchDummyModels(apiKey)
                 }
             }
 
@@ -872,7 +852,6 @@ fun SettingsScreen(
                 availableBaichuanModels = availableBaichuanModels,
                 availableStepFunModels = availableStepFunModels,
                 availableMiniMaxModels = availableMiniMaxModels,
-                availableDummyModels = availableDummyModels,
                 existingNames = aiSettings.agents.map { it.name }.toSet(),
                 onTestAiModel = onTestAiModel,
                 onFetchModelsForProvider = fetchModelsForProvider,
@@ -984,8 +963,7 @@ fun SettingsScreen(
                 AiService.SAMBANOVA to availableSambaNovaModels,
                 AiService.BAICHUAN to availableBaichuanModels,
                 AiService.STEPFUN to availableStepFunModels,
-                AiService.MINIMAX to availableMiniMaxModels,
-                AiService.DUMMY to availableDummyModels
+                AiService.MINIMAX to availableMiniMaxModels
             ),
             onSave = { newSwarm ->
                 val newSwarms = aiSettings.swarms + newSwarm
@@ -1024,8 +1002,7 @@ fun SettingsScreen(
                     AiService.SAMBANOVA to availableSambaNovaModels,
                     AiService.BAICHUAN to availableBaichuanModels,
                     AiService.STEPFUN to availableStepFunModels,
-                    AiService.MINIMAX to availableMiniMaxModels,
-                    AiService.DUMMY to availableDummyModels
+                    AiService.MINIMAX to availableMiniMaxModels
                 ),
                 onSave = { updatedSwarm ->
                     val newSwarms = aiSettings.swarms.map { if (it.id == updatedSwarm.id) updatedSwarm else it }

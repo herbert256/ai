@@ -58,7 +58,6 @@ fun ModelSearchScreen(
     availableDoubaoModels: List<String> = emptyList(),
     availableRekaModels: List<String> = emptyList(),
     availableWriterModels: List<String> = emptyList(),
-    availableDummyModels: List<String>,
     isLoadingChatGptModels: Boolean = false,
     isLoadingClaudeModels: Boolean = false,
     isLoadingGeminiModels: Boolean = false,
@@ -80,7 +79,6 @@ fun ModelSearchScreen(
     isLoadingBaichuanModels: Boolean = false,
     isLoadingStepFunModels: Boolean = false,
     isLoadingMiniMaxModels: Boolean = false,
-    isLoadingDummyModels: Boolean = false,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSaveAiSettings: (AiSettings) -> Unit,
@@ -116,7 +114,6 @@ fun ModelSearchScreen(
     onFetchDoubaoModels: (String) -> Unit = {},
     onFetchRekaModels: (String) -> Unit = {},
     onFetchWriterModels: (String) -> Unit = {},
-    onFetchDummyModels: (String) -> Unit,
     onNavigateToChatParams: (AiService, String) -> Unit,
     onNavigateToModelInfo: (AiService, String) -> Unit
 ) {
@@ -127,7 +124,7 @@ fun ModelSearchScreen(
             isLoadingZaiModels || isLoadingMoonshotModels || isLoadingCohereModels || isLoadingAi21Models ||
             isLoadingDashScopeModels || isLoadingFireworksModels || isLoadingCerebrasModels ||
             isLoadingSambaNovaModels || isLoadingBaichuanModels || isLoadingStepFunModels ||
-            isLoadingMiniMaxModels || isLoadingDummyModels
+            isLoadingMiniMaxModels
     var searchQuery by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf<ModelSearchItem?>(null) }
 
@@ -165,7 +162,6 @@ fun ModelSearchScreen(
             AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
             AiService.REKA -> onFetchRekaModels(apiKey)
             AiService.WRITER -> onFetchWriterModels(apiKey)
-            AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }
 
@@ -300,7 +296,6 @@ fun ModelSearchScreen(
             availableBaichuanModels = availableBaichuanModels,
             availableStepFunModels = availableStepFunModels,
             availableMiniMaxModels = availableMiniMaxModels,
-            availableDummyModels = availableDummyModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
             onFetchModelsForProvider = fetchModelsForProvider,
@@ -330,7 +325,7 @@ fun ModelSearchScreen(
         availableCerebrasModels, availableSambaNovaModels, availableBaichuanModels, availableStepFunModels,
         availableMiniMaxModels, availableNvidiaModels, availableReplicateModels, availableHuggingFaceInferenceModels,
         availableLambdaModels, availableLeptonModels, availableYiModels, availableDoubaoModels,
-        availableRekaModels, availableWriterModels, availableDummyModels, aiSettings
+        availableRekaModels, availableWriterModels, aiSettings
     ) {
         buildList {
             fun isActive(s: AiService) = aiSettings.isProviderActive(s, developerMode)
@@ -470,10 +465,6 @@ fun ModelSearchScreen(
             if (isActive(AiService.WRITER)) {
                 val writerModels = if (availableWriterModels.isNotEmpty()) availableWriterModels else aiSettings.writerManualModels
                 writerModels.forEach { add(ModelSearchItem(AiService.WRITER, "Writer", it, Color(0xFF0066FF))) }
-            }
-            // Dummy models (only in developer mode)
-            if (isActive(AiService.DUMMY)) {
-                availableDummyModels.forEach { add(ModelSearchItem(AiService.DUMMY, "Dummy", it, Color(0xFF888888))) }
             }
         }
     }

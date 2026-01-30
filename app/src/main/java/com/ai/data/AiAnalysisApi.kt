@@ -80,8 +80,7 @@ enum class AiService(
     YI("01.AI", "https://api.01.ai/", "https://platform.01.ai/", "yi-lightning"),
     DOUBAO("Doubao", "https://ark.cn-beijing.volces.com/api/", "https://console.volcengine.com/", "doubao-pro-32k"),
     REKA("Reka", "https://api.reka.ai/", "https://platform.reka.ai/", "reka-flash"),
-    WRITER("Writer", "https://api.writer.com/", "https://app.writer.com/", "palmyra-x-004"),
-    DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
+    WRITER("Writer", "https://api.writer.com/", "https://app.writer.com/", "palmyra-x-004")
 }
 
 // OpenAI models
@@ -756,7 +755,7 @@ object AiApiFactory {
 
     /**
      * Create OpenAI-compatible streaming API with a custom base URL.
-     * Works for: OpenAI, xAI, Groq, DeepSeek, Mistral, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI, DUMMY
+     * Works for: OpenAI, xAI, Groq, DeepSeek, Mistral, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI
      */
     fun createOpenAiStreamApiWithBaseUrl(baseUrl: String): OpenAiStreamApi {
         return getRetrofit(baseUrl).create(OpenAiStreamApi::class.java)
@@ -816,13 +815,6 @@ object AiApiFactory {
      */
     fun createSiliconFlowStreamApiWithBaseUrl(baseUrl: String): SiliconFlowStreamApi {
         return getRetrofit(baseUrl).create(SiliconFlowStreamApi::class.java)
-    }
-
-    /**
-     * Create Dummy streaming API with a custom base URL.
-     */
-    fun createDummyStreamApiWithBaseUrl(baseUrl: String): DummyStreamApi {
-        return getRetrofit(baseUrl).create(DummyStreamApi::class.java)
     }
 
     /**
@@ -982,11 +974,6 @@ object AiApiFactory {
         return getRetrofit(AiService.WRITER.baseUrl).create(OpenAiApi::class.java)
     }
 
-    fun createDummyApi(): OpenAiApi {
-        // Dummy API uses OpenAI-compatible format
-        return getRetrofit(AiService.DUMMY.baseUrl).create(OpenAiApi::class.java)
-    }
-
     fun createHuggingFaceApi(): HuggingFaceApi {
         return getRetrofit("https://huggingface.co/api/").create(HuggingFaceApi::class.java)
     }
@@ -1129,9 +1116,6 @@ object AiApiFactory {
         return getRetrofit(baseUrl).create(ReplicateStreamApi::class.java)
     }
 
-    fun createDummyStreamApi(): DummyStreamApi {
-        return getRetrofit(AiService.DUMMY.baseUrl).create(DummyStreamApi::class.java)
-    }
 }
 
 // ============================================================================
@@ -1492,18 +1476,6 @@ interface SiliconFlowStreamApi {
 interface ZaiStreamApi {
     @retrofit2.http.Streaming
     @POST("chat/completions")
-    suspend fun createChatCompletionStream(
-        @Header("Authorization") authorization: String,
-        @Body request: OpenAiStreamRequest
-    ): Response<okhttp3.ResponseBody>
-}
-
-/**
- * Streaming API interface for Dummy (uses OpenAI format).
- */
-interface DummyStreamApi {
-    @retrofit2.http.Streaming
-    @POST("v1/chat/completions")
     suspend fun createChatCompletionStream(
         @Header("Authorization") authorization: String,
         @Body request: OpenAiStreamRequest

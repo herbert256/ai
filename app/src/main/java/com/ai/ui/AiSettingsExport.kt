@@ -353,8 +353,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         "YI" to ProviderConfigExport(aiSettings.yiModelSource.name, aiSettings.yiManualModels, aiSettings.yiApiKey, aiSettings.yiModel, aiSettings.yiAdminUrl, aiSettings.yiModelListUrl.ifBlank { null }),
         "DOUBAO" to ProviderConfigExport(aiSettings.doubaoModelSource.name, aiSettings.doubaoManualModels, aiSettings.doubaoApiKey, aiSettings.doubaoModel, aiSettings.doubaoAdminUrl, aiSettings.doubaoModelListUrl.ifBlank { null }),
         "REKA" to ProviderConfigExport(aiSettings.rekaModelSource.name, aiSettings.rekaManualModels, aiSettings.rekaApiKey, aiSettings.rekaModel, aiSettings.rekaAdminUrl, aiSettings.rekaModelListUrl.ifBlank { null }),
-        "WRITER" to ProviderConfigExport(aiSettings.writerModelSource.name, aiSettings.writerManualModels, aiSettings.writerApiKey, aiSettings.writerModel, aiSettings.writerAdminUrl, aiSettings.writerModelListUrl.ifBlank { null }),
-        "DUMMY" to ProviderConfigExport(aiSettings.dummyModelSource.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey, aiSettings.dummyModel, aiSettings.dummyAdminUrl, aiSettings.dummyModelListUrl.ifBlank { null })
+        "WRITER" to ProviderConfigExport(aiSettings.writerModelSource.name, aiSettings.writerManualModels, aiSettings.writerApiKey, aiSettings.writerModel, aiSettings.writerAdminUrl, aiSettings.writerModelListUrl.ifBlank { null })
     )
 
     // Convert agents with parameters
@@ -1032,16 +1031,6 @@ private fun processImportedConfig(
             writerModel = p.defaultModel ?: settings.writerModel,
             writerAdminUrl = p.adminUrl ?: settings.writerAdminUrl,
             writerModelListUrl = p.modelListUrl ?: ""
-        )
-    }
-    importProvider("DUMMY") { p ->
-        settings.copy(
-            dummyModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
-            dummyManualModels = p.manualModels,
-            dummyApiKey = p.apiKey,
-            dummyModel = p.defaultModel ?: settings.dummyModel,
-            dummyAdminUrl = p.adminUrl ?: settings.dummyAdminUrl,
-            dummyModelListUrl = p.modelListUrl ?: ""
         )
     }
 

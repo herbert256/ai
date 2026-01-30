@@ -319,7 +319,6 @@ fun AiNavHost(
                 availablePerplexityModels = uiState.availablePerplexityModels,
                 availableTogetherModels = uiState.availableTogetherModels,
                 availableOpenRouterModels = uiState.availableOpenRouterModels,
-                availableDummyModels = uiState.availableDummyModels,
                 availableClaudeModels = uiState.availableClaudeModels,
                 availableSiliconFlowModels = uiState.availableSiliconFlowModels,
                 availableZaiModels = uiState.availableZaiModels,
@@ -350,7 +349,6 @@ fun AiNavHost(
                 isLoadingMistralModels = uiState.isLoadingMistralModels,
                 isLoadingTogetherModels = uiState.isLoadingTogetherModels,
                 isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
-                isLoadingDummyModels = uiState.isLoadingDummyModels,
                 isLoadingClaudeModels = uiState.isLoadingClaudeModels,
                 isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
                 isLoadingZaiModels = uiState.isLoadingZaiModels,
@@ -377,7 +375,6 @@ fun AiNavHost(
                 onFetchPerplexityModels = { viewModel.fetchPerplexityModels(it) },
                 onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
                 onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
-                onFetchDummyModels = { viewModel.fetchDummyModels(it) },
                 onFetchClaudeModels = { viewModel.fetchClaudeModels(it) },
                 onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
                 onFetchZaiModels = { viewModel.fetchZaiModels(it) },
@@ -600,7 +597,6 @@ fun AiNavHost(
                     com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
                     com.ai.data.AiService.REKA -> uiState.availableRekaModels
                     com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                    com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                     else -> emptyList()
                 }
                 val isLoadingModels = when (provider) {
@@ -634,7 +630,6 @@ fun AiNavHost(
                     com.ai.data.AiService.DOUBAO -> uiState.isLoadingDoubaoModels
                     com.ai.data.AiService.REKA -> uiState.isLoadingRekaModels
                     com.ai.data.AiService.WRITER -> uiState.isLoadingWriterModels
-                    com.ai.data.AiService.DUMMY -> uiState.isLoadingDummyModels
                     else -> false
                 }
 
@@ -713,7 +708,6 @@ fun AiNavHost(
                     com.ai.data.AiService.DOUBAO -> uiState.aiSettings.doubaoApiKey
                     com.ai.data.AiService.REKA -> uiState.aiSettings.rekaApiKey
                     com.ai.data.AiService.WRITER -> uiState.aiSettings.writerApiKey
-                    com.ai.data.AiService.DUMMY -> uiState.aiSettings.dummyApiKey
                 }
 
                 ChatSessionScreen(
@@ -867,8 +861,6 @@ fun SettingsScreenNav(
         isLoadingRekaModels = uiState.isLoadingRekaModels,
         availableWriterModels = uiState.availableWriterModels,
         isLoadingWriterModels = uiState.isLoadingWriterModels,
-        availableDummyModels = uiState.availableDummyModels,
-        isLoadingDummyModels = uiState.isLoadingDummyModels,
         onBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onSaveGeneral = { viewModel.updateGeneralSettings(it) },
@@ -905,7 +897,6 @@ fun SettingsScreenNav(
         onFetchDoubaoModels = { viewModel.fetchDoubaoModels(it) },
         onFetchRekaModels = { viewModel.fetchRekaModels(it) },
         onFetchWriterModels = { viewModel.fetchWriterModels(it) },
-        onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) },
         onRefreshAllModels = { viewModel.refreshAllModelLists(it) },
@@ -1002,7 +993,6 @@ fun HousekeepingScreenNav(
         availableDoubaoModels = uiState.availableDoubaoModels,
         availableRekaModels = uiState.availableRekaModels,
         availableWriterModels = uiState.availableWriterModels,
-        availableDummyModels = uiState.availableDummyModels,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },
         onRefreshAllModels = { settings, forceRefresh, onProgress -> viewModel.refreshAllModelLists(settings, forceRefresh, onProgress) },

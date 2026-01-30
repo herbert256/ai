@@ -288,14 +288,7 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             writerManualModels = loadManualModelsWithDefault(KEY_AI_WRITER_MANUAL_MODELS, WRITER_MODELS),
             writerAdminUrl = prefs.getString(KEY_AI_WRITER_ADMIN_URL, AiService.WRITER.adminUrl) ?: AiService.WRITER.adminUrl,
             writerModelListUrl = prefs.getString(KEY_AI_WRITER_MODEL_LIST_URL, "") ?: "",
-            writerParamsId = prefs.getString(KEY_AI_WRITER_PARAMS_ID, null),
-            dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
-            dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, AiService.DUMMY.defaultModel) ?: AiService.DUMMY.defaultModel,
-            dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
-            dummyManualModels = loadManualModelsWithDefault(KEY_AI_DUMMY_MANUAL_MODELS, listOf(AiService.DUMMY.defaultModel)),
-            dummyAdminUrl = prefs.getString(KEY_AI_DUMMY_ADMIN_URL, AiService.DUMMY.adminUrl) ?: AiService.DUMMY.adminUrl,
-            dummyModelListUrl = prefs.getString(KEY_AI_DUMMY_MODEL_LIST_URL, "") ?: "",
-            dummyParamsId = prefs.getString(KEY_AI_DUMMY_PARAMS_ID, null)
+            writerParamsId = prefs.getString(KEY_AI_WRITER_PARAMS_ID, null)
         )
     }
 
@@ -549,13 +542,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_WRITER_ADMIN_URL, settings.writerAdminUrl)
             .putString(KEY_AI_WRITER_MODEL_LIST_URL, settings.writerModelListUrl)
             .putString(KEY_AI_WRITER_PARAMS_ID, settings.writerParamsId)
-            .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
-            .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
-            .putString(KEY_AI_DUMMY_MODEL_SOURCE, settings.dummyModelSource.name)
-            .putString(KEY_AI_DUMMY_MANUAL_MODELS, gson.toJson(settings.dummyManualModels))
-            .putString(KEY_AI_DUMMY_ADMIN_URL, settings.dummyAdminUrl)
-            .putString(KEY_AI_DUMMY_MODEL_LIST_URL, settings.dummyModelListUrl)
-            .putString(KEY_AI_DUMMY_PARAMS_ID, settings.dummyParamsId)
             // Save agents
             .putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
             // Save flocks
@@ -821,9 +807,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_REKA_MODEL = "ai_reka_model"
         private const val KEY_AI_WRITER_API_KEY = "ai_writer_api_key"
         private const val KEY_AI_WRITER_MODEL = "ai_writer_model"
-        private const val KEY_AI_DUMMY_API_KEY = "ai_dummy_api_key"
-        private const val KEY_AI_DUMMY_MODEL = "ai_dummy_model"
-        private const val KEY_AI_DUMMY_MANUAL_MODELS = "ai_dummy_manual_models"
 
         // AI model source (API or MANUAL)
         private const val KEY_AI_OPENAI_MODEL_SOURCE = "ai_openai_model_source"
@@ -857,7 +840,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_DOUBAO_MODEL_SOURCE = "ai_doubao_model_source"
         private const val KEY_AI_REKA_MODEL_SOURCE = "ai_reka_model_source"
         private const val KEY_AI_WRITER_MODEL_SOURCE = "ai_writer_model_source"
-        private const val KEY_AI_DUMMY_MODEL_SOURCE = "ai_dummy_model_source"
 
         // AI manual models lists
         private const val KEY_AI_OPENAI_MANUAL_MODELS = "ai_openai_manual_models"
@@ -924,7 +906,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_DOUBAO_ADMIN_URL = "ai_doubao_admin_url"
         private const val KEY_AI_REKA_ADMIN_URL = "ai_reka_admin_url"
         private const val KEY_AI_WRITER_ADMIN_URL = "ai_writer_admin_url"
-        private const val KEY_AI_DUMMY_ADMIN_URL = "ai_dummy_admin_url"
 
         // AI model list URLs
         private const val KEY_AI_OPENAI_MODEL_LIST_URL = "ai_openai_model_list_url"
@@ -958,7 +939,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_DOUBAO_MODEL_LIST_URL = "ai_doubao_model_list_url"
         private const val KEY_AI_REKA_MODEL_LIST_URL = "ai_reka_model_list_url"
         private const val KEY_AI_WRITER_MODEL_LIST_URL = "ai_writer_model_list_url"
-        private const val KEY_AI_DUMMY_MODEL_LIST_URL = "ai_dummy_model_list_url"
 
         // AI params ID per provider
         private const val KEY_AI_OPENAI_PARAMS_ID = "ai_openai_params_id"
@@ -992,7 +972,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_DOUBAO_PARAMS_ID = "ai_doubao_params_id"
         private const val KEY_AI_REKA_PARAMS_ID = "ai_reka_params_id"
         private const val KEY_AI_WRITER_PARAMS_ID = "ai_writer_params_id"
-        private const val KEY_AI_DUMMY_PARAMS_ID = "ai_dummy_params_id"
 
         // AI agents
         private const val KEY_AI_AGENTS = "ai_agents"
@@ -1041,7 +1020,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_API_MODELS_MISTRAL = "api_models_mistral"
         private const val KEY_API_MODELS_TOGETHER = "api_models_together"
         private const val KEY_API_MODELS_OPENROUTER = "api_models_openrouter"
-        private const val KEY_API_MODELS_DUMMY = "api_models_dummy"
         private const val KEY_API_MODELS_CLAUDE = "api_models_claude"
         private const val KEY_API_MODELS_SILICONFLOW = "api_models_siliconflow"
         private const val KEY_API_MODELS_ZAI = "api_models_zai"
@@ -1197,9 +1175,6 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun loadOpenRouterApiModels(): List<String> = loadApiModels(KEY_API_MODELS_OPENROUTER)
     fun saveOpenRouterApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_OPENROUTER, models)
-
-    fun loadDummyApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DUMMY)
-    fun saveDummyApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DUMMY, models)
 
     fun loadClaudeApiModels(): List<String> = loadApiModels(KEY_API_MODELS_CLAUDE)
     fun saveClaudeApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_CLAUDE, models)

@@ -1,7 +1,6 @@
 package com.ai.data
 
 import com.ai.ui.AiAgentParameters
-import com.google.gson.GsonBuilder
 
 internal suspend fun AiAnalysisRepository.analyzeWithChatGpt(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
     return if (usesResponsesApi(model)) {
@@ -1799,79 +1798,3 @@ internal suspend fun AiAnalysisRepository.analyzeWithWriter(apiKey: String, prom
     }
 }
 
-internal suspend fun AiAnalysisRepository.analyzeWithDummy(
-    apiKey: String,
-    prompt: String,
-    model: String = "abc",
-    parameters: AiAgentParameters? = null
-): AiAnalysisResponse {
-    // Ensure Dummy server is running
-    DummyApiServer.start()
-    val api = AiApiFactory.createDummyApi()
-
-    val systemPrompt = parameters?.systemPrompt
-    val messages = if (systemPrompt != null) {
-        listOf(
-            OpenAiMessage("system", systemPrompt),
-            OpenAiMessage("user", prompt)
-        )
-    } else {
-        listOf(OpenAiMessage("user", prompt))
-    }
-
-    val request = OpenAiRequest(
-        model = model,
-        messages = messages,
-        max_tokens = parameters?.maxTokens,
-        temperature = parameters?.temperature,
-        top_p = parameters?.topP,
-        search = if (parameters?.searchEnabled == true) true else null
-    )
-
-    return try {
-        val response = api.createChatCompletion("Bearer $apiKey", request)
-        val statusCode = response.code()
-
-        if (response.isSuccessful) {
-            val body = response.body()
-            // Try multiple parsing strategies for content extraction
-            val content = body?.choices?.let { choices ->
-                choices.firstOrNull()?.message?.content
-                    ?: choices.firstOrNull()?.message?.reasoning_content
-                    ?: choices.firstNotNullOfOrNull { it.message?.content }
-            }
-            val usage = body?.usage?.let {
-                TokenUsage(
-                    inputTokens = it.prompt_tokens ?: 0,
-                    outputTokens = it.completion_tokens ?: 0,
-                    apiCost = extractApiCost(it)
-                )
-            }
-
-            val rawUsage = body?.usage?.let {
-                GsonBuilder().setPrettyPrinting().create().toJson(it)
-            }
-            val headers = formatHeaders(response.headers())
-
-            if (content != null) {
-                AiAnalysisResponse(
-                    service = AiService.DUMMY,
-                    analysis = content,
-                    error = null,
-                    tokenUsage = usage,
-                    rawUsageJson = rawUsage,
-                    httpHeaders = headers,
-                    httpStatusCode = statusCode
-                )
-            } else {
-                val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
-                AiAnalysisResponse(AiService.DUMMY, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
-            }
-        } else {
-            val errorBody = response.errorBody()?.string() ?: "Unknown error"
-            AiAnalysisResponse(AiService.DUMMY, null, "Dummy API error: $errorBody", httpStatusCode = statusCode)
-        }
-    } catch (e: Exception) {
-        AiAnalysisResponse(AiService.DUMMY, null, "Dummy API error: ${e.message}")
-    }
-}

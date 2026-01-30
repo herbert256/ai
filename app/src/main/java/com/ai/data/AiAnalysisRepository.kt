@@ -128,7 +128,6 @@ class AiAnalysisRepository {
     internal val doubaoApi = AiApiFactory.createDoubaoApi()
     internal val rekaApi = AiApiFactory.createRekaApi()
     internal val writerApi = AiApiFactory.createWriterApi()
-    internal val dummyApi = AiApiFactory.createDummyApi()
 
     // Streaming API instances
     internal val openAiStreamApi = AiApiFactory.createOpenAiStreamApi()
@@ -162,7 +161,6 @@ class AiAnalysisRepository {
     internal val doubaoStreamApi = AiApiFactory.createDoubaoStreamApi()
     internal val rekaStreamApi = AiApiFactory.createRekaStreamApi()
     internal val writerStreamApi = AiApiFactory.createWriterStreamApi()
-    internal val dummyStreamApi = AiApiFactory.createDummyStreamApi()
 
     // Gson instance for pretty printing usage JSON
     internal val gson = GsonBuilder().setPrettyPrinting().create()
@@ -316,7 +314,6 @@ class AiAnalysisRepository {
                 AiService.DOUBAO -> analyzeWithDoubao(apiKey, finalPrompt, doubaoModel)
                 AiService.REKA -> analyzeWithReka(apiKey, finalPrompt, rekaModel)
                 AiService.WRITER -> analyzeWithWriter(apiKey, finalPrompt, writerModel)
-                AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
 
@@ -440,7 +437,6 @@ class AiAnalysisRepository {
                 AiService.DOUBAO -> analyzeWithDoubao(apiKey, finalPrompt, doubaoModel)
                 AiService.REKA -> analyzeWithReka(apiKey, finalPrompt, rekaModel)
                 AiService.WRITER -> analyzeWithWriter(apiKey, finalPrompt, writerModel)
-                AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
 
@@ -594,7 +590,6 @@ class AiAnalysisRepository {
                 AiService.DOUBAO -> analyzeWithDoubao(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.REKA -> analyzeWithReka(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.WRITER -> analyzeWithWriter(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             // Add agent name and prompt used to result
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
@@ -678,7 +673,6 @@ class AiAnalysisRepository {
                 AiService.DOUBAO -> analyzeWithDoubao(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.REKA -> analyzeWithReka(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.WRITER -> analyzeWithWriter(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
         }

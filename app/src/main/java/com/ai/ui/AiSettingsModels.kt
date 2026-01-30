@@ -623,13 +623,6 @@ data class AiSettings(
     val writerAdminUrl: String = AiService.WRITER.adminUrl,
     val writerModelListUrl: String = "",
     val writerParamsId: String? = null,
-    val dummyApiKey: String = "",
-    val dummyModel: String = AiService.DUMMY.defaultModel,
-    val dummyModelSource: ModelSource = ModelSource.API,
-    val dummyManualModels: List<String> = listOf("dummy-model"),
-    val dummyAdminUrl: String = AiService.DUMMY.adminUrl,
-    val dummyModelListUrl: String = "",
-    val dummyParamsId: String? = null,
     // AI Agents
     val agents: List<AiAgent> = emptyList(),
     // AI Flocks
@@ -657,15 +650,14 @@ data class AiSettings(
     }
 
     /**
-     * Check if a provider is active (status "ok" and respects DUMMY dev-mode gate).
+     * Check if a provider is active (status "ok").
      */
     fun isProviderActive(service: AiService, developerMode: Boolean): Boolean {
-        if (service == AiService.DUMMY && !developerMode) return false
         return getProviderState(service) == "ok"
     }
 
     /**
-     * Get all active providers (status "ok", respecting DUMMY dev-mode gate).
+     * Get all active providers (status "ok").
      */
     fun getActiveServices(developerMode: Boolean): List<AiService> {
         return AiService.entries.filter { isProviderActive(it, developerMode) }
@@ -711,7 +703,6 @@ data class AiSettings(
             AiService.DOUBAO -> doubaoApiKey
             AiService.REKA -> rekaApiKey
             AiService.WRITER -> writerApiKey
-            AiService.DUMMY -> dummyApiKey
         }
     }
 
@@ -748,7 +739,6 @@ data class AiSettings(
             AiService.DOUBAO -> doubaoModel
             AiService.REKA -> rekaModel
             AiService.WRITER -> writerModel
-            AiService.DUMMY -> dummyModel
         }
     }
 
@@ -785,7 +775,6 @@ data class AiSettings(
             AiService.DOUBAO -> copy(doubaoModel = model)
             AiService.REKA -> copy(rekaModel = model)
             AiService.WRITER -> copy(writerModel = model)
-            AiService.DUMMY -> copy(dummyModel = model)
         }
     }
 
@@ -822,7 +811,6 @@ data class AiSettings(
             AiService.DOUBAO -> doubaoModelSource
             AiService.REKA -> rekaModelSource
             AiService.WRITER -> writerModelSource
-            AiService.DUMMY -> dummyModelSource
         }
     }
 
@@ -859,7 +847,6 @@ data class AiSettings(
             AiService.DOUBAO -> doubaoManualModels
             AiService.REKA -> rekaManualModels
             AiService.WRITER -> writerManualModels
-            AiService.DUMMY -> dummyManualModels
         }
     }
 
@@ -1058,9 +1045,6 @@ data class AiSettings(
         AiService.WRITER -> listOf(
             AiEndpoint("writer-chat", "Chat Completions", "https://api.writer.com/v1/chat/completions", true)
         )
-        AiService.DUMMY -> listOf(
-            AiEndpoint("dummy-chat", "Chat Completions", "http://localhost:54321/v1/chat/completions", true)
-        )
     }
 
     fun getEndpointById(provider: AiService, endpointId: String): AiEndpoint? =
@@ -1136,7 +1120,6 @@ data class AiSettings(
             AiService.DOUBAO -> doubaoModelListUrl
             AiService.REKA -> rekaModelListUrl
             AiService.WRITER -> writerModelListUrl
-            AiService.DUMMY -> dummyModelListUrl
         }
     }
 
@@ -1176,7 +1159,6 @@ data class AiSettings(
             AiService.DOUBAO -> "https://ark.cn-beijing.volces.com/api/v3/models"
             AiService.REKA -> "https://api.reka.ai/v1/models"
             AiService.WRITER -> "https://api.writer.com/v1/models"
-            AiService.DUMMY -> "http://localhost:54321/v1/models"
         }
     }
 
@@ -1225,7 +1207,6 @@ data class AiSettings(
             AiService.DOUBAO -> doubaoParamsId
             AiService.REKA -> rekaParamsId
             AiService.WRITER -> writerParamsId
-            AiService.DUMMY -> dummyParamsId
         }
     }
 
@@ -1265,7 +1246,6 @@ data class AiSettings(
             AiService.DOUBAO -> copy(doubaoParamsId = paramsId)
             AiService.REKA -> copy(rekaParamsId = paramsId)
             AiService.WRITER -> copy(writerParamsId = paramsId)
-            AiService.DUMMY -> copy(dummyParamsId = paramsId)
         }
     }
 }
