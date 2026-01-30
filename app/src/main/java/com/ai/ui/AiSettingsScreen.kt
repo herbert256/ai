@@ -451,6 +451,48 @@ fun AiProvidersScreen(
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit
 ) {
+    // Toggle between showing only active ("ok") providers and all providers
+    var showAll by remember { mutableStateOf(false) }
+
+    // Provider definitions: service, title, accent color, settings screen
+    data class ProviderEntry(
+        val service: AiService,
+        val title: String,
+        val accentColor: Color,
+        val screen: SettingsSubScreen
+    )
+
+    val allProviders = listOf(
+        ProviderEntry(AiService.AI21, "AI21", Color(0xFFFF6F00), SettingsSubScreen.AI_AI21),
+        ProviderEntry(AiService.ANTHROPIC, "Anthropic", Color(0xFFD97706), SettingsSubScreen.AI_ANTHROPIC),
+        ProviderEntry(AiService.BAICHUAN, "Baichuan", Color(0xFF1E88E5), SettingsSubScreen.AI_BAICHUAN),
+        ProviderEntry(AiService.CEREBRAS, "Cerebras", Color(0xFF00A3E0), SettingsSubScreen.AI_CEREBRAS),
+        ProviderEntry(AiService.COHERE, "Cohere", Color(0xFF39594D), SettingsSubScreen.AI_COHERE),
+        ProviderEntry(AiService.DASHSCOPE, "DashScope", Color(0xFFFF6A00), SettingsSubScreen.AI_DASHSCOPE),
+        ProviderEntry(AiService.DEEPSEEK, "DeepSeek", Color(0xFF4D6BFE), SettingsSubScreen.AI_DEEPSEEK),
+        ProviderEntry(AiService.FIREWORKS, "Fireworks", Color(0xFFE34234), SettingsSubScreen.AI_FIREWORKS),
+        ProviderEntry(AiService.GOOGLE, "Google", Color(0xFF4285F4), SettingsSubScreen.AI_GOOGLE),
+        ProviderEntry(AiService.GROQ, "Groq", Color(0xFFF55036), SettingsSubScreen.AI_GROQ),
+        ProviderEntry(AiService.MINIMAX, "MiniMax", Color(0xFFEC407A), SettingsSubScreen.AI_MINIMAX),
+        ProviderEntry(AiService.MISTRAL, "Mistral", Color(0xFFFF7000), SettingsSubScreen.AI_MISTRAL),
+        ProviderEntry(AiService.MOONSHOT, "Moonshot", Color(0xFF7C3AED), SettingsSubScreen.AI_MOONSHOT),
+        ProviderEntry(AiService.OPENAI, "OpenAI", Color(0xFF10A37F), SettingsSubScreen.AI_OPENAI),
+        ProviderEntry(AiService.OPENROUTER, "OpenRouter", Color(0xFF6B5AED), SettingsSubScreen.AI_OPENROUTER),
+        ProviderEntry(AiService.PERPLEXITY, "Perplexity", Color(0xFF20B2AA), SettingsSubScreen.AI_PERPLEXITY),
+        ProviderEntry(AiService.SAMBANOVA, "SambaNova", Color(0xFF6B21A8), SettingsSubScreen.AI_SAMBANOVA),
+        ProviderEntry(AiService.SILICONFLOW, "SiliconFlow", Color(0xFF00B4D8), SettingsSubScreen.AI_SILICONFLOW),
+        ProviderEntry(AiService.STEPFUN, "StepFun", Color(0xFF00BFA5), SettingsSubScreen.AI_STEPFUN),
+        ProviderEntry(AiService.TOGETHER, "Together", Color(0xFF6366F1), SettingsSubScreen.AI_TOGETHER),
+        ProviderEntry(AiService.XAI, "xAI", Color(0xFFFFFFFF), SettingsSubScreen.AI_XAI),
+        ProviderEntry(AiService.ZAI, "Z.AI", Color(0xFF6366F1), SettingsSubScreen.AI_ZAI)
+    )
+
+    val visibleProviders = if (showAll) {
+        allProviders
+    } else {
+        allProviders.filter { aiSettings.getProviderState(it.service) == "ok" }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -465,169 +507,37 @@ fun AiProvidersScreen(
             onAiClick = onBackToHome
         )
 
-        // Provider cards - sorted alphabetically, navigate to individual provider screens
-        AiServiceNavigationCard(
-            title = "AI21",
-            accentColor = Color(0xFFFF6F00),
-            providerState = aiSettings.getProviderState(AiService.AI21),
-            adminUrl = AiService.AI21.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_AI21) }
-        )
-        AiServiceNavigationCard(
-            title = "Anthropic",
-            accentColor = Color(0xFFD97706),
-            providerState = aiSettings.getProviderState(AiService.ANTHROPIC),
-            adminUrl = AiService.ANTHROPIC.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
-        )
-        AiServiceNavigationCard(
-            title = "Baichuan",
-            accentColor = Color(0xFF1E88E5),
-            providerState = aiSettings.getProviderState(AiService.BAICHUAN),
-            adminUrl = AiService.BAICHUAN.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_BAICHUAN) }
-        )
-        AiServiceNavigationCard(
-            title = "Cerebras",
-            accentColor = Color(0xFF00A3E0),
-            providerState = aiSettings.getProviderState(AiService.CEREBRAS),
-            adminUrl = AiService.CEREBRAS.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_CEREBRAS) }
-        )
-        AiServiceNavigationCard(
-            title = "Cohere",
-            accentColor = Color(0xFF39594D),
-            providerState = aiSettings.getProviderState(AiService.COHERE),
-            adminUrl = AiService.COHERE.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_COHERE) }
-        )
-        AiServiceNavigationCard(
-            title = "DashScope",
-            accentColor = Color(0xFFFF6A00),
-            providerState = aiSettings.getProviderState(AiService.DASHSCOPE),
-            adminUrl = AiService.DASHSCOPE.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_DASHSCOPE) }
-        )
-        AiServiceNavigationCard(
-            title = "DeepSeek",
-            accentColor = Color(0xFF4D6BFE),
-            providerState = aiSettings.getProviderState(AiService.DEEPSEEK),
-            adminUrl = AiService.DEEPSEEK.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
-        )
-        AiServiceNavigationCard(
-            title = "Fireworks",
-            accentColor = Color(0xFFE34234),
-            providerState = aiSettings.getProviderState(AiService.FIREWORKS),
-            adminUrl = AiService.FIREWORKS.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_FIREWORKS) }
-        )
-        AiServiceNavigationCard(
-            title = "Google",
-            accentColor = Color(0xFF4285F4),
-            providerState = aiSettings.getProviderState(AiService.GOOGLE),
-            adminUrl = AiService.GOOGLE.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
-        )
-        AiServiceNavigationCard(
-            title = "Groq",
-            accentColor = Color(0xFFF55036),
-            providerState = aiSettings.getProviderState(AiService.GROQ),
-            adminUrl = AiService.GROQ.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
-        )
-        AiServiceNavigationCard(
-            title = "MiniMax",
-            accentColor = Color(0xFFEC407A),
-            providerState = aiSettings.getProviderState(AiService.MINIMAX),
-            adminUrl = AiService.MINIMAX.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_MINIMAX) }
-        )
-        AiServiceNavigationCard(
-            title = "Mistral",
-            accentColor = Color(0xFFFF7000),
-            providerState = aiSettings.getProviderState(AiService.MISTRAL),
-            adminUrl = AiService.MISTRAL.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
-        )
-        AiServiceNavigationCard(
-            title = "Moonshot",
-            accentColor = Color(0xFF7C3AED),
-            providerState = aiSettings.getProviderState(AiService.MOONSHOT),
-            adminUrl = AiService.MOONSHOT.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_MOONSHOT) }
-        )
-        AiServiceNavigationCard(
-            title = "OpenAI",
-            accentColor = Color(0xFF10A37F),
-            providerState = aiSettings.getProviderState(AiService.OPENAI),
-            adminUrl = AiService.OPENAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
-        )
-        AiServiceNavigationCard(
-            title = "OpenRouter",
-            accentColor = Color(0xFF6B5AED),
-            providerState = aiSettings.getProviderState(AiService.OPENROUTER),
-            adminUrl = AiService.OPENROUTER.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
-        )
-        AiServiceNavigationCard(
-            title = "Perplexity",
-            accentColor = Color(0xFF20B2AA),
-            providerState = aiSettings.getProviderState(AiService.PERPLEXITY),
-            adminUrl = AiService.PERPLEXITY.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
-        )
-        AiServiceNavigationCard(
-            title = "SambaNova",
-            accentColor = Color(0xFF6B21A8),
-            providerState = aiSettings.getProviderState(AiService.SAMBANOVA),
-            adminUrl = AiService.SAMBANOVA.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_SAMBANOVA) }
-        )
-        AiServiceNavigationCard(
-            title = "SiliconFlow",
-            accentColor = Color(0xFF00B4D8),
-            providerState = aiSettings.getProviderState(AiService.SILICONFLOW),
-            adminUrl = AiService.SILICONFLOW.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
-        )
-        AiServiceNavigationCard(
-            title = "StepFun",
-            accentColor = Color(0xFF00BFA5),
-            providerState = aiSettings.getProviderState(AiService.STEPFUN),
-            adminUrl = AiService.STEPFUN.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_STEPFUN) }
-        )
-        AiServiceNavigationCard(
-            title = "Together",
-            accentColor = Color(0xFF6366F1),
-            providerState = aiSettings.getProviderState(AiService.TOGETHER),
-            adminUrl = AiService.TOGETHER.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
-        )
-        AiServiceNavigationCard(
-            title = "xAI",
-            accentColor = Color(0xFFFFFFFF),
-            providerState = aiSettings.getProviderState(AiService.XAI),
-            adminUrl = AiService.XAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
-        )
-        AiServiceNavigationCard(
-            title = "Z.AI",
-            accentColor = Color(0xFF6366F1),
-            providerState = aiSettings.getProviderState(AiService.ZAI),
-            adminUrl = AiService.ZAI.adminUrl,
-            onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
-        )
+        // Provider cards
+        visibleProviders.forEach { entry ->
+            AiServiceNavigationCard(
+                title = entry.title,
+                accentColor = entry.accentColor,
+                providerState = aiSettings.getProviderState(entry.service),
+                adminUrl = entry.service.adminUrl,
+                onEdit = { onNavigate(entry.screen) }
+            )
+        }
+
         // Dummy provider only visible in developer mode (always last)
-        if (developerMode) {
+        if (developerMode && (showAll || aiSettings.getProviderState(AiService.DUMMY) == "ok")) {
             AiServiceNavigationCard(
                 title = "Dummy",
                 accentColor = Color(0xFF888888),
-                providerState = "ok",  // Dummy always considered "ok"
+                providerState = "ok",
                 adminUrl = AiService.DUMMY.adminUrl,
                 onEdit = { onNavigate(SettingsSubScreen.AI_DUMMY) }
+            )
+        }
+
+        // Toggle button: switch between active-only and all providers
+        val activeCount = allProviders.count { aiSettings.getProviderState(it.service) == "ok" }
+        OutlinedButton(
+            onClick = { showAll = !showAll },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                if (showAll) "Show active providers ($activeCount)"
+                else "Show all providers (${allProviders.size})"
             )
         }
     }
