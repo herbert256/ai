@@ -62,7 +62,7 @@ enum class AiService(
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys", "anthropic/claude-3.5-sonnet"),
     SILICONFLOW("SiliconFlow", "https://api.siliconflow.cn/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
     ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash", "z-ai"),
-    MOONSHOT("Moonshot", "https://api.moonshot.cn/", "https://platform.moonshot.cn/console/api-keys", "kimi-latest", "moonshot"),
+    MOONSHOT("Moonshot", "https://api.moonshot.ai/", "https://platform.moonshot.ai/console/api-keys", "kimi-latest", "moonshot"),
     COHERE("Cohere", "https://api.cohere.ai/compatibility/", "https://dashboard.cohere.com/", "command-a-03-2025", "cohere"),
     AI21("AI21", "https://api.ai21.com/", "https://studio.ai21.com/", "jamba-mini", "ai21"),
     DASHSCOPE("DashScope", "https://dashscope-intl.aliyuncs.com/compatible-mode/", "https://dashscope.console.aliyun.com/", "qwen-plus"),
