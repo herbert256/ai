@@ -512,8 +512,27 @@ data class AiSettings(
     // AI Prompts (internal app prompts)
     val prompts: List<AiPrompt> = emptyList(),
     // API Endpoints per provider (multiple endpoints allowed, one can be default)
-    val endpoints: Map<AiService, List<AiEndpoint>> = emptyMap()
+    val endpoints: Map<AiService, List<AiEndpoint>> = emptyMap(),
+    // Provider states: "ok" (key valid), "error" (key invalid), "not-used" (no key)
+    val providerStates: Map<String, String> = emptyMap()
 ) {
+    /**
+     * Get the provider state for a service.
+     * Returns "ok", "error", or "not-used" based on API key presence and stored state.
+     */
+    fun getProviderState(service: AiService): String {
+        if (getApiKey(service).isBlank()) return "not-used"
+        val stored = providerStates[service.name]
+        return if (stored == "ok") "ok" else "error"
+    }
+
+    /**
+     * Return a copy with an updated provider state.
+     */
+    fun withProviderState(service: AiService, state: String): AiSettings {
+        return copy(providerStates = providerStates + (service.name to state))
+    }
+
     fun getApiKey(service: AiService): String {
         return when (service) {
             AiService.OPENAI -> chatGptApiKey

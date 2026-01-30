@@ -834,6 +834,7 @@ fun SettingsScreenNav(
         onFetchMiniMaxModels = { viewModel.fetchMiniMaxModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
+        onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) },
         onRefreshAllModels = { viewModel.refreshAllModelLists(it) },
         onSaveHuggingFaceApiKey = { key ->
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))

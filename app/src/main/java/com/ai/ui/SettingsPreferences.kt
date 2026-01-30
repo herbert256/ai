@@ -66,7 +66,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         val params = loadParams()
         val prompts = loadPrompts()
         val endpoints = loadEndpoints()
-        return baseSettings.copy(agents = agents, flocks = flocks, swarms = swarms, params = params, prompts = prompts, endpoints = endpoints)
+        val providerStates = loadProviderStates()
+        return baseSettings.copy(agents = agents, flocks = flocks, swarms = swarms, params = params, prompts = prompts, endpoints = endpoints, providerStates = providerStates)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -441,6 +442,8 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             // Save endpoints (convert to Map<String, List<AiEndpoint>> for storage)
             .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.name }))
+            // Save provider states
+            .putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
             .apply()
     }
 
@@ -551,6 +554,21 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             }?.filterKeys { it != null }?.mapKeys { it.key!! } ?: emptyMap()
         } catch (e: Exception) {
             android.util.Log.w("SettingsPreferences", "Failed to load endpoints: ${e.message}")
+            emptyMap()
+        }
+    }
+
+    // ============================================================================
+    // Provider States
+    // ============================================================================
+
+    private fun loadProviderStates(): Map<String, String> {
+        val json = prefs.getString(KEY_PROVIDER_STATES, null) ?: return emptyMap()
+        return try {
+            val type = object : TypeToken<Map<String, String>>() {}.type
+            gson.fromJson(json, type) ?: emptyMap()
+        } catch (e: Exception) {
+            android.util.Log.w("SettingsPreferences", "Failed to load provider states: ${e.message}")
             emptyMap()
         }
     }
@@ -804,6 +822,9 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
         // AI endpoints per provider
         private const val KEY_AI_ENDPOINTS = "ai_endpoints"
+
+        // Provider states (ok/error/not-used)
+        private const val KEY_PROVIDER_STATES = "provider_states"
 
         // Prompt history for New AI Report
         private const val KEY_PROMPT_HISTORY = "prompt_history"

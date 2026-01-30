@@ -145,6 +145,12 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(aiSettings = settings)
     }
 
+    fun updateProviderState(service: AiService, state: String) {
+        val updated = _uiState.value.aiSettings.withProviderState(service, state)
+        saveAiSettings(updated)
+        _uiState.value = _uiState.value.copy(aiSettings = updated)
+    }
+
     fun updateTrackApiCalls(enabled: Boolean) {
         val settings = _uiState.value.generalSettings.copy(trackApiCalls = enabled)
         saveGeneralSettings(settings)

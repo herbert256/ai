@@ -475,154 +475,154 @@ fun AiProvidersScreen(
         AiServiceNavigationCard(
             title = "AI21",
             accentColor = Color(0xFFFF6F00),
-            hasApiKey = aiSettings.ai21ApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.AI21),
             adminUrl = AiService.AI21.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_AI21) }
         )
         AiServiceNavigationCard(
             title = "Anthropic",
             accentColor = Color(0xFFD97706),
-            hasApiKey = aiSettings.claudeApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.ANTHROPIC),
             adminUrl = AiService.ANTHROPIC.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
             title = "Baichuan",
             accentColor = Color(0xFF1E88E5),
-            hasApiKey = aiSettings.baichuanApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.BAICHUAN),
             adminUrl = AiService.BAICHUAN.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_BAICHUAN) }
         )
         AiServiceNavigationCard(
             title = "Cerebras",
             accentColor = Color(0xFF00A3E0),
-            hasApiKey = aiSettings.cerebrasApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.CEREBRAS),
             adminUrl = AiService.CEREBRAS.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_CEREBRAS) }
         )
         AiServiceNavigationCard(
             title = "Cohere",
             accentColor = Color(0xFF39594D),
-            hasApiKey = aiSettings.cohereApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.COHERE),
             adminUrl = AiService.COHERE.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_COHERE) }
         )
         AiServiceNavigationCard(
             title = "DashScope",
             accentColor = Color(0xFFFF6A00),
-            hasApiKey = aiSettings.dashScopeApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.DASHSCOPE),
             adminUrl = AiService.DASHSCOPE.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_DASHSCOPE) }
         )
         AiServiceNavigationCard(
             title = "DeepSeek",
             accentColor = Color(0xFF4D6BFE),
-            hasApiKey = aiSettings.deepSeekApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.DEEPSEEK),
             adminUrl = AiService.DEEPSEEK.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
         )
         AiServiceNavigationCard(
             title = "Fireworks",
             accentColor = Color(0xFFE34234),
-            hasApiKey = aiSettings.fireworksApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.FIREWORKS),
             adminUrl = AiService.FIREWORKS.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_FIREWORKS) }
         )
         AiServiceNavigationCard(
             title = "Google",
             accentColor = Color(0xFF4285F4),
-            hasApiKey = aiSettings.geminiApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.GOOGLE),
             adminUrl = AiService.GOOGLE.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
         )
         AiServiceNavigationCard(
             title = "Groq",
             accentColor = Color(0xFFF55036),
-            hasApiKey = aiSettings.groqApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.GROQ),
             adminUrl = AiService.GROQ.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
         )
         AiServiceNavigationCard(
             title = "MiniMax",
             accentColor = Color(0xFFEC407A),
-            hasApiKey = aiSettings.miniMaxApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.MINIMAX),
             adminUrl = AiService.MINIMAX.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_MINIMAX) }
         )
         AiServiceNavigationCard(
             title = "Mistral",
             accentColor = Color(0xFFFF7000),
-            hasApiKey = aiSettings.mistralApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.MISTRAL),
             adminUrl = AiService.MISTRAL.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
         )
         AiServiceNavigationCard(
             title = "Moonshot",
             accentColor = Color(0xFF7C3AED),
-            hasApiKey = aiSettings.moonshotApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.MOONSHOT),
             adminUrl = AiService.MOONSHOT.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_MOONSHOT) }
         )
         AiServiceNavigationCard(
             title = "OpenAI",
             accentColor = Color(0xFF10A37F),
-            hasApiKey = aiSettings.chatGptApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.OPENAI),
             adminUrl = AiService.OPENAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
         )
         AiServiceNavigationCard(
             title = "OpenRouter",
             accentColor = Color(0xFF6B5AED),
-            hasApiKey = aiSettings.openRouterApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.OPENROUTER),
             adminUrl = AiService.OPENROUTER.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
         )
         AiServiceNavigationCard(
             title = "Perplexity",
             accentColor = Color(0xFF20B2AA),
-            hasApiKey = aiSettings.perplexityApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.PERPLEXITY),
             adminUrl = AiService.PERPLEXITY.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
         )
         AiServiceNavigationCard(
             title = "SambaNova",
             accentColor = Color(0xFF6B21A8),
-            hasApiKey = aiSettings.sambaNovaApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.SAMBANOVA),
             adminUrl = AiService.SAMBANOVA.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_SAMBANOVA) }
         )
         AiServiceNavigationCard(
             title = "SiliconFlow",
             accentColor = Color(0xFF00B4D8),
-            hasApiKey = aiSettings.siliconFlowApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.SILICONFLOW),
             adminUrl = AiService.SILICONFLOW.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
         )
         AiServiceNavigationCard(
             title = "StepFun",
             accentColor = Color(0xFF00BFA5),
-            hasApiKey = aiSettings.stepFunApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.STEPFUN),
             adminUrl = AiService.STEPFUN.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_STEPFUN) }
         )
         AiServiceNavigationCard(
             title = "Together",
             accentColor = Color(0xFF6366F1),
-            hasApiKey = aiSettings.togetherApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.TOGETHER),
             adminUrl = AiService.TOGETHER.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
         )
         AiServiceNavigationCard(
             title = "xAI",
             accentColor = Color(0xFFFFFFFF),
-            hasApiKey = aiSettings.grokApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.XAI),
             adminUrl = AiService.XAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
             title = "Z.AI",
             accentColor = Color(0xFF6366F1),
-            hasApiKey = aiSettings.zaiApiKey.isNotBlank(),
+            providerState = aiSettings.getProviderState(AiService.ZAI),
             adminUrl = AiService.ZAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
         )
@@ -631,7 +631,7 @@ fun AiProvidersScreen(
             AiServiceNavigationCard(
                 title = "Dummy",
                 accentColor = Color(0xFF888888),
-                hasApiKey = true,  // Dummy always has a "key"
+                providerState = "ok",  // Dummy always considered "ok"
                 adminUrl = AiService.DUMMY.adminUrl,
                 onEdit = { onNavigate(SettingsSubScreen.AI_DUMMY) }
             )

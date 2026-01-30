@@ -29,6 +29,7 @@ fun AiServiceNavigationCard(
     title: String,
     accentColor: Color,
     hasApiKey: Boolean = false,
+    providerState: String = if (hasApiKey) "ok" else "not-used",
     @Suppress("UNUSED_PARAMETER") adminUrl: String = "",
     onEdit: () -> Unit
 ) {
@@ -61,11 +62,12 @@ fun AiServiceNavigationCard(
                 modifier = Modifier.weight(1f)
             )
 
-            // API key indicator
-            Text(
-                text = if (hasApiKey) "🔑" else "❌",
-                fontSize = 14.sp
-            )
+            // Provider state indicator
+            when (providerState) {
+                "ok" -> Text(text = "\uD83D\uDD11", fontSize = 14.sp) // 🔑
+                "error" -> Text(text = "❌", fontSize = 14.sp)
+                // "not-used" -> no icon
+            }
         }
     }
 }
@@ -91,6 +93,7 @@ fun AiServiceSettingsScreenTemplate(
     onTestApiKey: (suspend () -> String?)? = null,
     onClearApiKey: (() -> Unit)? = null,  // Reserved for future use
     onCreateAgent: (() -> Unit)? = null,
+    onProviderStateChange: ((String) -> Unit)? = null,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
     val context = LocalContext.current
@@ -98,21 +101,21 @@ fun AiServiceSettingsScreenTemplate(
     var isSaving by remember { mutableStateOf(false) }
     var showModelDropdown by remember { mutableStateOf(false) }
 
-    // Handle save with API key validation
+    // Handle save - always saves and navigates back.
+    // If API key is present, runs test first to determine provider state,
+    // but saves regardless of test outcome.
     val handleSave: () -> Unit = {
         if (apiKey.isNotBlank() && onTestApiKey != null) {
             isSaving = true
             coroutineScope.launch {
                 val error = onTestApiKey()
+                onProviderStateChange?.invoke(if (error == null) "ok" else "error")
                 isSaving = false
-                if (error == null) {
-                    // API key is valid, save and go back
-                    onSave()
-                    onBackToAiSettings()
-                }
-                // If error, stay on screen (user sees the error from test)
+                onSave()
+                onBackToAiSettings()
             }
         } else {
+            onProviderStateChange?.invoke(if (apiKey.isBlank()) "not-used" else "error")
             onSave()
             onBackToAiSettings()
         }

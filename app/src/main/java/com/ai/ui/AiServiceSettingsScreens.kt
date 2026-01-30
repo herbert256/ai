@@ -26,7 +26,8 @@ fun ChatGptSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.chatGptApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.chatGptModel) }
@@ -103,7 +104,8 @@ fun ChatGptSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.OPENAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -151,7 +153,8 @@ fun ClaudeSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.claudeApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.claudeModel) }
@@ -199,7 +202,8 @@ fun ClaudeSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.ANTHROPIC, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -250,7 +254,8 @@ fun GeminiSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.geminiApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.geminiModel) }
@@ -305,7 +310,8 @@ fun GeminiSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.GOOGLE, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -356,7 +362,8 @@ fun GrokSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.grokApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.grokModel) }
@@ -411,7 +418,8 @@ fun GrokSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.XAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -462,7 +470,8 @@ fun GroqSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.groqApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.groqModel) }
@@ -517,7 +526,8 @@ fun GroqSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.GROQ, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -568,7 +578,8 @@ fun DeepSeekSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.deepSeekApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.deepSeekModel) }
@@ -643,7 +654,8 @@ fun DeepSeekSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.DEEPSEEK, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -694,7 +706,8 @@ fun MistralSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.mistralApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.mistralModel) }
@@ -769,7 +782,8 @@ fun MistralSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.MISTRAL, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -817,7 +831,8 @@ fun PerplexitySettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.perplexityApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.perplexityModel) }
@@ -865,7 +880,8 @@ fun PerplexitySettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.PERPLEXITY, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -916,7 +932,8 @@ fun TogetherSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.togetherApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.togetherModel) }
@@ -971,7 +988,8 @@ fun TogetherSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.TOGETHER, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1022,7 +1040,8 @@ fun OpenRouterSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.openRouterApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.openRouterModel) }
@@ -1077,7 +1096,8 @@ fun OpenRouterSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.OPENROUTER, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1125,7 +1145,8 @@ fun SiliconFlowSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.siliconFlowApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.siliconFlowModel) }
@@ -1193,7 +1214,8 @@ fun SiliconFlowSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.SILICONFLOW, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1241,7 +1263,8 @@ fun ZaiSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.zaiApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.zaiModel) }
@@ -1309,7 +1332,8 @@ fun ZaiSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.ZAI, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1360,7 +1384,8 @@ fun MoonshotSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.moonshotApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.moonshotModel) }
@@ -1421,7 +1446,8 @@ fun MoonshotSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.MOONSHOT, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1472,7 +1498,8 @@ fun CohereSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.cohereApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.cohereModel) }
@@ -1533,7 +1560,8 @@ fun CohereSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.COHERE, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1584,7 +1612,8 @@ fun Ai21SettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.ai21ApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.ai21Model) }
@@ -1645,7 +1674,8 @@ fun Ai21SettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.AI21, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1696,7 +1726,8 @@ fun DashScopeSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.dashScopeApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.dashScopeModel) }
@@ -1757,7 +1788,8 @@ fun DashScopeSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.DASHSCOPE, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1808,7 +1840,8 @@ fun FireworksSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.fireworksApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.fireworksModel) }
@@ -1869,7 +1902,8 @@ fun FireworksSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.FIREWORKS, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -1920,7 +1954,8 @@ fun CerebrasSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.cerebrasApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.cerebrasModel) }
@@ -1981,7 +2016,8 @@ fun CerebrasSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.CEREBRAS, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -2032,7 +2068,8 @@ fun SambaNovaSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.sambaNovaApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.sambaNovaModel) }
@@ -2093,7 +2130,8 @@ fun SambaNovaSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.SAMBANOVA, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -2144,7 +2182,8 @@ fun BaichuanSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.baichuanApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.baichuanModel) }
@@ -2205,7 +2244,8 @@ fun BaichuanSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.BAICHUAN, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -2256,7 +2296,8 @@ fun StepFunSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.stepFunApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.stepFunModel) }
@@ -2317,7 +2358,8 @@ fun StepFunSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.STEPFUN, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -2368,7 +2410,8 @@ fun MiniMaxSettingsScreen(
     onSave: (AiSettings) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
     onFetchModels: (String) -> Unit,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.miniMaxApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.miniMaxModel) }
@@ -2429,7 +2472,8 @@ fun MiniMaxSettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.MINIMAX, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         ApiKeyInputSection(
             apiKey = apiKey,
@@ -2480,7 +2524,8 @@ fun DummySettingsScreen(
     onSave: (AiSettings) -> Unit,
     onFetchModels: (String) -> Unit,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {}
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.dummyApiKey) }
     var defaultModel by remember { mutableStateOf(aiSettings.dummyModel) }
@@ -2535,7 +2580,8 @@ fun DummySettingsScreen(
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(AiService.DUMMY, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
-        onCreateAgent = onCreateAgent
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
     ) {
         // Info card
         Card(
