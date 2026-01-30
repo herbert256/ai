@@ -1741,7 +1741,8 @@ fun HousekeepingScreen(
     onRefreshAllModels: suspend (AiSettings, Boolean) -> Map<String, Int> = { _, _ -> emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
-    onSaveOpenRouterApiKey: (String) -> Unit = {}
+    onSaveOpenRouterApiKey: (String) -> Unit = {},
+    onProviderStateChange: (AiService, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1760,6 +1761,11 @@ fun HousekeepingScreen(
     var isRefreshingOpenRouter by remember { mutableStateOf(false) }
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }  // (pricing, specs pricing, specs params)
     var showOpenRouterResultDialog by remember { mutableStateOf(false) }
+
+    // State for refresh provider states
+    var isRefreshingProviderStates by remember { mutableStateOf(false) }
+    var providerStateResults by remember { mutableStateOf<Map<String, String>?>(null) }  // provider name -> "ok"/"error"/"not-used"
+    var showProviderStateResultDialog by remember { mutableStateOf(false) }
 
     // State for import model costs
     var importCostsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }  // (imported, skipped)
@@ -1965,6 +1971,41 @@ fun HousekeepingScreen(
         )
     }
 
+    // Provider state refresh result dialog
+    if (showProviderStateResultDialog) {
+        AlertDialog(
+            onDismissRequest = { showProviderStateResultDialog = false },
+            title = { Text("Provider State Refreshed") },
+            text = {
+                providerStateResults?.let { results ->
+                    val ok = results.filter { it.value == "ok" }
+                    val error = results.filter { it.value == "error" }
+                    val notUsed = results.filter { it.value == "not-used" }
+                    Column {
+                        if (ok.isNotEmpty()) {
+                            Text("✅ OK (${ok.size}):")
+                            ok.forEach { (name, _) -> Text("  • $name") }
+                        }
+                        if (error.isNotEmpty()) {
+                            if (ok.isNotEmpty()) Spacer(modifier = Modifier.height(4.dp))
+                            Text("❌ Error (${error.size}):")
+                            error.forEach { (name, _) -> Text("  • $name") }
+                        }
+                        if (notUsed.isNotEmpty()) {
+                            if (ok.isNotEmpty() || error.isNotEmpty()) Spacer(modifier = Modifier.height(4.dp))
+                            Text("Not configured (${notUsed.size})")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showProviderStateResultDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     // OpenRouter refresh result dialog
     if (showOpenRouterResultDialog) {
         AlertDialog(
@@ -2088,6 +2129,43 @@ fun HousekeepingScreen(
                             )
                         } else {
                             Text("OpenRouter data", fontSize = 12.sp)
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isRefreshingProviderStates = true
+                                val results = mutableMapOf<String, String>()
+                                for (service in com.ai.data.AiService.values()) {
+                                    val apiKey = aiSettings.getApiKey(service)
+                                    if (apiKey.isBlank()) {
+                                        onProviderStateChange(service, "not-used")
+                                        results[service.displayName] = "not-used"
+                                    } else {
+                                        val model = aiSettings.getModel(service)
+                                        val error = onTestApiKey(service, apiKey, model)
+                                        val state = if (error == null) "ok" else "error"
+                                        onProviderStateChange(service, state)
+                                        results[service.displayName] = state
+                                    }
+                                }
+                                providerStateResults = results
+                                isRefreshingProviderStates = false
+                                showProviderStateResultDialog = true
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isRefreshingProviderStates,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        if (isRefreshingProviderStates) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Provider state", fontSize = 12.sp)
                         }
                     }
                 }

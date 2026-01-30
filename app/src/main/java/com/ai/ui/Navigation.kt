@@ -930,6 +930,7 @@ fun HousekeepingScreenNav(
         },
         onSaveOpenRouterApiKey = { key ->
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(openRouterApiKey = key))
-        }
+        },
+        onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) }
     )
 }
