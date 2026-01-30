@@ -135,7 +135,8 @@ private data class HtmlAgentData(
     val inputTokens: Int? = null,
     val outputTokens: Int? = null,
     val inputCost: Double? = null,
-    val outputCost: Double? = null
+    val outputCost: Double? = null,
+    val durationMs: Long? = null
 )
 
 // Helper function to convert generic AI reports to HTML
@@ -446,7 +447,8 @@ internal fun convertAiReportToHtml(context: android.content.Context, report: com
                         val pricing = com.ai.data.PricingCache.getPricing(context, p, agent.model)
                         tu.outputTokens * pricing.completionPrice
                     }
-                }
+                },
+                durationMs = agent.durationMs
             )
         }.sortedBy { it.agentName.lowercase() }
     )
@@ -762,6 +764,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                         <tr>
                             <th>Provider</th>
                             <th>Model</th>
+                            <th style="text-align:right">Secs</th>
                             <th style="text-align:right">In tokens</th>
                             <th style="text-align:right">Out tokens</th>
                             <th style="text-align:right">In ¢</th>
@@ -770,6 +773,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                         </tr>
         """)
         fun fmtCents(v: Double): String = "%.2f".format(v)
+        fun fmtSecs(ms: Long?): String = if (ms != null) "%.2f".format(ms / 1000.0) else ""
         var totalIn = 0
         var totalOut = 0
         var totalInCost = 0.0
@@ -787,6 +791,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                         <tr>
                             <td>${agent.providerDisplay}</td>
                             <td>${agent.model}</td>
+                            <td class="num">${fmtSecs(agent.durationMs)}</td>
                             <td class="num">${"%,d".format(inTok)}</td>
                             <td class="num">${"%,d".format(outTok)}</td>
                             <td class="num">${fmtCents(inCost)}</td>
@@ -797,7 +802,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
         }
         htmlBuilder.append("""
                         <tr class="total-row">
-                            <td colspan="2">Total</td>
+                            <td colspan="3">Total</td>
                             <td class="num">${"%,d".format(totalIn)}</td>
                             <td class="num">${"%,d".format(totalOut)}</td>
                             <td class="num">${fmtCents(totalInCost)}</td>

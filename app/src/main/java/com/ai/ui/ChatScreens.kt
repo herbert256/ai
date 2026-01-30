@@ -129,6 +129,7 @@ fun ChatSelectModelScreen(
     onSelectModel: (String) -> Unit
 ) {
     BackHandler { onNavigateBack() }
+    val context = LocalContext.current
 
     // Get API key and model source for this provider
     val (apiKey, modelSource, manualModels, defaultModel) = remember(provider) {
@@ -252,6 +253,15 @@ fun ChatSelectModelScreen(
                                 color = Color.White,
                                 modifier = Modifier.weight(1f)
                             )
+                            val pricing = formatPricingPerMillion(context, provider, model)
+                            Text(
+                                text = pricing.text,
+                                color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                                fontSize = 10.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = ">",
                                 color = Color(0xFF6B9BFF),
@@ -1313,6 +1323,8 @@ fun ChatAgentSelectScreen(
     onNavigateHome: () -> Unit,
     onSelectAgent: (String) -> Unit
 ) {
+    val context = LocalContext.current
+
     // Filter agents - only show those with API keys and an active provider
     val availableAgents = aiSettings.agents.filter { agent ->
         aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
@@ -1372,7 +1384,7 @@ fun ChatAgentSelectScreen(
                                     color = Color.White
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Row {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = agent.provider.displayName,
                                         color = Color(0xFF6B9BFF),
@@ -1381,7 +1393,16 @@ fun ChatAgentSelectScreen(
                                     Text(
                                         text = " • ${agent.model.ifBlank { agent.provider.defaultModel }}",
                                         color = Color(0xFF888888),
-                                        fontSize = 13.sp
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    val pricing = formatPricingPerMillion(context, agent.provider, agent.model.ifBlank { agent.provider.defaultModel })
+                                    Text(
+                                        text = pricing.text,
+                                        color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                                        fontSize = 10.sp,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        maxLines = 1
                                     )
                                 }
                                 // Show system prompt preview if configured

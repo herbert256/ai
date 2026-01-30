@@ -27,7 +27,8 @@ data class AiReportAgent(
     var cost: Double? = null,
     var citations: List<String>? = null,
     var searchResults: List<SearchResult>? = null,
-    var relatedQuestions: List<String>? = null
+    var relatedQuestions: List<String>? = null,
+    var durationMs: Long? = null
 )
 
 /**
@@ -130,7 +131,8 @@ object AiReportStorage {
         cost: Double? = null,
         citations: List<String>? = null,
         searchResults: List<SearchResult>? = null,
-        relatedQuestions: List<String>? = null
+        relatedQuestions: List<String>? = null,
+        durationMs: Long? = null
     ) {
         init(context)
 
@@ -156,6 +158,7 @@ object AiReportStorage {
             if (citations != null) agent.citations = citations
             if (searchResults != null) agent.searchResults = searchResults
             if (relatedQuestions != null) agent.relatedQuestions = relatedQuestions
+            if (durationMs != null) agent.durationMs = durationMs
 
             // Check if all agents are done
             if (report.agents.all { it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR || it.reportStatus == ReportStatus.STOPPED }) {
@@ -201,7 +204,8 @@ object AiReportStorage {
         cost: Double?,
         citations: List<String>? = null,
         searchResults: List<SearchResult>? = null,
-        relatedQuestions: List<String>? = null
+        relatedQuestions: List<String>? = null,
+        durationMs: Long? = null
     ) {
         updateAgentStatus(
             context = context,
@@ -215,7 +219,8 @@ object AiReportStorage {
             cost = cost,
             citations = citations,
             searchResults = searchResults,
-            relatedQuestions = relatedQuestions
+            relatedQuestions = relatedQuestions,
+            durationMs = durationMs
         )
     }
 
@@ -229,7 +234,8 @@ object AiReportStorage {
         httpStatus: Int?,
         errorMessage: String?,
         responseHeaders: String? = null,
-        responseBody: String? = null
+        responseBody: String? = null,
+        durationMs: Long? = null
     ) {
         updateAgentStatus(
             context = context,
@@ -239,7 +245,8 @@ object AiReportStorage {
             httpStatus = httpStatus,
             errorMessage = errorMessage,
             responseHeaders = responseHeaders,
-            responseBody = responseBody
+            responseBody = responseBody,
+            durationMs = durationMs
         )
     }
 

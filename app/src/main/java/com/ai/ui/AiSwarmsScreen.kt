@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import com.ai.data.AiService
 import java.util.UUID
 
@@ -182,6 +183,7 @@ fun SwarmEditScreen(
     onNavigateHome: () -> Unit
 ) {
     val isEditing = swarm != null
+    val context = LocalContext.current
 
     var name by remember { mutableStateOf(swarm?.name ?: "") }
     var selectedMembers by remember { mutableStateOf(swarm?.members?.toSet() ?: emptySet()) }
@@ -387,6 +389,14 @@ fun SwarmEditScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
+                        )
+                        val pricing = formatPricingPerMillion(context, member.provider, member.model)
+                        Text(
+                            text = pricing.text,
+                            color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                            fontSize = 10.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            maxLines = 1
                         )
                     }
                 }

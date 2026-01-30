@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import com.ai.data.AiService
 import java.util.UUID
 
@@ -181,6 +182,7 @@ fun FlockEditScreen(
     onNavigateHome: () -> Unit
 ) {
     val isEditing = flock != null
+    val context = LocalContext.current
 
     var name by remember { mutableStateOf(flock?.name ?: "") }
     var selectedAgentIds by remember { mutableStateOf(flock?.agentIds?.toSet() ?: emptySet()) }
@@ -372,9 +374,18 @@ fun FlockEditScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = " ${agent.provider.displayName}",
+                            text = " ${agent.provider.displayName} ",
                             fontSize = 11.sp,
                             color = Color(0xFFAAAAAA),
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f)
+                        )
+                        val pricing = formatPricingPerMillion(context, agent.provider, agent.model)
+                        Text(
+                            text = pricing.text,
+                            color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                            fontSize = 10.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             maxLines = 1
                         )
                     }

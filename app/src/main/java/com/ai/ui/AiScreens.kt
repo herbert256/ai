@@ -505,8 +505,12 @@ internal fun formatPricingPerMillion(context: android.content.Context, provider:
     val pricing = com.ai.data.PricingCache.getPricing(context, provider, model)
     val input = pricing.promptPrice * 1_000_000
     val output = pricing.completionPrice * 1_000_000
-    fun fmt(v: Double): String = if (v < 0.01) "%.4f".format(v).trimEnd('0').trimEnd('.') else if (v < 1.0) "%.2f".format(v) else "%.2f".format(v)
-    return FormattedPricing("${fmt(input)} / ${fmt(output)}", pricing.source == "default")
+    fun fmt(v: Double): String = when {
+        v == 0.0 -> "0.00"
+        v < 0.01 -> "0.01"
+        else -> "%.2f".format(v)
+    }
+    return FormattedPricing("${fmt(input)}/${fmt(output)}", pricing.source == "default")
 }
 
 @Composable

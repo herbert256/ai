@@ -345,6 +345,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     // Resolve agent's parameter presets to AiAgentParameters
                     val agentParams = aiSettings.resolveAgentParameters(agent)
 
+                    val startTime = System.currentTimeMillis()
                     val response = try {
                         aiAnalysisRepository.analyzePositionWithAgent(
                             agent = effectiveAgent,
@@ -361,6 +362,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             error = e.message ?: "Unknown error"
                         )
                     }
+                    val durationMs = System.currentTimeMillis() - startTime
 
                     // Calculate cost for this agent
                     // Priority: API cost > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
@@ -388,7 +390,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             cost = cost,
                             citations = response.citations,
                             searchResults = response.searchResults,
-                            relatedQuestions = response.relatedQuestions
+                            relatedQuestions = response.relatedQuestions,
+                            durationMs = durationMs
                         )
                     } else {
                         AiReportStorage.markAgentError(
@@ -398,7 +401,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             httpStatus = response.httpStatusCode,
                             errorMessage = response.error,
                             responseHeaders = response.httpHeaders,
-                            responseBody = response.analysis
+                            responseBody = response.analysis,
+                            durationMs = durationMs
                         )
                     }
 
@@ -447,6 +451,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         apiKey = providerApiKey
                     )
 
+                    val startTime = System.currentTimeMillis()
                     val response = try {
                         aiAnalysisRepository.analyzePositionWithAgent(
                             agent = tempAgent,
@@ -462,6 +467,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             error = e.message ?: "Unknown error"
                         )
                     }
+                    val durationMs = System.currentTimeMillis() - startTime
 
                     // Calculate cost
                     val cost: Double? = if (response.tokenUsage != null) {
@@ -486,7 +492,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             cost = cost,
                             citations = response.citations,
                             searchResults = response.searchResults,
-                            relatedQuestions = response.relatedQuestions
+                            relatedQuestions = response.relatedQuestions,
+                            durationMs = durationMs
                         )
                     } else {
                         AiReportStorage.markAgentError(
@@ -496,7 +503,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             httpStatus = response.httpStatusCode,
                             errorMessage = response.error,
                             responseHeaders = response.httpHeaders,
-                            responseBody = response.analysis
+                            responseBody = response.analysis,
+                            durationMs = durationMs
                         )
                     }
 
