@@ -2650,3 +2650,966 @@ fun DummySettingsScreen(
         )
     }
 }
+
+/**
+ * NVIDIA settings screen.
+ */
+@Composable
+fun NvidiaSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.nvidiaApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.nvidiaModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.nvidiaModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.nvidiaManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.nvidiaAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.nvidiaModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.NVIDIA)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.nvidiaParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.nvidiaParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.nvidiaApiKey ||
+            defaultModel != aiSettings.nvidiaModel ||
+            modelSource != aiSettings.nvidiaModelSource ||
+            manualModels != aiSettings.nvidiaManualModels ||
+            adminUrl != aiSettings.nvidiaAdminUrl ||
+            modelListUrl != aiSettings.nvidiaModelListUrl ||
+            selectedParamsId != aiSettings.nvidiaParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.NVIDIA)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.nvidiaApiKey.isNotBlank() && aiSettings.nvidiaModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.nvidiaApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "NVIDIA",
+        accentColor = Color(0xFF76B900),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                nvidiaApiKey = apiKey,
+                nvidiaModel = defaultModel,
+                nvidiaModelSource = modelSource,
+                nvidiaManualModels = manualModels,
+                nvidiaAdminUrl = adminUrl,
+                nvidiaModelListUrl = modelListUrl,
+                nvidiaParamsId = selectedParamsId
+            ).withEndpoints(AiService.NVIDIA, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.NVIDIA, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.NVIDIA, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.NVIDIA.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.NVIDIA),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Replicate settings screen.
+ */
+@Composable
+fun ReplicateSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.replicateApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.replicateModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.replicateModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.replicateManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.replicateAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.replicateModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.REPLICATE)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.replicateParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.replicateParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.replicateApiKey ||
+            defaultModel != aiSettings.replicateModel ||
+            modelSource != aiSettings.replicateModelSource ||
+            manualModels != aiSettings.replicateManualModels ||
+            adminUrl != aiSettings.replicateAdminUrl ||
+            modelListUrl != aiSettings.replicateModelListUrl ||
+            selectedParamsId != aiSettings.replicateParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.REPLICATE)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.replicateApiKey.isNotBlank() && aiSettings.replicateModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.replicateApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "Replicate",
+        accentColor = Color(0xFF000000),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                replicateApiKey = apiKey,
+                replicateModel = defaultModel,
+                replicateModelSource = modelSource,
+                replicateManualModels = manualModels,
+                replicateAdminUrl = adminUrl,
+                replicateModelListUrl = modelListUrl,
+                replicateParamsId = selectedParamsId
+            ).withEndpoints(AiService.REPLICATE, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.REPLICATE, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.REPLICATE, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.REPLICATE.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.REPLICATE),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Hugging Face Inference settings screen.
+ */
+@Composable
+fun HuggingFaceInferenceSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.huggingFaceInferenceApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.huggingFaceInferenceModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.huggingFaceInferenceModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.huggingFaceInferenceManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.huggingFaceInferenceAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.huggingFaceInferenceModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.HUGGINGFACE)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.huggingFaceInferenceParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.huggingFaceInferenceParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.huggingFaceInferenceApiKey ||
+            defaultModel != aiSettings.huggingFaceInferenceModel ||
+            modelSource != aiSettings.huggingFaceInferenceModelSource ||
+            manualModels != aiSettings.huggingFaceInferenceManualModels ||
+            adminUrl != aiSettings.huggingFaceInferenceAdminUrl ||
+            modelListUrl != aiSettings.huggingFaceInferenceModelListUrl ||
+            selectedParamsId != aiSettings.huggingFaceInferenceParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.HUGGINGFACE)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.huggingFaceInferenceApiKey.isNotBlank() && aiSettings.huggingFaceInferenceModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.huggingFaceInferenceApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "Hugging Face",
+        accentColor = Color(0xFFFFD21E),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                huggingFaceInferenceApiKey = apiKey,
+                huggingFaceInferenceModel = defaultModel,
+                huggingFaceInferenceModelSource = modelSource,
+                huggingFaceInferenceManualModels = manualModels,
+                huggingFaceInferenceAdminUrl = adminUrl,
+                huggingFaceInferenceModelListUrl = modelListUrl,
+                huggingFaceInferenceParamsId = selectedParamsId
+            ).withEndpoints(AiService.HUGGINGFACE, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.HUGGINGFACE, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.HUGGINGFACE, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.HUGGINGFACE.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.HUGGINGFACE),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Lambda settings screen.
+ */
+@Composable
+fun LambdaSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.lambdaApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.lambdaModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.lambdaModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.lambdaManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.lambdaAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.lambdaModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.LAMBDA)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.lambdaParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.lambdaParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.lambdaApiKey ||
+            defaultModel != aiSettings.lambdaModel ||
+            modelSource != aiSettings.lambdaModelSource ||
+            manualModels != aiSettings.lambdaManualModels ||
+            adminUrl != aiSettings.lambdaAdminUrl ||
+            modelListUrl != aiSettings.lambdaModelListUrl ||
+            selectedParamsId != aiSettings.lambdaParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.LAMBDA)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.lambdaApiKey.isNotBlank() && aiSettings.lambdaModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.lambdaApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "Lambda",
+        accentColor = Color(0xFF1F41BF),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                lambdaApiKey = apiKey,
+                lambdaModel = defaultModel,
+                lambdaModelSource = modelSource,
+                lambdaManualModels = manualModels,
+                lambdaAdminUrl = adminUrl,
+                lambdaModelListUrl = modelListUrl,
+                lambdaParamsId = selectedParamsId
+            ).withEndpoints(AiService.LAMBDA, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.LAMBDA, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.LAMBDA, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.LAMBDA.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.LAMBDA),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Lepton settings screen.
+ */
+@Composable
+fun LeptonSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.leptonApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.leptonModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.leptonModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.leptonManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.leptonAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.leptonModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.LEPTON)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.leptonParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.leptonParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.leptonApiKey ||
+            defaultModel != aiSettings.leptonModel ||
+            modelSource != aiSettings.leptonModelSource ||
+            manualModels != aiSettings.leptonManualModels ||
+            adminUrl != aiSettings.leptonAdminUrl ||
+            modelListUrl != aiSettings.leptonModelListUrl ||
+            selectedParamsId != aiSettings.leptonParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.LEPTON)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.leptonApiKey.isNotBlank() && aiSettings.leptonModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.leptonApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "Lepton",
+        accentColor = Color(0xFF3B82F6),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                leptonApiKey = apiKey,
+                leptonModel = defaultModel,
+                leptonModelSource = modelSource,
+                leptonManualModels = manualModels,
+                leptonAdminUrl = adminUrl,
+                leptonModelListUrl = modelListUrl,
+                leptonParamsId = selectedParamsId
+            ).withEndpoints(AiService.LEPTON, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.LEPTON, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.LEPTON, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.LEPTON.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.LEPTON),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * 01.AI (Yi) settings screen.
+ */
+@Composable
+fun YiSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.yiApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.yiModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.yiModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.yiManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.yiAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.yiModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.YI)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.yiParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.yiParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.yiApiKey ||
+            defaultModel != aiSettings.yiModel ||
+            modelSource != aiSettings.yiModelSource ||
+            manualModels != aiSettings.yiManualModels ||
+            adminUrl != aiSettings.yiAdminUrl ||
+            modelListUrl != aiSettings.yiModelListUrl ||
+            selectedParamsId != aiSettings.yiParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.YI)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.yiApiKey.isNotBlank() && aiSettings.yiModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.yiApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "01.AI",
+        accentColor = Color(0xFFFFB81C),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                yiApiKey = apiKey,
+                yiModel = defaultModel,
+                yiModelSource = modelSource,
+                yiManualModels = manualModels,
+                yiAdminUrl = adminUrl,
+                yiModelListUrl = modelListUrl,
+                yiParamsId = selectedParamsId
+            ).withEndpoints(AiService.YI, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.YI, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.YI, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.YI.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.YI),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Doubao settings screen.
+ */
+@Composable
+fun DoubaoSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.doubaoApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.doubaoModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.doubaoModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.doubaoManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.doubaoAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.doubaoModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.DOUBAO)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.doubaoParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.doubaoParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.doubaoApiKey ||
+            defaultModel != aiSettings.doubaoModel ||
+            modelSource != aiSettings.doubaoModelSource ||
+            manualModels != aiSettings.doubaoManualModels ||
+            adminUrl != aiSettings.doubaoAdminUrl ||
+            modelListUrl != aiSettings.doubaoModelListUrl ||
+            selectedParamsId != aiSettings.doubaoParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.DOUBAO)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.doubaoApiKey.isNotBlank() && aiSettings.doubaoModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.doubaoApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "Doubao",
+        accentColor = Color(0xFF1890FF),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                doubaoApiKey = apiKey,
+                doubaoModel = defaultModel,
+                doubaoModelSource = modelSource,
+                doubaoManualModels = manualModels,
+                doubaoAdminUrl = adminUrl,
+                doubaoModelListUrl = modelListUrl,
+                doubaoParamsId = selectedParamsId
+            ).withEndpoints(AiService.DOUBAO, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.DOUBAO, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.DOUBAO, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.DOUBAO.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.DOUBAO),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Reka settings screen.
+ */
+@Composable
+fun RekaSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.rekaApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.rekaModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.rekaModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.rekaManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.rekaAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.rekaModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.REKA)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.rekaParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.rekaParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.rekaApiKey ||
+            defaultModel != aiSettings.rekaModel ||
+            modelSource != aiSettings.rekaModelSource ||
+            manualModels != aiSettings.rekaManualModels ||
+            adminUrl != aiSettings.rekaAdminUrl ||
+            modelListUrl != aiSettings.rekaModelListUrl ||
+            selectedParamsId != aiSettings.rekaParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.REKA)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.rekaApiKey.isNotBlank() && aiSettings.rekaModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.rekaApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "Reka",
+        accentColor = Color(0xFFFF6B35),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                rekaApiKey = apiKey,
+                rekaModel = defaultModel,
+                rekaModelSource = modelSource,
+                rekaManualModels = manualModels,
+                rekaAdminUrl = adminUrl,
+                rekaModelListUrl = modelListUrl,
+                rekaParamsId = selectedParamsId
+            ).withEndpoints(AiService.REKA, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.REKA, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.REKA, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.REKA.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.REKA),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}
+
+/**
+ * Writer settings screen.
+ */
+@Composable
+fun WriterSettingsScreen(
+    aiSettings: AiSettings,
+    availableModels: List<String>,
+    isLoadingModels: Boolean,
+    onBackToAiSettings: () -> Unit,
+    onBackToHome: () -> Unit,
+    onSave: (AiSettings) -> Unit,
+    onFetchModels: (String) -> Unit,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onCreateAgent: () -> Unit = {},
+    onProviderStateChange: (String) -> Unit = {}
+) {
+    var apiKey by remember { mutableStateOf(aiSettings.writerApiKey) }
+    var defaultModel by remember { mutableStateOf(aiSettings.writerModel) }
+    var modelSource by remember { mutableStateOf(aiSettings.writerModelSource) }
+    var manualModels by remember { mutableStateOf(aiSettings.writerManualModels) }
+    var adminUrl by remember { mutableStateOf(aiSettings.writerAdminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.writerModelListUrl) }
+    var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.WRITER)) }
+    var selectedParamsId by remember { mutableStateOf(aiSettings.writerParamsId) }
+    var selectedParamsName by remember { mutableStateOf(aiSettings.writerParamsId?.let { aiSettings.getParamsById(it)?.name } ?: "") }
+
+    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
+
+    val hasChanges = apiKey != aiSettings.writerApiKey ||
+            defaultModel != aiSettings.writerModel ||
+            modelSource != aiSettings.writerModelSource ||
+            manualModels != aiSettings.writerManualModels ||
+            adminUrl != aiSettings.writerAdminUrl ||
+            modelListUrl != aiSettings.writerModelListUrl ||
+            selectedParamsId != aiSettings.writerParamsId ||
+            endpoints != aiSettings.getEndpointsForProvider(AiService.WRITER)
+
+    LaunchedEffect(Unit) {
+        if (aiSettings.writerApiKey.isNotBlank() && aiSettings.writerModelSource == ModelSource.API) {
+            onFetchModels(aiSettings.writerApiKey)
+        }
+    }
+
+    AiServiceSettingsScreenTemplate(
+        title = "Writer",
+        accentColor = Color(0xFF0066FF),
+        onBackToAiSettings = onBackToAiSettings,
+        onBackToHome = onBackToHome,
+        onSave = {
+            onSave(aiSettings.copy(
+                writerApiKey = apiKey,
+                writerModel = defaultModel,
+                writerModelSource = modelSource,
+                writerManualModels = manualModels,
+                writerAdminUrl = adminUrl,
+                writerModelListUrl = modelListUrl,
+                writerParamsId = selectedParamsId
+            ).withEndpoints(AiService.WRITER, endpoints))
+        },
+        hasChanges = hasChanges,
+        apiKey = apiKey,
+        defaultModel = defaultModel,
+        availableModels = effectiveModels,
+        onDefaultModelChange = { defaultModel = it },
+        adminUrl = adminUrl,
+        onAdminUrlChange = { adminUrl = it },
+        onTestApiKey = { onTestApiKey(AiService.WRITER, apiKey, defaultModel) },
+        onClearApiKey = { apiKey = "" },
+        onCreateAgent = onCreateAgent,
+        onProviderStateChange = onProviderStateChange
+    ) {
+        ApiKeyInputSection(
+            apiKey = apiKey,
+            onApiKeyChange = { apiKey = it },
+            onTestApiKey = { onTestApiKey(AiService.WRITER, apiKey, defaultModel) }
+        )
+        ParametersSelector(
+            aiSettings = aiSettings,
+            selectedParamsId = selectedParamsId,
+            selectedParamsName = selectedParamsName,
+            onParamsSelected = { id, name ->
+                selectedParamsId = id
+                selectedParamsName = name
+            }
+        )
+        EndpointsSection(
+            endpoints = endpoints,
+            defaultEndpointUrl = AiService.WRITER.baseUrl,
+            onEndpointsChange = { endpoints = it }
+        )
+        ModelListUrlSection(
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(AiService.WRITER),
+            onModelListUrlChange = { modelListUrl = it }
+        )
+        UnifiedModelSelectionSection(
+            modelSource = modelSource,
+            manualModels = manualModels,
+            availableApiModels = availableModels,
+            isLoadingModels = isLoadingModels,
+            onModelSourceChange = { modelSource = it },
+            onManualModelsChange = { manualModels = it },
+            onFetchModels = { onFetchModels(apiKey) }
+        )
+    }
+}

@@ -48,6 +48,15 @@ fun HousekeepingScreen(
     availableBaichuanModels: List<String> = emptyList(),
     availableStepFunModels: List<String> = emptyList(),
     availableMiniMaxModels: List<String> = emptyList(),
+    availableNvidiaModels: List<String> = emptyList(),
+    availableReplicateModels: List<String> = emptyList(),
+    availableHuggingFaceInferenceModels: List<String> = emptyList(),
+    availableLambdaModels: List<String> = emptyList(),
+    availableLeptonModels: List<String> = emptyList(),
+    availableYiModels: List<String> = emptyList(),
+    availableDoubaoModels: List<String> = emptyList(),
+    availableRekaModels: List<String> = emptyList(),
+    availableWriterModels: List<String> = emptyList(),
     availableDummyModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -713,6 +722,15 @@ fun HousekeepingScreen(
                                 availableBaichuanModels = availableBaichuanModels,
                                 availableStepFunModels = availableStepFunModels,
                                 availableMiniMaxModels = availableMiniMaxModels,
+                                availableNvidiaModels = availableNvidiaModels,
+                                availableReplicateModels = availableReplicateModels,
+                                availableHuggingFaceInferenceModels = availableHuggingFaceInferenceModels,
+                                availableLambdaModels = availableLambdaModels,
+                                availableLeptonModels = availableLeptonModels,
+                                availableYiModels = availableYiModels,
+                                availableDoubaoModels = availableDoubaoModels,
+                                availableRekaModels = availableRekaModels,
+                                availableWriterModels = availableWriterModels,
                                 availableDummyModels = availableDummyModels
                             )
                         },
@@ -1085,6 +1103,15 @@ private fun exportModelCostsToCsv(
     availableBaichuanModels: List<String>,
     availableStepFunModels: List<String>,
     availableMiniMaxModels: List<String>,
+    availableNvidiaModels: List<String>,
+    availableReplicateModels: List<String>,
+    availableHuggingFaceInferenceModels: List<String>,
+    availableLambdaModels: List<String>,
+    availableLeptonModels: List<String>,
+    availableYiModels: List<String>,
+    availableDoubaoModels: List<String>,
+    availableRekaModels: List<String>,
+    availableWriterModels: List<String>,
     availableDummyModels: List<String>
 ) {
     val pricingCache = com.ai.data.PricingCache
@@ -1179,6 +1206,42 @@ private fun exportModelCostsToCsv(
     // MiniMax models (API or fallback to manual)
     val miniMaxModelsC = availableMiniMaxModels.ifEmpty { aiSettings.miniMaxManualModels }
     miniMaxModelsC.forEach { allModels.add(ProviderModel("MINIMAX", it)) }
+
+    // NVIDIA models (API or fallback to manual)
+    val nvidiaModelsC = availableNvidiaModels.ifEmpty { aiSettings.nvidiaManualModels }
+    nvidiaModelsC.forEach { allModels.add(ProviderModel("NVIDIA", it)) }
+
+    // Replicate models (API or fallback to manual)
+    val replicateModelsC = availableReplicateModels.ifEmpty { aiSettings.replicateManualModels }
+    replicateModelsC.forEach { allModels.add(ProviderModel("REPLICATE", it)) }
+
+    // Hugging Face models (API or fallback to manual)
+    val huggingFaceModelsC = availableHuggingFaceInferenceModels.ifEmpty { aiSettings.huggingFaceInferenceManualModels }
+    huggingFaceModelsC.forEach { allModels.add(ProviderModel("HUGGINGFACE", it)) }
+
+    // Lambda models (API or fallback to manual)
+    val lambdaModelsC = availableLambdaModels.ifEmpty { aiSettings.lambdaManualModels }
+    lambdaModelsC.forEach { allModels.add(ProviderModel("LAMBDA", it)) }
+
+    // Lepton models (API or fallback to manual)
+    val leptonModelsC = availableLeptonModels.ifEmpty { aiSettings.leptonManualModels }
+    leptonModelsC.forEach { allModels.add(ProviderModel("LEPTON", it)) }
+
+    // 01.AI (Yi) models (API or fallback to manual)
+    val yiModelsC = availableYiModels.ifEmpty { aiSettings.yiManualModels }
+    yiModelsC.forEach { allModels.add(ProviderModel("YI", it)) }
+
+    // Doubao models (API or fallback to manual)
+    val doubaoModelsC = availableDoubaoModels.ifEmpty { aiSettings.doubaoManualModels }
+    doubaoModelsC.forEach { allModels.add(ProviderModel("DOUBAO", it)) }
+
+    // Reka models (API or fallback to manual)
+    val rekaModelsC = availableRekaModels.ifEmpty { aiSettings.rekaManualModels }
+    rekaModelsC.forEach { allModels.add(ProviderModel("REKA", it)) }
+
+    // Writer models (API or fallback to manual)
+    val writerModelsC = availableWriterModels.ifEmpty { aiSettings.writerManualModels }
+    writerModelsC.forEach { allModels.add(ProviderModel("WRITER", it)) }
 
     // Dummy models (only in developer mode)
     if (developerMode) {
