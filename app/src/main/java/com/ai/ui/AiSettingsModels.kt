@@ -868,6 +868,7 @@ data class AiSettings(
                 claudeApiKey.isNotBlank() ||
                 geminiApiKey.isNotBlank() ||
                 grokApiKey.isNotBlank() ||
+                groqApiKey.isNotBlank() ||
                 deepSeekApiKey.isNotBlank() ||
                 mistralApiKey.isNotBlank() ||
                 perplexityApiKey.isNotBlank() ||
@@ -894,10 +895,6 @@ data class AiSettings(
                 doubaoApiKey.isNotBlank() ||
                 rekaApiKey.isNotBlank() ||
                 writerApiKey.isNotBlank()
-    }
-
-    fun getConfiguredServices(): List<AiService> {
-        return AiService.entries.filter { getApiKey(it).isNotBlank() }
     }
 
     // Helper methods for agents

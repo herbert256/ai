@@ -226,6 +226,69 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             miniMaxAdminUrl = prefs.getString(KEY_AI_MINIMAX_ADMIN_URL, AiService.MINIMAX.adminUrl) ?: AiService.MINIMAX.adminUrl,
             miniMaxModelListUrl = prefs.getString(KEY_AI_MINIMAX_MODEL_LIST_URL, "") ?: "",
             miniMaxParamsId = prefs.getString(KEY_AI_MINIMAX_PARAMS_ID, null),
+            nvidiaApiKey = prefs.getString(KEY_AI_NVIDIA_API_KEY, "") ?: "",
+            nvidiaModel = prefs.getString(KEY_AI_NVIDIA_MODEL, AiService.NVIDIA.defaultModel) ?: AiService.NVIDIA.defaultModel,
+            nvidiaModelSource = loadModelSource(KEY_AI_NVIDIA_MODEL_SOURCE, ModelSource.API),
+            nvidiaManualModels = loadManualModels(KEY_AI_NVIDIA_MANUAL_MODELS),
+            nvidiaAdminUrl = prefs.getString(KEY_AI_NVIDIA_ADMIN_URL, AiService.NVIDIA.adminUrl) ?: AiService.NVIDIA.adminUrl,
+            nvidiaModelListUrl = prefs.getString(KEY_AI_NVIDIA_MODEL_LIST_URL, "") ?: "",
+            nvidiaParamsId = prefs.getString(KEY_AI_NVIDIA_PARAMS_ID, null),
+            replicateApiKey = prefs.getString(KEY_AI_REPLICATE_API_KEY, "") ?: "",
+            replicateModel = prefs.getString(KEY_AI_REPLICATE_MODEL, AiService.REPLICATE.defaultModel) ?: AiService.REPLICATE.defaultModel,
+            replicateModelSource = loadModelSource(KEY_AI_REPLICATE_MODEL_SOURCE, ModelSource.MANUAL),
+            replicateManualModels = loadManualModelsWithDefault(KEY_AI_REPLICATE_MANUAL_MODELS, REPLICATE_MODELS),
+            replicateAdminUrl = prefs.getString(KEY_AI_REPLICATE_ADMIN_URL, AiService.REPLICATE.adminUrl) ?: AiService.REPLICATE.adminUrl,
+            replicateModelListUrl = prefs.getString(KEY_AI_REPLICATE_MODEL_LIST_URL, "") ?: "",
+            replicateParamsId = prefs.getString(KEY_AI_REPLICATE_PARAMS_ID, null),
+            huggingFaceInferenceApiKey = prefs.getString(KEY_AI_HUGGINGFACE_API_KEY_INFERENCE, "") ?: "",
+            huggingFaceInferenceModel = prefs.getString(KEY_AI_HUGGINGFACE_MODEL_INFERENCE, AiService.HUGGINGFACE.defaultModel) ?: AiService.HUGGINGFACE.defaultModel,
+            huggingFaceInferenceModelSource = loadModelSource(KEY_AI_HUGGINGFACE_MODEL_SOURCE_INFERENCE, ModelSource.MANUAL),
+            huggingFaceInferenceManualModels = loadManualModelsWithDefault(KEY_AI_HUGGINGFACE_MANUAL_MODELS_INFERENCE, HUGGINGFACE_INFERENCE_MODELS),
+            huggingFaceInferenceAdminUrl = prefs.getString(KEY_AI_HUGGINGFACE_ADMIN_URL_INFERENCE, AiService.HUGGINGFACE.adminUrl) ?: AiService.HUGGINGFACE.adminUrl,
+            huggingFaceInferenceModelListUrl = prefs.getString(KEY_AI_HUGGINGFACE_MODEL_LIST_URL_INFERENCE, "") ?: "",
+            huggingFaceInferenceParamsId = prefs.getString(KEY_AI_HUGGINGFACE_PARAMS_ID_INFERENCE, null),
+            lambdaApiKey = prefs.getString(KEY_AI_LAMBDA_API_KEY, "") ?: "",
+            lambdaModel = prefs.getString(KEY_AI_LAMBDA_MODEL, AiService.LAMBDA.defaultModel) ?: AiService.LAMBDA.defaultModel,
+            lambdaModelSource = loadModelSource(KEY_AI_LAMBDA_MODEL_SOURCE, ModelSource.API),
+            lambdaManualModels = loadManualModels(KEY_AI_LAMBDA_MANUAL_MODELS),
+            lambdaAdminUrl = prefs.getString(KEY_AI_LAMBDA_ADMIN_URL, AiService.LAMBDA.adminUrl) ?: AiService.LAMBDA.adminUrl,
+            lambdaModelListUrl = prefs.getString(KEY_AI_LAMBDA_MODEL_LIST_URL, "") ?: "",
+            lambdaParamsId = prefs.getString(KEY_AI_LAMBDA_PARAMS_ID, null),
+            leptonApiKey = prefs.getString(KEY_AI_LEPTON_API_KEY, "") ?: "",
+            leptonModel = prefs.getString(KEY_AI_LEPTON_MODEL, AiService.LEPTON.defaultModel) ?: AiService.LEPTON.defaultModel,
+            leptonModelSource = loadModelSource(KEY_AI_LEPTON_MODEL_SOURCE, ModelSource.MANUAL),
+            leptonManualModels = loadManualModelsWithDefault(KEY_AI_LEPTON_MANUAL_MODELS, LEPTON_MODELS),
+            leptonAdminUrl = prefs.getString(KEY_AI_LEPTON_ADMIN_URL, AiService.LEPTON.adminUrl) ?: AiService.LEPTON.adminUrl,
+            leptonModelListUrl = prefs.getString(KEY_AI_LEPTON_MODEL_LIST_URL, "") ?: "",
+            leptonParamsId = prefs.getString(KEY_AI_LEPTON_PARAMS_ID, null),
+            yiApiKey = prefs.getString(KEY_AI_YI_API_KEY, "") ?: "",
+            yiModel = prefs.getString(KEY_AI_YI_MODEL, AiService.YI.defaultModel) ?: AiService.YI.defaultModel,
+            yiModelSource = loadModelSource(KEY_AI_YI_MODEL_SOURCE, ModelSource.API),
+            yiManualModels = loadManualModelsWithDefault(KEY_AI_YI_MANUAL_MODELS, YI_MODELS),
+            yiAdminUrl = prefs.getString(KEY_AI_YI_ADMIN_URL, AiService.YI.adminUrl) ?: AiService.YI.adminUrl,
+            yiModelListUrl = prefs.getString(KEY_AI_YI_MODEL_LIST_URL, "") ?: "",
+            yiParamsId = prefs.getString(KEY_AI_YI_PARAMS_ID, null),
+            doubaoApiKey = prefs.getString(KEY_AI_DOUBAO_API_KEY, "") ?: "",
+            doubaoModel = prefs.getString(KEY_AI_DOUBAO_MODEL, AiService.DOUBAO.defaultModel) ?: AiService.DOUBAO.defaultModel,
+            doubaoModelSource = loadModelSource(KEY_AI_DOUBAO_MODEL_SOURCE, ModelSource.MANUAL),
+            doubaoManualModels = loadManualModelsWithDefault(KEY_AI_DOUBAO_MANUAL_MODELS, DOUBAO_MODELS),
+            doubaoAdminUrl = prefs.getString(KEY_AI_DOUBAO_ADMIN_URL, AiService.DOUBAO.adminUrl) ?: AiService.DOUBAO.adminUrl,
+            doubaoModelListUrl = prefs.getString(KEY_AI_DOUBAO_MODEL_LIST_URL, "") ?: "",
+            doubaoParamsId = prefs.getString(KEY_AI_DOUBAO_PARAMS_ID, null),
+            rekaApiKey = prefs.getString(KEY_AI_REKA_API_KEY, "") ?: "",
+            rekaModel = prefs.getString(KEY_AI_REKA_MODEL, AiService.REKA.defaultModel) ?: AiService.REKA.defaultModel,
+            rekaModelSource = loadModelSource(KEY_AI_REKA_MODEL_SOURCE, ModelSource.MANUAL),
+            rekaManualModels = loadManualModelsWithDefault(KEY_AI_REKA_MANUAL_MODELS, REKA_MODELS),
+            rekaAdminUrl = prefs.getString(KEY_AI_REKA_ADMIN_URL, AiService.REKA.adminUrl) ?: AiService.REKA.adminUrl,
+            rekaModelListUrl = prefs.getString(KEY_AI_REKA_MODEL_LIST_URL, "") ?: "",
+            rekaParamsId = prefs.getString(KEY_AI_REKA_PARAMS_ID, null),
+            writerApiKey = prefs.getString(KEY_AI_WRITER_API_KEY, "") ?: "",
+            writerModel = prefs.getString(KEY_AI_WRITER_MODEL, AiService.WRITER.defaultModel) ?: AiService.WRITER.defaultModel,
+            writerModelSource = loadModelSource(KEY_AI_WRITER_MODEL_SOURCE, ModelSource.API),
+            writerManualModels = loadManualModelsWithDefault(KEY_AI_WRITER_MANUAL_MODELS, WRITER_MODELS),
+            writerAdminUrl = prefs.getString(KEY_AI_WRITER_ADMIN_URL, AiService.WRITER.adminUrl) ?: AiService.WRITER.adminUrl,
+            writerModelListUrl = prefs.getString(KEY_AI_WRITER_MODEL_LIST_URL, "") ?: "",
+            writerParamsId = prefs.getString(KEY_AI_WRITER_PARAMS_ID, null),
             dummyApiKey = prefs.getString(KEY_AI_DUMMY_API_KEY, "") ?: "",
             dummyModel = prefs.getString(KEY_AI_DUMMY_MODEL, AiService.DUMMY.defaultModel) ?: AiService.DUMMY.defaultModel,
             dummyModelSource = loadModelSource(KEY_AI_DUMMY_MODEL_SOURCE, ModelSource.API),
@@ -423,6 +486,69 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
             .putString(KEY_AI_MINIMAX_ADMIN_URL, settings.miniMaxAdminUrl)
             .putString(KEY_AI_MINIMAX_MODEL_LIST_URL, settings.miniMaxModelListUrl)
             .putString(KEY_AI_MINIMAX_PARAMS_ID, settings.miniMaxParamsId)
+            .putString(KEY_AI_NVIDIA_API_KEY, settings.nvidiaApiKey)
+            .putString(KEY_AI_NVIDIA_MODEL, settings.nvidiaModel)
+            .putString(KEY_AI_NVIDIA_MODEL_SOURCE, settings.nvidiaModelSource.name)
+            .putString(KEY_AI_NVIDIA_MANUAL_MODELS, gson.toJson(settings.nvidiaManualModels))
+            .putString(KEY_AI_NVIDIA_ADMIN_URL, settings.nvidiaAdminUrl)
+            .putString(KEY_AI_NVIDIA_MODEL_LIST_URL, settings.nvidiaModelListUrl)
+            .putString(KEY_AI_NVIDIA_PARAMS_ID, settings.nvidiaParamsId)
+            .putString(KEY_AI_REPLICATE_API_KEY, settings.replicateApiKey)
+            .putString(KEY_AI_REPLICATE_MODEL, settings.replicateModel)
+            .putString(KEY_AI_REPLICATE_MODEL_SOURCE, settings.replicateModelSource.name)
+            .putString(KEY_AI_REPLICATE_MANUAL_MODELS, gson.toJson(settings.replicateManualModels))
+            .putString(KEY_AI_REPLICATE_ADMIN_URL, settings.replicateAdminUrl)
+            .putString(KEY_AI_REPLICATE_MODEL_LIST_URL, settings.replicateModelListUrl)
+            .putString(KEY_AI_REPLICATE_PARAMS_ID, settings.replicateParamsId)
+            .putString(KEY_AI_HUGGINGFACE_API_KEY_INFERENCE, settings.huggingFaceInferenceApiKey)
+            .putString(KEY_AI_HUGGINGFACE_MODEL_INFERENCE, settings.huggingFaceInferenceModel)
+            .putString(KEY_AI_HUGGINGFACE_MODEL_SOURCE_INFERENCE, settings.huggingFaceInferenceModelSource.name)
+            .putString(KEY_AI_HUGGINGFACE_MANUAL_MODELS_INFERENCE, gson.toJson(settings.huggingFaceInferenceManualModels))
+            .putString(KEY_AI_HUGGINGFACE_ADMIN_URL_INFERENCE, settings.huggingFaceInferenceAdminUrl)
+            .putString(KEY_AI_HUGGINGFACE_MODEL_LIST_URL_INFERENCE, settings.huggingFaceInferenceModelListUrl)
+            .putString(KEY_AI_HUGGINGFACE_PARAMS_ID_INFERENCE, settings.huggingFaceInferenceParamsId)
+            .putString(KEY_AI_LAMBDA_API_KEY, settings.lambdaApiKey)
+            .putString(KEY_AI_LAMBDA_MODEL, settings.lambdaModel)
+            .putString(KEY_AI_LAMBDA_MODEL_SOURCE, settings.lambdaModelSource.name)
+            .putString(KEY_AI_LAMBDA_MANUAL_MODELS, gson.toJson(settings.lambdaManualModels))
+            .putString(KEY_AI_LAMBDA_ADMIN_URL, settings.lambdaAdminUrl)
+            .putString(KEY_AI_LAMBDA_MODEL_LIST_URL, settings.lambdaModelListUrl)
+            .putString(KEY_AI_LAMBDA_PARAMS_ID, settings.lambdaParamsId)
+            .putString(KEY_AI_LEPTON_API_KEY, settings.leptonApiKey)
+            .putString(KEY_AI_LEPTON_MODEL, settings.leptonModel)
+            .putString(KEY_AI_LEPTON_MODEL_SOURCE, settings.leptonModelSource.name)
+            .putString(KEY_AI_LEPTON_MANUAL_MODELS, gson.toJson(settings.leptonManualModels))
+            .putString(KEY_AI_LEPTON_ADMIN_URL, settings.leptonAdminUrl)
+            .putString(KEY_AI_LEPTON_MODEL_LIST_URL, settings.leptonModelListUrl)
+            .putString(KEY_AI_LEPTON_PARAMS_ID, settings.leptonParamsId)
+            .putString(KEY_AI_YI_API_KEY, settings.yiApiKey)
+            .putString(KEY_AI_YI_MODEL, settings.yiModel)
+            .putString(KEY_AI_YI_MODEL_SOURCE, settings.yiModelSource.name)
+            .putString(KEY_AI_YI_MANUAL_MODELS, gson.toJson(settings.yiManualModels))
+            .putString(KEY_AI_YI_ADMIN_URL, settings.yiAdminUrl)
+            .putString(KEY_AI_YI_MODEL_LIST_URL, settings.yiModelListUrl)
+            .putString(KEY_AI_YI_PARAMS_ID, settings.yiParamsId)
+            .putString(KEY_AI_DOUBAO_API_KEY, settings.doubaoApiKey)
+            .putString(KEY_AI_DOUBAO_MODEL, settings.doubaoModel)
+            .putString(KEY_AI_DOUBAO_MODEL_SOURCE, settings.doubaoModelSource.name)
+            .putString(KEY_AI_DOUBAO_MANUAL_MODELS, gson.toJson(settings.doubaoManualModels))
+            .putString(KEY_AI_DOUBAO_ADMIN_URL, settings.doubaoAdminUrl)
+            .putString(KEY_AI_DOUBAO_MODEL_LIST_URL, settings.doubaoModelListUrl)
+            .putString(KEY_AI_DOUBAO_PARAMS_ID, settings.doubaoParamsId)
+            .putString(KEY_AI_REKA_API_KEY, settings.rekaApiKey)
+            .putString(KEY_AI_REKA_MODEL, settings.rekaModel)
+            .putString(KEY_AI_REKA_MODEL_SOURCE, settings.rekaModelSource.name)
+            .putString(KEY_AI_REKA_MANUAL_MODELS, gson.toJson(settings.rekaManualModels))
+            .putString(KEY_AI_REKA_ADMIN_URL, settings.rekaAdminUrl)
+            .putString(KEY_AI_REKA_MODEL_LIST_URL, settings.rekaModelListUrl)
+            .putString(KEY_AI_REKA_PARAMS_ID, settings.rekaParamsId)
+            .putString(KEY_AI_WRITER_API_KEY, settings.writerApiKey)
+            .putString(KEY_AI_WRITER_MODEL, settings.writerModel)
+            .putString(KEY_AI_WRITER_MODEL_SOURCE, settings.writerModelSource.name)
+            .putString(KEY_AI_WRITER_MANUAL_MODELS, gson.toJson(settings.writerManualModels))
+            .putString(KEY_AI_WRITER_ADMIN_URL, settings.writerAdminUrl)
+            .putString(KEY_AI_WRITER_MODEL_LIST_URL, settings.writerModelListUrl)
+            .putString(KEY_AI_WRITER_PARAMS_ID, settings.writerParamsId)
             .putString(KEY_AI_DUMMY_API_KEY, settings.dummyApiKey)
             .putString(KEY_AI_DUMMY_MODEL, settings.dummyModel)
             .putString(KEY_AI_DUMMY_MODEL_SOURCE, settings.dummyModelSource.name)
@@ -677,6 +803,24 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_STEPFUN_MODEL = "ai_stepfun_model"
         private const val KEY_AI_MINIMAX_API_KEY = "ai_minimax_api_key"
         private const val KEY_AI_MINIMAX_MODEL = "ai_minimax_model"
+        private const val KEY_AI_NVIDIA_API_KEY = "ai_nvidia_api_key"
+        private const val KEY_AI_NVIDIA_MODEL = "ai_nvidia_model"
+        private const val KEY_AI_REPLICATE_API_KEY = "ai_replicate_api_key"
+        private const val KEY_AI_REPLICATE_MODEL = "ai_replicate_model"
+        private const val KEY_AI_HUGGINGFACE_API_KEY_INFERENCE = "ai_huggingface_inference_api_key"
+        private const val KEY_AI_HUGGINGFACE_MODEL_INFERENCE = "ai_huggingface_inference_model"
+        private const val KEY_AI_LAMBDA_API_KEY = "ai_lambda_api_key"
+        private const val KEY_AI_LAMBDA_MODEL = "ai_lambda_model"
+        private const val KEY_AI_LEPTON_API_KEY = "ai_lepton_api_key"
+        private const val KEY_AI_LEPTON_MODEL = "ai_lepton_model"
+        private const val KEY_AI_YI_API_KEY = "ai_yi_api_key"
+        private const val KEY_AI_YI_MODEL = "ai_yi_model"
+        private const val KEY_AI_DOUBAO_API_KEY = "ai_doubao_api_key"
+        private const val KEY_AI_DOUBAO_MODEL = "ai_doubao_model"
+        private const val KEY_AI_REKA_API_KEY = "ai_reka_api_key"
+        private const val KEY_AI_REKA_MODEL = "ai_reka_model"
+        private const val KEY_AI_WRITER_API_KEY = "ai_writer_api_key"
+        private const val KEY_AI_WRITER_MODEL = "ai_writer_model"
         private const val KEY_AI_DUMMY_API_KEY = "ai_dummy_api_key"
         private const val KEY_AI_DUMMY_MODEL = "ai_dummy_model"
         private const val KEY_AI_DUMMY_MANUAL_MODELS = "ai_dummy_manual_models"
@@ -704,6 +848,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_BAICHUAN_MODEL_SOURCE = "ai_baichuan_model_source"
         private const val KEY_AI_STEPFUN_MODEL_SOURCE = "ai_stepfun_model_source"
         private const val KEY_AI_MINIMAX_MODEL_SOURCE = "ai_minimax_model_source"
+        private const val KEY_AI_NVIDIA_MODEL_SOURCE = "ai_nvidia_model_source"
+        private const val KEY_AI_REPLICATE_MODEL_SOURCE = "ai_replicate_model_source"
+        private const val KEY_AI_HUGGINGFACE_MODEL_SOURCE_INFERENCE = "ai_huggingface_inference_model_source"
+        private const val KEY_AI_LAMBDA_MODEL_SOURCE = "ai_lambda_model_source"
+        private const val KEY_AI_LEPTON_MODEL_SOURCE = "ai_lepton_model_source"
+        private const val KEY_AI_YI_MODEL_SOURCE = "ai_yi_model_source"
+        private const val KEY_AI_DOUBAO_MODEL_SOURCE = "ai_doubao_model_source"
+        private const val KEY_AI_REKA_MODEL_SOURCE = "ai_reka_model_source"
+        private const val KEY_AI_WRITER_MODEL_SOURCE = "ai_writer_model_source"
         private const val KEY_AI_DUMMY_MODEL_SOURCE = "ai_dummy_model_source"
 
         // AI manual models lists
@@ -729,6 +882,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_BAICHUAN_MANUAL_MODELS = "ai_baichuan_manual_models"
         private const val KEY_AI_STEPFUN_MANUAL_MODELS = "ai_stepfun_manual_models"
         private const val KEY_AI_MINIMAX_MANUAL_MODELS = "ai_minimax_manual_models"
+        private const val KEY_AI_NVIDIA_MANUAL_MODELS = "ai_nvidia_manual_models"
+        private const val KEY_AI_REPLICATE_MANUAL_MODELS = "ai_replicate_manual_models"
+        private const val KEY_AI_HUGGINGFACE_MANUAL_MODELS_INFERENCE = "ai_huggingface_inference_manual_models"
+        private const val KEY_AI_LAMBDA_MANUAL_MODELS = "ai_lambda_manual_models"
+        private const val KEY_AI_LEPTON_MANUAL_MODELS = "ai_lepton_manual_models"
+        private const val KEY_AI_YI_MANUAL_MODELS = "ai_yi_manual_models"
+        private const val KEY_AI_DOUBAO_MANUAL_MODELS = "ai_doubao_manual_models"
+        private const val KEY_AI_REKA_MANUAL_MODELS = "ai_reka_manual_models"
+        private const val KEY_AI_WRITER_MANUAL_MODELS = "ai_writer_manual_models"
 
         // AI admin URLs
         private const val KEY_AI_OPENAI_ADMIN_URL = "ai_openai_admin_url"
@@ -753,6 +915,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_BAICHUAN_ADMIN_URL = "ai_baichuan_admin_url"
         private const val KEY_AI_STEPFUN_ADMIN_URL = "ai_stepfun_admin_url"
         private const val KEY_AI_MINIMAX_ADMIN_URL = "ai_minimax_admin_url"
+        private const val KEY_AI_NVIDIA_ADMIN_URL = "ai_nvidia_admin_url"
+        private const val KEY_AI_REPLICATE_ADMIN_URL = "ai_replicate_admin_url"
+        private const val KEY_AI_HUGGINGFACE_ADMIN_URL_INFERENCE = "ai_huggingface_inference_admin_url"
+        private const val KEY_AI_LAMBDA_ADMIN_URL = "ai_lambda_admin_url"
+        private const val KEY_AI_LEPTON_ADMIN_URL = "ai_lepton_admin_url"
+        private const val KEY_AI_YI_ADMIN_URL = "ai_yi_admin_url"
+        private const val KEY_AI_DOUBAO_ADMIN_URL = "ai_doubao_admin_url"
+        private const val KEY_AI_REKA_ADMIN_URL = "ai_reka_admin_url"
+        private const val KEY_AI_WRITER_ADMIN_URL = "ai_writer_admin_url"
         private const val KEY_AI_DUMMY_ADMIN_URL = "ai_dummy_admin_url"
 
         // AI model list URLs
@@ -778,6 +949,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_BAICHUAN_MODEL_LIST_URL = "ai_baichuan_model_list_url"
         private const val KEY_AI_STEPFUN_MODEL_LIST_URL = "ai_stepfun_model_list_url"
         private const val KEY_AI_MINIMAX_MODEL_LIST_URL = "ai_minimax_model_list_url"
+        private const val KEY_AI_NVIDIA_MODEL_LIST_URL = "ai_nvidia_model_list_url"
+        private const val KEY_AI_REPLICATE_MODEL_LIST_URL = "ai_replicate_model_list_url"
+        private const val KEY_AI_HUGGINGFACE_MODEL_LIST_URL_INFERENCE = "ai_huggingface_inference_model_list_url"
+        private const val KEY_AI_LAMBDA_MODEL_LIST_URL = "ai_lambda_model_list_url"
+        private const val KEY_AI_LEPTON_MODEL_LIST_URL = "ai_lepton_model_list_url"
+        private const val KEY_AI_YI_MODEL_LIST_URL = "ai_yi_model_list_url"
+        private const val KEY_AI_DOUBAO_MODEL_LIST_URL = "ai_doubao_model_list_url"
+        private const val KEY_AI_REKA_MODEL_LIST_URL = "ai_reka_model_list_url"
+        private const val KEY_AI_WRITER_MODEL_LIST_URL = "ai_writer_model_list_url"
         private const val KEY_AI_DUMMY_MODEL_LIST_URL = "ai_dummy_model_list_url"
 
         // AI params ID per provider
@@ -803,6 +983,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_AI_BAICHUAN_PARAMS_ID = "ai_baichuan_params_id"
         private const val KEY_AI_STEPFUN_PARAMS_ID = "ai_stepfun_params_id"
         private const val KEY_AI_MINIMAX_PARAMS_ID = "ai_minimax_params_id"
+        private const val KEY_AI_NVIDIA_PARAMS_ID = "ai_nvidia_params_id"
+        private const val KEY_AI_REPLICATE_PARAMS_ID = "ai_replicate_params_id"
+        private const val KEY_AI_HUGGINGFACE_PARAMS_ID_INFERENCE = "ai_huggingface_inference_params_id"
+        private const val KEY_AI_LAMBDA_PARAMS_ID = "ai_lambda_params_id"
+        private const val KEY_AI_LEPTON_PARAMS_ID = "ai_lepton_params_id"
+        private const val KEY_AI_YI_PARAMS_ID = "ai_yi_params_id"
+        private const val KEY_AI_DOUBAO_PARAMS_ID = "ai_doubao_params_id"
+        private const val KEY_AI_REKA_PARAMS_ID = "ai_reka_params_id"
+        private const val KEY_AI_WRITER_PARAMS_ID = "ai_writer_params_id"
         private const val KEY_AI_DUMMY_PARAMS_ID = "ai_dummy_params_id"
 
         // AI agents
@@ -866,6 +1055,15 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         private const val KEY_API_MODELS_BAICHUAN = "api_models_baichuan"
         private const val KEY_API_MODELS_STEPFUN = "api_models_stepfun"
         private const val KEY_API_MODELS_MINIMAX = "api_models_minimax"
+        private const val KEY_API_MODELS_NVIDIA = "api_models_nvidia"
+        private const val KEY_API_MODELS_REPLICATE = "api_models_replicate"
+        private const val KEY_API_MODELS_HUGGINGFACE_INFERENCE = "api_models_huggingface_inference"
+        private const val KEY_API_MODELS_LAMBDA = "api_models_lambda"
+        private const val KEY_API_MODELS_LEPTON = "api_models_lepton"
+        private const val KEY_API_MODELS_YI = "api_models_yi"
+        private const val KEY_API_MODELS_DOUBAO = "api_models_doubao"
+        private const val KEY_API_MODELS_REKA = "api_models_reka"
+        private const val KEY_API_MODELS_WRITER = "api_models_writer"
 
         // Model lists cache timestamps (24-hour cache per provider)
         private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"
@@ -1033,6 +1231,24 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     fun saveStepFunApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_STEPFUN, models)
     fun loadMiniMaxApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MINIMAX)
     fun saveMiniMaxApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MINIMAX, models)
+    fun loadNvidiaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_NVIDIA)
+    fun saveNvidiaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_NVIDIA, models)
+    fun loadReplicateApiModels(): List<String> = loadApiModels(KEY_API_MODELS_REPLICATE)
+    fun saveReplicateApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_REPLICATE, models)
+    fun loadHuggingFaceInferenceApiModels(): List<String> = loadApiModels(KEY_API_MODELS_HUGGINGFACE_INFERENCE)
+    fun saveHuggingFaceInferenceApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_HUGGINGFACE_INFERENCE, models)
+    fun loadLambdaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_LAMBDA)
+    fun saveLambdaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_LAMBDA, models)
+    fun loadLeptonApiModels(): List<String> = loadApiModels(KEY_API_MODELS_LEPTON)
+    fun saveLeptonApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_LEPTON, models)
+    fun loadYiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_YI)
+    fun saveYiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_YI, models)
+    fun loadDoubaoApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DOUBAO)
+    fun saveDoubaoApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DOUBAO, models)
+    fun loadRekaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_REKA)
+    fun saveRekaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_REKA, models)
+    fun loadWriterApiModels(): List<String> = loadApiModels(KEY_API_MODELS_WRITER)
+    fun saveWriterApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_WRITER, models)
 
     // ============================================================================
     // Model Lists Cache (24-hour validity per provider)

@@ -272,11 +272,9 @@ fun AiAgentsScreen(
                     }
                 )
 
-                // Agent list - filter out DUMMY agents when not in developer mode and apply search
-                val baseAgents = if (developerMode) {
-                    aiSettings.agents
-                } else {
-                    aiSettings.agents.filter { it.provider != AiService.DUMMY }
+                // Agent list - filter to agents with active providers and apply search
+                val baseAgents = aiSettings.agents.filter {
+                    aiSettings.isProviderActive(it.provider, developerMode)
                 }
                 val visibleAgents = if (searchQuery.isBlank()) {
                     baseAgents

@@ -49,6 +49,15 @@ fun ModelSearchScreen(
     availableBaichuanModels: List<String>,
     availableStepFunModels: List<String>,
     availableMiniMaxModels: List<String>,
+    availableNvidiaModels: List<String> = emptyList(),
+    availableReplicateModels: List<String> = emptyList(),
+    availableHuggingFaceInferenceModels: List<String> = emptyList(),
+    availableLambdaModels: List<String> = emptyList(),
+    availableLeptonModels: List<String> = emptyList(),
+    availableYiModels: List<String> = emptyList(),
+    availableDoubaoModels: List<String> = emptyList(),
+    availableRekaModels: List<String> = emptyList(),
+    availableWriterModels: List<String> = emptyList(),
     availableDummyModels: List<String>,
     isLoadingChatGptModels: Boolean = false,
     isLoadingClaudeModels: Boolean = false,
@@ -319,7 +328,9 @@ fun ModelSearchScreen(
         availableSiliconFlowModels, availableZaiModels, availableMoonshotModels,
         availableCohereModels, availableAi21Models, availableDashScopeModels, availableFireworksModels,
         availableCerebrasModels, availableSambaNovaModels, availableBaichuanModels, availableStepFunModels,
-        availableMiniMaxModels, availableDummyModels, aiSettings
+        availableMiniMaxModels, availableNvidiaModels, availableReplicateModels, availableHuggingFaceInferenceModels,
+        availableLambdaModels, availableLeptonModels, availableYiModels, availableDoubaoModels,
+        availableRekaModels, availableWriterModels, availableDummyModels, aiSettings
     ) {
         buildList {
             fun isActive(s: AiService) = aiSettings.isProviderActive(s, developerMode)
@@ -414,6 +425,51 @@ fun ModelSearchScreen(
             if (isActive(AiService.MINIMAX)) {
                 val miniMaxModels = if (availableMiniMaxModels.isNotEmpty()) availableMiniMaxModels else aiSettings.miniMaxManualModels
                 miniMaxModels.forEach { add(ModelSearchItem(AiService.MINIMAX, "MiniMax", it, Color(0xFFEC407A))) }
+            }
+            // NVIDIA models
+            if (isActive(AiService.NVIDIA)) {
+                val nvidiaModels = if (availableNvidiaModels.isNotEmpty()) availableNvidiaModels else aiSettings.nvidiaManualModels
+                nvidiaModels.forEach { add(ModelSearchItem(AiService.NVIDIA, "NVIDIA", it, Color(0xFF76B900))) }
+            }
+            // Replicate models
+            if (isActive(AiService.REPLICATE)) {
+                val replicateModels = if (availableReplicateModels.isNotEmpty()) availableReplicateModels else aiSettings.replicateManualModels
+                replicateModels.forEach { add(ModelSearchItem(AiService.REPLICATE, "Replicate", it, Color(0xFF000000))) }
+            }
+            // Hugging Face Inference models
+            if (isActive(AiService.HUGGINGFACE)) {
+                val hfModels = if (availableHuggingFaceInferenceModels.isNotEmpty()) availableHuggingFaceInferenceModels else aiSettings.huggingFaceInferenceManualModels
+                hfModels.forEach { add(ModelSearchItem(AiService.HUGGINGFACE, "Hugging Face", it, Color(0xFFFFD21E))) }
+            }
+            // Lambda models
+            if (isActive(AiService.LAMBDA)) {
+                val lambdaModels = if (availableLambdaModels.isNotEmpty()) availableLambdaModels else aiSettings.lambdaManualModels
+                lambdaModels.forEach { add(ModelSearchItem(AiService.LAMBDA, "Lambda", it, Color(0xFF1F41BF))) }
+            }
+            // Lepton models
+            if (isActive(AiService.LEPTON)) {
+                val leptonModels = if (availableLeptonModels.isNotEmpty()) availableLeptonModels else aiSettings.leptonManualModels
+                leptonModels.forEach { add(ModelSearchItem(AiService.LEPTON, "Lepton", it, Color(0xFF3B82F6))) }
+            }
+            // YI (01.AI) models
+            if (isActive(AiService.YI)) {
+                val yiModels = if (availableYiModels.isNotEmpty()) availableYiModels else aiSettings.yiManualModels
+                yiModels.forEach { add(ModelSearchItem(AiService.YI, "01.AI", it, Color(0xFFFFB81C))) }
+            }
+            // Doubao models
+            if (isActive(AiService.DOUBAO)) {
+                val doubaoModels = if (availableDoubaoModels.isNotEmpty()) availableDoubaoModels else aiSettings.doubaoManualModels
+                doubaoModels.forEach { add(ModelSearchItem(AiService.DOUBAO, "Doubao", it, Color(0xFF1890FF))) }
+            }
+            // Reka models
+            if (isActive(AiService.REKA)) {
+                val rekaModels = if (availableRekaModels.isNotEmpty()) availableRekaModels else aiSettings.rekaManualModels
+                rekaModels.forEach { add(ModelSearchItem(AiService.REKA, "Reka", it, Color(0xFFFF6B35))) }
+            }
+            // Writer models
+            if (isActive(AiService.WRITER)) {
+                val writerModels = if (availableWriterModels.isNotEmpty()) availableWriterModels else aiSettings.writerManualModels
+                writerModels.forEach { add(ModelSearchItem(AiService.WRITER, "Writer", it, Color(0xFF0066FF))) }
             }
             // Dummy models (only in developer mode)
             if (isActive(AiService.DUMMY)) {
@@ -513,22 +569,7 @@ fun ModelSearchScreen(
  * Helper to convert provider name to AiService.
  */
 internal fun providerFromName(name: String): AiService {
-    return when (name) {
-        "OpenAI" -> AiService.OPENAI
-        "Anthropic" -> AiService.ANTHROPIC
-        "Google" -> AiService.GOOGLE
-        "xAI" -> AiService.XAI
-        "Groq" -> AiService.GROQ
-        "DeepSeek" -> AiService.DEEPSEEK
-        "Mistral" -> AiService.MISTRAL
-        "Perplexity" -> AiService.PERPLEXITY
-        "Together" -> AiService.TOGETHER
-        "OpenRouter" -> AiService.OPENROUTER
-        "SiliconFlow" -> AiService.SILICONFLOW
-        "Z.AI" -> AiService.ZAI
-        "Dummy" -> AiService.DUMMY
-        else -> AiService.OPENAI
-    }
+    return AiService.entries.find { it.displayName == name } ?: AiService.OPENAI
 }
 
 /**

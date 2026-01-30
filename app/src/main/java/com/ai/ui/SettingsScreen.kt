@@ -44,6 +44,15 @@ enum class SettingsSubScreen {
     AI_BAICHUAN,
     AI_STEPFUN,
     AI_MINIMAX,
+    AI_NVIDIA,
+    AI_REPLICATE,
+    AI_HUGGINGFACE,
+    AI_LAMBDA,
+    AI_LEPTON,
+    AI_YI,
+    AI_DOUBAO,
+    AI_REKA,
+    AI_WRITER,
     AI_DUMMY,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
@@ -117,6 +126,24 @@ fun SettingsScreen(
     isLoadingStepFunModels: Boolean = false,
     availableMiniMaxModels: List<String> = emptyList(),
     isLoadingMiniMaxModels: Boolean = false,
+    availableNvidiaModels: List<String> = emptyList(),
+    isLoadingNvidiaModels: Boolean = false,
+    availableReplicateModels: List<String> = emptyList(),
+    isLoadingReplicateModels: Boolean = false,
+    availableHuggingFaceInferenceModels: List<String> = emptyList(),
+    isLoadingHuggingFaceInferenceModels: Boolean = false,
+    availableLambdaModels: List<String> = emptyList(),
+    isLoadingLambdaModels: Boolean = false,
+    availableLeptonModels: List<String> = emptyList(),
+    isLoadingLeptonModels: Boolean = false,
+    availableYiModels: List<String> = emptyList(),
+    isLoadingYiModels: Boolean = false,
+    availableDoubaoModels: List<String> = emptyList(),
+    isLoadingDoubaoModels: Boolean = false,
+    availableRekaModels: List<String> = emptyList(),
+    isLoadingRekaModels: Boolean = false,
+    availableWriterModels: List<String> = emptyList(),
+    isLoadingWriterModels: Boolean = false,
     availableDummyModels: List<String>,
     isLoadingDummyModels: Boolean,
     onBack: () -> Unit,
@@ -228,6 +255,15 @@ fun SettingsScreen(
             SettingsSubScreen.AI_BAICHUAN,
             SettingsSubScreen.AI_STEPFUN,
             SettingsSubScreen.AI_MINIMAX,
+            SettingsSubScreen.AI_NVIDIA,
+            SettingsSubScreen.AI_REPLICATE,
+            SettingsSubScreen.AI_HUGGINGFACE,
+            SettingsSubScreen.AI_LAMBDA,
+            SettingsSubScreen.AI_LEPTON,
+            SettingsSubScreen.AI_YI,
+            SettingsSubScreen.AI_DOUBAO,
+            SettingsSubScreen.AI_REKA,
+            SettingsSubScreen.AI_WRITER,
             SettingsSubScreen.AI_DUMMY -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP (or home if AI_SETUP was the initial screen)
             SettingsSubScreen.AI_PROVIDERS,
@@ -550,6 +586,114 @@ fun SettingsScreen(
             onTestApiKey = onTestAiModel,
             onCreateAgent = { navigateToAddAgent(AiService.MINIMAX, aiSettings.miniMaxApiKey, aiSettings.miniMaxModel) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.MINIMAX, state) }
+        )
+        SettingsSubScreen.AI_NVIDIA -> NvidiaSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableNvidiaModels,
+            isLoadingModels = isLoadingNvidiaModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchNvidiaModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.NVIDIA, aiSettings.nvidiaApiKey, aiSettings.nvidiaModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.NVIDIA, state) }
+        )
+        SettingsSubScreen.AI_REPLICATE -> ReplicateSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableReplicateModels,
+            isLoadingModels = isLoadingReplicateModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchReplicateModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.REPLICATE, aiSettings.replicateApiKey, aiSettings.replicateModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.REPLICATE, state) }
+        )
+        SettingsSubScreen.AI_HUGGINGFACE -> HuggingFaceInferenceSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableHuggingFaceInferenceModels,
+            isLoadingModels = isLoadingHuggingFaceInferenceModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchHuggingFaceInferenceModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.HUGGINGFACE, aiSettings.huggingFaceInferenceApiKey, aiSettings.huggingFaceInferenceModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.HUGGINGFACE, state) }
+        )
+        SettingsSubScreen.AI_LAMBDA -> LambdaSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableLambdaModels,
+            isLoadingModels = isLoadingLambdaModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchLambdaModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.LAMBDA, aiSettings.lambdaApiKey, aiSettings.lambdaModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.LAMBDA, state) }
+        )
+        SettingsSubScreen.AI_LEPTON -> LeptonSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableLeptonModels,
+            isLoadingModels = isLoadingLeptonModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchLeptonModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.LEPTON, aiSettings.leptonApiKey, aiSettings.leptonModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.LEPTON, state) }
+        )
+        SettingsSubScreen.AI_YI -> YiSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableYiModels,
+            isLoadingModels = isLoadingYiModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchYiModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.YI, aiSettings.yiApiKey, aiSettings.yiModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.YI, state) }
+        )
+        SettingsSubScreen.AI_DOUBAO -> DoubaoSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableDoubaoModels,
+            isLoadingModels = isLoadingDoubaoModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchDoubaoModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.DOUBAO, aiSettings.doubaoApiKey, aiSettings.doubaoModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.DOUBAO, state) }
+        )
+        SettingsSubScreen.AI_REKA -> RekaSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableRekaModels,
+            isLoadingModels = isLoadingRekaModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchRekaModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.REKA, aiSettings.rekaApiKey, aiSettings.rekaModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.REKA, state) }
+        )
+        SettingsSubScreen.AI_WRITER -> WriterSettingsScreen(
+            aiSettings = aiSettings,
+            availableModels = availableWriterModels,
+            isLoadingModels = isLoadingWriterModels,
+            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onFetchModels = onFetchWriterModels,
+            onTestApiKey = onTestAiModel,
+            onCreateAgent = { navigateToAddAgent(AiService.WRITER, aiSettings.writerApiKey, aiSettings.writerModel) },
+            onProviderStateChange = { state -> onProviderStateChange(AiService.WRITER, state) }
         )
         SettingsSubScreen.AI_DUMMY -> DummySettingsScreen(
             aiSettings = aiSettings,

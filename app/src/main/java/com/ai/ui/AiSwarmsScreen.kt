@@ -75,9 +75,9 @@ fun AiSwarmsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
-                    // Filter DUMMY members when not in developer mode
+                    // Filter to members with active providers
                     val swarmMembers = swarm.members.filter { member ->
-                        developerMode || member.provider != AiService.DUMMY
+                        aiSettings.isProviderActive(member.provider, developerMode)
                     }
                     SwarmListItem(
                         swarm = swarm,

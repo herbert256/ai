@@ -836,7 +836,7 @@ fun AiReportsScreen(
                             } else {
                                 filteredFlocks.forEach { flock ->
                                     val flockAgentsList = uiState.aiSettings.getAgentsForFlock(flock)
-                                        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+                                        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
                                     val flockAgentIdsList = flockAgentsList.map { it.id }.toSet()
                                     Row(
                                         modifier = Modifier
@@ -970,7 +970,7 @@ fun AiReportsScreen(
                             } else {
                                 filteredSwarms.forEach { swarm ->
                                     val swarmMembersList = swarm.members
-                                        .filter { uiState.generalSettings.developerMode || it.provider != com.ai.data.AiService.DUMMY }
+                                        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()

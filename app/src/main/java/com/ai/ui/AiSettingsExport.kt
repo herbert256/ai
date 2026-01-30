@@ -345,6 +345,15 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             aiSettings.miniMaxAdminUrl,
             aiSettings.miniMaxModelListUrl.ifBlank { null }
         ),
+        "NVIDIA" to ProviderConfigExport(aiSettings.nvidiaModelSource.name, aiSettings.nvidiaManualModels, aiSettings.nvidiaApiKey, aiSettings.nvidiaModel, aiSettings.nvidiaAdminUrl, aiSettings.nvidiaModelListUrl.ifBlank { null }),
+        "REPLICATE" to ProviderConfigExport(aiSettings.replicateModelSource.name, aiSettings.replicateManualModels, aiSettings.replicateApiKey, aiSettings.replicateModel, aiSettings.replicateAdminUrl, aiSettings.replicateModelListUrl.ifBlank { null }),
+        "HUGGINGFACE" to ProviderConfigExport(aiSettings.huggingFaceInferenceModelSource.name, aiSettings.huggingFaceInferenceManualModels, aiSettings.huggingFaceInferenceApiKey, aiSettings.huggingFaceInferenceModel, aiSettings.huggingFaceInferenceAdminUrl, aiSettings.huggingFaceInferenceModelListUrl.ifBlank { null }),
+        "LAMBDA" to ProviderConfigExport(aiSettings.lambdaModelSource.name, aiSettings.lambdaManualModels, aiSettings.lambdaApiKey, aiSettings.lambdaModel, aiSettings.lambdaAdminUrl, aiSettings.lambdaModelListUrl.ifBlank { null }),
+        "LEPTON" to ProviderConfigExport(aiSettings.leptonModelSource.name, aiSettings.leptonManualModels, aiSettings.leptonApiKey, aiSettings.leptonModel, aiSettings.leptonAdminUrl, aiSettings.leptonModelListUrl.ifBlank { null }),
+        "YI" to ProviderConfigExport(aiSettings.yiModelSource.name, aiSettings.yiManualModels, aiSettings.yiApiKey, aiSettings.yiModel, aiSettings.yiAdminUrl, aiSettings.yiModelListUrl.ifBlank { null }),
+        "DOUBAO" to ProviderConfigExport(aiSettings.doubaoModelSource.name, aiSettings.doubaoManualModels, aiSettings.doubaoApiKey, aiSettings.doubaoModel, aiSettings.doubaoAdminUrl, aiSettings.doubaoModelListUrl.ifBlank { null }),
+        "REKA" to ProviderConfigExport(aiSettings.rekaModelSource.name, aiSettings.rekaManualModels, aiSettings.rekaApiKey, aiSettings.rekaModel, aiSettings.rekaAdminUrl, aiSettings.rekaModelListUrl.ifBlank { null }),
+        "WRITER" to ProviderConfigExport(aiSettings.writerModelSource.name, aiSettings.writerManualModels, aiSettings.writerApiKey, aiSettings.writerModel, aiSettings.writerAdminUrl, aiSettings.writerModelListUrl.ifBlank { null }),
         "DUMMY" to ProviderConfigExport(aiSettings.dummyModelSource.name, aiSettings.dummyManualModels, aiSettings.dummyApiKey, aiSettings.dummyModel, aiSettings.dummyAdminUrl, aiSettings.dummyModelListUrl.ifBlank { null })
     )
 
@@ -933,6 +942,96 @@ private fun processImportedConfig(
             miniMaxModel = p.defaultModel ?: settings.miniMaxModel,
             miniMaxAdminUrl = p.adminUrl ?: settings.miniMaxAdminUrl,
             miniMaxModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("NVIDIA") { p ->
+        settings.copy(
+            nvidiaModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            nvidiaManualModels = p.manualModels,
+            nvidiaApiKey = p.apiKey,
+            nvidiaModel = p.defaultModel ?: settings.nvidiaModel,
+            nvidiaAdminUrl = p.adminUrl ?: settings.nvidiaAdminUrl,
+            nvidiaModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("REPLICATE") { p ->
+        settings.copy(
+            replicateModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            replicateManualModels = p.manualModels,
+            replicateApiKey = p.apiKey,
+            replicateModel = p.defaultModel ?: settings.replicateModel,
+            replicateAdminUrl = p.adminUrl ?: settings.replicateAdminUrl,
+            replicateModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("HUGGINGFACE") { p ->
+        settings.copy(
+            huggingFaceInferenceModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            huggingFaceInferenceManualModels = p.manualModels,
+            huggingFaceInferenceApiKey = p.apiKey,
+            huggingFaceInferenceModel = p.defaultModel ?: settings.huggingFaceInferenceModel,
+            huggingFaceInferenceAdminUrl = p.adminUrl ?: settings.huggingFaceInferenceAdminUrl,
+            huggingFaceInferenceModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("LAMBDA") { p ->
+        settings.copy(
+            lambdaModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            lambdaManualModels = p.manualModels,
+            lambdaApiKey = p.apiKey,
+            lambdaModel = p.defaultModel ?: settings.lambdaModel,
+            lambdaAdminUrl = p.adminUrl ?: settings.lambdaAdminUrl,
+            lambdaModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("LEPTON") { p ->
+        settings.copy(
+            leptonModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            leptonManualModels = p.manualModels,
+            leptonApiKey = p.apiKey,
+            leptonModel = p.defaultModel ?: settings.leptonModel,
+            leptonAdminUrl = p.adminUrl ?: settings.leptonAdminUrl,
+            leptonModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("YI") { p ->
+        settings.copy(
+            yiModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            yiManualModels = p.manualModels,
+            yiApiKey = p.apiKey,
+            yiModel = p.defaultModel ?: settings.yiModel,
+            yiAdminUrl = p.adminUrl ?: settings.yiAdminUrl,
+            yiModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("DOUBAO") { p ->
+        settings.copy(
+            doubaoModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            doubaoManualModels = p.manualModels,
+            doubaoApiKey = p.apiKey,
+            doubaoModel = p.defaultModel ?: settings.doubaoModel,
+            doubaoAdminUrl = p.adminUrl ?: settings.doubaoAdminUrl,
+            doubaoModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("REKA") { p ->
+        settings.copy(
+            rekaModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            rekaManualModels = p.manualModels,
+            rekaApiKey = p.apiKey,
+            rekaModel = p.defaultModel ?: settings.rekaModel,
+            rekaAdminUrl = p.adminUrl ?: settings.rekaAdminUrl,
+            rekaModelListUrl = p.modelListUrl ?: ""
+        )
+    }
+    importProvider("WRITER") { p ->
+        settings.copy(
+            writerModelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { ModelSource.MANUAL },
+            writerManualModels = p.manualModels,
+            writerApiKey = p.apiKey,
+            writerModel = p.defaultModel ?: settings.writerModel,
+            writerAdminUrl = p.adminUrl ?: settings.writerAdminUrl,
+            writerModelListUrl = p.modelListUrl ?: ""
         )
     }
     importProvider("DUMMY") { p ->

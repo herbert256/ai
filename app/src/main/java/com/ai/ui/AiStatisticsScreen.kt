@@ -381,7 +381,6 @@ fun AiCostsScreen(
                 val totalInputCost = statsWithCosts.sumOf { it.inputCost ?: 0.0 }
                 val totalOutputCost = statsWithCosts.sumOf { it.outputCost ?: 0.0 }
                 val pricedCount = statsWithCosts.size
-                val unpricedCount = 0
 
                 // Summary card
                 Card(
@@ -448,13 +447,6 @@ fun AiCostsScreen(
                                 Text("Models", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
                                 Text("$pricedCount priced", color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
-                        }
-                        if (unpricedCount > 0) {
-                            Text(
-                                text = "$unpricedCount model(s) without pricing data",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFFF9800)
-                            )
                         }
                     }
                 }
@@ -662,124 +654,6 @@ data class StatWithCost(
     val hasPricing: Boolean,
     val pricingSource: String? = null
 )
-
-@Composable
-private fun CostCard(statWithCost: StatWithCost) {
-    val stat = statWithCost.stat
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (statWithCost.hasPricing) Color(0xFF2A2A2A) else Color(0xFF2A2A35)
-        ),
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Provider, model, and cost
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stat.provider.displayName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6B9BFF)
-                    )
-                    Text(
-                        text = stat.model,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFAAAAAA)
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    if (statWithCost.hasPricing) {
-                        Text(
-                            text = formatCurrency(statWithCost.totalCost ?: 0.0),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF4CAF50)
-                        )
-                        // Show pricing source with color coding
-                        val sourceColor = when (statWithCost.pricingSource) {
-                            "openrouter" -> Color(0xFF64B5F6)  // Blue
-                            "litellm" -> Color(0xFFBA68C8)     // Purple
-                            "fallback" -> Color(0xFFFFB74D)    // Orange
-                            else -> Color(0xFF888888)
-                        }
-                        Text(
-                            text = statWithCost.pricingSource ?: "",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sourceColor
-                        )
-                    } else {
-                        Text(
-                            text = "No pricing",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFFF9800)
-                        )
-                    }
-                    Text(
-                        text = "${stat.callCount} calls",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF888888)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Token usage and costs
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                CostTokenStat(
-                    label = "Input",
-                    tokens = stat.inputTokens,
-                    cost = statWithCost.inputCost
-                )
-                CostTokenStat(
-                    label = "Output",
-                    tokens = stat.outputTokens,
-                    cost = statWithCost.outputCost
-                )
-                CostTokenStat(
-                    label = "Total",
-                    tokens = stat.totalTokens,
-                    cost = statWithCost.totalCost
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CostTokenStat(label: String, tokens: Long, cost: Double?) {
-    Column {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888)
-        )
-        Text(
-            text = formatTokens(tokens),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFFCCCCCC)
-        )
-        if (cost != null) {
-            Text(
-                text = formatCurrency(cost),
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF4CAF50)
-            )
-        }
-    }
-}
 
 private fun formatCurrency(value: Double): String {
     return String.format("$%.8f", value)

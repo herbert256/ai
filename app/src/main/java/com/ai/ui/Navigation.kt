@@ -333,6 +333,15 @@ fun AiNavHost(
                 availableBaichuanModels = uiState.availableBaichuanModels,
                 availableStepFunModels = uiState.availableStepFunModels,
                 availableMiniMaxModels = uiState.availableMiniMaxModels,
+                availableNvidiaModels = uiState.availableNvidiaModels,
+                availableReplicateModels = uiState.availableReplicateModels,
+                availableHuggingFaceInferenceModels = uiState.availableHuggingFaceInferenceModels,
+                availableLambdaModels = uiState.availableLambdaModels,
+                availableLeptonModels = uiState.availableLeptonModels,
+                availableYiModels = uiState.availableYiModels,
+                availableDoubaoModels = uiState.availableDoubaoModels,
+                availableRekaModels = uiState.availableRekaModels,
+                availableWriterModels = uiState.availableWriterModels,
                 isLoadingChatGptModels = uiState.isLoadingChatGptModels,
                 isLoadingGeminiModels = uiState.isLoadingGeminiModels,
                 isLoadingGrokModels = uiState.isLoadingGrokModels,
@@ -382,6 +391,15 @@ fun AiNavHost(
                 onFetchBaichuanModels = { viewModel.fetchBaichuanModels(it) },
                 onFetchStepFunModels = { viewModel.fetchStepFunModels(it) },
                 onFetchMiniMaxModels = { viewModel.fetchMiniMaxModels(it) },
+                onFetchNvidiaModels = { viewModel.fetchNvidiaModels(it) },
+                onFetchReplicateModels = { viewModel.fetchReplicateModels(it) },
+                onFetchHuggingFaceInferenceModels = { viewModel.fetchHuggingFaceInferenceModels(it) },
+                onFetchLambdaModels = { viewModel.fetchLambdaModels(it) },
+                onFetchLeptonModels = { viewModel.fetchLeptonModels(it) },
+                onFetchYiModels = { viewModel.fetchYiModels(it) },
+                onFetchDoubaoModels = { viewModel.fetchDoubaoModels(it) },
+                onFetchRekaModels = { viewModel.fetchRekaModels(it) },
+                onFetchWriterModels = { viewModel.fetchWriterModels(it) },
                 onNavigateToChatParams = { provider, model ->
                     navController.navigate(NavRoutes.aiChatParams(provider.name, model))
                 },
@@ -573,6 +591,15 @@ fun AiNavHost(
                     com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
                     com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
                     com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
+                    com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
+                    com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
+                    com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
+                    com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
+                    com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
+                    com.ai.data.AiService.YI -> uiState.availableYiModels
+                    com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
+                    com.ai.data.AiService.REKA -> uiState.availableRekaModels
+                    com.ai.data.AiService.WRITER -> uiState.availableWriterModels
                     com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                     else -> emptyList()
                 }
@@ -598,6 +625,15 @@ fun AiNavHost(
                     com.ai.data.AiService.BAICHUAN -> uiState.isLoadingBaichuanModels
                     com.ai.data.AiService.STEPFUN -> uiState.isLoadingStepFunModels
                     com.ai.data.AiService.MINIMAX -> uiState.isLoadingMiniMaxModels
+                    com.ai.data.AiService.NVIDIA -> uiState.isLoadingNvidiaModels
+                    com.ai.data.AiService.REPLICATE -> uiState.isLoadingReplicateModels
+                    com.ai.data.AiService.HUGGINGFACE -> uiState.isLoadingHuggingFaceInferenceModels
+                    com.ai.data.AiService.LAMBDA -> uiState.isLoadingLambdaModels
+                    com.ai.data.AiService.LEPTON -> uiState.isLoadingLeptonModels
+                    com.ai.data.AiService.YI -> uiState.isLoadingYiModels
+                    com.ai.data.AiService.DOUBAO -> uiState.isLoadingDoubaoModels
+                    com.ai.data.AiService.REKA -> uiState.isLoadingRekaModels
+                    com.ai.data.AiService.WRITER -> uiState.isLoadingWriterModels
                     com.ai.data.AiService.DUMMY -> uiState.isLoadingDummyModels
                     else -> false
                 }
@@ -813,6 +849,24 @@ fun SettingsScreenNav(
         isLoadingStepFunModels = uiState.isLoadingStepFunModels,
         availableMiniMaxModels = uiState.availableMiniMaxModels,
         isLoadingMiniMaxModels = uiState.isLoadingMiniMaxModels,
+        availableNvidiaModels = uiState.availableNvidiaModels,
+        isLoadingNvidiaModels = uiState.isLoadingNvidiaModels,
+        availableReplicateModels = uiState.availableReplicateModels,
+        isLoadingReplicateModels = uiState.isLoadingReplicateModels,
+        availableHuggingFaceInferenceModels = uiState.availableHuggingFaceInferenceModels,
+        isLoadingHuggingFaceInferenceModels = uiState.isLoadingHuggingFaceInferenceModels,
+        availableLambdaModels = uiState.availableLambdaModels,
+        isLoadingLambdaModels = uiState.isLoadingLambdaModels,
+        availableLeptonModels = uiState.availableLeptonModels,
+        isLoadingLeptonModels = uiState.isLoadingLeptonModels,
+        availableYiModels = uiState.availableYiModels,
+        isLoadingYiModels = uiState.isLoadingYiModels,
+        availableDoubaoModels = uiState.availableDoubaoModels,
+        isLoadingDoubaoModels = uiState.isLoadingDoubaoModels,
+        availableRekaModels = uiState.availableRekaModels,
+        isLoadingRekaModels = uiState.isLoadingRekaModels,
+        availableWriterModels = uiState.availableWriterModels,
+        isLoadingWriterModels = uiState.isLoadingWriterModels,
         availableDummyModels = uiState.availableDummyModels,
         isLoadingDummyModels = uiState.isLoadingDummyModels,
         onBack = onNavigateBack,
@@ -842,6 +896,15 @@ fun SettingsScreenNav(
         onFetchBaichuanModels = { viewModel.fetchBaichuanModels(it) },
         onFetchStepFunModels = { viewModel.fetchStepFunModels(it) },
         onFetchMiniMaxModels = { viewModel.fetchMiniMaxModels(it) },
+        onFetchNvidiaModels = { viewModel.fetchNvidiaModels(it) },
+        onFetchReplicateModels = { viewModel.fetchReplicateModels(it) },
+        onFetchHuggingFaceInferenceModels = { viewModel.fetchHuggingFaceInferenceModels(it) },
+        onFetchLambdaModels = { viewModel.fetchLambdaModels(it) },
+        onFetchLeptonModels = { viewModel.fetchLeptonModels(it) },
+        onFetchYiModels = { viewModel.fetchYiModels(it) },
+        onFetchDoubaoModels = { viewModel.fetchDoubaoModels(it) },
+        onFetchRekaModels = { viewModel.fetchRekaModels(it) },
+        onFetchWriterModels = { viewModel.fetchWriterModels(it) },
         onFetchDummyModels = { viewModel.fetchDummyModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) },
@@ -930,6 +993,15 @@ fun HousekeepingScreenNav(
         availableBaichuanModels = uiState.availableBaichuanModels,
         availableStepFunModels = uiState.availableStepFunModels,
         availableMiniMaxModels = uiState.availableMiniMaxModels,
+        availableNvidiaModels = uiState.availableNvidiaModels,
+        availableReplicateModels = uiState.availableReplicateModels,
+        availableHuggingFaceInferenceModels = uiState.availableHuggingFaceInferenceModels,
+        availableLambdaModels = uiState.availableLambdaModels,
+        availableLeptonModels = uiState.availableLeptonModels,
+        availableYiModels = uiState.availableYiModels,
+        availableDoubaoModels = uiState.availableDoubaoModels,
+        availableRekaModels = uiState.availableRekaModels,
+        availableWriterModels = uiState.availableWriterModels,
         availableDummyModels = uiState.availableDummyModels,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },

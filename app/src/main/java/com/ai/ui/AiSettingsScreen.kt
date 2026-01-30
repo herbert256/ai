@@ -265,9 +265,9 @@ fun AiSetupScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Summary info (exclude DUMMY agents when not in developer mode)
+        // Summary info (count agents with active providers)
         val configuredAgents = aiSettings.agents.count { agent ->
-            aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && (developerMode || agent.provider != AiService.DUMMY)
+            aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
         }
 
         // Providers card (exclude DUMMY when not in developer mode)
@@ -470,20 +470,29 @@ fun AiProvidersScreen(
         ProviderEntry(AiService.COHERE, "Cohere", Color(0xFF39594D), SettingsSubScreen.AI_COHERE),
         ProviderEntry(AiService.DASHSCOPE, "DashScope", Color(0xFFFF6A00), SettingsSubScreen.AI_DASHSCOPE),
         ProviderEntry(AiService.DEEPSEEK, "DeepSeek", Color(0xFF4D6BFE), SettingsSubScreen.AI_DEEPSEEK),
+        ProviderEntry(AiService.DOUBAO, "Doubao", Color(0xFF1890FF), SettingsSubScreen.AI_DOUBAO),
         ProviderEntry(AiService.FIREWORKS, "Fireworks", Color(0xFFE34234), SettingsSubScreen.AI_FIREWORKS),
         ProviderEntry(AiService.GOOGLE, "Google", Color(0xFF4285F4), SettingsSubScreen.AI_GOOGLE),
         ProviderEntry(AiService.GROQ, "Groq", Color(0xFFF55036), SettingsSubScreen.AI_GROQ),
+        ProviderEntry(AiService.HUGGINGFACE, "Hugging Face", Color(0xFFFFD21E), SettingsSubScreen.AI_HUGGINGFACE),
+        ProviderEntry(AiService.LAMBDA, "Lambda", Color(0xFF1F41BF), SettingsSubScreen.AI_LAMBDA),
+        ProviderEntry(AiService.LEPTON, "Lepton", Color(0xFF3B82F6), SettingsSubScreen.AI_LEPTON),
         ProviderEntry(AiService.MINIMAX, "MiniMax", Color(0xFFEC407A), SettingsSubScreen.AI_MINIMAX),
         ProviderEntry(AiService.MISTRAL, "Mistral", Color(0xFFFF7000), SettingsSubScreen.AI_MISTRAL),
         ProviderEntry(AiService.MOONSHOT, "Moonshot", Color(0xFF7C3AED), SettingsSubScreen.AI_MOONSHOT),
+        ProviderEntry(AiService.NVIDIA, "NVIDIA", Color(0xFF76B900), SettingsSubScreen.AI_NVIDIA),
         ProviderEntry(AiService.OPENAI, "OpenAI", Color(0xFF10A37F), SettingsSubScreen.AI_OPENAI),
         ProviderEntry(AiService.OPENROUTER, "OpenRouter", Color(0xFF6B5AED), SettingsSubScreen.AI_OPENROUTER),
         ProviderEntry(AiService.PERPLEXITY, "Perplexity", Color(0xFF20B2AA), SettingsSubScreen.AI_PERPLEXITY),
+        ProviderEntry(AiService.REKA, "Reka", Color(0xFFFF6B35), SettingsSubScreen.AI_REKA),
+        ProviderEntry(AiService.REPLICATE, "Replicate", Color(0xFF000000), SettingsSubScreen.AI_REPLICATE),
         ProviderEntry(AiService.SAMBANOVA, "SambaNova", Color(0xFF6B21A8), SettingsSubScreen.AI_SAMBANOVA),
         ProviderEntry(AiService.SILICONFLOW, "SiliconFlow", Color(0xFF00B4D8), SettingsSubScreen.AI_SILICONFLOW),
         ProviderEntry(AiService.STEPFUN, "StepFun", Color(0xFF00BFA5), SettingsSubScreen.AI_STEPFUN),
         ProviderEntry(AiService.TOGETHER, "Together", Color(0xFF6366F1), SettingsSubScreen.AI_TOGETHER),
+        ProviderEntry(AiService.WRITER, "Writer", Color(0xFF0066FF), SettingsSubScreen.AI_WRITER),
         ProviderEntry(AiService.XAI, "xAI", Color(0xFFFFFFFF), SettingsSubScreen.AI_XAI),
+        ProviderEntry(AiService.YI, "01.AI", Color(0xFFFFB81C), SettingsSubScreen.AI_YI),
         ProviderEntry(AiService.ZAI, "Z.AI", Color(0xFF6366F1), SettingsSubScreen.AI_ZAI)
     )
 

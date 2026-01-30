@@ -71,6 +71,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val baichuanApiModels = settingsPrefs.loadBaichuanApiModels()
         val stepFunApiModels = settingsPrefs.loadStepFunApiModels()
         val miniMaxApiModels = settingsPrefs.loadMiniMaxApiModels()
+        val nvidiaApiModels = settingsPrefs.loadNvidiaApiModels()
+        val replicateApiModels = settingsPrefs.loadReplicateApiModels()
+        val huggingFaceInferenceApiModels = settingsPrefs.loadHuggingFaceInferenceApiModels()
+        val lambdaApiModels = settingsPrefs.loadLambdaApiModels()
+        val leptonApiModels = settingsPrefs.loadLeptonApiModels()
+        val yiApiModels = settingsPrefs.loadYiApiModels()
+        val doubaoApiModels = settingsPrefs.loadDoubaoApiModels()
+        val rekaApiModels = settingsPrefs.loadRekaApiModels()
+        val writerApiModels = settingsPrefs.loadWriterApiModels()
 
         _uiState.value = _uiState.value.copy(
             generalSettings = generalSettings,
@@ -96,7 +105,16 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             availableSambaNovaModels = sambaNovaApiModels,
             availableBaichuanModels = baichuanApiModels,
             availableStepFunModels = stepFunApiModels,
-            availableMiniMaxModels = miniMaxApiModels
+            availableMiniMaxModels = miniMaxApiModels,
+            availableNvidiaModels = nvidiaApiModels,
+            availableReplicateModels = replicateApiModels,
+            availableHuggingFaceInferenceModels = huggingFaceInferenceApiModels,
+            availableLambdaModels = lambdaApiModels,
+            availableLeptonModels = leptonApiModels,
+            availableYiModels = yiApiModels,
+            availableDoubaoModels = doubaoApiModels,
+            availableRekaModels = rekaApiModels,
+            availableWriterModels = writerApiModels
         )
 
         // Enable API tracing if configured
@@ -970,6 +988,123 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun fetchNvidiaModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingNvidiaModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchNvidiaModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableNvidiaModels = models, isLoadingNvidiaModels = false)
+                settingsPrefs.saveNvidiaApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingNvidiaModels = false)
+            }
+        }
+    }
+
+    fun fetchReplicateModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingReplicateModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchReplicateModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableReplicateModels = models, isLoadingReplicateModels = false)
+                settingsPrefs.saveReplicateApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingReplicateModels = false)
+            }
+        }
+    }
+
+    fun fetchHuggingFaceInferenceModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingHuggingFaceInferenceModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchHuggingFaceInferenceModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableHuggingFaceInferenceModels = models, isLoadingHuggingFaceInferenceModels = false)
+                settingsPrefs.saveHuggingFaceInferenceApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingHuggingFaceInferenceModels = false)
+            }
+        }
+    }
+
+    fun fetchLambdaModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingLambdaModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchLambdaModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableLambdaModels = models, isLoadingLambdaModels = false)
+                settingsPrefs.saveLambdaApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingLambdaModels = false)
+            }
+        }
+    }
+
+    fun fetchLeptonModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingLeptonModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchLeptonModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableLeptonModels = models, isLoadingLeptonModels = false)
+                settingsPrefs.saveLeptonApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingLeptonModels = false)
+            }
+        }
+    }
+
+    fun fetchYiModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingYiModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchYiModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableYiModels = models, isLoadingYiModels = false)
+                settingsPrefs.saveYiApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingYiModels = false)
+            }
+        }
+    }
+
+    fun fetchDoubaoModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingDoubaoModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchDoubaoModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableDoubaoModels = models, isLoadingDoubaoModels = false)
+                settingsPrefs.saveDoubaoApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingDoubaoModels = false)
+            }
+        }
+    }
+
+    fun fetchRekaModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingRekaModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchRekaModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableRekaModels = models, isLoadingRekaModels = false)
+                settingsPrefs.saveRekaApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingRekaModels = false)
+            }
+        }
+    }
+
+    fun fetchWriterModels(apiKey: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingWriterModels = true)
+            try {
+                val models = aiAnalysisRepository.fetchWriterModels(apiKey)
+                _uiState.value = _uiState.value.copy(availableWriterModels = models, isLoadingWriterModels = false)
+                settingsPrefs.saveWriterApiModels(models)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingWriterModels = false)
+            }
+        }
+    }
+
     // ========== Refresh All Model Lists ==========
 
     /**
@@ -1328,6 +1463,150 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     results["MiniMax"] = models.size
                 } catch (e: Exception) {
                     results["MiniMax"] = -1
+                }
+            }
+        }
+
+        // NVIDIA
+        if (settings.nvidiaModelSource == ModelSource.API && settings.nvidiaApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.NVIDIA)) {
+                onProgress?.invoke("NVIDIA")
+                try {
+                    val models = aiAnalysisRepository.fetchNvidiaModels(settings.nvidiaApiKey)
+                    _uiState.value = _uiState.value.copy(availableNvidiaModels = models)
+                    settingsPrefs.saveNvidiaApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.NVIDIA)
+                    results["NVIDIA"] = models.size
+                } catch (e: Exception) {
+                    results["NVIDIA"] = -1
+                }
+            }
+        }
+
+        // Replicate
+        if (settings.replicateModelSource == ModelSource.API && settings.replicateApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.REPLICATE)) {
+                onProgress?.invoke("Replicate")
+                try {
+                    val models = aiAnalysisRepository.fetchReplicateModels(settings.replicateApiKey)
+                    _uiState.value = _uiState.value.copy(availableReplicateModels = models)
+                    settingsPrefs.saveReplicateApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.REPLICATE)
+                    results["Replicate"] = models.size
+                } catch (e: Exception) {
+                    results["Replicate"] = -1
+                }
+            }
+        }
+
+        // Hugging Face Inference
+        if (settings.huggingFaceInferenceModelSource == ModelSource.API && settings.huggingFaceInferenceApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.HUGGINGFACE)) {
+                onProgress?.invoke("Hugging Face")
+                try {
+                    val models = aiAnalysisRepository.fetchHuggingFaceInferenceModels(settings.huggingFaceInferenceApiKey)
+                    _uiState.value = _uiState.value.copy(availableHuggingFaceInferenceModels = models)
+                    settingsPrefs.saveHuggingFaceInferenceApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.HUGGINGFACE)
+                    results["Hugging Face"] = models.size
+                } catch (e: Exception) {
+                    results["Hugging Face"] = -1
+                }
+            }
+        }
+
+        // Lambda
+        if (settings.lambdaModelSource == ModelSource.API && settings.lambdaApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.LAMBDA)) {
+                onProgress?.invoke("Lambda")
+                try {
+                    val models = aiAnalysisRepository.fetchLambdaModels(settings.lambdaApiKey)
+                    _uiState.value = _uiState.value.copy(availableLambdaModels = models)
+                    settingsPrefs.saveLambdaApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.LAMBDA)
+                    results["Lambda"] = models.size
+                } catch (e: Exception) {
+                    results["Lambda"] = -1
+                }
+            }
+        }
+
+        // Lepton
+        if (settings.leptonModelSource == ModelSource.API && settings.leptonApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.LEPTON)) {
+                onProgress?.invoke("Lepton")
+                try {
+                    val models = aiAnalysisRepository.fetchLeptonModels(settings.leptonApiKey)
+                    _uiState.value = _uiState.value.copy(availableLeptonModels = models)
+                    settingsPrefs.saveLeptonApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.LEPTON)
+                    results["Lepton"] = models.size
+                } catch (e: Exception) {
+                    results["Lepton"] = -1
+                }
+            }
+        }
+
+        // YI (01.AI)
+        if (settings.yiModelSource == ModelSource.API && settings.yiApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.YI)) {
+                onProgress?.invoke("01.AI")
+                try {
+                    val models = aiAnalysisRepository.fetchYiModels(settings.yiApiKey)
+                    _uiState.value = _uiState.value.copy(availableYiModels = models)
+                    settingsPrefs.saveYiApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.YI)
+                    results["01.AI"] = models.size
+                } catch (e: Exception) {
+                    results["01.AI"] = -1
+                }
+            }
+        }
+
+        // Doubao
+        if (settings.doubaoModelSource == ModelSource.API && settings.doubaoApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DOUBAO)) {
+                onProgress?.invoke("Doubao")
+                try {
+                    val models = aiAnalysisRepository.fetchDoubaoModels(settings.doubaoApiKey)
+                    _uiState.value = _uiState.value.copy(availableDoubaoModels = models)
+                    settingsPrefs.saveDoubaoApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.DOUBAO)
+                    results["Doubao"] = models.size
+                } catch (e: Exception) {
+                    results["Doubao"] = -1
+                }
+            }
+        }
+
+        // Reka
+        if (settings.rekaModelSource == ModelSource.API && settings.rekaApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.REKA)) {
+                onProgress?.invoke("Reka")
+                try {
+                    val models = aiAnalysisRepository.fetchRekaModels(settings.rekaApiKey)
+                    _uiState.value = _uiState.value.copy(availableRekaModels = models)
+                    settingsPrefs.saveRekaApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.REKA)
+                    results["Reka"] = models.size
+                } catch (e: Exception) {
+                    results["Reka"] = -1
+                }
+            }
+        }
+
+        // Writer
+        if (settings.writerModelSource == ModelSource.API && settings.writerApiKey.isNotBlank()) {
+            if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.WRITER)) {
+                onProgress?.invoke("Writer")
+                try {
+                    val models = aiAnalysisRepository.fetchWriterModels(settings.writerApiKey)
+                    _uiState.value = _uiState.value.copy(availableWriterModels = models)
+                    settingsPrefs.saveWriterApiModels(models)
+                    settingsPrefs.updateModelListTimestamp(AiService.WRITER)
+                    results["Writer"] = models.size
+                } catch (e: Exception) {
+                    results["Writer"] = -1
                 }
             }
         }
