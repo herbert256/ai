@@ -1408,17 +1408,7 @@ suspend fun performStartClean(
         context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
     )
 
-    // 1. Delete all agents, flocks, swarms, prompts, parameters
-    onProgress?.invoke("Deleting agents, flocks, swarms...")
-    onSave(aiSettings.copy(
-        agents = emptyList(),
-        flocks = emptyList(),
-        swarms = emptyList(),
-        prompts = emptyList(),
-        parameters = emptyList()
-    ))
-
-    // 2. Delete all chats
+    // 1. Delete all chats
     onProgress?.invoke("Deleting chats...")
     val cutoffTime = System.currentTimeMillis()
     com.ai.data.ChatHistoryManager.getAllSessions().forEach { session ->

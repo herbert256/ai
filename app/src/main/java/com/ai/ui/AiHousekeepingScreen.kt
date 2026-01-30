@@ -95,11 +95,6 @@ fun HousekeepingScreen(
     var importCostsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }  // (imported, skipped)
     var showImportCostsResultDialog by remember { mutableStateOf(false) }
 
-    // State for delete all confirmations
-    var showDeleteAllAgentsConfirm by remember { mutableStateOf(false) }
-    var showDeleteAllFlocksConfirm by remember { mutableStateOf(false) }
-    var showDeleteAllSwarmsConfirm by remember { mutableStateOf(false) }
-
     // State for Start clean
     var showStartCleanConfirm by remember { mutableStateOf(false) }
     var isStartingClean by remember { mutableStateOf(false) }
@@ -322,7 +317,6 @@ fun HousekeepingScreen(
                                 showResultsDialog = true
                             }
                         },
-                        modifier = Modifier.weight(1f),
                         enabled = !isRefreshing,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
@@ -370,7 +364,6 @@ fun HousekeepingScreen(
                                 showOpenRouterResultDialog = true
                             }
                         },
-                        modifier = Modifier.weight(1f),
                         enabled = !isRefreshingOpenRouter && openRouterApiKey.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
@@ -410,7 +403,6 @@ fun HousekeepingScreen(
                                 showProviderStateResultDialog = true
                             }
                         },
-                        modifier = Modifier.weight(1f),
                         enabled = !isRefreshingProviderStates,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
@@ -548,7 +540,6 @@ fun HousekeepingScreen(
                             showGenerationResultsDialog = true
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
                     enabled = !isGenerating,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                 ) {
@@ -611,7 +602,6 @@ fun HousekeepingScreen(
                         onClick = {
                             exportAiConfigToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
                         },
-                        modifier = Modifier.weight(1f),
                         enabled = canExportConfig,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
@@ -621,7 +611,6 @@ fun HousekeepingScreen(
                         onClick = {
                             exportApiKeysToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
                         },
-                        modifier = Modifier.weight(1f),
                         enabled = hasApiKeyForExport,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
@@ -666,7 +655,6 @@ fun HousekeepingScreen(
                                 availableWriterModels = availableWriterModels
                             )
                         },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
                         Text("Model costs", fontSize = 12.sp)
@@ -699,7 +687,6 @@ fun HousekeepingScreen(
                         onClick = {
                             filePickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
                         Text("AI configuration", fontSize = 12.sp)
@@ -708,7 +695,6 @@ fun HousekeepingScreen(
                         onClick = {
                             apiKeysPickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
                         Text("API keys", fontSize = 12.sp)
@@ -717,7 +703,6 @@ fun HousekeepingScreen(
                         onClick = {
                             costsCsvPickerLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
                         },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
                         Text("Model costs", fontSize = 12.sp)
@@ -748,129 +733,6 @@ fun HousekeepingScreen(
             )
         }
 
-        // Delete card - agents and flocks
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Delete",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { showDeleteAllAgentsConfirm = true },
-                        modifier = Modifier.weight(1f),
-                        enabled = aiSettings.agents.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
-                    ) {
-                        Text("All agents", fontSize = 12.sp)
-                    }
-                    Button(
-                        onClick = { showDeleteAllFlocksConfirm = true },
-                        modifier = Modifier.weight(1f),
-                        enabled = aiSettings.flocks.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
-                    ) {
-                        Text("All flocks", fontSize = 12.sp)
-                    }
-                    Button(
-                        onClick = { showDeleteAllSwarmsConfirm = true },
-                        modifier = Modifier.weight(1f),
-                        enabled = aiSettings.swarms.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
-                    ) {
-                        Text("All swarms", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        // Delete all agents confirmation dialog
-        if (showDeleteAllAgentsConfirm) {
-            AlertDialog(
-                onDismissRequest = { showDeleteAllAgentsConfirm = false },
-                title = { Text("Delete All Agents", fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to delete all ${aiSettings.agents.size} agents? This cannot be undone.") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            onSave(aiSettings.copy(agents = emptyList()))
-                            showDeleteAllAgentsConfirm = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-                    ) {
-                        Text("Delete All")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteAllAgentsConfirm = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
-
-        // Delete all flocks confirmation dialog
-        if (showDeleteAllFlocksConfirm) {
-            AlertDialog(
-                onDismissRequest = { showDeleteAllFlocksConfirm = false },
-                title = { Text("Delete All Flocks", fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to delete all ${aiSettings.flocks.size} flocks? This cannot be undone.") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            onSave(aiSettings.copy(flocks = emptyList()))
-                            showDeleteAllFlocksConfirm = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-                    ) {
-                        Text("Delete All")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteAllFlocksConfirm = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
-
-        // Delete all swarms confirmation dialog
-        if (showDeleteAllSwarmsConfirm) {
-            AlertDialog(
-                onDismissRequest = { showDeleteAllSwarmsConfirm = false },
-                title = { Text("Delete All Swarms", fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to delete all ${aiSettings.swarms.size} swarms? This cannot be undone.") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            onSave(aiSettings.copy(swarms = emptyList()))
-                            showDeleteAllSwarmsConfirm = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-                    ) {
-                        Text("Delete All")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteAllSwarmsConfirm = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
-
         // Clean up card
         var showCleanupDaysDialog by remember { mutableStateOf<String?>(null) }
         var cleanupDaysInput by remember { mutableStateOf("30") }
@@ -896,14 +758,12 @@ fun HousekeepingScreen(
                 ) {
                     Button(
                         onClick = { showCleanupDaysDialog = "chats" },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
                     ) {
                         Text("Chats", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { showCleanupDaysDialog = "reports" },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
                     ) {
                         Text("Reports", fontSize = 12.sp)
@@ -915,21 +775,18 @@ fun HousekeepingScreen(
                 ) {
                     Button(
                         onClick = { showCleanupDaysDialog = "statistics" },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
                     ) {
                         Text("Statistics", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { showCleanupDaysDialog = "traces" },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
                     ) {
                         Text("API Trace", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { showCleanupDaysDialog = "prompts" },
-                        modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
                     ) {
                         Text("Prompts", fontSize = 12.sp)
@@ -941,7 +798,6 @@ fun HousekeepingScreen(
         // Start clean button
         Button(
             onClick = { showStartCleanConfirm = true },
-            modifier = Modifier.fillMaxWidth(),
             enabled = !isStartingClean,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C))
         ) {
@@ -967,7 +823,7 @@ fun HousekeepingScreen(
                 onDismissRequest = { showStartCleanConfirm = false },
                 title = { Text("Start Clean", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("This will delete all agents, flocks, swarms, chats, reports, statistics, and API traces, then refresh all providers and generate default agents.\n\nThis cannot be undone.")
+                    Text("This will delete all chats, reports, statistics, and API traces, then refresh all providers and generate default agents.\n\nThis cannot be undone.")
                 },
                 confirmButton = {
                     Button(
