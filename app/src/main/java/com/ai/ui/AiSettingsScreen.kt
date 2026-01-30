@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.data.AiService
+import kotlinx.coroutines.launch
 
 /**
  * Main AI settings screen with navigation cards for each AI service.
@@ -31,9 +32,13 @@ fun AiSettingsScreen(
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (AiSettings) -> Unit,
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
-    onSaveOpenRouterApiKey: (String) -> Unit = {}
+    onSaveOpenRouterApiKey: (String) -> Unit = {},
+    onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
+    onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
+    onProviderStateChange: (AiService, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -42,9 +47,22 @@ fun AiSettingsScreen(
         uri?.let {
             val result = importAiConfigFromFile(context, it, aiSettings)
             if (result != null) {
-                onSave(result.aiSettings)
+                val importedSettings = result.aiSettings
+                onSave(importedSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
+                val effectiveOpenRouterApiKey = result.openRouterApiKey ?: openRouterApiKey
+                scope.launch {
+                    performFullImportActions(
+                        context = context,
+                        importedSettings = importedSettings,
+                        openRouterApiKey = effectiveOpenRouterApiKey,
+                        onSave = onSave,
+                        onRefreshAllModels = onRefreshAllModels,
+                        onTestApiKey = onTestApiKey,
+                        onProviderStateChange = onProviderStateChange
+                    )
+                }
             }
         }
     }
@@ -204,14 +222,19 @@ fun AiSettingsScreen(
 fun AiSetupScreen(
     aiSettings: AiSettings,
     developerMode: Boolean = false,
+    openRouterApiKey: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (AiSettings) -> Unit = {},
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
-    onSaveOpenRouterApiKey: (String) -> Unit = {}
+    onSaveOpenRouterApiKey: (String) -> Unit = {},
+    onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
+    onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
+    onProviderStateChange: (AiService, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -220,9 +243,22 @@ fun AiSetupScreen(
         uri?.let {
             val result = importAiConfigFromFile(context, it, aiSettings)
             if (result != null) {
-                onSave(result.aiSettings)
+                val importedSettings = result.aiSettings
+                onSave(importedSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
+                val effectiveOpenRouterApiKey = result.openRouterApiKey ?: openRouterApiKey
+                scope.launch {
+                    performFullImportActions(
+                        context = context,
+                        importedSettings = importedSettings,
+                        openRouterApiKey = effectiveOpenRouterApiKey,
+                        onSave = onSave,
+                        onRefreshAllModels = onRefreshAllModels,
+                        onTestApiKey = onTestApiKey,
+                        onProviderStateChange = onProviderStateChange
+                    )
+                }
             }
         }
     }

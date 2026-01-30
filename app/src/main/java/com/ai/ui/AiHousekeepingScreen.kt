@@ -121,100 +121,18 @@ fun HousekeepingScreen(
                 onSave(importedSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
+                val effectiveOpenRouterApiKey = result.openRouterApiKey ?: openRouterApiKey
 
-                // Automatically refresh model lists and generate default agents after import
-                if (importedSettings.hasAnyApiKey()) {
-                    scope.launch {
-                        // 1. Refresh model lists (force refresh after import)
-                        isRefreshing = true
-                        onRefreshAllModels(importedSettings, true, null)
-                        isRefreshing = false
-
-                        // 2. Generate default agents
-                        isGenerating = true
-                        val results = mutableListOf<Pair<String, Boolean>>()
-
-                        val providersToTest = AiService.entries.filter { provider ->
-                            val apiKey = importedSettings.getApiKey(provider)
-                            apiKey.isNotBlank()
-                        }
-
-                        var updatedAgents = importedSettings.agents.toMutableList()
-
-                        for (provider in providersToTest) {
-                            val apiKey = importedSettings.getApiKey(provider)
-                            val model = provider.defaultModel
-
-                            val testResult = onTestApiKey(provider, apiKey, model)
-                            val isWorking = testResult == null
-
-                            if (isWorking) {
-                                // Create/update agent with empty values - uses provider settings at runtime
-                                val existingAgentIndex = updatedAgents.indexOfFirst {
-                                    it.name == provider.displayName
-                                }
-
-                                if (existingAgentIndex >= 0) {
-                                    val existingAgent = updatedAgents[existingAgentIndex]
-                                    updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                        model = "",
-                                        apiKey = "",
-                                        provider = provider,
-                                        endpointId = null
-                                    )
-                                } else {
-                                    val newAgent = AiAgent(
-                                        id = java.util.UUID.randomUUID().toString(),
-                                        name = provider.displayName,
-                                        provider = provider,
-                                        model = "",
-                                        apiKey = "",
-                                        endpointId = null,
-                                        parameters = AiAgentParameters()
-                                    )
-                                    updatedAgents.add(newAgent)
-                                }
-                            }
-
-                            results.add(provider.displayName to isWorking)
-                        }
-
-                        val successCount = results.count { it.second }
-                        if (successCount > 0) {
-                            val defaultAgentIds = updatedAgents
-                                .filter { agent ->
-                                    AiService.entries.any { it.displayName == agent.name }
-                                }
-                                .map { it.id }
-
-                            val updatedFlocks = importedSettings.flocks.toMutableList()
-                            val existingFlockIndex = updatedFlocks.indexOfFirst {
-                                it.name == "default agents"
-                            }
-
-                            if (existingFlockIndex >= 0) {
-                                updatedFlocks[existingFlockIndex] = updatedFlocks[existingFlockIndex].copy(
-                                    agentIds = defaultAgentIds
-                                )
-                            } else {
-                                val newFlock = AiFlock(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = "default agents",
-                                    agentIds = defaultAgentIds
-                                )
-                                updatedFlocks.add(newFlock)
-                            }
-
-                            onSave(importedSettings.copy(
-                                agents = updatedAgents,
-                                flocks = updatedFlocks
-                            ))
-                        }
-
-                        generationResults = results
-                        isGenerating = false
-                        showGenerationResultsDialog = true
-                    }
+                scope.launch {
+                    performFullImportActions(
+                        context = context,
+                        importedSettings = importedSettings,
+                        openRouterApiKey = effectiveOpenRouterApiKey,
+                        onSave = onSave,
+                        onRefreshAllModels = onRefreshAllModels,
+                        onTestApiKey = onTestApiKey,
+                        onProviderStateChange = onProviderStateChange
+                    )
                 }
             }
         }

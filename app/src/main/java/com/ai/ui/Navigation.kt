@@ -899,7 +899,7 @@ fun SettingsScreenNav(
         onFetchWriterModels = { viewModel.fetchWriterModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) },
-        onRefreshAllModels = { viewModel.refreshAllModelLists(it) },
+        onRefreshAllModels = { settings, forceRefresh, onProgress -> viewModel.refreshAllModelLists(settings, forceRefresh, onProgress) },
         onSaveHuggingFaceApiKey = { key ->
             viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
         },

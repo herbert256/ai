@@ -181,7 +181,7 @@ fun SettingsScreen(
     onFetchWriterModels: (String) -> Unit = {},
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onProviderStateChange: (AiService, String) -> Unit = { _, _ -> },
-    onRefreshAllModels: suspend (AiSettings) -> Map<String, Int> = { emptyMap() },
+    onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
@@ -324,7 +324,10 @@ fun SettingsScreen(
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi,
             onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
-            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey
+            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+            onRefreshAllModels = onRefreshAllModels,
+            onTestApiKey = onTestAiModel,
+            onProviderStateChange = onProviderStateChange
         )
         SettingsSubScreen.AI_OPENAI -> ChatGptSettingsScreen(
             aiSettings = aiSettings,
@@ -690,6 +693,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
+            openRouterApiKey = generalSettings.openRouterApiKey,
             onBackToSettings = {
                 // If AI_SETUP is the initial screen (accessed from home), go home
                 // Otherwise go back to Settings main screen
@@ -703,7 +707,10 @@ fun SettingsScreen(
             onNavigate = { currentSubScreen = it },
             onSave = onSaveAi,
             onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
-            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey
+            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+            onRefreshAllModels = onRefreshAllModels,
+            onTestApiKey = onTestAiModel,
+            onProviderStateChange = onProviderStateChange
         )
         SettingsSubScreen.AI_AI_SETTINGS -> AiAiSettingsContentScreen(
             aiSettings = aiSettings,

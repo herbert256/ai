@@ -1253,3 +1253,142 @@ fun ImportAiConfigDialog(
         }
     )
 }
+
+/**
+ * Perform all post-import actions after an AI configuration import:
+ * 1. Refresh provider state (test all providers)
+ * 2. Refresh model lists
+ * 3. Refresh OpenRouter data (pricing + specs)
+ * 4. Generate default agents
+ * 5. Delete all data (chats, reports, statistics, API traces)
+ */
+suspend fun performFullImportActions(
+    context: Context,
+    importedSettings: AiSettings,
+    openRouterApiKey: String,
+    onSave: (AiSettings) -> Unit,
+    onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int>,
+    onTestApiKey: suspend (AiService, String, String) -> String?,
+    onProviderStateChange: (AiService, String) -> Unit
+) {
+    // Step 1: Refresh Provider State
+    for (service in AiService.entries) {
+        val apiKey = importedSettings.getApiKey(service)
+        if (apiKey.isBlank()) {
+            onProviderStateChange(service, "not-used")
+        } else {
+            val model = importedSettings.getModel(service)
+            val error = onTestApiKey(service, apiKey, model)
+            val state = if (error == null) "ok" else "error"
+            onProviderStateChange(service, state)
+        }
+    }
+
+    // Step 2: Refresh Model Lists (force refresh)
+    onRefreshAllModels(importedSettings, true, null)
+
+    // Step 3: Refresh OpenRouter Data
+    if (openRouterApiKey.isNotBlank()) {
+        val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+        if (pricing.isNotEmpty()) {
+            com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
+        }
+        com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+    }
+
+    // Step 4: Generate Default Agents
+    val providersToTest = AiService.entries.filter { provider ->
+        importedSettings.getApiKey(provider).isNotBlank()
+    }
+
+    var updatedAgents = importedSettings.agents.toMutableList()
+
+    for (provider in providersToTest) {
+        val apiKey = importedSettings.getApiKey(provider)
+        val model = provider.defaultModel
+
+        val testResult = onTestApiKey(provider, apiKey, model)
+        val isWorking = testResult == null
+
+        if (isWorking) {
+            val existingAgentIndex = updatedAgents.indexOfFirst {
+                it.name == provider.displayName
+            }
+
+            if (existingAgentIndex >= 0) {
+                val existingAgent = updatedAgents[existingAgentIndex]
+                updatedAgents[existingAgentIndex] = existingAgent.copy(
+                    model = "",
+                    apiKey = "",
+                    provider = provider,
+                    endpointId = null
+                )
+            } else {
+                val newAgent = AiAgent(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = provider.displayName,
+                    provider = provider,
+                    model = "",
+                    apiKey = "",
+                    endpointId = null,
+                    parameters = AiAgentParameters()
+                )
+                updatedAgents.add(newAgent)
+            }
+        }
+    }
+
+    val defaultAgentIds = updatedAgents
+        .filter { agent ->
+            AiService.entries.any { it.displayName == agent.name }
+        }
+        .map { it.id }
+
+    val updatedFlocks = importedSettings.flocks.toMutableList()
+    val existingFlockIndex = updatedFlocks.indexOfFirst {
+        it.name == "default agents"
+    }
+
+    if (existingFlockIndex >= 0) {
+        updatedFlocks[existingFlockIndex] = updatedFlocks[existingFlockIndex].copy(
+            agentIds = defaultAgentIds
+        )
+    } else {
+        val newFlock = AiFlock(
+            id = java.util.UUID.randomUUID().toString(),
+            name = "default agents",
+            agentIds = defaultAgentIds
+        )
+        updatedFlocks.add(newFlock)
+    }
+
+    onSave(importedSettings.copy(
+        agents = updatedAgents,
+        flocks = updatedFlocks
+    ))
+
+    // Step 5: Delete all data (chats, reports, statistics, traces)
+    val cutoffTime = System.currentTimeMillis()
+
+    // Delete all chats
+    com.ai.data.ChatHistoryManager.getAllSessions().forEach { session ->
+        if (session.updatedAt < cutoffTime) {
+            com.ai.data.ChatHistoryManager.deleteSession(session.id)
+        }
+    }
+
+    // Delete all reports
+    com.ai.data.AiReportStorage.getAllReports(context).forEach { report ->
+        if (report.timestamp < cutoffTime) {
+            com.ai.data.AiReportStorage.deleteReport(context, report.id)
+        }
+    }
+
+    // Clear all statistics
+    SettingsPreferences(
+        context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    ).clearUsageStats()
+
+    // Delete all API traces
+    com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
+}
