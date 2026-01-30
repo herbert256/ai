@@ -98,6 +98,12 @@ fun HousekeepingScreen(
     // State for delete all confirmations
     var showDeleteAllAgentsConfirm by remember { mutableStateOf(false) }
     var showDeleteAllFlocksConfirm by remember { mutableStateOf(false) }
+    var showDeleteAllSwarmsConfirm by remember { mutableStateOf(false) }
+
+    // State for Start clean
+    var showStartCleanConfirm by remember { mutableStateOf(false) }
+    var isStartingClean by remember { mutableStateOf(false) }
+    var startCleanProgressText by remember { mutableStateOf("") }
 
     // File picker launcher for importing model costs CSV
     val costsCsvPickerLauncher = rememberLauncherForActivityResult(
@@ -793,6 +799,14 @@ fun HousekeepingScreen(
                     ) {
                         Text("All flocks", fontSize = 12.sp)
                     }
+                    Button(
+                        onClick = { showDeleteAllSwarmsConfirm = true },
+                        modifier = Modifier.weight(1f),
+                        enabled = aiSettings.swarms.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("All swarms", fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -841,6 +855,31 @@ fun HousekeepingScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showDeleteAllFlocksConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Delete all swarms confirmation dialog
+        if (showDeleteAllSwarmsConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteAllSwarmsConfirm = false },
+                title = { Text("Delete All Swarms", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete all ${aiSettings.swarms.size} swarms? This cannot be undone.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onSave(aiSettings.copy(swarms = emptyList()))
+                            showDeleteAllSwarmsConfirm = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Delete All")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteAllSwarmsConfirm = false }) {
                         Text("Cancel")
                     }
                 }
@@ -905,6 +944,187 @@ fun HousekeepingScreen(
                     }
                 }
             }
+        }
+
+        // Start clean button
+        Button(
+            onClick = { showStartCleanConfirm = true },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isStartingClean,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C))
+        ) {
+            if (isStartingClean) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (startCleanProgressText.isNotEmpty()) startCleanProgressText else "Cleaning...",
+                    fontSize = 12.sp
+                )
+            } else {
+                Text("Start clean", fontSize = 12.sp)
+            }
+        }
+
+        // Start clean confirmation dialog
+        if (showStartCleanConfirm) {
+            AlertDialog(
+                onDismissRequest = { showStartCleanConfirm = false },
+                title = { Text("Start Clean", fontWeight = FontWeight.Bold) },
+                text = {
+                    Text("This will delete all agents, flocks, swarms, chats, reports, statistics, and API traces, then refresh all providers and generate default agents.\n\nThis cannot be undone.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showStartCleanConfirm = false
+                            scope.launch {
+                                isStartingClean = true
+
+                                // 1. Delete all agents, flocks, swarms
+                                startCleanProgressText = "Deleting agents, flocks, swarms..."
+                                onSave(aiSettings.copy(
+                                    agents = emptyList(),
+                                    flocks = emptyList(),
+                                    swarms = emptyList()
+                                ))
+
+                                // 2. Cleanup: delete all chats
+                                startCleanProgressText = "Deleting chats..."
+                                val cutoffTime = System.currentTimeMillis()
+                                com.ai.data.ChatHistoryManager.getAllSessions().forEach { session ->
+                                    if (session.updatedAt < cutoffTime) {
+                                        com.ai.data.ChatHistoryManager.deleteSession(session.id)
+                                    }
+                                }
+
+                                // 3. Cleanup: delete all reports
+                                startCleanProgressText = "Deleting reports..."
+                                com.ai.data.AiReportStorage.getAllReports(context).forEach { report ->
+                                    if (report.timestamp < cutoffTime) {
+                                        com.ai.data.AiReportStorage.deleteReport(context, report.id)
+                                    }
+                                }
+
+                                // 4. Cleanup: clear all statistics
+                                startCleanProgressText = "Clearing statistics..."
+                                SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)).clearUsageStats()
+
+                                // 5. Cleanup: delete all API traces
+                                startCleanProgressText = "Deleting API traces..."
+                                com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
+
+                                // 6. Refresh: model lists
+                                startCleanProgressText = "Refreshing model lists..."
+                                onRefreshAllModels(aiSettings, true, null)
+
+                                // 7. Refresh: OpenRouter data
+                                if (openRouterApiKey.isNotBlank()) {
+                                    startCleanProgressText = "Refreshing OpenRouter data..."
+                                    val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                                    if (pricing.isNotEmpty()) {
+                                        com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
+                                    }
+                                    com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+                                }
+
+                                // 8. Refresh: provider state
+                                startCleanProgressText = "Refreshing provider state..."
+                                for (service in com.ai.data.AiService.values()) {
+                                    val apiKey = aiSettings.getApiKey(service)
+                                    if (apiKey.isBlank()) {
+                                        onProviderStateChange(service, "not-used")
+                                    } else {
+                                        val model = aiSettings.getModel(service)
+                                        val error = onTestApiKey(service, apiKey, model)
+                                        val state = if (error == null) "ok" else "error"
+                                        onProviderStateChange(service, state)
+                                    }
+                                }
+
+                                // 9. Generate default agents
+                                startCleanProgressText = "Generating default agents..."
+                                val providersToTest = AiService.entries.filter { provider ->
+                                    aiSettings.getApiKey(provider).isNotBlank()
+                                }
+
+                                var updatedAgents = aiSettings.agents.toMutableList()
+
+                                for (provider in providersToTest) {
+                                    startCleanProgressText = provider.displayName
+                                    val apiKey = aiSettings.getApiKey(provider)
+                                    val model = provider.defaultModel
+
+                                    val testResult = onTestApiKey(provider, apiKey, model)
+                                    val isWorking = testResult == null
+
+                                    if (isWorking) {
+                                        val existingAgentIndex = updatedAgents.indexOfFirst {
+                                            it.name == provider.displayName
+                                        }
+
+                                        if (existingAgentIndex >= 0) {
+                                            val existingAgent = updatedAgents[existingAgentIndex]
+                                            updatedAgents[existingAgentIndex] = existingAgent.copy(
+                                                model = "",
+                                                apiKey = "",
+                                                provider = provider,
+                                                endpointId = null
+                                            )
+                                        } else {
+                                            val newAgent = AiAgent(
+                                                id = java.util.UUID.randomUUID().toString(),
+                                                name = provider.displayName,
+                                                provider = provider,
+                                                model = "",
+                                                apiKey = "",
+                                                endpointId = null,
+                                                parameters = AiAgentParameters()
+                                            )
+                                            updatedAgents.add(newAgent)
+                                        }
+                                    }
+                                }
+
+                                val defaultAgentIds = updatedAgents
+                                    .filter { agent ->
+                                        AiService.entries.any { it.displayName == agent.name }
+                                    }
+                                    .map { it.id }
+
+                                val updatedFlocks = mutableListOf<AiFlock>()
+                                val newFlock = AiFlock(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = "default agents",
+                                    agentIds = defaultAgentIds
+                                )
+                                updatedFlocks.add(newFlock)
+
+                                onSave(aiSettings.copy(
+                                    agents = updatedAgents,
+                                    flocks = updatedFlocks,
+                                    swarms = emptyList()
+                                ))
+
+                                startCleanProgressText = ""
+                                isStartingClean = false
+                                android.widget.Toast.makeText(context, "Start clean completed", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) {
+                        Text("Start Clean")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showStartCleanConfirm = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
 
         // Cleanup days dialog
