@@ -1322,6 +1322,483 @@ internal suspend fun AiAnalysisRepository.analyzeWithMiniMax(apiKey: String, pro
     }
 }
 
+internal suspend fun AiAnalysisRepository.analyzeWithNvidia(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createNvidiaApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.NVIDIA, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.NVIDIA, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.NVIDIA, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithReplicate(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createReplicateApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.REPLICATE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.REPLICATE, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.REPLICATE, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithHuggingFaceInference(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createHuggingFaceInferenceApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.HUGGINGFACE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.HUGGINGFACE, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.HUGGINGFACE, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithLambda(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createLambdaApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.LAMBDA, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.LAMBDA, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.LAMBDA, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithLepton(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createLeptonApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.LEPTON, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.LEPTON, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.LEPTON, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithYi(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createYiApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.YI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.YI, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.YI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithDoubao(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createDoubaoApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.DOUBAO, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.DOUBAO, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.DOUBAO, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithReka(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createRekaApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.REKA, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.REKA, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.REKA, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
+internal suspend fun AiAnalysisRepository.analyzeWithWriter(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createWriterApi()
+    val messages = buildList {
+        params?.systemPrompt?.let { systemPrompt ->
+            if (systemPrompt.isNotBlank()) {
+                add(OpenAiMessage(role = "system", content = systemPrompt))
+            }
+        }
+        add(OpenAiMessage(role = "user", content = prompt))
+    }
+    val request = OpenAiRequest(
+        model = model,
+        messages = messages,
+        max_tokens = params?.maxTokens,
+        temperature = params?.temperature,
+        top_p = params?.topP,
+        frequency_penalty = params?.frequencyPenalty,
+        presence_penalty = params?.presencePenalty,
+        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        search = if (params?.searchEnabled == true) true else null
+    )
+    val response = api.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    return if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.choices?.let { choices ->
+            choices.firstOrNull()?.message?.content
+                ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstNotNullOfOrNull { it.message?.content }
+        }
+        val rawUsageJson = formatUsageJson(body?.usage)
+        val usage = body?.usage?.let {
+            TokenUsage(
+                inputTokens = it.prompt_tokens ?: 0,
+                outputTokens = it.completion_tokens ?: 0,
+                apiCost = extractApiCost(it)
+            )
+        }
+        if (content != null) {
+            AiAnalysisResponse(AiService.WRITER, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        } else {
+            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
+            AiAnalysisResponse(AiService.WRITER, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+        }
+    } else {
+        AiAnalysisResponse(AiService.WRITER, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+}
+
 internal suspend fun AiAnalysisRepository.analyzeWithDummy(
     apiKey: String,
     prompt: String,

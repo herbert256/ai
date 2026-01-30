@@ -119,6 +119,15 @@ class AiAnalysisRepository {
     internal val baichuanApi = AiApiFactory.createBaichuanApi()
     internal val stepFunApi = AiApiFactory.createStepFunApi()
     internal val miniMaxApi = AiApiFactory.createMiniMaxApi()
+    internal val nvidiaApi = AiApiFactory.createNvidiaApi()
+    internal val replicateApi = AiApiFactory.createReplicateApi()
+    internal val huggingFaceInferenceApi = AiApiFactory.createHuggingFaceInferenceApi()
+    internal val lambdaApi = AiApiFactory.createLambdaApi()
+    internal val leptonApi = AiApiFactory.createLeptonApi()
+    internal val yiApi = AiApiFactory.createYiApi()
+    internal val doubaoApi = AiApiFactory.createDoubaoApi()
+    internal val rekaApi = AiApiFactory.createRekaApi()
+    internal val writerApi = AiApiFactory.createWriterApi()
     internal val dummyApi = AiApiFactory.createDummyApi()
 
     // Streaming API instances
@@ -144,6 +153,15 @@ class AiAnalysisRepository {
     internal val baichuanStreamApi = AiApiFactory.createBaichuanStreamApi()
     internal val stepFunStreamApi = AiApiFactory.createStepFunStreamApi()
     internal val miniMaxStreamApi = AiApiFactory.createMiniMaxStreamApi()
+    internal val nvidiaStreamApi = AiApiFactory.createNvidiaStreamApi()
+    internal val replicateStreamApi = AiApiFactory.createReplicateStreamApi()
+    internal val huggingFaceInferenceStreamApi = AiApiFactory.createHuggingFaceInferenceStreamApi()
+    internal val lambdaStreamApi = AiApiFactory.createLambdaStreamApi()
+    internal val leptonStreamApi = AiApiFactory.createLeptonStreamApi()
+    internal val yiStreamApi = AiApiFactory.createYiStreamApi()
+    internal val doubaoStreamApi = AiApiFactory.createDoubaoStreamApi()
+    internal val rekaStreamApi = AiApiFactory.createRekaStreamApi()
+    internal val writerStreamApi = AiApiFactory.createWriterStreamApi()
     internal val dummyStreamApi = AiApiFactory.createDummyStreamApi()
 
     // Gson instance for pretty printing usage JSON
@@ -244,7 +262,16 @@ class AiAnalysisRepository {
         sambaNovaModel: String = AiService.SAMBANOVA.defaultModel,
         baichuanModel: String = AiService.BAICHUAN.defaultModel,
         stepFunModel: String = AiService.STEPFUN.defaultModel,
-        miniMaxModel: String = AiService.MINIMAX.defaultModel
+        miniMaxModel: String = AiService.MINIMAX.defaultModel,
+        nvidiaModel: String = AiService.NVIDIA.defaultModel,
+        replicateModel: String = AiService.REPLICATE.defaultModel,
+        huggingFaceInferenceModel: String = AiService.HUGGINGFACE.defaultModel,
+        lambdaModel: String = AiService.LAMBDA.defaultModel,
+        leptonModel: String = AiService.LEPTON.defaultModel,
+        yiModel: String = AiService.YI.defaultModel,
+        doubaoModel: String = AiService.DOUBAO.defaultModel,
+        rekaModel: String = AiService.REKA.defaultModel,
+        writerModel: String = AiService.WRITER.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -280,6 +307,15 @@ class AiAnalysisRepository {
                 AiService.BAICHUAN -> analyzeWithBaichuan(apiKey, finalPrompt, baichuanModel)
                 AiService.STEPFUN -> analyzeWithStepFun(apiKey, finalPrompt, stepFunModel)
                 AiService.MINIMAX -> analyzeWithMiniMax(apiKey, finalPrompt, miniMaxModel)
+                AiService.NVIDIA -> analyzeWithNvidia(apiKey, finalPrompt, nvidiaModel)
+                AiService.REPLICATE -> analyzeWithReplicate(apiKey, finalPrompt, replicateModel)
+                AiService.HUGGINGFACE -> analyzeWithHuggingFaceInference(apiKey, finalPrompt, huggingFaceInferenceModel)
+                AiService.LAMBDA -> analyzeWithLambda(apiKey, finalPrompt, lambdaModel)
+                AiService.LEPTON -> analyzeWithLepton(apiKey, finalPrompt, leptonModel)
+                AiService.YI -> analyzeWithYi(apiKey, finalPrompt, yiModel)
+                AiService.DOUBAO -> analyzeWithDoubao(apiKey, finalPrompt, doubaoModel)
+                AiService.REKA -> analyzeWithReka(apiKey, finalPrompt, rekaModel)
+                AiService.WRITER -> analyzeWithWriter(apiKey, finalPrompt, writerModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -350,7 +386,16 @@ class AiAnalysisRepository {
         sambaNovaModel: String = AiService.SAMBANOVA.defaultModel,
         baichuanModel: String = AiService.BAICHUAN.defaultModel,
         stepFunModel: String = AiService.STEPFUN.defaultModel,
-        miniMaxModel: String = AiService.MINIMAX.defaultModel
+        miniMaxModel: String = AiService.MINIMAX.defaultModel,
+        nvidiaModel: String = AiService.NVIDIA.defaultModel,
+        replicateModel: String = AiService.REPLICATE.defaultModel,
+        huggingFaceInferenceModel: String = AiService.HUGGINGFACE.defaultModel,
+        lambdaModel: String = AiService.LAMBDA.defaultModel,
+        leptonModel: String = AiService.LEPTON.defaultModel,
+        yiModel: String = AiService.YI.defaultModel,
+        doubaoModel: String = AiService.DOUBAO.defaultModel,
+        rekaModel: String = AiService.REKA.defaultModel,
+        writerModel: String = AiService.WRITER.defaultModel
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -386,6 +431,15 @@ class AiAnalysisRepository {
                 AiService.BAICHUAN -> analyzeWithBaichuan(apiKey, finalPrompt, baichuanModel)
                 AiService.STEPFUN -> analyzeWithStepFun(apiKey, finalPrompt, stepFunModel)
                 AiService.MINIMAX -> analyzeWithMiniMax(apiKey, finalPrompt, miniMaxModel)
+                AiService.NVIDIA -> analyzeWithNvidia(apiKey, finalPrompt, nvidiaModel)
+                AiService.REPLICATE -> analyzeWithReplicate(apiKey, finalPrompt, replicateModel)
+                AiService.HUGGINGFACE -> analyzeWithHuggingFaceInference(apiKey, finalPrompt, huggingFaceInferenceModel)
+                AiService.LAMBDA -> analyzeWithLambda(apiKey, finalPrompt, lambdaModel)
+                AiService.LEPTON -> analyzeWithLepton(apiKey, finalPrompt, leptonModel)
+                AiService.YI -> analyzeWithYi(apiKey, finalPrompt, yiModel)
+                AiService.DOUBAO -> analyzeWithDoubao(apiKey, finalPrompt, doubaoModel)
+                AiService.REKA -> analyzeWithReka(apiKey, finalPrompt, rekaModel)
+                AiService.WRITER -> analyzeWithWriter(apiKey, finalPrompt, writerModel)
                 AiService.DUMMY -> analyzeWithDummy("dummy", finalPrompt, "abc")
             }
         }
@@ -531,6 +585,15 @@ class AiAnalysisRepository {
                 AiService.BAICHUAN -> analyzeWithBaichuan(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.STEPFUN -> analyzeWithStepFun(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.MINIMAX -> analyzeWithMiniMax(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.NVIDIA -> analyzeWithNvidia(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.REPLICATE -> analyzeWithReplicate(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.HUGGINGFACE -> analyzeWithHuggingFaceInference(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.LAMBDA -> analyzeWithLambda(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.LEPTON -> analyzeWithLepton(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.YI -> analyzeWithYi(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.DOUBAO -> analyzeWithDoubao(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.REKA -> analyzeWithReka(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.WRITER -> analyzeWithWriter(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             // Add agent name and prompt used to result
@@ -606,6 +669,15 @@ class AiAnalysisRepository {
                 AiService.BAICHUAN -> analyzeWithBaichuan(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.STEPFUN -> analyzeWithStepFun(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.MINIMAX -> analyzeWithMiniMax(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.NVIDIA -> analyzeWithNvidia(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.REPLICATE -> analyzeWithReplicate(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.HUGGINGFACE -> analyzeWithHuggingFaceInference(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.LAMBDA -> analyzeWithLambda(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.LEPTON -> analyzeWithLepton(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.YI -> analyzeWithYi(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.DOUBAO -> analyzeWithDoubao(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.REKA -> analyzeWithReka(agent.apiKey, finalPrompt, agent.model, params)
+                AiService.WRITER -> analyzeWithWriter(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.DUMMY -> analyzeWithDummy(agent.apiKey, finalPrompt, agent.model, params)
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)

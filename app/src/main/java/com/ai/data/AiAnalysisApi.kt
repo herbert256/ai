@@ -72,6 +72,15 @@ enum class AiService(
     BAICHUAN("Baichuan", "https://api.baichuan-ai.com/", "https://platform.baichuan-ai.com/", "Baichuan4-Turbo"),
     STEPFUN("StepFun", "https://api.stepfun.com/", "https://platform.stepfun.com/", "step-2-16k"),
     MINIMAX("MiniMax", "https://api.minimax.io/", "https://platform.minimax.io/", "MiniMax-M2.1", "minimax"),
+    NVIDIA("NVIDIA", "https://integrate.api.nvidia.com/", "https://build.nvidia.com/", "nvidia/llama-3.1-nemotron-70b-instruct"),
+    REPLICATE("Replicate", "https://api.replicate.com/v1/", "https://replicate.com/account/api-tokens", "meta/meta-llama-3-70b-instruct"),
+    HUGGINGFACE("Hugging Face", "https://api-inference.huggingface.co/", "https://huggingface.co/settings/tokens", "meta-llama/Llama-3.1-70B-Instruct"),
+    LAMBDA("Lambda", "https://api.lambdalabs.com/", "https://cloud.lambdalabs.com/api-keys", "hermes-3-llama-3.1-405b-fp8"),
+    LEPTON("Lepton", "https://api.lepton.ai/", "https://dashboard.lepton.ai/", "llama3-1-70b"),
+    YI("01.AI", "https://api.01.ai/", "https://platform.01.ai/", "yi-lightning"),
+    DOUBAO("Doubao", "https://ark.cn-beijing.volces.com/api/", "https://console.volcengine.com/", "doubao-pro-32k"),
+    REKA("Reka", "https://api.reka.ai/", "https://platform.reka.ai/", "reka-flash"),
+    WRITER("Writer", "https://api.writer.com/", "https://app.writer.com/", "palmyra-x-004"),
     DUMMY("Dummy", "http://localhost:54321/", "", "dummy-model")
 }
 
@@ -680,6 +689,38 @@ interface GroqApi {
 }
 
 /**
+ * Retrofit interface for Doubao API (uses v3/chat/completions).
+ */
+interface DoubaoApi {
+    @POST("v3/chat/completions")
+    suspend fun createChatCompletion(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiRequest
+    ): Response<OpenAiResponse>
+
+    @retrofit2.http.GET("v3/models")
+    suspend fun listModels(
+        @Header("Authorization") authorization: String
+    ): Response<OpenAiModelsResponse>
+}
+
+/**
+ * Retrofit interface for Replicate API (uses chat/completions, base URL already has v1/).
+ */
+interface ReplicateApi {
+    @POST("chat/completions")
+    suspend fun createChatCompletion(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiRequest
+    ): Response<OpenAiResponse>
+
+    @retrofit2.http.GET("models")
+    suspend fun listModels(
+        @Header("Authorization") authorization: String
+    ): Response<OpenAiModelsResponse>
+}
+
+/**
  * Factory for creating API instances.
  */
 object AiApiFactory {
@@ -905,6 +946,42 @@ object AiApiFactory {
         return getRetrofit(AiService.MINIMAX.baseUrl).create(OpenAiApi::class.java)
     }
 
+    fun createNvidiaApi(): OpenAiApi {
+        return getRetrofit(AiService.NVIDIA.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createReplicateApi(): ReplicateApi {
+        return getRetrofit(AiService.REPLICATE.baseUrl).create(ReplicateApi::class.java)
+    }
+
+    fun createHuggingFaceInferenceApi(): OpenAiApi {
+        return getRetrofit(AiService.HUGGINGFACE.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createLambdaApi(): OpenAiApi {
+        return getRetrofit(AiService.LAMBDA.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createLeptonApi(): OpenAiApi {
+        return getRetrofit(AiService.LEPTON.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createYiApi(): OpenAiApi {
+        return getRetrofit(AiService.YI.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createDoubaoApi(): DoubaoApi {
+        return getRetrofit(AiService.DOUBAO.baseUrl).create(DoubaoApi::class.java)
+    }
+
+    fun createRekaApi(): OpenAiApi {
+        return getRetrofit(AiService.REKA.baseUrl).create(OpenAiApi::class.java)
+    }
+
+    fun createWriterApi(): OpenAiApi {
+        return getRetrofit(AiService.WRITER.baseUrl).create(OpenAiApi::class.java)
+    }
+
     fun createDummyApi(): OpenAiApi {
         // Dummy API uses OpenAI-compatible format
         return getRetrofit(AiService.DUMMY.baseUrl).create(OpenAiApi::class.java)
@@ -1006,6 +1083,50 @@ object AiApiFactory {
 
     fun createMiniMaxStreamApi(): OpenAiStreamApi {
         return getRetrofit(AiService.MINIMAX.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createNvidiaStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.NVIDIA.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createReplicateStreamApi(): ReplicateStreamApi {
+        return getRetrofit(AiService.REPLICATE.baseUrl).create(ReplicateStreamApi::class.java)
+    }
+
+    fun createHuggingFaceInferenceStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.HUGGINGFACE.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createLambdaStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.LAMBDA.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createLeptonStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.LEPTON.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createYiStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.YI.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createDoubaoStreamApi(): DoubaoStreamApi {
+        return getRetrofit(AiService.DOUBAO.baseUrl).create(DoubaoStreamApi::class.java)
+    }
+
+    fun createRekaStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.REKA.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createWriterStreamApi(): OpenAiStreamApi {
+        return getRetrofit(AiService.WRITER.baseUrl).create(OpenAiStreamApi::class.java)
+    }
+
+    fun createDoubaoStreamApiWithBaseUrl(baseUrl: String): DoubaoStreamApi {
+        return getRetrofit(baseUrl).create(DoubaoStreamApi::class.java)
+    }
+
+    fun createReplicateStreamApiWithBaseUrl(baseUrl: String): ReplicateStreamApi {
+        return getRetrofit(baseUrl).create(ReplicateStreamApi::class.java)
     }
 
     fun createDummyStreamApi(): DummyStreamApi {
@@ -1383,6 +1504,30 @@ interface ZaiStreamApi {
 interface DummyStreamApi {
     @retrofit2.http.Streaming
     @POST("v1/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Doubao (uses v3/chat/completions).
+ */
+interface DoubaoStreamApi {
+    @retrofit2.http.Streaming
+    @POST("v3/chat/completions")
+    suspend fun createChatCompletionStream(
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
+
+/**
+ * Streaming API interface for Replicate (uses chat/completions, base URL already has v1/).
+ */
+interface ReplicateStreamApi {
+    @retrofit2.http.Streaming
+    @POST("chat/completions")
     suspend fun createChatCompletionStream(
         @Header("Authorization") authorization: String,
         @Body request: OpenAiStreamRequest

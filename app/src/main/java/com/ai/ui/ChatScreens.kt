@@ -74,6 +74,15 @@ fun ChatSelectProviderScreen(
             AiService.BAICHUAN -> aiSettings.baichuanApiKey.isNotBlank()
             AiService.STEPFUN -> aiSettings.stepFunApiKey.isNotBlank()
             AiService.MINIMAX -> aiSettings.miniMaxApiKey.isNotBlank()
+            AiService.NVIDIA -> aiSettings.nvidiaApiKey.isNotBlank()
+            AiService.REPLICATE -> aiSettings.replicateApiKey.isNotBlank()
+            AiService.HUGGINGFACE -> aiSettings.huggingFaceInferenceApiKey.isNotBlank()
+            AiService.LAMBDA -> aiSettings.lambdaApiKey.isNotBlank()
+            AiService.LEPTON -> aiSettings.leptonApiKey.isNotBlank()
+            AiService.YI -> aiSettings.yiApiKey.isNotBlank()
+            AiService.DOUBAO -> aiSettings.doubaoApiKey.isNotBlank()
+            AiService.REKA -> aiSettings.rekaApiKey.isNotBlank()
+            AiService.WRITER -> aiSettings.writerApiKey.isNotBlank()
             AiService.DUMMY -> developerMode && aiSettings.dummyApiKey.isNotBlank()
         }
         hasApiKey
@@ -181,6 +190,15 @@ fun ChatSelectModelScreen(
             AiService.BAICHUAN -> Quadruple(aiSettings.baichuanApiKey, aiSettings.baichuanModelSource, aiSettings.baichuanManualModels, aiSettings.baichuanModel)
             AiService.STEPFUN -> Quadruple(aiSettings.stepFunApiKey, aiSettings.stepFunModelSource, aiSettings.stepFunManualModels, aiSettings.stepFunModel)
             AiService.MINIMAX -> Quadruple(aiSettings.miniMaxApiKey, aiSettings.miniMaxModelSource, aiSettings.miniMaxManualModels, aiSettings.miniMaxModel)
+            AiService.NVIDIA -> Quadruple(aiSettings.nvidiaApiKey, aiSettings.nvidiaModelSource, aiSettings.nvidiaManualModels, aiSettings.nvidiaModel)
+            AiService.REPLICATE -> Quadruple(aiSettings.replicateApiKey, aiSettings.replicateModelSource, aiSettings.replicateManualModels, aiSettings.replicateModel)
+            AiService.HUGGINGFACE -> Quadruple(aiSettings.huggingFaceInferenceApiKey, aiSettings.huggingFaceInferenceModelSource, aiSettings.huggingFaceInferenceManualModels, aiSettings.huggingFaceInferenceModel)
+            AiService.LAMBDA -> Quadruple(aiSettings.lambdaApiKey, aiSettings.lambdaModelSource, aiSettings.lambdaManualModels, aiSettings.lambdaModel)
+            AiService.LEPTON -> Quadruple(aiSettings.leptonApiKey, aiSettings.leptonModelSource, aiSettings.leptonManualModels, aiSettings.leptonModel)
+            AiService.YI -> Quadruple(aiSettings.yiApiKey, aiSettings.yiModelSource, aiSettings.yiManualModels, aiSettings.yiModel)
+            AiService.DOUBAO -> Quadruple(aiSettings.doubaoApiKey, aiSettings.doubaoModelSource, aiSettings.doubaoManualModels, aiSettings.doubaoModel)
+            AiService.REKA -> Quadruple(aiSettings.rekaApiKey, aiSettings.rekaModelSource, aiSettings.rekaManualModels, aiSettings.rekaModel)
+            AiService.WRITER -> Quadruple(aiSettings.writerApiKey, aiSettings.writerModelSource, aiSettings.writerManualModels, aiSettings.writerModel)
             AiService.DUMMY -> Quadruple(aiSettings.dummyApiKey, aiSettings.dummyModelSource, aiSettings.dummyManualModels, aiSettings.dummyModel)
         }
     }

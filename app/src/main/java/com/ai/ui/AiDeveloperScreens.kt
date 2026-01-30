@@ -308,6 +308,15 @@ fun ApiTestScreen(
                                     com.ai.data.AiService.BAICHUAN -> repository.fetchBaichuanModels(apiKey)
                                     com.ai.data.AiService.STEPFUN -> repository.fetchStepFunModels(apiKey)
                                     com.ai.data.AiService.MINIMAX -> repository.fetchMiniMaxModels(apiKey)
+                                    com.ai.data.AiService.NVIDIA -> repository.fetchNvidiaModels(apiKey)
+                                    com.ai.data.AiService.REPLICATE -> repository.fetchReplicateModels(apiKey)
+                                    com.ai.data.AiService.HUGGINGFACE -> repository.fetchHuggingFaceInferenceModels(apiKey)
+                                    com.ai.data.AiService.LAMBDA -> repository.fetchLambdaModels(apiKey)
+                                    com.ai.data.AiService.LEPTON -> repository.fetchLeptonModels(apiKey)
+                                    com.ai.data.AiService.YI -> repository.fetchYiModels(apiKey)
+                                    com.ai.data.AiService.DOUBAO -> repository.fetchDoubaoModels(apiKey)
+                                    com.ai.data.AiService.REKA -> repository.fetchRekaModels(apiKey)
+                                    com.ai.data.AiService.WRITER -> repository.fetchWriterModels(apiKey)
                                     com.ai.data.AiService.DUMMY -> repository.fetchDummyModels(apiKey)
                                 }
                                 isLoadingModels = false

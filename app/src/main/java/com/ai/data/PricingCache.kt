@@ -485,7 +485,25 @@ object PricingCache {
         "step-1-8k" to ModelPricing("step-1-8k", 0.8e-6, 2.0e-6, "FALLBACK"),
         // MiniMax
         "MiniMax-M2.1" to ModelPricing("MiniMax-M2.1", 1.1e-6, 4.4e-6, "FALLBACK"),
-        "MiniMax-M1" to ModelPricing("MiniMax-M1", 0.3e-6, 1.1e-6, "FALLBACK")
+        "MiniMax-M1" to ModelPricing("MiniMax-M1", 0.3e-6, 1.1e-6, "FALLBACK"),
+        // NVIDIA
+        "nvidia/llama-3.1-nemotron-70b-instruct" to ModelPricing("nvidia/llama-3.1-nemotron-70b-instruct", 0.9e-6, 0.9e-6, "FALLBACK"),
+        // Replicate
+        "meta/meta-llama-3-70b-instruct" to ModelPricing("meta/meta-llama-3-70b-instruct", 0.65e-6, 2.75e-6, "FALLBACK"),
+        // Hugging Face
+        "meta-llama/Llama-3.1-70B-Instruct" to ModelPricing("meta-llama/Llama-3.1-70B-Instruct", 0.9e-6, 0.9e-6, "FALLBACK"),
+        // Lambda
+        "hermes-3-llama-3.1-405b-fp8" to ModelPricing("hermes-3-llama-3.1-405b-fp8", 0.8e-6, 0.8e-6, "FALLBACK"),
+        // Lepton
+        "llama3-1-70b" to ModelPricing("llama3-1-70b", 0.9e-6, 0.9e-6, "FALLBACK"),
+        // 01.AI Yi
+        "yi-lightning" to ModelPricing("yi-lightning", 0.99e-6, 0.99e-6, "FALLBACK"),
+        // Doubao
+        "doubao-pro-32k" to ModelPricing("doubao-pro-32k", 0.56e-6, 2.24e-6, "FALLBACK"),
+        // Reka
+        "reka-flash" to ModelPricing("reka-flash", 0.8e-6, 2.0e-6, "FALLBACK"),
+        // Writer
+        "palmyra-x-004" to ModelPricing("palmyra-x-004", 5.0e-6, 15.0e-6, "FALLBACK")
     )
 
     // ============================================================================

@@ -74,6 +74,15 @@ fun AiAgentsScreen(
     onFetchBaichuanModels: (String) -> Unit = {},
     onFetchStepFunModels: (String) -> Unit = {},
     onFetchMiniMaxModels: (String) -> Unit = {},
+    onFetchNvidiaModels: (String) -> Unit = {},
+    onFetchReplicateModels: (String) -> Unit = {},
+    onFetchHuggingFaceInferenceModels: (String) -> Unit = {},
+    onFetchLambdaModels: (String) -> Unit = {},
+    onFetchLeptonModels: (String) -> Unit = {},
+    onFetchYiModels: (String) -> Unit = {},
+    onFetchDoubaoModels: (String) -> Unit = {},
+    onFetchRekaModels: (String) -> Unit = {},
+    onFetchWriterModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit = {}
 ) {
     var showAddScreen by remember { mutableStateOf(false) }
@@ -107,6 +116,15 @@ fun AiAgentsScreen(
             AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
             AiService.STEPFUN -> onFetchStepFunModels(apiKey)
             AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
+            AiService.NVIDIA -> onFetchNvidiaModels(apiKey)
+            AiService.REPLICATE -> onFetchReplicateModels(apiKey)
+            AiService.HUGGINGFACE -> onFetchHuggingFaceInferenceModels(apiKey)
+            AiService.LAMBDA -> onFetchLambdaModels(apiKey)
+            AiService.LEPTON -> onFetchLeptonModels(apiKey)
+            AiService.YI -> onFetchYiModels(apiKey)
+            AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
+            AiService.REKA -> onFetchRekaModels(apiKey)
+            AiService.WRITER -> onFetchWriterModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }
@@ -449,6 +467,15 @@ internal fun AgentEditScreen(
     availableBaichuanModels: List<String>,
     availableStepFunModels: List<String>,
     availableMiniMaxModels: List<String>,
+    availableNvidiaModels: List<String> = emptyList(),
+    availableReplicateModels: List<String> = emptyList(),
+    availableHuggingFaceInferenceModels: List<String> = emptyList(),
+    availableLambdaModels: List<String> = emptyList(),
+    availableLeptonModels: List<String> = emptyList(),
+    availableYiModels: List<String> = emptyList(),
+    availableDoubaoModels: List<String> = emptyList(),
+    availableRekaModels: List<String> = emptyList(),
+    availableWriterModels: List<String> = emptyList(),
     availableDummyModels: List<String>,
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
@@ -634,6 +661,51 @@ internal fun AgentEditScreen(
             val manualModels = if (aiSettings.miniMaxModelSource == ModelSource.MANUAL) aiSettings.miniMaxManualModels else emptyList()
             (apiModels + manualModels).ifEmpty { MINIMAX_MODELS }
         }
+        AiService.NVIDIA -> {
+            val apiModels = if (aiSettings.nvidiaModelSource == ModelSource.API) availableNvidiaModels else emptyList()
+            val manualModels = if (aiSettings.nvidiaModelSource == ModelSource.MANUAL) aiSettings.nvidiaManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { listOf(model) }
+        }
+        AiService.REPLICATE -> {
+            val apiModels = if (aiSettings.replicateModelSource == ModelSource.API) availableReplicateModels else emptyList()
+            val manualModels = if (aiSettings.replicateModelSource == ModelSource.MANUAL) aiSettings.replicateManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { REPLICATE_MODELS }
+        }
+        AiService.HUGGINGFACE -> {
+            val apiModels = if (aiSettings.huggingFaceInferenceModelSource == ModelSource.API) availableHuggingFaceInferenceModels else emptyList()
+            val manualModels = if (aiSettings.huggingFaceInferenceModelSource == ModelSource.MANUAL) aiSettings.huggingFaceInferenceManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { HUGGINGFACE_INFERENCE_MODELS }
+        }
+        AiService.LAMBDA -> {
+            val apiModels = if (aiSettings.lambdaModelSource == ModelSource.API) availableLambdaModels else emptyList()
+            val manualModels = if (aiSettings.lambdaModelSource == ModelSource.MANUAL) aiSettings.lambdaManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { listOf(model) }
+        }
+        AiService.LEPTON -> {
+            val apiModels = if (aiSettings.leptonModelSource == ModelSource.API) availableLeptonModels else emptyList()
+            val manualModels = if (aiSettings.leptonModelSource == ModelSource.MANUAL) aiSettings.leptonManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { LEPTON_MODELS }
+        }
+        AiService.YI -> {
+            val apiModels = if (aiSettings.yiModelSource == ModelSource.API) availableYiModels else emptyList()
+            val manualModels = if (aiSettings.yiModelSource == ModelSource.MANUAL) aiSettings.yiManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { YI_MODELS }
+        }
+        AiService.DOUBAO -> {
+            val apiModels = if (aiSettings.doubaoModelSource == ModelSource.API) availableDoubaoModels else emptyList()
+            val manualModels = if (aiSettings.doubaoModelSource == ModelSource.MANUAL) aiSettings.doubaoManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { DOUBAO_MODELS }
+        }
+        AiService.REKA -> {
+            val apiModels = if (aiSettings.rekaModelSource == ModelSource.API) availableRekaModels else emptyList()
+            val manualModels = if (aiSettings.rekaModelSource == ModelSource.MANUAL) aiSettings.rekaManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { REKA_MODELS }
+        }
+        AiService.WRITER -> {
+            val apiModels = if (aiSettings.writerModelSource == ModelSource.API) availableWriterModels else emptyList()
+            val manualModels = if (aiSettings.writerModelSource == ModelSource.MANUAL) aiSettings.writerManualModels else emptyList()
+            (apiModels + manualModels).ifEmpty { WRITER_MODELS }
+        }
         AiService.DUMMY -> {
             val apiModels = if (aiSettings.dummyModelSource == ModelSource.API) availableDummyModels else emptyList()
             val manualModels = if (aiSettings.dummyModelSource == ModelSource.MANUAL) aiSettings.dummyManualModels else emptyList()
@@ -667,6 +739,15 @@ internal fun AgentEditScreen(
             AiService.BAICHUAN -> aiSettings.baichuanModelSource
             AiService.STEPFUN -> aiSettings.stepFunModelSource
             AiService.MINIMAX -> aiSettings.miniMaxModelSource
+            AiService.NVIDIA -> aiSettings.nvidiaModelSource
+            AiService.REPLICATE -> aiSettings.replicateModelSource
+            AiService.HUGGINGFACE -> aiSettings.huggingFaceInferenceModelSource
+            AiService.LAMBDA -> aiSettings.lambdaModelSource
+            AiService.LEPTON -> aiSettings.leptonModelSource
+            AiService.YI -> aiSettings.yiModelSource
+            AiService.DOUBAO -> aiSettings.doubaoModelSource
+            AiService.REKA -> aiSettings.rekaModelSource
+            AiService.WRITER -> aiSettings.writerModelSource
         }
     }
 

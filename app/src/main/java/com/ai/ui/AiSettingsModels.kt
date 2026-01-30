@@ -214,6 +214,72 @@ val MINIMAX_MODELS = listOf(
 )
 
 /**
+ * Available Replicate models (hardcoded).
+ */
+val REPLICATE_MODELS = listOf(
+    "meta/meta-llama-3-70b-instruct",
+    "meta/meta-llama-3-8b-instruct",
+    "mistralai/mistral-7b-instruct-v0.2"
+)
+
+/**
+ * Available Hugging Face Inference models (hardcoded).
+ */
+val HUGGINGFACE_INFERENCE_MODELS = listOf(
+    "meta-llama/Llama-3.1-70B-Instruct",
+    "meta-llama/Llama-3.1-8B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.3",
+    "Qwen/Qwen2.5-72B-Instruct"
+)
+
+/**
+ * Available Lepton models (hardcoded).
+ */
+val LEPTON_MODELS = listOf(
+    "llama3-1-70b",
+    "llama3-1-8b",
+    "mistral-7b",
+    "gemma2-9b"
+)
+
+/**
+ * Available 01.AI Yi models (hardcoded).
+ */
+val YI_MODELS = listOf(
+    "yi-lightning",
+    "yi-large",
+    "yi-medium",
+    "yi-spark"
+)
+
+/**
+ * Available Doubao models (hardcoded).
+ */
+val DOUBAO_MODELS = listOf(
+    "doubao-pro-32k",
+    "doubao-pro-128k",
+    "doubao-lite-32k",
+    "doubao-lite-128k"
+)
+
+/**
+ * Available Reka models (hardcoded).
+ */
+val REKA_MODELS = listOf(
+    "reka-core",
+    "reka-flash",
+    "reka-edge"
+)
+
+/**
+ * Available Writer models (hardcoded).
+ */
+val WRITER_MODELS = listOf(
+    "palmyra-x-004",
+    "palmyra-x-003-instruct"
+)
+
+/**
  * AI Endpoint - configurable API endpoint for a provider.
  */
 data class AiEndpoint(
@@ -494,6 +560,69 @@ data class AiSettings(
     val miniMaxAdminUrl: String = AiService.MINIMAX.adminUrl,
     val miniMaxModelListUrl: String = "",
     val miniMaxParamsId: String? = null,
+    val nvidiaApiKey: String = "",
+    val nvidiaModel: String = AiService.NVIDIA.defaultModel,
+    val nvidiaModelSource: ModelSource = ModelSource.API,
+    val nvidiaManualModels: List<String> = emptyList(),
+    val nvidiaAdminUrl: String = AiService.NVIDIA.adminUrl,
+    val nvidiaModelListUrl: String = "",
+    val nvidiaParamsId: String? = null,
+    val replicateApiKey: String = "",
+    val replicateModel: String = AiService.REPLICATE.defaultModel,
+    val replicateModelSource: ModelSource = ModelSource.MANUAL,
+    val replicateManualModels: List<String> = REPLICATE_MODELS,
+    val replicateAdminUrl: String = AiService.REPLICATE.adminUrl,
+    val replicateModelListUrl: String = "",
+    val replicateParamsId: String? = null,
+    val huggingFaceInferenceApiKey: String = "",
+    val huggingFaceInferenceModel: String = AiService.HUGGINGFACE.defaultModel,
+    val huggingFaceInferenceModelSource: ModelSource = ModelSource.MANUAL,
+    val huggingFaceInferenceManualModels: List<String> = HUGGINGFACE_INFERENCE_MODELS,
+    val huggingFaceInferenceAdminUrl: String = AiService.HUGGINGFACE.adminUrl,
+    val huggingFaceInferenceModelListUrl: String = "",
+    val huggingFaceInferenceParamsId: String? = null,
+    val lambdaApiKey: String = "",
+    val lambdaModel: String = AiService.LAMBDA.defaultModel,
+    val lambdaModelSource: ModelSource = ModelSource.API,
+    val lambdaManualModels: List<String> = emptyList(),
+    val lambdaAdminUrl: String = AiService.LAMBDA.adminUrl,
+    val lambdaModelListUrl: String = "",
+    val lambdaParamsId: String? = null,
+    val leptonApiKey: String = "",
+    val leptonModel: String = AiService.LEPTON.defaultModel,
+    val leptonModelSource: ModelSource = ModelSource.MANUAL,
+    val leptonManualModels: List<String> = LEPTON_MODELS,
+    val leptonAdminUrl: String = AiService.LEPTON.adminUrl,
+    val leptonModelListUrl: String = "",
+    val leptonParamsId: String? = null,
+    val yiApiKey: String = "",
+    val yiModel: String = AiService.YI.defaultModel,
+    val yiModelSource: ModelSource = ModelSource.API,
+    val yiManualModels: List<String> = YI_MODELS,
+    val yiAdminUrl: String = AiService.YI.adminUrl,
+    val yiModelListUrl: String = "",
+    val yiParamsId: String? = null,
+    val doubaoApiKey: String = "",
+    val doubaoModel: String = AiService.DOUBAO.defaultModel,
+    val doubaoModelSource: ModelSource = ModelSource.MANUAL,
+    val doubaoManualModels: List<String> = DOUBAO_MODELS,
+    val doubaoAdminUrl: String = AiService.DOUBAO.adminUrl,
+    val doubaoModelListUrl: String = "",
+    val doubaoParamsId: String? = null,
+    val rekaApiKey: String = "",
+    val rekaModel: String = AiService.REKA.defaultModel,
+    val rekaModelSource: ModelSource = ModelSource.MANUAL,
+    val rekaManualModels: List<String> = REKA_MODELS,
+    val rekaAdminUrl: String = AiService.REKA.adminUrl,
+    val rekaModelListUrl: String = "",
+    val rekaParamsId: String? = null,
+    val writerApiKey: String = "",
+    val writerModel: String = AiService.WRITER.defaultModel,
+    val writerModelSource: ModelSource = ModelSource.API,
+    val writerManualModels: List<String> = WRITER_MODELS,
+    val writerAdminUrl: String = AiService.WRITER.adminUrl,
+    val writerModelListUrl: String = "",
+    val writerParamsId: String? = null,
     val dummyApiKey: String = "",
     val dummyModel: String = AiService.DUMMY.defaultModel,
     val dummyModelSource: ModelSource = ModelSource.API,
@@ -557,6 +686,15 @@ data class AiSettings(
             AiService.BAICHUAN -> baichuanApiKey
             AiService.STEPFUN -> stepFunApiKey
             AiService.MINIMAX -> miniMaxApiKey
+            AiService.NVIDIA -> nvidiaApiKey
+            AiService.REPLICATE -> replicateApiKey
+            AiService.HUGGINGFACE -> huggingFaceInferenceApiKey
+            AiService.LAMBDA -> lambdaApiKey
+            AiService.LEPTON -> leptonApiKey
+            AiService.YI -> yiApiKey
+            AiService.DOUBAO -> doubaoApiKey
+            AiService.REKA -> rekaApiKey
+            AiService.WRITER -> writerApiKey
             AiService.DUMMY -> dummyApiKey
         }
     }
@@ -585,6 +723,15 @@ data class AiSettings(
             AiService.BAICHUAN -> baichuanModel
             AiService.STEPFUN -> stepFunModel
             AiService.MINIMAX -> miniMaxModel
+            AiService.NVIDIA -> nvidiaModel
+            AiService.REPLICATE -> replicateModel
+            AiService.HUGGINGFACE -> huggingFaceInferenceModel
+            AiService.LAMBDA -> lambdaModel
+            AiService.LEPTON -> leptonModel
+            AiService.YI -> yiModel
+            AiService.DOUBAO -> doubaoModel
+            AiService.REKA -> rekaModel
+            AiService.WRITER -> writerModel
             AiService.DUMMY -> dummyModel
         }
     }
@@ -613,6 +760,15 @@ data class AiSettings(
             AiService.BAICHUAN -> copy(baichuanModel = model)
             AiService.STEPFUN -> copy(stepFunModel = model)
             AiService.MINIMAX -> copy(miniMaxModel = model)
+            AiService.NVIDIA -> copy(nvidiaModel = model)
+            AiService.REPLICATE -> copy(replicateModel = model)
+            AiService.HUGGINGFACE -> copy(huggingFaceInferenceModel = model)
+            AiService.LAMBDA -> copy(lambdaModel = model)
+            AiService.LEPTON -> copy(leptonModel = model)
+            AiService.YI -> copy(yiModel = model)
+            AiService.DOUBAO -> copy(doubaoModel = model)
+            AiService.REKA -> copy(rekaModel = model)
+            AiService.WRITER -> copy(writerModel = model)
             AiService.DUMMY -> copy(dummyModel = model)
         }
     }
@@ -641,6 +797,15 @@ data class AiSettings(
             AiService.BAICHUAN -> baichuanModelSource
             AiService.STEPFUN -> stepFunModelSource
             AiService.MINIMAX -> miniMaxModelSource
+            AiService.NVIDIA -> nvidiaModelSource
+            AiService.REPLICATE -> replicateModelSource
+            AiService.HUGGINGFACE -> huggingFaceInferenceModelSource
+            AiService.LAMBDA -> lambdaModelSource
+            AiService.LEPTON -> leptonModelSource
+            AiService.YI -> yiModelSource
+            AiService.DOUBAO -> doubaoModelSource
+            AiService.REKA -> rekaModelSource
+            AiService.WRITER -> writerModelSource
             AiService.DUMMY -> dummyModelSource
         }
     }
@@ -669,6 +834,15 @@ data class AiSettings(
             AiService.BAICHUAN -> baichuanManualModels
             AiService.STEPFUN -> stepFunManualModels
             AiService.MINIMAX -> miniMaxManualModels
+            AiService.NVIDIA -> nvidiaManualModels
+            AiService.REPLICATE -> replicateManualModels
+            AiService.HUGGINGFACE -> huggingFaceInferenceManualModels
+            AiService.LAMBDA -> lambdaManualModels
+            AiService.LEPTON -> leptonManualModels
+            AiService.YI -> yiManualModels
+            AiService.DOUBAO -> doubaoManualModels
+            AiService.REKA -> rekaManualModels
+            AiService.WRITER -> writerManualModels
             AiService.DUMMY -> dummyManualModels
         }
     }
@@ -694,7 +868,16 @@ data class AiSettings(
                 sambaNovaApiKey.isNotBlank() ||
                 baichuanApiKey.isNotBlank() ||
                 stepFunApiKey.isNotBlank() ||
-                miniMaxApiKey.isNotBlank()
+                miniMaxApiKey.isNotBlank() ||
+                nvidiaApiKey.isNotBlank() ||
+                replicateApiKey.isNotBlank() ||
+                huggingFaceInferenceApiKey.isNotBlank() ||
+                lambdaApiKey.isNotBlank() ||
+                leptonApiKey.isNotBlank() ||
+                yiApiKey.isNotBlank() ||
+                doubaoApiKey.isNotBlank() ||
+                rekaApiKey.isNotBlank() ||
+                writerApiKey.isNotBlank()
     }
 
     fun getConfiguredServices(): List<AiService> {
@@ -835,6 +1018,33 @@ data class AiSettings(
         AiService.MINIMAX -> listOf(
             AiEndpoint("minimax-chat", "Chat Completions", "https://api.minimax.io/v1/chat/completions", true)
         )
+        AiService.NVIDIA -> listOf(
+            AiEndpoint("nvidia-chat", "Chat Completions", "https://integrate.api.nvidia.com/v1/chat/completions", true)
+        )
+        AiService.REPLICATE -> listOf(
+            AiEndpoint("replicate-chat", "Chat Completions", "https://api.replicate.com/v1/chat/completions", true)
+        )
+        AiService.HUGGINGFACE -> listOf(
+            AiEndpoint("huggingface-chat", "Chat Completions", "https://api-inference.huggingface.co/v1/chat/completions", true)
+        )
+        AiService.LAMBDA -> listOf(
+            AiEndpoint("lambda-chat", "Chat Completions", "https://api.lambdalabs.com/v1/chat/completions", true)
+        )
+        AiService.LEPTON -> listOf(
+            AiEndpoint("lepton-chat", "Chat Completions", "https://api.lepton.ai/v1/chat/completions", true)
+        )
+        AiService.YI -> listOf(
+            AiEndpoint("yi-chat", "Chat Completions", "https://api.01.ai/v1/chat/completions", true)
+        )
+        AiService.DOUBAO -> listOf(
+            AiEndpoint("doubao-chat", "Chat Completions", "https://ark.cn-beijing.volces.com/api/v3/chat/completions", true)
+        )
+        AiService.REKA -> listOf(
+            AiEndpoint("reka-chat", "Chat Completions", "https://api.reka.ai/v1/chat/completions", true)
+        )
+        AiService.WRITER -> listOf(
+            AiEndpoint("writer-chat", "Chat Completions", "https://api.writer.com/v1/chat/completions", true)
+        )
         AiService.DUMMY -> listOf(
             AiEndpoint("dummy-chat", "Chat Completions", "http://localhost:54321/v1/chat/completions", true)
         )
@@ -904,6 +1114,15 @@ data class AiSettings(
             AiService.BAICHUAN -> baichuanModelListUrl
             AiService.STEPFUN -> stepFunModelListUrl
             AiService.MINIMAX -> miniMaxModelListUrl
+            AiService.NVIDIA -> nvidiaModelListUrl
+            AiService.REPLICATE -> replicateModelListUrl
+            AiService.HUGGINGFACE -> huggingFaceInferenceModelListUrl
+            AiService.LAMBDA -> lambdaModelListUrl
+            AiService.LEPTON -> leptonModelListUrl
+            AiService.YI -> yiModelListUrl
+            AiService.DOUBAO -> doubaoModelListUrl
+            AiService.REKA -> rekaModelListUrl
+            AiService.WRITER -> writerModelListUrl
             AiService.DUMMY -> dummyModelListUrl
         }
     }
@@ -935,6 +1154,15 @@ data class AiSettings(
             AiService.BAICHUAN -> "https://api.baichuan-ai.com/v1/models"
             AiService.STEPFUN -> "https://api.stepfun.com/v1/models"
             AiService.MINIMAX -> "https://api.minimax.io/v1/models"
+            AiService.NVIDIA -> "https://integrate.api.nvidia.com/v1/models"
+            AiService.REPLICATE -> "https://api.replicate.com/v1/models"
+            AiService.HUGGINGFACE -> "https://api-inference.huggingface.co/v1/models"
+            AiService.LAMBDA -> "https://api.lambdalabs.com/v1/models"
+            AiService.LEPTON -> "https://api.lepton.ai/v1/models"
+            AiService.YI -> "https://api.01.ai/v1/models"
+            AiService.DOUBAO -> "https://ark.cn-beijing.volces.com/api/v3/models"
+            AiService.REKA -> "https://api.reka.ai/v1/models"
+            AiService.WRITER -> "https://api.writer.com/v1/models"
             AiService.DUMMY -> "http://localhost:54321/v1/models"
         }
     }
@@ -975,6 +1203,15 @@ data class AiSettings(
             AiService.BAICHUAN -> baichuanParamsId
             AiService.STEPFUN -> stepFunParamsId
             AiService.MINIMAX -> miniMaxParamsId
+            AiService.NVIDIA -> nvidiaParamsId
+            AiService.REPLICATE -> replicateParamsId
+            AiService.HUGGINGFACE -> huggingFaceInferenceParamsId
+            AiService.LAMBDA -> lambdaParamsId
+            AiService.LEPTON -> leptonParamsId
+            AiService.YI -> yiParamsId
+            AiService.DOUBAO -> doubaoParamsId
+            AiService.REKA -> rekaParamsId
+            AiService.WRITER -> writerParamsId
             AiService.DUMMY -> dummyParamsId
         }
     }
@@ -1006,6 +1243,15 @@ data class AiSettings(
             AiService.BAICHUAN -> copy(baichuanParamsId = paramsId)
             AiService.STEPFUN -> copy(stepFunParamsId = paramsId)
             AiService.MINIMAX -> copy(miniMaxParamsId = paramsId)
+            AiService.NVIDIA -> copy(nvidiaParamsId = paramsId)
+            AiService.REPLICATE -> copy(replicateParamsId = paramsId)
+            AiService.HUGGINGFACE -> copy(huggingFaceInferenceParamsId = paramsId)
+            AiService.LAMBDA -> copy(lambdaParamsId = paramsId)
+            AiService.LEPTON -> copy(leptonParamsId = paramsId)
+            AiService.YI -> copy(yiParamsId = paramsId)
+            AiService.DOUBAO -> copy(doubaoParamsId = paramsId)
+            AiService.REKA -> copy(rekaParamsId = paramsId)
+            AiService.WRITER -> copy(writerParamsId = paramsId)
             AiService.DUMMY -> copy(dummyParamsId = paramsId)
         }
     }

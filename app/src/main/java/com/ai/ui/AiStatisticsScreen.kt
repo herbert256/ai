@@ -851,6 +851,15 @@ fun CostConfigurationScreen(
             com.ai.data.AiService.BAICHUAN -> BAICHUAN_MODELS
             com.ai.data.AiService.STEPFUN -> STEPFUN_MODELS
             com.ai.data.AiService.MINIMAX -> MINIMAX_MODELS
+            com.ai.data.AiService.NVIDIA -> aiSettings.nvidiaManualModels.ifEmpty { listOf(com.ai.data.AiService.NVIDIA.defaultModel) }
+            com.ai.data.AiService.REPLICATE -> REPLICATE_MODELS
+            com.ai.data.AiService.HUGGINGFACE -> HUGGINGFACE_INFERENCE_MODELS
+            com.ai.data.AiService.LAMBDA -> aiSettings.lambdaManualModels.ifEmpty { listOf(com.ai.data.AiService.LAMBDA.defaultModel) }
+            com.ai.data.AiService.LEPTON -> LEPTON_MODELS
+            com.ai.data.AiService.YI -> YI_MODELS
+            com.ai.data.AiService.DOUBAO -> DOUBAO_MODELS
+            com.ai.data.AiService.REKA -> REKA_MODELS
+            com.ai.data.AiService.WRITER -> WRITER_MODELS
             com.ai.data.AiService.DUMMY -> listOf("dummy-model")
         }
     }

@@ -37,6 +37,15 @@ suspend fun AiAnalysisRepository.sendChatMessage(
         AiService.BAICHUAN -> sendChatMessageBaichuan(apiKey, model, messages, params)
         AiService.STEPFUN -> sendChatMessageStepFun(apiKey, model, messages, params)
         AiService.MINIMAX -> sendChatMessageMiniMax(apiKey, model, messages, params)
+        AiService.NVIDIA -> sendChatMessageNvidia(apiKey, model, messages, params)
+        AiService.REPLICATE -> sendChatMessageReplicate(apiKey, model, messages, params)
+        AiService.HUGGINGFACE -> sendChatMessageHuggingFaceInference(apiKey, model, messages, params)
+        AiService.LAMBDA -> sendChatMessageLambda(apiKey, model, messages, params)
+        AiService.LEPTON -> sendChatMessageLepton(apiKey, model, messages, params)
+        AiService.YI -> sendChatMessageYi(apiKey, model, messages, params)
+        AiService.DOUBAO -> sendChatMessageDoubao(apiKey, model, messages, params)
+        AiService.REKA -> sendChatMessageReka(apiKey, model, messages, params)
+        AiService.WRITER -> sendChatMessageWriter(apiKey, model, messages, params)
         AiService.DUMMY -> sendChatMessageDummy(apiKey, model, messages, params)
     }
 }
@@ -615,6 +624,258 @@ internal suspend fun AiAnalysisRepository.sendChatMessageMiniMax(
         search = if (params.searchEnabled) true else null
     )
     val response = miniMaxApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageNvidia(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = nvidiaApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageReplicate(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = replicateApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageHuggingFaceInference(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = huggingFaceInferenceApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageLambda(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = lambdaApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageLepton(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = leptonApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageYi(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = yiApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageDoubao(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = doubaoApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageReka(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = rekaApi.createChatCompletion(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val content = response.body()?.choices?.firstOrNull()?.message?.content
+        return content ?: throw Exception("No response content")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal suspend fun AiAnalysisRepository.sendChatMessageWriter(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiRequest(
+        model = model,
+        messages = openAiMessages,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+    val response = writerApi.createChatCompletion(
         authorization = "Bearer $apiKey",
         request = request
     )

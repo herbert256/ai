@@ -46,6 +46,15 @@ fun AiAnalysisRepository.sendChatMessageStream(
         AiService.BAICHUAN -> streamChatBaichuan(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         AiService.STEPFUN -> streamChatStepFun(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         AiService.MINIMAX -> streamChatMiniMax(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.NVIDIA -> streamChatNvidia(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.REPLICATE -> streamChatReplicate(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.HUGGINGFACE -> streamChatHuggingFaceInference(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.LAMBDA -> streamChatLambda(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.LEPTON -> streamChatLepton(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.YI -> streamChatYi(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.DOUBAO -> streamChatDoubao(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.REKA -> streamChatReka(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        AiService.WRITER -> streamChatWriter(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         AiService.DUMMY -> streamChatDummy(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
     }
 }
@@ -1093,6 +1102,348 @@ internal fun AiAnalysisRepository.streamChatMiniMax(
         AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
     } else {
         miniMaxStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatNvidia(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.NVIDIA.baseUrl) {
+        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+    } else {
+        nvidiaStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatReplicate(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.REPLICATE.baseUrl) {
+        AiApiFactory.createReplicateStreamApiWithBaseUrl(baseUrl)
+    } else {
+        replicateStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatHuggingFaceInference(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.HUGGINGFACE.baseUrl) {
+        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+    } else {
+        huggingFaceInferenceStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatLambda(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.LAMBDA.baseUrl) {
+        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+    } else {
+        lambdaStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatLepton(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.LEPTON.baseUrl) {
+        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+    } else {
+        leptonStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatYi(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.YI.baseUrl) {
+        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+    } else {
+        yiStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatDoubao(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.DOUBAO.baseUrl) {
+        AiApiFactory.createDoubaoStreamApiWithBaseUrl(baseUrl)
+    } else {
+        doubaoStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatReka(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.REKA.baseUrl) {
+        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+    } else {
+        rekaStreamApi
+    }
+
+    val response = withContext(Dispatchers.IO) {
+        api.createChatCompletionStream("Bearer $apiKey", request)
+    }
+
+    if (response.isSuccessful) {
+        response.body()?.let { body ->
+            parseOpenAiSseStream(body).collect { emit(it) }
+        } ?: throw Exception("Empty response body")
+    } else {
+        throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+internal fun AiAnalysisRepository.streamChatWriter(
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters,
+    baseUrl: String
+): Flow<String> = flow {
+    val openAiMessages = convertToOpenAiMessages(messages)
+    val request = OpenAiStreamRequest(
+        model = model,
+        messages = openAiMessages,
+        stream = true,
+        max_tokens = params.maxTokens,
+        temperature = params.temperature,
+        top_p = params.topP,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty
+    )
+
+    val api = if (baseUrl != AiService.WRITER.baseUrl) {
+        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+    } else {
+        writerStreamApi
     }
 
     val response = withContext(Dispatchers.IO) {

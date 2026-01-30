@@ -62,6 +62,15 @@ suspend fun AiAnalysisRepository.testModel(
             AiService.BAICHUAN -> analyzeWithBaichuan(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
             AiService.STEPFUN -> analyzeWithStepFun(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
             AiService.MINIMAX -> analyzeWithMiniMax(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.NVIDIA -> analyzeWithNvidia(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.REPLICATE -> analyzeWithReplicate(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.HUGGINGFACE -> analyzeWithHuggingFaceInference(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.LAMBDA -> analyzeWithLambda(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.LEPTON -> analyzeWithLepton(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.YI -> analyzeWithYi(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.DOUBAO -> analyzeWithDoubao(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.REKA -> analyzeWithReka(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            AiService.WRITER -> analyzeWithWriter(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
             AiService.DUMMY -> analyzeWithDummy(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
         }
 
@@ -745,6 +754,122 @@ suspend fun AiAnalysisRepository.fetchMiniMaxModels(apiKey: String): List<String
         }
     } catch (e: Exception) {
         android.util.Log.e("MiniMaxAPI", "Error fetching models: ${e.message}", e)
+        emptyList()
+    }
+}
+
+suspend fun AiAnalysisRepository.fetchNvidiaModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    try {
+        android.util.Log.d("NvidiaAPI", "Fetching models from NVIDIA API...")
+        val response = nvidiaApi.listModels("Bearer $apiKey")
+        android.util.Log.d("NvidiaAPI", "Response code: ${response.code()}")
+        if (response.isSuccessful) {
+            val body = response.body()
+            val models = body?.data ?: emptyList()
+            val result = models
+                .mapNotNull { it.id }
+                .sorted()
+            android.util.Log.d("NvidiaAPI", "Found ${result.size} NVIDIA models")
+            result
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("NvidiaAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+            emptyList()
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("NvidiaAPI", "Error fetching models: ${e.message}", e)
+        emptyList()
+    }
+}
+
+suspend fun AiAnalysisRepository.fetchReplicateModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    com.ai.ui.REPLICATE_MODELS
+}
+
+suspend fun AiAnalysisRepository.fetchHuggingFaceInferenceModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    com.ai.ui.HUGGINGFACE_INFERENCE_MODELS
+}
+
+suspend fun AiAnalysisRepository.fetchLambdaModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    try {
+        android.util.Log.d("LambdaAPI", "Fetching models from Lambda API...")
+        val response = lambdaApi.listModels("Bearer $apiKey")
+        android.util.Log.d("LambdaAPI", "Response code: ${response.code()}")
+        if (response.isSuccessful) {
+            val body = response.body()
+            val models = body?.data ?: emptyList()
+            val result = models
+                .mapNotNull { it.id }
+                .sorted()
+            android.util.Log.d("LambdaAPI", "Found ${result.size} Lambda models")
+            result
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("LambdaAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+            emptyList()
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("LambdaAPI", "Error fetching models: ${e.message}", e)
+        emptyList()
+    }
+}
+
+suspend fun AiAnalysisRepository.fetchLeptonModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    com.ai.ui.LEPTON_MODELS
+}
+
+suspend fun AiAnalysisRepository.fetchYiModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    try {
+        android.util.Log.d("YiAPI", "Fetching models from 01.AI API...")
+        val response = yiApi.listModels("Bearer $apiKey")
+        android.util.Log.d("YiAPI", "Response code: ${response.code()}")
+        if (response.isSuccessful) {
+            val body = response.body()
+            val models = body?.data ?: emptyList()
+            val result = models
+                .mapNotNull { it.id }
+                .sorted()
+            android.util.Log.d("YiAPI", "Found ${result.size} Yi models")
+            result
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("YiAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+            emptyList()
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("YiAPI", "Error fetching models: ${e.message}", e)
+        emptyList()
+    }
+}
+
+suspend fun AiAnalysisRepository.fetchDoubaoModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    com.ai.ui.DOUBAO_MODELS
+}
+
+suspend fun AiAnalysisRepository.fetchRekaModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    com.ai.ui.REKA_MODELS
+}
+
+suspend fun AiAnalysisRepository.fetchWriterModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    try {
+        android.util.Log.d("WriterAPI", "Fetching models from Writer API...")
+        val response = writerApi.listModels("Bearer $apiKey")
+        android.util.Log.d("WriterAPI", "Response code: ${response.code()}")
+        if (response.isSuccessful) {
+            val body = response.body()
+            val models = body?.data ?: emptyList()
+            val result = models
+                .mapNotNull { it.id }
+                .sorted()
+            android.util.Log.d("WriterAPI", "Found ${result.size} Writer models")
+            result
+        } else {
+            val errorBody = response.errorBody()?.string()
+            android.util.Log.e("WriterAPI", "Failed to fetch models: ${response.code()} - $errorBody")
+            emptyList()
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("WriterAPI", "Error fetching models: ${e.message}", e)
         emptyList()
     }
 }

@@ -146,6 +146,15 @@ fun SettingsScreen(
     onFetchBaichuanModels: (String) -> Unit = {},
     onFetchStepFunModels: (String) -> Unit = {},
     onFetchMiniMaxModels: (String) -> Unit = {},
+    onFetchNvidiaModels: (String) -> Unit = {},
+    onFetchReplicateModels: (String) -> Unit = {},
+    onFetchHuggingFaceInferenceModels: (String) -> Unit = {},
+    onFetchLambdaModels: (String) -> Unit = {},
+    onFetchLeptonModels: (String) -> Unit = {},
+    onFetchYiModels: (String) -> Unit = {},
+    onFetchDoubaoModels: (String) -> Unit = {},
+    onFetchRekaModels: (String) -> Unit = {},
+    onFetchWriterModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onProviderStateChange: (AiService, String) -> Unit = { _, _ -> },
@@ -675,6 +684,15 @@ fun SettingsScreen(
                     com.ai.data.AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
                     com.ai.data.AiService.STEPFUN -> onFetchStepFunModels(apiKey)
                     com.ai.data.AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
+                    com.ai.data.AiService.NVIDIA -> onFetchNvidiaModels(apiKey)
+                    com.ai.data.AiService.REPLICATE -> onFetchReplicateModels(apiKey)
+                    com.ai.data.AiService.HUGGINGFACE -> onFetchHuggingFaceInferenceModels(apiKey)
+                    com.ai.data.AiService.LAMBDA -> onFetchLambdaModels(apiKey)
+                    com.ai.data.AiService.LEPTON -> onFetchLeptonModels(apiKey)
+                    com.ai.data.AiService.YI -> onFetchYiModels(apiKey)
+                    com.ai.data.AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
+                    com.ai.data.AiService.REKA -> onFetchRekaModels(apiKey)
+                    com.ai.data.AiService.WRITER -> onFetchWriterModels(apiKey)
                     com.ai.data.AiService.DUMMY -> onFetchDummyModels(apiKey)
                 }
             }

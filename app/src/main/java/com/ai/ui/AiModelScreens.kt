@@ -98,6 +98,15 @@ fun ModelSearchScreen(
     onFetchBaichuanModels: (String) -> Unit,
     onFetchStepFunModels: (String) -> Unit,
     onFetchMiniMaxModels: (String) -> Unit,
+    onFetchNvidiaModels: (String) -> Unit = {},
+    onFetchReplicateModels: (String) -> Unit = {},
+    onFetchHuggingFaceInferenceModels: (String) -> Unit = {},
+    onFetchLambdaModels: (String) -> Unit = {},
+    onFetchLeptonModels: (String) -> Unit = {},
+    onFetchYiModels: (String) -> Unit = {},
+    onFetchDoubaoModels: (String) -> Unit = {},
+    onFetchRekaModels: (String) -> Unit = {},
+    onFetchWriterModels: (String) -> Unit = {},
     onFetchDummyModels: (String) -> Unit,
     onNavigateToChatParams: (AiService, String) -> Unit,
     onNavigateToModelInfo: (AiService, String) -> Unit
@@ -138,6 +147,15 @@ fun ModelSearchScreen(
             AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
             AiService.STEPFUN -> onFetchStepFunModels(apiKey)
             AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
+            AiService.NVIDIA -> onFetchNvidiaModels(apiKey)
+            AiService.REPLICATE -> onFetchReplicateModels(apiKey)
+            AiService.HUGGINGFACE -> onFetchHuggingFaceInferenceModels(apiKey)
+            AiService.LAMBDA -> onFetchLambdaModels(apiKey)
+            AiService.LEPTON -> onFetchLeptonModels(apiKey)
+            AiService.YI -> onFetchYiModels(apiKey)
+            AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
+            AiService.REKA -> onFetchRekaModels(apiKey)
+            AiService.WRITER -> onFetchWriterModels(apiKey)
             AiService.DUMMY -> onFetchDummyModels(apiKey)
         }
     }

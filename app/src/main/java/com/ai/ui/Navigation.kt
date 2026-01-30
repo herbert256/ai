@@ -667,6 +667,15 @@ fun AiNavHost(
                     com.ai.data.AiService.BAICHUAN -> uiState.aiSettings.baichuanApiKey
                     com.ai.data.AiService.STEPFUN -> uiState.aiSettings.stepFunApiKey
                     com.ai.data.AiService.MINIMAX -> uiState.aiSettings.miniMaxApiKey
+                    com.ai.data.AiService.NVIDIA -> uiState.aiSettings.nvidiaApiKey
+                    com.ai.data.AiService.REPLICATE -> uiState.aiSettings.replicateApiKey
+                    com.ai.data.AiService.HUGGINGFACE -> uiState.aiSettings.huggingFaceInferenceApiKey
+                    com.ai.data.AiService.LAMBDA -> uiState.aiSettings.lambdaApiKey
+                    com.ai.data.AiService.LEPTON -> uiState.aiSettings.leptonApiKey
+                    com.ai.data.AiService.YI -> uiState.aiSettings.yiApiKey
+                    com.ai.data.AiService.DOUBAO -> uiState.aiSettings.doubaoApiKey
+                    com.ai.data.AiService.REKA -> uiState.aiSettings.rekaApiKey
+                    com.ai.data.AiService.WRITER -> uiState.aiSettings.writerApiKey
                     com.ai.data.AiService.DUMMY -> uiState.aiSettings.dummyApiKey
                 }
 

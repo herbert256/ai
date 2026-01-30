@@ -1050,6 +1050,15 @@ fun AiReportsScreen(
                                             com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
                                             com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
                                             com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
+                                            com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
+                                            com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
+                                            com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
+                                            com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
+                                            com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
+                                            com.ai.data.AiService.YI -> uiState.availableYiModels
+                                            com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
+                                            com.ai.data.AiService.REKA -> uiState.availableRekaModels
+                                            com.ai.data.AiService.WRITER -> uiState.availableWriterModels
                                             com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                         }
                                         models.map { model -> provider to model }
@@ -1172,6 +1181,15 @@ fun AiReportsScreen(
                                                 com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
                                                 com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
                                                 com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
+                                                com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
+                                                com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
+                                                com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
+                                                com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
+                                                com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
+                                                com.ai.data.AiService.YI -> uiState.availableYiModels
+                                                com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
+                                                com.ai.data.AiService.REKA -> uiState.availableRekaModels
+                                                com.ai.data.AiService.WRITER -> uiState.availableWriterModels
                                                 com.ai.data.AiService.DUMMY -> uiState.availableDummyModels
                                             }
                                             models.map { "swarm:${provider.name}:$it" }
