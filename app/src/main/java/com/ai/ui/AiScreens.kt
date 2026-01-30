@@ -697,35 +697,69 @@ fun AiReportsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (!isGenerating) {
-            // Parameters selector for the report
-            ParametersSelector(
-                aiSettings = uiState.aiSettings,
-                selectedParametersIds = selectedParametersIds,
-                onParamsSelected = { ids -> selectedParametersIds = ids },
-                label = "Report Parameters"
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Generate button at top
-            Button(
-                onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds) },
-                enabled = totalWorkers > 0,
+            // Action row: Parameters, Clear, Generate
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF8B5CF6)
-                )
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("Generate Reports ($totalWorkers worker${if (totalWorkers == 1) "" else "s"})")
+                // Parameters button
+                var showParamsDialog by remember { mutableStateOf(false) }
+                OutlinedButton(
+                    onClick = { showParamsDialog = true },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        if (selectedParametersIds.isNotEmpty()) "\uD83D\uDCCE Params" else "Params",
+                        fontSize = 13.sp, maxLines = 1
+                    )
+                }
+                if (showParamsDialog) {
+                    ParametersSelectorDialog(
+                        aiSettings = uiState.aiSettings,
+                        selectedParametersIds = selectedParametersIds,
+                        onParamsSelected = { ids -> selectedParametersIds = ids },
+                        onDismiss = { showParamsDialog = false }
+                    )
+                }
+
+                // Clear button
+                OutlinedButton(
+                    onClick = {
+                        when (selectionMode) {
+                            ReportSelectionMode.SWARMS -> selectedFlockIds = emptySet()
+                            ReportSelectionMode.AGENTS -> directlySelectedAgentIds = emptySet()
+                            ReportSelectionMode.FLOCKS -> selectedSwarmIds = emptySet()
+                            ReportSelectionMode.MODELS -> directlySelectedModelIds = emptySet()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Text("Clear", fontSize = 13.sp, maxLines = 1)
+                }
+
+                // Generate button
+                Button(
+                    onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds) },
+                    enabled = totalWorkers > 0,
+                    modifier = Modifier.weight(1.5f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF8B5CF6)
+                    )
+                ) {
+                    Text("Generate ($totalWorkers)", fontSize = 13.sp, maxLines = 1)
+                }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Mode toggle buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
+                    .padding(bottom = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Button(
@@ -776,7 +810,7 @@ fun AiReportsScreen(
                 onValueChange = { searchQuery = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
+                    .padding(bottom = 6.dp),
                 placeholder = { Text(when (selectionMode) {
                     ReportSelectionMode.SWARMS -> "Search flocks..."
                     ReportSelectionMode.AGENTS -> "Search agents..."
@@ -807,19 +841,19 @@ fun AiReportsScreen(
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(16.dp)
+                        .padding(8.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     when (selectionMode) {
                         ReportSelectionMode.SWARMS -> {
                             // Flock selection mode
                             val filteredFlocks = flocks
                                 .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
-                                .sortedBy { it.name.lowercase() }
+                                .sortedWith(compareByDescending<AiFlock> { it.id in selectedFlockIds }.thenBy { it.name.lowercase() })
                             if (flocks.isEmpty()) {
                                 Text(
-                                    text = "No AI flocks configured. Please configure flocks in Settings > AI Setup > Flocks.",
+                                    text = "No AI flocks configured.",
                                     color = Color(0xFFAAAAAA)
                                 )
                             } else if (filteredFlocks.isEmpty()) {
@@ -843,7 +877,7 @@ fun AiReportsScreen(
                                                     selectedFlockIds = selectedFlockIds + flock.id
                                                 }
                                             }
-                                            .padding(vertical = 8.dp),
+                                            .padding(vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -857,23 +891,13 @@ fun AiReportsScreen(
                                                 }
                                             }
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = flock.name,
-                                                fontWeight = FontWeight.Medium,
-                                                color = Color.White
-                                            )
-                                            Text(
-                                                text = if (flockAgentsList.isEmpty()) {
-                                                    "No agents"
-                                                } else {
-                                                    "${flockAgentsList.size} agent${if (flockAgentsList.size == 1) "" else "s"}: ${flockAgentsList.take(3).joinToString(", ") { it.name }}${if (flockAgentsList.size > 3) "..." else ""}"
-                                                },
-                                                fontSize = 12.sp,
-                                                color = Color(0xFFAAAAAA)
-                                            )
-                                        }
+                                        Text(
+                                            text = "${flock.name} (${flockAgentsList.size})",
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
@@ -887,10 +911,10 @@ fun AiReportsScreen(
                                     agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
                                     agent.model.contains(searchQuery, ignoreCase = true)
                                 }
-                                .sortedBy { it.name.lowercase() }
+                                .sortedWith(compareByDescending<AiAgent> { it.id in flockAgentIds || it.id in directlySelectedAgentIds }.thenBy { it.name.lowercase() })
                             if (configuredAgents.isEmpty()) {
                                 Text(
-                                    text = "No AI agents configured. Please configure agents in Settings > AI Setup > Agents.",
+                                    text = "No AI agents configured.",
                                     color = Color(0xFFAAAAAA)
                                 )
                             } else if (filteredAgents.isEmpty()) {
@@ -915,7 +939,7 @@ fun AiReportsScreen(
                                                     }
                                                 }
                                             )
-                                            .padding(vertical = 8.dp),
+                                            .padding(vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -929,19 +953,13 @@ fun AiReportsScreen(
                                             },
                                             enabled = !isFromFlock
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = "${agent.name} / ${agent.model.ifBlank { agent.provider.defaultModel }}",
-                                                fontWeight = FontWeight.Medium,
-                                                color = if (isFromFlock) Color(0xFF888888) else Color.White
-                                            )
-                                            Text(
-                                                text = if (isFromFlock) "${agent.provider.displayName} (via flock)" else agent.provider.displayName,
-                                                fontSize = 12.sp,
-                                                color = if (isFromFlock) Color(0xFF666666) else Color(0xFFAAAAAA)
-                                            )
-                                        }
+                                        Text(
+                                            text = agent.name,
+                                            color = if (isFromFlock) Color(0xFF888888) else Color.White,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
@@ -950,10 +968,10 @@ fun AiReportsScreen(
                             // Swarm selection mode
                             val filteredSwarms = swarms
                                 .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
-                                .sortedBy { it.name.lowercase() }
+                                .sortedWith(compareByDescending<AiSwarm> { it.id in selectedSwarmIds }.thenBy { it.name.lowercase() })
                             if (swarms.isEmpty()) {
                                 Text(
-                                    text = "No AI swarms configured. Please configure swarms in Settings > AI Setup > Swarms.",
+                                    text = "No AI swarms configured.",
                                     color = Color(0xFFAAAAAA)
                                 )
                             } else if (filteredSwarms.isEmpty()) {
@@ -975,7 +993,7 @@ fun AiReportsScreen(
                                                     selectedSwarmIds + swarm.id
                                                 }
                                             }
-                                            .padding(vertical = 8.dp),
+                                            .padding(vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -988,23 +1006,13 @@ fun AiReportsScreen(
                                                 }
                                             }
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = swarm.name,
-                                                fontWeight = FontWeight.Medium,
-                                                color = Color.White
-                                            )
-                                            Text(
-                                                text = if (swarmMembersList.isEmpty()) {
-                                                    "No members"
-                                                } else {
-                                                    "${swarmMembersList.size} member${if (swarmMembersList.size == 1) "" else "s"}: ${swarmMembersList.take(2).joinToString(", ") { "${it.provider.displayName}/${it.model.take(15)}" }}${if (swarmMembersList.size > 2) "..." else ""}"
-                                                },
-                                                fontSize = 12.sp,
-                                                color = Color(0xFFAAAAAA)
-                                            )
-                                        }
+                                        Text(
+                                            text = "${swarm.name} (${swarmMembersList.size})",
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
@@ -1058,9 +1066,16 @@ fun AiReportsScreen(
                                 }
                                 .sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
 
+                            // Sort selected/swarm items to top
+                            val sortedModels = filteredModels
+                                .sortedWith(compareByDescending<Pair<com.ai.data.AiService, String>> {
+                                    val synId = "swarm:${it.first.name}:${it.second}"
+                                    synId in swarmMemberIds || synId in directlySelectedModelIds
+                                }.thenBy { it.first.displayName.lowercase() }.thenBy { it.second.lowercase() })
+
                             if (allProviderModels.isEmpty()) {
                                 Text(
-                                    text = "No models available. Configure API keys in AI Setup > Providers.",
+                                    text = "No models available.",
                                     color = Color(0xFFAAAAAA)
                                 )
                             } else if (filteredModels.isEmpty()) {
@@ -1069,7 +1084,7 @@ fun AiReportsScreen(
                                     color = Color(0xFFAAAAAA)
                                 )
                             } else {
-                                filteredModels.forEach { (provider, model) ->
+                                sortedModels.forEach { (provider, model) ->
                                     val syntheticId = "swarm:${provider.name}:$model"
                                     val isFromSwarm = syntheticId in swarmMemberIds
                                     val isChecked = isFromSwarm || syntheticId in directlySelectedModelIds
@@ -1087,7 +1102,7 @@ fun AiReportsScreen(
                                                     }
                                                 }
                                             )
-                                            .padding(vertical = 6.dp),
+                                            .padding(vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -1101,17 +1116,19 @@ fun AiReportsScreen(
                                             },
                                             enabled = !isFromSwarm
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = model,
-                                                fontWeight = FontWeight.Medium,
-                                                color = if (isFromSwarm) Color(0xFF888888) else Color.White
-                                            )
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = if (isFromSwarm) "${provider.displayName} (via swarm)" else provider.displayName,
                                                 fontSize = 12.sp,
-                                                color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA)
+                                                color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA),
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = model,
+                                                color = if (isFromSwarm) Color(0xFF888888) else Color.White,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -1122,95 +1139,6 @@ fun AiReportsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Select all / Select none buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        when (selectionMode) {
-                            ReportSelectionMode.SWARMS -> selectedFlockIds = flocks.map { it.id }.toSet()
-                            ReportSelectionMode.AGENTS -> directlySelectedAgentIds = configuredAgents.map { it.id }.toSet()
-                            ReportSelectionMode.FLOCKS -> selectedSwarmIds = swarms.map { it.id }.toSet()
-                            ReportSelectionMode.MODELS -> {
-                                // Select all models not already selected via swarm (active providers only)
-                                val allModelIds = uiState.aiSettings.getActiveServices(uiState.generalSettings.developerMode)
-                                    .flatMap { provider ->
-                                        val models = when (provider) {
-                                            com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
-                                            com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
-                                            com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
-                                            com.ai.data.AiService.XAI -> uiState.availableGrokModels
-                                            com.ai.data.AiService.GROQ -> uiState.availableGroqModels
-                                            com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
-                                            com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
-                                            com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
-                                            com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
-                                            com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
-                                            com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
-                                            com.ai.data.AiService.ZAI -> uiState.availableZaiModels
-                                            com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
-                                            com.ai.data.AiService.COHERE -> uiState.availableCohereModels
-                                            com.ai.data.AiService.AI21 -> uiState.availableAi21Models
-                                            com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
-                                            com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
-                                            com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
-                                            com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
-                                            com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
-                                            com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
-                                            com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
-                                            com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
-                                            com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
-                                            com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
-                                            com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
-                                            com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
-                                            com.ai.data.AiService.YI -> uiState.availableYiModels
-                                            com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
-                                            com.ai.data.AiService.REKA -> uiState.availableRekaModels
-                                            com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                                        }
-                                        models.map { "swarm:${provider.name}:$it" }
-                                    }
-                                    .filter { it !in swarmMemberIds }
-                                    .toSet()
-                                directlySelectedModelIds = allModelIds
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Select all")
-                }
-                OutlinedButton(
-                    onClick = {
-                        when (selectionMode) {
-                            ReportSelectionMode.SWARMS -> selectedFlockIds = emptySet()
-                            ReportSelectionMode.AGENTS -> directlySelectedAgentIds = emptySet()
-                            ReportSelectionMode.FLOCKS -> selectedSwarmIds = emptySet()
-                            ReportSelectionMode.MODELS -> directlySelectedModelIds = emptySet()
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Select none")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Advanced parameters button
-            OutlinedButton(
-                onClick = { showAdvancedParameters = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = if (advancedParameters != null) Color(0xFF4CAF50) else Color.White
-                )
-            ) {
-                Text(if (advancedParameters != null) "Advanced parameters (set)" else "Advanced parameters")
-            }
 
         } else {
             // Action buttons at top when complete

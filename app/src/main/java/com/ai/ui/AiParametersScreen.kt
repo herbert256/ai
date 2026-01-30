@@ -636,104 +636,125 @@ fun ParametersSelector(
 
     // Multi-select Parameters Dialog
     if (showParametersDialog) {
-        var localSelection by remember { mutableStateOf(selectedParametersIds.toSet()) }
-
-        AlertDialog(
-            onDismissRequest = { showParametersDialog = false },
-            title = { Text("Select Parameters", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Clear All option
-                    TextButton(
-                        onClick = { localSelection = emptySet() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Clear All", color = Color(0xFFFF6B6B))
-                    }
-
-                    if (aiSettings.parameters.isNotEmpty()) {
-                        aiSettings.parameters.sortedBy { it.name.lowercase() }.forEach { params ->
-                            val configuredCount = listOfNotNull(
-                                params.temperature,
-                                params.maxTokens,
-                                params.topP,
-                                params.topK,
-                                params.frequencyPenalty,
-                                params.presencePenalty,
-                                params.systemPrompt?.takeIf { it.isNotBlank() },
-                                params.seed
-                            ).size + listOf(
-                                params.responseFormatJson,
-                                params.searchEnabled,
-                                params.returnCitations
-                            ).count { it } + (if (params.searchRecency != null) 1 else 0)
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        localSelection = if (params.id in localSelection) {
-                                            localSelection - params.id
-                                        } else {
-                                            localSelection + params.id
-                                        }
-                                    }
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = params.id in localSelection,
-                                    onCheckedChange = { checked ->
-                                        localSelection = if (checked) {
-                                            localSelection + params.id
-                                        } else {
-                                            localSelection - params.id
-                                        }
-                                    }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(params.name, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                    Text(
-                                        "$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured",
-                                        fontSize = 12.sp,
-                                        color = Color.Gray
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            "No parameter presets configured.\nGo to AI Setup > Parameters to create presets.",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                }
+        ParametersSelectorDialog(
+            aiSettings = aiSettings,
+            selectedParametersIds = selectedParametersIds,
+            onParamsSelected = { ids ->
+                onParamsSelected(ids)
+                showParametersDialog = false
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    // Preserve order: keep existing order for items still selected, append new ones
-                    val orderedIds = selectedParametersIds.filter { it in localSelection } +
-                        localSelection.filter { it !in selectedParametersIds }
-                    onParamsSelected(orderedIds)
-                    showParametersDialog = false
-                }) {
-                    Text("Done")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showParametersDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showParametersDialog = false }
         )
     }
+}
+
+/**
+ * Standalone multi-select parameters dialog.
+ * Can be used directly when managing showDialog state externally.
+ */
+@Composable
+fun ParametersSelectorDialog(
+    aiSettings: AiSettings,
+    selectedParametersIds: List<String>,
+    onParamsSelected: (List<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var localSelection by remember { mutableStateOf(selectedParametersIds.toSet()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Parameters", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Clear All option
+                TextButton(
+                    onClick = { localSelection = emptySet() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Clear All", color = Color(0xFFFF6B6B))
+                }
+
+                if (aiSettings.parameters.isNotEmpty()) {
+                    aiSettings.parameters.sortedBy { it.name.lowercase() }.forEach { params ->
+                        val configuredCount = listOfNotNull(
+                            params.temperature,
+                            params.maxTokens,
+                            params.topP,
+                            params.topK,
+                            params.frequencyPenalty,
+                            params.presencePenalty,
+                            params.systemPrompt?.takeIf { it.isNotBlank() },
+                            params.seed
+                        ).size + listOf(
+                            params.responseFormatJson,
+                            params.searchEnabled,
+                            params.returnCitations
+                        ).count { it } + (if (params.searchRecency != null) 1 else 0)
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    localSelection = if (params.id in localSelection) {
+                                        localSelection - params.id
+                                    } else {
+                                        localSelection + params.id
+                                    }
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = params.id in localSelection,
+                                onCheckedChange = { checked ->
+                                    localSelection = if (checked) {
+                                        localSelection + params.id
+                                    } else {
+                                        localSelection - params.id
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(params.name, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                Text(
+                                    "$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        "No parameter presets configured.\nGo to AI Setup > Parameters to create presets.",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                // Preserve order: keep existing order for items still selected, append new ones
+                val orderedIds = selectedParametersIds.filter { it in localSelection } +
+                    localSelection.filter { it !in selectedParametersIds }
+                onParamsSelected(orderedIds)
+            }) {
+                Text("Done")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
