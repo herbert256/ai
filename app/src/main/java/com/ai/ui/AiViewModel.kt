@@ -977,12 +977,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
      * Returns a map of provider display name to model count.
      * Uses 24-hour cache per provider unless forceRefresh is true.
      */
-    suspend fun refreshAllModelLists(settings: AiSettings, forceRefresh: Boolean = false): Map<String, Int> {
+    suspend fun refreshAllModelLists(settings: AiSettings, forceRefresh: Boolean = false, onProgress: ((String) -> Unit)? = null): Map<String, Int> {
         val results = mutableMapOf<String, Int>()
 
         // OpenAI
         if (settings.chatGptModelSource == ModelSource.API && settings.chatGptApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.OPENAI)) {
+                onProgress?.invoke("OpenAI")
                 try {
                     val models = aiAnalysisRepository.fetchChatGptModels(settings.chatGptApiKey)
                     _uiState.value = _uiState.value.copy(availableChatGptModels = models)
@@ -998,6 +999,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Google
         if (settings.geminiModelSource == ModelSource.API && settings.geminiApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.GOOGLE)) {
+                onProgress?.invoke("Google")
                 try {
                     val models = aiAnalysisRepository.fetchGeminiModels(settings.geminiApiKey)
                     _uiState.value = _uiState.value.copy(availableGeminiModels = models)
@@ -1013,6 +1015,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // xAI
         if (settings.grokModelSource == ModelSource.API && settings.grokApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.XAI)) {
+                onProgress?.invoke("xAI")
                 try {
                     val models = aiAnalysisRepository.fetchGrokModels(settings.grokApiKey)
                     _uiState.value = _uiState.value.copy(availableGrokModels = models)
@@ -1028,6 +1031,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Groq
         if (settings.groqModelSource == ModelSource.API && settings.groqApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.GROQ)) {
+                onProgress?.invoke("Groq")
                 try {
                     val models = aiAnalysisRepository.fetchGroqModels(settings.groqApiKey)
                     _uiState.value = _uiState.value.copy(availableGroqModels = models)
@@ -1043,6 +1047,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // DeepSeek
         if (settings.deepSeekModelSource == ModelSource.API && settings.deepSeekApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DEEPSEEK)) {
+                onProgress?.invoke("DeepSeek")
                 try {
                     val models = aiAnalysisRepository.fetchDeepSeekModels(settings.deepSeekApiKey)
                     _uiState.value = _uiState.value.copy(availableDeepSeekModels = models)
@@ -1058,6 +1063,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Mistral
         if (settings.mistralModelSource == ModelSource.API && settings.mistralApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.MISTRAL)) {
+                onProgress?.invoke("Mistral")
                 try {
                     val models = aiAnalysisRepository.fetchMistralModels(settings.mistralApiKey)
                     _uiState.value = _uiState.value.copy(availableMistralModels = models)
@@ -1073,6 +1079,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Together
         if (settings.togetherModelSource == ModelSource.API && settings.togetherApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.TOGETHER)) {
+                onProgress?.invoke("Together")
                 try {
                     val models = aiAnalysisRepository.fetchTogetherModels(settings.togetherApiKey)
                     _uiState.value = _uiState.value.copy(availableTogetherModels = models)
@@ -1088,6 +1095,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // OpenRouter
         if (settings.openRouterModelSource == ModelSource.API && settings.openRouterApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.OPENROUTER)) {
+                onProgress?.invoke("OpenRouter")
                 try {
                     val models = aiAnalysisRepository.fetchOpenRouterModels(settings.openRouterApiKey)
                     _uiState.value = _uiState.value.copy(availableOpenRouterModels = models)
@@ -1103,6 +1111,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Dummy (if in developer mode, we'd need to check that separately)
         if (settings.dummyModelSource == ModelSource.API && settings.dummyApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DUMMY)) {
+                onProgress?.invoke("Dummy")
                 try {
                     val models = aiAnalysisRepository.fetchDummyModels(settings.dummyApiKey)
                     _uiState.value = _uiState.value.copy(availableDummyModels = models)
@@ -1118,6 +1127,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Anthropic/Claude
         if (settings.claudeModelSource == ModelSource.API && settings.claudeApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.ANTHROPIC)) {
+                onProgress?.invoke("Anthropic")
                 try {
                     val models = aiAnalysisRepository.fetchClaudeModels(settings.claudeApiKey)
                     _uiState.value = _uiState.value.copy(availableClaudeModels = models)
@@ -1133,6 +1143,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // SiliconFlow
         if (settings.siliconFlowModelSource == ModelSource.API && settings.siliconFlowApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.SILICONFLOW)) {
+                onProgress?.invoke("SiliconFlow")
                 try {
                     val models = aiAnalysisRepository.fetchSiliconFlowModels(settings.siliconFlowApiKey)
                     _uiState.value = _uiState.value.copy(availableSiliconFlowModels = models)
@@ -1148,6 +1159,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Z.AI
         if (settings.zaiModelSource == ModelSource.API && settings.zaiApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.ZAI)) {
+                onProgress?.invoke("Z.AI")
                 try {
                     val models = aiAnalysisRepository.fetchZaiModels(settings.zaiApiKey)
                     _uiState.value = _uiState.value.copy(availableZaiModels = models)
@@ -1163,6 +1175,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Moonshot
         if (settings.moonshotModelSource == ModelSource.API && settings.moonshotApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.MOONSHOT)) {
+                onProgress?.invoke("Moonshot")
                 try {
                     val models = aiAnalysisRepository.fetchMoonshotModels(settings.moonshotApiKey)
                     _uiState.value = _uiState.value.copy(availableMoonshotModels = models)
@@ -1178,6 +1191,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Cohere
         if (settings.cohereModelSource == ModelSource.API && settings.cohereApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.COHERE)) {
+                onProgress?.invoke("Cohere")
                 try {
                     val models = aiAnalysisRepository.fetchCohereModels(settings.cohereApiKey)
                     _uiState.value = _uiState.value.copy(availableCohereModels = models)
@@ -1193,6 +1207,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // AI21
         if (settings.ai21ModelSource == ModelSource.API && settings.ai21ApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.AI21)) {
+                onProgress?.invoke("AI21")
                 try {
                     val models = aiAnalysisRepository.fetchAi21Models(settings.ai21ApiKey)
                     _uiState.value = _uiState.value.copy(availableAi21Models = models)
@@ -1208,6 +1223,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // DashScope
         if (settings.dashScopeModelSource == ModelSource.API && settings.dashScopeApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.DASHSCOPE)) {
+                onProgress?.invoke("DashScope")
                 try {
                     val models = aiAnalysisRepository.fetchDashScopeModels(settings.dashScopeApiKey)
                     _uiState.value = _uiState.value.copy(availableDashScopeModels = models)
@@ -1223,6 +1239,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Fireworks
         if (settings.fireworksModelSource == ModelSource.API && settings.fireworksApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.FIREWORKS)) {
+                onProgress?.invoke("Fireworks")
                 try {
                     val models = aiAnalysisRepository.fetchFireworksModels(settings.fireworksApiKey)
                     _uiState.value = _uiState.value.copy(availableFireworksModels = models)
@@ -1238,6 +1255,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Cerebras
         if (settings.cerebrasModelSource == ModelSource.API && settings.cerebrasApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.CEREBRAS)) {
+                onProgress?.invoke("Cerebras")
                 try {
                     val models = aiAnalysisRepository.fetchCerebrasModels(settings.cerebrasApiKey)
                     _uiState.value = _uiState.value.copy(availableCerebrasModels = models)
@@ -1253,6 +1271,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // SambaNova
         if (settings.sambaNovaModelSource == ModelSource.API && settings.sambaNovaApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.SAMBANOVA)) {
+                onProgress?.invoke("SambaNova")
                 try {
                     val models = aiAnalysisRepository.fetchSambaNovaModels(settings.sambaNovaApiKey)
                     _uiState.value = _uiState.value.copy(availableSambaNovaModels = models)
@@ -1268,6 +1287,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Baichuan
         if (settings.baichuanModelSource == ModelSource.API && settings.baichuanApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.BAICHUAN)) {
+                onProgress?.invoke("Baichuan")
                 try {
                     val models = aiAnalysisRepository.fetchBaichuanModels(settings.baichuanApiKey)
                     _uiState.value = _uiState.value.copy(availableBaichuanModels = models)
@@ -1283,6 +1303,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // StepFun
         if (settings.stepFunModelSource == ModelSource.API && settings.stepFunApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.STEPFUN)) {
+                onProgress?.invoke("StepFun")
                 try {
                     val models = aiAnalysisRepository.fetchStepFunModels(settings.stepFunApiKey)
                     _uiState.value = _uiState.value.copy(availableStepFunModels = models)
@@ -1298,6 +1319,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // MiniMax
         if (settings.miniMaxModelSource == ModelSource.API && settings.miniMaxApiKey.isNotBlank()) {
             if (forceRefresh || !settingsPrefs.isModelListCacheValid(AiService.MINIMAX)) {
+                onProgress?.invoke("MiniMax")
                 try {
                     val models = aiAnalysisRepository.fetchMiniMaxModels(settings.miniMaxApiKey)
                     _uiState.value = _uiState.value.copy(availableMiniMaxModels = models)

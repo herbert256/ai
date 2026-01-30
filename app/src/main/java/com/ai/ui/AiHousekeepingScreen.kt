@@ -51,7 +51,7 @@ fun HousekeepingScreen(
     availableDummyModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
-    onRefreshAllModels: suspend (AiSettings, Boolean) -> Map<String, Int> = { _, _ -> emptyMap() },
+    onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
@@ -64,11 +64,13 @@ fun HousekeepingScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
     var showResultsDialog by remember { mutableStateOf(false) }
+    var refreshProgressText by remember { mutableStateOf("") }
 
     // State for generate default agents
     var isGenerating by remember { mutableStateOf(false) }
     var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
     var showGenerationResultsDialog by remember { mutableStateOf(false) }
+    var generatingProgressText by remember { mutableStateOf("") }
 
     // State for refresh OpenRouter data (specs + pricing)
     var isRefreshingOpenRouter by remember { mutableStateOf(false) }
@@ -79,6 +81,7 @@ fun HousekeepingScreen(
     var isRefreshingProviderStates by remember { mutableStateOf(false) }
     var providerStateResults by remember { mutableStateOf<Map<String, String>?>(null) }  // provider name -> "ok"/"error"/"not-used"
     var showProviderStateResultDialog by remember { mutableStateOf(false) }
+    var providerStateProgressText by remember { mutableStateOf("") }
 
     // State for import model costs
     var importCostsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }  // (imported, skipped)
@@ -116,7 +119,7 @@ fun HousekeepingScreen(
                     scope.launch {
                         // 1. Refresh model lists (force refresh after import)
                         isRefreshing = true
-                        onRefreshAllModels(importedSettings, true)
+                        onRefreshAllModels(importedSettings, true, null)
                         isRefreshing = false
 
                         // 2. Generate default agents
@@ -377,7 +380,11 @@ fun HousekeepingScreen(
                         onClick = {
                             scope.launch {
                                 isRefreshing = true
-                                refreshResults = onRefreshAllModels(aiSettings, true)
+                                refreshProgressText = ""
+                                refreshResults = onRefreshAllModels(aiSettings, true) { provider ->
+                                    refreshProgressText = provider
+                                }
+                                refreshProgressText = ""
                                 isRefreshing = false
                                 showResultsDialog = true
                             }
@@ -448,8 +455,10 @@ fun HousekeepingScreen(
                         onClick = {
                             scope.launch {
                                 isRefreshingProviderStates = true
+                                providerStateProgressText = ""
                                 val results = mutableMapOf<String, String>()
                                 for (service in com.ai.data.AiService.values()) {
+                                    providerStateProgressText = service.displayName
                                     val apiKey = aiSettings.getApiKey(service)
                                     if (apiKey.isBlank()) {
                                         onProviderStateChange(service, "not-used")
@@ -462,6 +471,7 @@ fun HousekeepingScreen(
                                         results[service.displayName] = state
                                     }
                                 }
+                                providerStateProgressText = ""
                                 providerStateResults = results
                                 isRefreshingProviderStates = false
                                 showProviderStateResultDialog = true
@@ -481,6 +491,20 @@ fun HousekeepingScreen(
                             Text("Provider state", fontSize = 12.sp)
                         }
                     }
+                }
+
+                // Progress text for refresh actions
+                val activeRefreshProgress = when {
+                    isRefreshing && refreshProgressText.isNotEmpty() -> refreshProgressText
+                    isRefreshingProviderStates && providerStateProgressText.isNotEmpty() -> providerStateProgressText
+                    else -> null
+                }
+                if (activeRefreshProgress != null) {
+                    Text(
+                        text = activeRefreshProgress,
+                        fontSize = 11.sp,
+                        color = Color(0xFFAAAAAA)
+                    )
                 }
             }
         }
@@ -505,6 +529,7 @@ fun HousekeepingScreen(
                     onClick = {
                         scope.launch {
                             isGenerating = true
+                            generatingProgressText = ""
                             val results = mutableListOf<Pair<String, Boolean>>()
 
                             val providersToTest = AiService.entries.filter { provider ->
@@ -515,6 +540,7 @@ fun HousekeepingScreen(
                             var updatedAgents = aiSettings.agents.toMutableList()
 
                             for (provider in providersToTest) {
+                                generatingProgressText = provider.displayName
                                 val apiKey = aiSettings.getApiKey(provider)
                                 val model = provider.defaultModel
 
@@ -584,6 +610,7 @@ fun HousekeepingScreen(
                                 ))
                             }
 
+                            generatingProgressText = ""
                             generationResults = results
                             isGenerating = false
                             showGenerationResultsDialog = true
@@ -600,7 +627,10 @@ fun HousekeepingScreen(
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Testing API keys...", fontSize = 12.sp)
+                        Text(
+                            text = if (generatingProgressText.isNotEmpty()) generatingProgressText else "Testing API keys...",
+                            fontSize = 12.sp
+                        )
                     } else {
                         Text("Default agents", fontSize = 12.sp)
                     }
