@@ -26,8 +26,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import com.ai.data.ApiTracer
 import com.ai.data.TraceFileInfo
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonNull
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,6 +50,195 @@ enum class TraceContentView {
     RESPONSE_HEADERS,
     REQUEST_DATA,
     RESPONSE_DATA
+}
+
+// --- JSON Tree Model & Parser ---
+
+enum class JsonNodeType { OBJECT, ARRAY, STRING, NUMBER, BOOLEAN, NULL }
+
+data class JsonTreeNode(
+    val key: String?,
+    val type: JsonNodeType,
+    val value: String? = null,
+    val children: List<JsonTreeNode> = emptyList()
+)
+
+private fun parseJsonElement(key: String?, element: JsonElement): JsonTreeNode {
+    return when {
+        element is JsonObject -> {
+            val children = element.entrySet().map { entry -> parseJsonElement(entry.key, entry.value) }
+            JsonTreeNode(key = key, type = JsonNodeType.OBJECT, children = children)
+        }
+        element is JsonArray -> {
+            val children = mutableListOf<JsonTreeNode>()
+            for (i in 0 until element.size()) {
+                children.add(parseJsonElement("$i", element.get(i)))
+            }
+            JsonTreeNode(key = key, type = JsonNodeType.ARRAY, children = children)
+        }
+        element is JsonNull -> JsonTreeNode(key = key, type = JsonNodeType.NULL, value = "null")
+        element is JsonPrimitive && element.isBoolean ->
+            JsonTreeNode(key = key, type = JsonNodeType.BOOLEAN, value = element.asBoolean.toString())
+        element is JsonPrimitive && element.isNumber ->
+            JsonTreeNode(key = key, type = JsonNodeType.NUMBER, value = element.asNumber.toString())
+        else -> JsonTreeNode(key = key, type = JsonNodeType.STRING, value = element.asString)
+    }
+}
+
+private fun parseJsonTree(jsonString: String): List<JsonTreeNode>? {
+    return try {
+        val element = JsonParser().parse(jsonString)
+        when {
+            element is JsonObject -> {
+                element.entrySet().map { entry -> parseJsonElement(entry.key, entry.value) }
+            }
+            element is JsonArray -> {
+                val result = mutableListOf<JsonTreeNode>()
+                for (i in 0 until element.size()) {
+                    result.add(parseJsonElement("$i", element.get(i)))
+                }
+                result
+            }
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+// --- JSON Tree View Composable ---
+
+private val JsonKeyColor = Color(0xFF82AAFF)
+private val JsonStringColor = Color(0xFFC3E88D)
+private val JsonNumberColor = Color(0xFFF78C6C)
+private val JsonBooleanColor = Color(0xFFC792EA)
+private val JsonNullColor = Color(0xFF888888)
+private val JsonBraceColor = Color(0xFFE0E0E0)
+
+@Composable
+private fun JsonTreeView(nodes: List<JsonTreeNode>, isRootArray: Boolean = false) {
+    val expandedPaths = remember { mutableStateMapOf<String, Boolean>() }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(8.dp)
+    ) {
+        if (isRootArray) {
+            item { Text("[", color = JsonBraceColor, fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
+        } else {
+            item { Text("{", color = JsonBraceColor, fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
+        }
+        jsonTreeItems(this, nodes, depth = 1, pathPrefix = "", expandedPaths = expandedPaths, isTopLevel = true)
+        if (isRootArray) {
+            item { Text("]", color = JsonBraceColor, fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
+        } else {
+            item { Text("}", color = JsonBraceColor, fontFamily = FontFamily.Monospace, fontSize = 11.sp) }
+        }
+    }
+}
+
+private fun jsonTreeItems(
+    listScope: androidx.compose.foundation.lazy.LazyListScope,
+    nodes: List<JsonTreeNode>,
+    depth: Int,
+    pathPrefix: String,
+    expandedPaths: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
+    isTopLevel: Boolean
+) {
+    nodes.forEachIndexed { index, node ->
+        val path = if (pathPrefix.isEmpty()) (node.key ?: "$index") else "$pathPrefix.${node.key ?: "$index"}"
+        val isLast = index == nodes.lastIndex
+
+        when (node.type) {
+            JsonNodeType.OBJECT, JsonNodeType.ARRAY -> {
+                val isExpanded = expandedPaths.getOrPut(path) { isTopLevel }
+                val bracket = if (node.type == JsonNodeType.OBJECT) "{" else "["
+                val closeBracket = if (node.type == JsonNodeType.OBJECT) "}" else "]"
+                val count = node.children.size
+                val comma = if (isLast) "" else ","
+
+                listScope.item(key = path) {
+                    val indent = "  ".repeat(depth)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expandedPaths[path] = !isExpanded },
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        if (isExpanded) {
+                            val text = buildAnnotatedString {
+                                append(indent)
+                                withStyle(SpanStyle(color = JsonBraceColor)) { append("▼ ") }
+                                if (node.key != null && !node.key.all { it.isDigit() }) {
+                                    withStyle(SpanStyle(color = JsonKeyColor)) { append("\"${node.key}\"") }
+                                    withStyle(SpanStyle(color = JsonBraceColor)) { append(": ") }
+                                }
+                                withStyle(SpanStyle(color = JsonBraceColor)) { append(bracket) }
+                            }
+                            Text(text, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                        } else {
+                            val text = buildAnnotatedString {
+                                append(indent)
+                                withStyle(SpanStyle(color = JsonBraceColor)) { append("▶ ") }
+                                if (node.key != null && !node.key.all { it.isDigit() }) {
+                                    withStyle(SpanStyle(color = JsonKeyColor)) { append("\"${node.key}\"") }
+                                    withStyle(SpanStyle(color = JsonBraceColor)) { append(": ") }
+                                }
+                                withStyle(SpanStyle(color = JsonBraceColor)) {
+                                    append("$bracket...$closeBracket ")
+                                }
+                                withStyle(SpanStyle(color = JsonNullColor)) {
+                                    append("($count ${if (count == 1) "item" else "items"})$comma")
+                                }
+                            }
+                            Text(text, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                if (isExpanded) {
+                    jsonTreeItems(listScope, node.children, depth + 1, path, expandedPaths, isTopLevel = false)
+                    listScope.item(key = "$path-close") {
+                        Text(
+                            text = "${"  ".repeat(depth)}$closeBracket$comma",
+                            color = JsonBraceColor,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+            else -> {
+                listScope.item(key = path) {
+                    val indent = "  ".repeat(depth)
+                    val comma = if (isLast) "" else ","
+                    val text = buildAnnotatedString {
+                        append(indent)
+                        if (node.key != null && !node.key.all { it.isDigit() }) {
+                            withStyle(SpanStyle(color = JsonKeyColor)) { append("\"${node.key}\"") }
+                            withStyle(SpanStyle(color = JsonBraceColor)) { append(": ") }
+                        }
+                        val valueColor = when (node.type) {
+                            JsonNodeType.STRING -> JsonStringColor
+                            JsonNodeType.NUMBER -> JsonNumberColor
+                            JsonNodeType.BOOLEAN -> JsonBooleanColor
+                            JsonNodeType.NULL -> JsonNullColor
+                            else -> JsonBraceColor
+                        }
+                        withStyle(SpanStyle(color = valueColor)) {
+                            if (node.type == JsonNodeType.STRING) {
+                                append("\"${node.value}\"$comma")
+                            } else {
+                                append("${node.value}$comma")
+                            }
+                        }
+                    }
+                    Text(text, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -327,6 +526,16 @@ fun TraceDetailScreen(
     val requestDataText = remember { ApiTracer.prettyPrintJson(trace.request.body ?: "") }
     val responseDataText = remember { ApiTracer.prettyPrintJson(trace.response.body ?: "") }
 
+    // Parse JSON trees for interactive view
+    val requestTreeNodes = remember { trace.request.body?.let { parseJsonTree(it) } }
+    val responseTreeNodes = remember { trace.response.body?.let { parseJsonTree(it) } }
+    val requestIsArray = remember {
+        try { trace.request.body?.let { JsonParser().parse(it) is JsonArray } ?: false } catch (_: Exception) { false }
+    }
+    val responseIsArray = remember {
+        try { trace.response.body?.let { JsonParser().parse(it) is JsonArray } ?: false } catch (_: Exception) { false }
+    }
+
     val hasRequestHeaders = trace.request.headers.isNotEmpty()
     val hasResponseHeaders = trace.response.headers.isNotEmpty()
     val hasRequestData = !trace.request.body.isNullOrBlank()
@@ -465,18 +674,34 @@ fun TraceDetailScreen(
                 .fillMaxWidth()
                 .background(Color(0xFF1A1A1A))
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp)
-            ) {
-                itemsIndexed(lines) { _, line ->
-                    Text(
-                        text = line.ifEmpty { " " },
-                        color = Color(0xFFE0E0E0),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
+            // Use JSON tree view for request/response data when parseable
+            val treeNodes = when (currentView) {
+                TraceContentView.REQUEST_DATA -> requestTreeNodes
+                TraceContentView.RESPONSE_DATA -> responseTreeNodes
+                else -> null
+            }
+            val isArray = when (currentView) {
+                TraceContentView.REQUEST_DATA -> requestIsArray
+                TraceContentView.RESPONSE_DATA -> responseIsArray
+                else -> false
+            }
+
+            if (treeNodes != null) {
+                JsonTreeView(nodes = treeNodes, isRootArray = isArray)
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp)
+                ) {
+                    itemsIndexed(lines) { _, line ->
+                        Text(
+                            text = line.ifEmpty { " " },
+                            color = Color(0xFFE0E0E0),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
         }
