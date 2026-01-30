@@ -489,18 +489,19 @@ fun AiNavHost(
             }
 
             if (agent != null) {
-                // Convert agent parameters to chat parameters
+                // Resolve agent parameter presets and convert to chat parameters
+                val resolvedParams = uiState.aiSettings.resolveAgentParameters(agent)
                 val chatParams = ChatParameters(
-                    temperature = agent.parameters.temperature,
-                    maxTokens = agent.parameters.maxTokens,
-                    topP = agent.parameters.topP,
-                    topK = agent.parameters.topK,
-                    frequencyPenalty = agent.parameters.frequencyPenalty,
-                    presencePenalty = agent.parameters.presencePenalty,
-                    systemPrompt = agent.parameters.systemPrompt ?: "",
-                    searchEnabled = agent.parameters.searchEnabled,
-                    returnCitations = agent.parameters.returnCitations,
-                    searchRecency = agent.parameters.searchRecency
+                    temperature = resolvedParams.temperature,
+                    maxTokens = resolvedParams.maxTokens,
+                    topP = resolvedParams.topP,
+                    topK = resolvedParams.topK,
+                    frequencyPenalty = resolvedParams.frequencyPenalty,
+                    presencePenalty = resolvedParams.presencePenalty,
+                    systemPrompt = resolvedParams.systemPrompt ?: "",
+                    searchEnabled = resolvedParams.searchEnabled,
+                    returnCitations = resolvedParams.returnCitations,
+                    searchRecency = resolvedParams.searchRecency
                 )
 
                 // Get the effective endpoint URL, API key, and model for this agent

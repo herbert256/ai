@@ -505,32 +505,8 @@ internal fun AgentEditScreen(
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
 
-    // Parameters preset selection (multi-select)
-    var selectedParametersIds by remember { mutableStateOf<List<String>>(emptyList()) }
-
-    // Initialize selectedParametersIds from existing agent parameters if they match presets
-    LaunchedEffect(Unit) {
-        if (agent != null) {
-            // Try to find matching params presets
-            val matchingParams = aiSettings.parameters.filter { params ->
-                params.temperature == agent.parameters.temperature &&
-                params.maxTokens == agent.parameters.maxTokens &&
-                params.topP == agent.parameters.topP &&
-                params.topK == agent.parameters.topK &&
-                params.frequencyPenalty == agent.parameters.frequencyPenalty &&
-                params.presencePenalty == agent.parameters.presencePenalty &&
-                params.systemPrompt == agent.parameters.systemPrompt &&
-                params.seed == agent.parameters.seed &&
-                params.responseFormatJson == agent.parameters.responseFormatJson &&
-                params.searchEnabled == agent.parameters.searchEnabled &&
-                params.returnCitations == agent.parameters.returnCitations &&
-                params.searchRecency == agent.parameters.searchRecency
-            }
-            if (matchingParams.isNotEmpty()) {
-                selectedParametersIds = matchingParams.map { it.id }
-            }
-        }
-    }
+    // Parameters preset selection (multi-select) - initialized directly from agent's paramsIds
+    var selectedParametersIds by remember { mutableStateOf(agent?.paramsIds ?: emptyList()) }
 
     // Endpoint state - tracks the selected endpoint ID and URL for the agent
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
@@ -787,9 +763,6 @@ internal fun AgentEditScreen(
                     saveError = null
                     isSaving = true
                     coroutineScope.launch {
-                        // Get parameters from selected presets (merged) or use empty parameters
-                        val params = aiSettings.mergeParameters(selectedParametersIds)
-                            ?: AiAgentParameters()
                         val newAgent = AiAgent(
                             id = agent?.id ?: java.util.UUID.randomUUID().toString(),
                             name = name.trim(),
@@ -797,7 +770,7 @@ internal fun AgentEditScreen(
                             model = model,
                             apiKey = apiKey.trim(),
                             endpointId = selectedEndpointId,
-                            parameters = params
+                            paramsIds = selectedParametersIds
                         )
                         isSaving = false
                         onSave(newAgent)
@@ -1062,9 +1035,6 @@ internal fun AgentEditScreen(
                     saveError = null
                     isSaving = true
                     coroutineScope.launch {
-                        // Get parameters from selected presets (merged) or use empty parameters
-                        val params = aiSettings.mergeParameters(selectedParametersIds)
-                            ?: AiAgentParameters()
                         val newAgent = AiAgent(
                             id = agent?.id ?: java.util.UUID.randomUUID().toString(),
                             name = name.trim(),
@@ -1072,7 +1042,7 @@ internal fun AgentEditScreen(
                             model = model,
                             apiKey = apiKey.trim(),
                             endpointId = selectedEndpointId,
-                            parameters = params
+                            paramsIds = selectedParametersIds
                         )
                         isSaving = false
                         onSave(newAgent)

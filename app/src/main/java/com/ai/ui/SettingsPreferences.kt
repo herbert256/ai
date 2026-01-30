@@ -612,27 +612,23 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     private fun loadAgents(): List<AiAgent> {
         val json = prefs.getString(KEY_AI_AGENTS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiAgent>>() {}.type
-            val agents: List<AiAgent>? = gson.fromJson(json, type)
-            // Gson bypasses Kotlin default values and can deserialize removed enum values as null.
-            // Filter out agents with null provider (e.g., removed providers) and fix null parameters.
-            agents?.mapNotNull { agent ->
-                @Suppress("SENSELESS_COMPARISON")
-                if (agent.provider == null) {
-                    null  // Skip agents with unknown/removed providers
-                } else if (agent.parameters == null) {
-                    AiAgent(
-                        id = agent.id,
-                        name = agent.name,
-                        provider = agent.provider,
-                        model = agent.model,
-                        apiKey = agent.apiKey,
-                        parameters = AiAgentParameters()
-                    )
-                } else {
-                    agent
+            // Parse as JsonArray to handle migration from old format with inline parameters
+            val jsonArray = com.google.gson.JsonParser().parse(json).asJsonArray
+            jsonArray.mapNotNull { element ->
+                val obj = element.asJsonObject
+                // Skip agents with null/unknown provider
+                val providerName = obj.get("provider")?.asString ?: return@mapNotNull null
+                try { AiService.valueOf(providerName) } catch (e: Exception) { return@mapNotNull null }
+                // Migrate old "paramsId" (String?) to new "paramsIds" (List<String>) format if needed
+                migrateParamsIdToParamsIds(obj)
+                // Ensure paramsIds exists (Gson may deserialize as null)
+                if (!obj.has("paramsIds") || obj.get("paramsIds").isJsonNull) {
+                    obj.add("paramsIds", com.google.gson.JsonArray())
                 }
-            } ?: emptyList()
+                // Remove old "parameters" field if present (no longer in data class)
+                obj.remove("parameters")
+                gson.fromJson<AiAgent>(obj, AiAgent::class.java)
+            }
         } catch (e: Exception) {
             emptyList()
         }
@@ -788,6 +784,20 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
 
     fun clearPromptHistory() {
         prefs.edit().remove(KEY_PROMPT_HISTORY).apply()
+    }
+
+    fun clearLastAiReportPrompt() {
+        prefs.edit()
+            .remove(KEY_LAST_AI_REPORT_TITLE)
+            .remove(KEY_LAST_AI_REPORT_PROMPT)
+            .apply()
+    }
+
+    fun clearSelectedReportIds() {
+        prefs.edit()
+            .remove(KEY_SELECTED_SWARM_IDS)
+            .remove(KEY_SELECTED_FLOCK_IDS)
+            .apply()
     }
 
     companion object {

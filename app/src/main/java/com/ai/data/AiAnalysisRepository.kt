@@ -275,6 +275,7 @@ class AiAnalysisRepository {
         agent: com.ai.ui.AiAgent,
         fen: String,
         prompt: String,
+        agentResolvedParams: com.ai.ui.AiAgentParameters = com.ai.ui.AiAgentParameters(),
         overrideParams: com.ai.ui.AiAgentParameters? = null,
         context: Context? = null
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
@@ -290,7 +291,7 @@ class AiAnalysisRepository {
         val finalPrompt = buildChessPrompt(prompt, fen)
 
         suspend fun makeApiCall(): AiAnalysisResponse {
-            var params = mergeParameters(agent.parameters, overrideParams)
+            var params = mergeParameters(agentResolvedParams, overrideParams)
 
             // If user has set advanced parameters, filter by supported parameters
             if (overrideParams != null && context != null) {
@@ -364,7 +365,8 @@ class AiAnalysisRepository {
      */
     suspend fun analyzePlayerWithAgent(
         agent: com.ai.ui.AiAgent,
-        prompt: String
+        prompt: String,
+        agentResolvedParams: com.ai.ui.AiAgentParameters = com.ai.ui.AiAgentParameters()
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (agent.apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -379,7 +381,7 @@ class AiAnalysisRepository {
         val finalPrompt = prompt.replace("@DATE@", formatCurrentDate())
 
         suspend fun makeApiCall(): AiAnalysisResponse {
-            val params = agent.parameters
+            val params = agentResolvedParams
             val result = when (agent.provider) {
                 AiService.OPENAI -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
                 AiService.ANTHROPIC -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)

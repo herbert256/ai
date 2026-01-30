@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.data.AiService
-import kotlinx.coroutines.launch
+
 
 /**
  * Main AI settings screen with navigation cards for each AI service.
@@ -38,8 +38,6 @@ fun AiSettingsScreen(
     onProviderStateChange: (AiService, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -47,22 +45,9 @@ fun AiSettingsScreen(
         uri?.let {
             val result = importAiConfigFromFile(context, it, aiSettings)
             if (result != null) {
-                val importedSettings = result.aiSettings
-                onSave(importedSettings)
+                onSave(result.aiSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
-                val effectiveOpenRouterApiKey = result.openRouterApiKey ?: openRouterApiKey
-                scope.launch {
-                    performFullImportActions(
-                        context = context,
-                        importedSettings = importedSettings,
-                        openRouterApiKey = effectiveOpenRouterApiKey,
-                        onSave = onSave,
-                        onRefreshAllModels = onRefreshAllModels,
-                        onTestApiKey = onTestApiKey,
-                        onProviderStateChange = onProviderStateChange
-                    )
-                }
             }
         }
     }
@@ -234,8 +219,6 @@ fun AiSetupScreen(
     onProviderStateChange: (AiService, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -243,22 +226,9 @@ fun AiSetupScreen(
         uri?.let {
             val result = importAiConfigFromFile(context, it, aiSettings)
             if (result != null) {
-                val importedSettings = result.aiSettings
-                onSave(importedSettings)
+                onSave(result.aiSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
-                val effectiveOpenRouterApiKey = result.openRouterApiKey ?: openRouterApiKey
-                scope.launch {
-                    performFullImportActions(
-                        context = context,
-                        importedSettings = importedSettings,
-                        openRouterApiKey = effectiveOpenRouterApiKey,
-                        onSave = onSave,
-                        onRefreshAllModels = onRefreshAllModels,
-                        onTestApiKey = onTestApiKey,
-                        onProviderStateChange = onProviderStateChange
-                    )
-                }
             }
         }
     }

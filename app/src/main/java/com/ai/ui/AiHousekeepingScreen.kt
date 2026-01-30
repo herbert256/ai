@@ -138,23 +138,9 @@ fun HousekeepingScreen(
         uri?.let {
             val result = importAiConfigFromFile(context, it, aiSettings)
             if (result != null) {
-                val importedSettings = result.aiSettings
-                onSave(importedSettings)
+                onSave(result.aiSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
-                val effectiveOpenRouterApiKey = result.openRouterApiKey ?: openRouterApiKey
-
-                scope.launch {
-                    performFullImportActions(
-                        context = context,
-                        importedSettings = importedSettings,
-                        openRouterApiKey = effectiveOpenRouterApiKey,
-                        onSave = onSave,
-                        onRefreshAllModels = onRefreshAllModels,
-                        onTestApiKey = onTestApiKey,
-                        onProviderStateChange = onProviderStateChange
-                    )
-                }
             }
         }
     }
@@ -515,8 +501,7 @@ fun HousekeepingScreen(
                                             provider = provider,
                                             model = "",
                                             apiKey = "",
-                                            endpointId = null,
-                                            parameters = AiAgentParameters()
+                                            endpointId = null
                                         )
                                         updatedAgents.add(newAgent)
                                     }
@@ -942,6 +927,13 @@ fun HousekeepingScreen(
                     ) {
                         Text("API Trace", fontSize = 12.sp)
                     }
+                    Button(
+                        onClick = { showCleanupDaysDialog = "prompts" },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                    ) {
+                        Text("Prompts", fontSize = 12.sp)
+                    }
                 }
             }
         }
@@ -983,132 +975,16 @@ fun HousekeepingScreen(
                             showStartCleanConfirm = false
                             scope.launch {
                                 isStartingClean = true
-
-                                // 1. Delete all agents, flocks, swarms
-                                startCleanProgressText = "Deleting agents, flocks, swarms..."
-                                onSave(aiSettings.copy(
-                                    agents = emptyList(),
-                                    flocks = emptyList(),
-                                    swarms = emptyList()
-                                ))
-
-                                // 2. Cleanup: delete all chats
-                                startCleanProgressText = "Deleting chats..."
-                                val cutoffTime = System.currentTimeMillis()
-                                com.ai.data.ChatHistoryManager.getAllSessions().forEach { session ->
-                                    if (session.updatedAt < cutoffTime) {
-                                        com.ai.data.ChatHistoryManager.deleteSession(session.id)
-                                    }
-                                }
-
-                                // 3. Cleanup: delete all reports
-                                startCleanProgressText = "Deleting reports..."
-                                com.ai.data.AiReportStorage.getAllReports(context).forEach { report ->
-                                    if (report.timestamp < cutoffTime) {
-                                        com.ai.data.AiReportStorage.deleteReport(context, report.id)
-                                    }
-                                }
-
-                                // 4. Cleanup: clear all statistics
-                                startCleanProgressText = "Clearing statistics..."
-                                SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)).clearUsageStats()
-
-                                // 5. Cleanup: delete all API traces
-                                startCleanProgressText = "Deleting API traces..."
-                                com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
-
-                                // 6. Refresh: model lists
-                                startCleanProgressText = "Refreshing model lists..."
-                                onRefreshAllModels(aiSettings, true, null)
-
-                                // 7. Refresh: OpenRouter data
-                                if (openRouterApiKey.isNotBlank()) {
-                                    startCleanProgressText = "Refreshing OpenRouter data..."
-                                    val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                                    if (pricing.isNotEmpty()) {
-                                        com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
-                                    }
-                                    com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
-                                }
-
-                                // 8. Refresh: provider state
-                                startCleanProgressText = "Refreshing provider state..."
-                                for (service in com.ai.data.AiService.values()) {
-                                    val apiKey = aiSettings.getApiKey(service)
-                                    if (apiKey.isBlank()) {
-                                        onProviderStateChange(service, "not-used")
-                                    } else {
-                                        val model = aiSettings.getModel(service)
-                                        val error = onTestApiKey(service, apiKey, model)
-                                        val state = if (error == null) "ok" else "error"
-                                        onProviderStateChange(service, state)
-                                    }
-                                }
-
-                                // 9. Generate default agents
-                                startCleanProgressText = "Generating default agents..."
-                                val providersToTest = AiService.entries.filter { provider ->
-                                    aiSettings.getApiKey(provider).isNotBlank()
-                                }
-
-                                var updatedAgents = aiSettings.agents.toMutableList()
-
-                                for (provider in providersToTest) {
-                                    startCleanProgressText = provider.displayName
-                                    val apiKey = aiSettings.getApiKey(provider)
-                                    val model = provider.defaultModel
-
-                                    val testResult = onTestApiKey(provider, apiKey, model)
-                                    val isWorking = testResult == null
-
-                                    if (isWorking) {
-                                        val existingAgentIndex = updatedAgents.indexOfFirst {
-                                            it.name == provider.displayName
-                                        }
-
-                                        if (existingAgentIndex >= 0) {
-                                            val existingAgent = updatedAgents[existingAgentIndex]
-                                            updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                                model = "",
-                                                apiKey = "",
-                                                provider = provider,
-                                                endpointId = null
-                                            )
-                                        } else {
-                                            val newAgent = AiAgent(
-                                                id = java.util.UUID.randomUUID().toString(),
-                                                name = provider.displayName,
-                                                provider = provider,
-                                                model = "",
-                                                apiKey = "",
-                                                endpointId = null,
-                                                parameters = AiAgentParameters()
-                                            )
-                                            updatedAgents.add(newAgent)
-                                        }
-                                    }
-                                }
-
-                                val defaultAgentIds = updatedAgents
-                                    .filter { agent ->
-                                        AiService.entries.any { it.displayName == agent.name }
-                                    }
-                                    .map { it.id }
-
-                                val updatedFlocks = mutableListOf<AiFlock>()
-                                val newFlock = AiFlock(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = "default agents",
-                                    agentIds = defaultAgentIds
+                                performStartClean(
+                                    context = context,
+                                    aiSettings = aiSettings,
+                                    openRouterApiKey = openRouterApiKey,
+                                    onSave = onSave,
+                                    onRefreshAllModels = onRefreshAllModels,
+                                    onTestApiKey = onTestApiKey,
+                                    onProviderStateChange = onProviderStateChange,
+                                    onProgress = { startCleanProgressText = it }
                                 )
-                                updatedFlocks.add(newFlock)
-
-                                onSave(aiSettings.copy(
-                                    agents = updatedAgents,
-                                    flocks = updatedFlocks,
-                                    swarms = emptyList()
-                                ))
-
                                 startCleanProgressText = ""
                                 isStartingClean = false
                                 android.widget.Toast.makeText(context, "Start clean completed", android.widget.Toast.LENGTH_SHORT).show()
@@ -1135,6 +1011,7 @@ fun HousekeepingScreen(
                 "reports" -> "Clean up Reports"
                 "statistics" -> "Clean up Statistics"
                 "traces" -> "Clean up API Traces"
+                "prompts" -> "Clean up Prompts"
                 else -> "Clean up"
             }
             AlertDialog(
@@ -1216,6 +1093,26 @@ fun HousekeepingScreen(
                                 "traces" -> {
                                     deletedCount = com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
                                     android.widget.Toast.makeText(context, "Deleted $deletedCount trace(s)", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                "prompts" -> {
+                                    val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE))
+                                    val history = settingsPrefs.loadPromptHistory()
+                                    if (days == 0) {
+                                        settingsPrefs.clearPromptHistory()
+                                        android.widget.Toast.makeText(context, "Cleared all ${history.size} prompt(s)", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        val kept = history.filter { it.timestamp >= cutoffTime }
+                                        deletedCount = history.size - kept.size
+                                        if (kept.isEmpty()) {
+                                            settingsPrefs.clearPromptHistory()
+                                        } else {
+                                            // Re-save only kept entries
+                                            val json = com.google.gson.Gson().toJson(kept)
+                                            context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                                                .edit().putString("prompt_history", json).apply()
+                                        }
+                                        android.widget.Toast.makeText(context, "Deleted $deletedCount prompt(s)", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             }
 

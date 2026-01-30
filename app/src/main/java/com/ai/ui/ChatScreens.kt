@@ -1385,7 +1385,7 @@ fun ChatAgentSelectScreen(
                                     )
                                 }
                                 // Show system prompt preview if configured
-                                agent.parameters.systemPrompt?.takeIf { it.isNotBlank() }?.let { prompt ->
+                                aiSettings.resolveAgentParameters(agent).systemPrompt?.takeIf { it.isNotBlank() }?.let { prompt ->
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = prompt.take(80) + if (prompt.length > 80) "..." else "",

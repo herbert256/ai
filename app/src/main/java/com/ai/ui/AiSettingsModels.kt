@@ -290,7 +290,7 @@ data class AiEndpoint(
 )
 
 /**
- * AI Agent - user-created configuration combining provider, model, API key, and parameters.
+ * AI Agent - user-created configuration combining provider, model, API key, and parameter presets.
  */
 data class AiAgent(
     val id: String,                    // UUID
@@ -299,7 +299,7 @@ data class AiAgent(
     val model: String,                 // Model name
     val apiKey: String,                // API key for this agent
     val endpointId: String? = null,    // Reference to AiEndpoint ID (null = use default/hardcoded)
-    val parameters: AiAgentParameters = AiAgentParameters()  // Optional parameters
+    val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
 )
 
 /**
@@ -930,6 +930,14 @@ data class AiSettings(
 
     // Helper methods for agents
     fun getAgentById(id: String): AiAgent? = agents.find { it.id == id }
+
+    /**
+     * Resolve an agent's paramsIds to merged AiAgentParameters.
+     * Returns AiAgentParameters with defaults if no presets are found.
+     */
+    fun resolveAgentParameters(agent: AiAgent): AiAgentParameters {
+        return mergeParameters(agent.paramsIds) ?: AiAgentParameters()
+    }
 
     /**
      * Get the effective API key for an agent.

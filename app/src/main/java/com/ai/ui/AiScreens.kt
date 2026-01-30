@@ -477,6 +477,7 @@ fun AiReportsScreenNav(
             }
         },
         onDismiss = handleDismiss,
+        onResetReports = { viewModel.dismissGenericAiReportsDialog() },
         onNavigateHome = handleNavigateHome,
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
@@ -504,6 +505,7 @@ fun AiReportsScreen(
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
     onDismiss: () -> Unit,
+    onResetReports: () -> Unit = {},
     onNavigateHome: () -> Unit = onDismiss,
     advancedParameters: AiAgentParameters? = null,
     onAdvancedParametersChange: (AiAgentParameters?) -> Unit = {},
@@ -690,11 +692,11 @@ fun AiReportsScreen(
                 selectionMode == ReportSelectionMode.FLOCKS -> "Select Swarm(s)"
                 else -> "Select Model(s)"
             },
-            onBackClick = onDismiss,
+            onBackClick = if (isComplete) onResetReports else onDismiss,
             onAiClick = onNavigateHome
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         if (!isGenerating) {
             // Action row: Parameters, Clear, Generate
@@ -704,10 +706,12 @@ fun AiReportsScreen(
             ) {
                 // Parameters button
                 var showParamsDialog by remember { mutableStateOf(false) }
-                OutlinedButton(
+                Button(
                     onClick = { showParamsDialog = true },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    )
                 ) {
                     Text(
                         if (selectedParametersIds.isNotEmpty()) "\uD83D\uDCCE Params" else "Params",
@@ -724,7 +728,7 @@ fun AiReportsScreen(
                 }
 
                 // Clear button
-                OutlinedButton(
+                Button(
                     onClick = {
                         when (selectionMode) {
                             ReportSelectionMode.SWARMS -> selectedFlockIds = emptySet()
@@ -733,8 +737,10 @@ fun AiReportsScreen(
                             ReportSelectionMode.MODELS -> directlySelectedModelIds = emptySet()
                         }
                     },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    )
                 ) {
                     Text("Clear", fontSize = 13.sp, maxLines = 1)
                 }
@@ -743,10 +749,9 @@ fun AiReportsScreen(
                 Button(
                     onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds) },
                     enabled = totalWorkers > 0,
-                    modifier = Modifier.weight(1.5f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF8B5CF6)
+                        containerColor = Color(0xFF4CAF50)
                     )
                 ) {
                     Text("Generate ($totalWorkers)", fontSize = 13.sp, maxLines = 1)
@@ -876,8 +881,7 @@ fun AiReportsScreen(
                                                 } else {
                                                     selectedFlockIds = selectedFlockIds + flock.id
                                                 }
-                                            }
-                                            .padding(vertical = 2.dp),
+                                            },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -889,11 +893,13 @@ fun AiReportsScreen(
                                                     selectedFlockIds = selectedFlockIds - flock.id
                                                     directlySelectedAgentIds = directlySelectedAgentIds - flockAgentIdsList
                                                 }
-                                            }
+                                            },
+                                            modifier = Modifier.size(32.dp)
                                         )
                                         Text(
                                             text = "${flock.name} (${flockAgentsList.size})",
                                             color = Color.White,
+                                            fontSize = 13.sp,
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f)
@@ -938,8 +944,7 @@ fun AiReportsScreen(
                                                         directlySelectedAgentIds + agent.id
                                                     }
                                                 }
-                                            )
-                                            .padding(vertical = 2.dp),
+                                            ),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -951,11 +956,13 @@ fun AiReportsScreen(
                                                     directlySelectedAgentIds - agent.id
                                                 }
                                             },
-                                            enabled = !isFromFlock
+                                            enabled = !isFromFlock,
+                                            modifier = Modifier.size(32.dp)
                                         )
                                         Text(
                                             text = agent.name,
                                             color = if (isFromFlock) Color(0xFF888888) else Color.White,
+                                            fontSize = 13.sp,
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f)
@@ -992,8 +999,7 @@ fun AiReportsScreen(
                                                 } else {
                                                     selectedSwarmIds + swarm.id
                                                 }
-                                            }
-                                            .padding(vertical = 2.dp),
+                                            },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -1004,11 +1010,13 @@ fun AiReportsScreen(
                                                 } else {
                                                     selectedSwarmIds - swarm.id
                                                 }
-                                            }
+                                            },
+                                            modifier = Modifier.size(32.dp)
                                         )
                                         Text(
                                             text = "${swarm.name} (${swarmMembersList.size})",
                                             color = Color.White,
+                                            fontSize = 13.sp,
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f)
@@ -1101,8 +1109,7 @@ fun AiReportsScreen(
                                                         directlySelectedModelIds + syntheticId
                                                     }
                                                 }
-                                            )
-                                            .padding(vertical = 2.dp),
+                                            ),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Checkbox(
@@ -1114,23 +1121,23 @@ fun AiReportsScreen(
                                                     directlySelectedModelIds - syntheticId
                                                 }
                                             },
-                                            enabled = !isFromSwarm
+                                            enabled = !isFromSwarm,
+                                            modifier = Modifier.size(32.dp)
                                         )
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = if (isFromSwarm) "${provider.displayName} (via swarm)" else provider.displayName,
-                                                fontSize = 12.sp,
-                                                color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA),
-                                                maxLines = 1,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = model,
-                                                color = if (isFromSwarm) Color(0xFF888888) else Color.White,
-                                                maxLines = 1,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
-                                        }
+                                        Text(
+                                            text = if (isFromSwarm) "${provider.displayName} (via swarm) " else "${provider.displayName} ",
+                                            fontSize = 11.sp,
+                                            color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA),
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = model,
+                                            fontSize = 13.sp,
+                                            color = if (isFromSwarm) Color(0xFF888888) else Color.White,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
@@ -1402,18 +1409,20 @@ fun AiReportsScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(2.dp))
-                                // Swarm member: Model on line 1, Provider on line 2
-                                Column(modifier = Modifier.weight(1f)) {
+                                // Swarm member: Provider + Model inline
+                                Row(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${provider?.displayName ?: providerName} ",
+                                        color = Color(0xFFAAAAAA),
+                                        fontSize = 11.sp
+                                    )
                                     Text(
                                         text = modelName,
                                         fontWeight = FontWeight.Medium,
                                         color = Color.White,
-                                        fontSize = 13.sp
-                                    )
-                                    Text(
-                                        text = provider?.displayName ?: providerName,
-                                        color = Color(0xFFAAAAAA),
-                                        fontSize = 11.sp
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                                 // Input tokens

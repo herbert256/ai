@@ -266,8 +266,7 @@ fun ModelSearchScreen(
             name = "",
             provider = provider,
             model = selectedModel!!.modelName,
-            apiKey = aiSettings.getApiKey(provider),
-            parameters = AiAgentParameters()
+            apiKey = aiSettings.getApiKey(provider)
         )
 
         AgentEditScreen(

@@ -62,8 +62,10 @@ data class AgentExport(
     val provider: String,  // Provider enum name (OPENAI, ANTHROPIC, GOOGLE, XAI, etc.)
     val model: String,
     val apiKey: String,
-    // Parameters (version 5+)
+    // Parameters (version 5-15, legacy inline parameters)
     val parameters: AgentParametersExport? = null,
+    // Parameter preset IDs (version 16+) - references to AiParameters IDs
+    val parametersIds: List<String>? = null,
     // Endpoint ID (version 9+) - references a custom endpoint for this provider
     val endpointId: String? = null,
     // Legacy fields from version 3 (ignored on import, included for compatibility)
@@ -223,7 +225,7 @@ data class ProviderEndpointsExport(
  * Version 14: Added params (reusable parameter presets).
  */
 data class AiConfigExport(
-    val version: Int = 15,
+    val version: Int = 16,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,  // Version 6+
@@ -368,7 +370,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         "WRITER" to ProviderConfigExport(aiSettings.writerModelSource.name, aiSettings.writerManualModels, aiSettings.writerApiKey, aiSettings.writerModel, aiSettings.writerAdminUrl, aiSettings.writerModelListUrl.ifBlank { null })
     )
 
-    // Convert agents with parameters
+    // Convert agents with parameter preset IDs
     val agents = aiSettings.agents.map { agent ->
         AgentExport(
             id = agent.id,
@@ -376,21 +378,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             provider = agent.provider.name,
             model = agent.model,
             apiKey = agent.apiKey,
-            parameters = AgentParametersExport(
-                temperature = agent.parameters.temperature,
-                maxTokens = agent.parameters.maxTokens,
-                topP = agent.parameters.topP,
-                topK = agent.parameters.topK,
-                frequencyPenalty = agent.parameters.frequencyPenalty,
-                presencePenalty = agent.parameters.presencePenalty,
-                systemPrompt = agent.parameters.systemPrompt,
-                stopSequences = agent.parameters.stopSequences,
-                seed = agent.parameters.seed,
-                responseFormatJson = agent.parameters.responseFormatJson,
-                searchEnabled = agent.parameters.searchEnabled,
-                returnCitations = agent.parameters.returnCitations,
-                searchRecency = agent.parameters.searchRecency
-            ),
+            parametersIds = agent.paramsIds.ifEmpty { null },
             endpointId = agent.endpointId
         )
     }
@@ -654,7 +642,10 @@ private fun processImportedConfig(
     export: AiConfigExport,
     currentSettings: AiSettings
 ): AiConfigImportResult {
-    // Import agents with parameters
+    // Track any auto-created parameter presets from legacy inline agent parameters
+    val autoCreatedPresets = mutableListOf<AiParameters>()
+
+    // Import agents with parameter preset IDs
     val agents = export.agents.mapNotNull { agentExport ->
         val provider = try {
             AiService.valueOf(agentExport.provider)
@@ -662,15 +653,21 @@ private fun processImportedConfig(
             null  // Skip agents with unknown providers
         }
         provider?.let {
-            AiAgent(
-                id = agentExport.id,
-                name = agentExport.name,
-                provider = it,
-                model = agentExport.model,
-                apiKey = agentExport.apiKey,
-                endpointId = agentExport.endpointId,
-                parameters = agentExport.parameters?.let { p ->
-                    AiAgentParameters(
+            // Determine paramsIds: use new format if present, otherwise migrate old inline parameters
+            val paramsIds = if (agentExport.parametersIds != null) {
+                agentExport.parametersIds
+            } else if (agentExport.parameters != null) {
+                // Old format: auto-create a parameter preset from inline values
+                val p = agentExport.parameters
+                val hasAnyParam = p.temperature != null || p.maxTokens != null || p.topP != null ||
+                    p.topK != null || p.frequencyPenalty != null || p.presencePenalty != null ||
+                    p.systemPrompt != null || p.stopSequences != null || p.seed != null ||
+                    p.responseFormatJson || p.searchEnabled || p.returnCitations || p.searchRecency != null
+                if (hasAnyParam) {
+                    val presetId = java.util.UUID.randomUUID().toString()
+                    val preset = AiParameters(
+                        id = presetId,
+                        name = "Imported: ${agentExport.name}",
                         temperature = p.temperature,
                         maxTokens = p.maxTokens,
                         topP = p.topP,
@@ -685,7 +682,23 @@ private fun processImportedConfig(
                         returnCitations = p.returnCitations,
                         searchRecency = p.searchRecency
                     )
-                } ?: AiAgentParameters()
+                    autoCreatedPresets.add(preset)
+                    listOf(presetId)
+                } else {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+
+            AiAgent(
+                id = agentExport.id,
+                name = agentExport.name,
+                provider = it,
+                model = agentExport.model,
+                apiKey = agentExport.apiKey,
+                endpointId = agentExport.endpointId,
+                paramsIds = paramsIds
             )
         }
     }
@@ -737,8 +750,8 @@ private fun processImportedConfig(
         )
     } ?: emptyList()
 
-    // Import params (parameter presets)
-    val parameters = export.parameters?.map { parametersExport ->
+    // Import params (parameter presets) + any auto-created presets from legacy inline agent parameters
+    val parameters = (export.parameters?.map { parametersExport ->
         AiParameters(
             id = parametersExport.id,
             name = parametersExport.name,
@@ -756,7 +769,7 @@ private fun processImportedConfig(
             returnCitations = parametersExport.returnCitations,
             searchRecency = parametersExport.searchRecency
         )
-    } ?: emptyList()
+    } ?: emptyList()) + autoCreatedPresets
 
     // Import provider settings
     var settings = currentSettings.copy(
@@ -1242,8 +1255,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..15) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-15.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..16) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-16.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -1288,8 +1301,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..15) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-15.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..16) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-16.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -1334,7 +1347,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 11-15).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 11-16).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
@@ -1368,40 +1381,81 @@ fun ImportAiConfigDialog(
 }
 
 /**
- * Perform all post-import actions after an AI configuration import:
- * 1. Refresh provider state (test all providers)
- * 2. Refresh model lists
- * 3. Refresh OpenRouter data (pricing + specs)
- * 4. Generate default agents
- * 5. Delete all data (chats, reports, statistics, API traces)
+ * Perform a "Start clean" operation:
+ * 1. Delete all agents, flocks, swarms, prompts, parameters
+ * 2. Delete all chats
+ * 3. Delete all reports
+ * 4. Delete all API traces
+ * 5. Clear prompt history, last report prompt, selected report IDs
+ * 6. Clear legacy HTML history
+ * 7. Refresh model lists
+ * 8. Refresh OpenRouter data (pricing + specs)
+ * 9. Refresh provider state
+ * 10. Generate default agents
+ * 11. Clear statistics (last, since other steps generate stats)
  */
-suspend fun performFullImportActions(
+suspend fun performStartClean(
     context: Context,
-    importedSettings: AiSettings,
+    aiSettings: AiSettings,
     openRouterApiKey: String,
     onSave: (AiSettings) -> Unit,
     onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int>,
     onTestApiKey: suspend (AiService, String, String) -> String?,
-    onProviderStateChange: (AiService, String) -> Unit
+    onProviderStateChange: (AiService, String) -> Unit,
+    onProgress: ((String) -> Unit)? = null
 ) {
-    // Step 1: Refresh Provider State
-    for (service in AiService.entries) {
-        val apiKey = importedSettings.getApiKey(service)
-        if (apiKey.isBlank()) {
-            onProviderStateChange(service, "not-used")
-        } else {
-            val model = importedSettings.getModel(service)
-            val error = onTestApiKey(service, apiKey, model)
-            val state = if (error == null) "ok" else "error"
-            onProviderStateChange(service, state)
+    val settingsPrefs = SettingsPreferences(
+        context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    )
+
+    // 1. Delete all agents, flocks, swarms, prompts, parameters
+    onProgress?.invoke("Deleting agents, flocks, swarms...")
+    onSave(aiSettings.copy(
+        agents = emptyList(),
+        flocks = emptyList(),
+        swarms = emptyList(),
+        prompts = emptyList(),
+        parameters = emptyList()
+    ))
+
+    // 2. Delete all chats
+    onProgress?.invoke("Deleting chats...")
+    val cutoffTime = System.currentTimeMillis()
+    com.ai.data.ChatHistoryManager.getAllSessions().forEach { session ->
+        if (session.updatedAt < cutoffTime) {
+            com.ai.data.ChatHistoryManager.deleteSession(session.id)
         }
     }
 
-    // Step 2: Refresh Model Lists (force refresh)
-    onRefreshAllModels(importedSettings, true, null)
+    // 3. Delete all reports
+    onProgress?.invoke("Deleting reports...")
+    com.ai.data.AiReportStorage.getAllReports(context).forEach { report ->
+        if (report.timestamp < cutoffTime) {
+            com.ai.data.AiReportStorage.deleteReport(context, report.id)
+        }
+    }
 
-    // Step 3: Refresh OpenRouter Data
+    // 4. Delete all API traces
+    onProgress?.invoke("Deleting API traces...")
+    com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
+
+    // 5. Clear prompt history, last report prompt, selected report IDs
+    onProgress?.invoke("Clearing prompts...")
+    settingsPrefs.clearPromptHistory()
+    settingsPrefs.clearLastAiReportPrompt()
+    settingsPrefs.clearSelectedReportIds()
+
+    // 6. Clear legacy HTML history
+    onProgress?.invoke("Clearing legacy history...")
+    com.ai.data.AiHistoryManager.clearHistory()
+
+    // 6. Refresh model lists
+    onProgress?.invoke("Refreshing model lists...")
+    onRefreshAllModels(aiSettings, true, null)
+
+    // 7. Refresh OpenRouter data
     if (openRouterApiKey.isNotBlank()) {
+        onProgress?.invoke("Refreshing OpenRouter data...")
         val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
         if (pricing.isNotEmpty()) {
             com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
@@ -1409,15 +1463,31 @@ suspend fun performFullImportActions(
         com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
     }
 
-    // Step 4: Generate Default Agents
-    val providersToTest = AiService.entries.filter { provider ->
-        importedSettings.getApiKey(provider).isNotBlank()
+    // 8. Refresh provider state
+    onProgress?.invoke("Refreshing provider state...")
+    for (service in AiService.entries) {
+        val apiKey = aiSettings.getApiKey(service)
+        if (apiKey.isBlank()) {
+            onProviderStateChange(service, "not-used")
+        } else {
+            val model = aiSettings.getModel(service)
+            val error = onTestApiKey(service, apiKey, model)
+            val state = if (error == null) "ok" else "error"
+            onProviderStateChange(service, state)
+        }
     }
 
-    var updatedAgents = importedSettings.agents.toMutableList()
+    // 9. Generate default agents
+    onProgress?.invoke("Generating default agents...")
+    val providersToTest = AiService.entries.filter { provider ->
+        aiSettings.getApiKey(provider).isNotBlank()
+    }
+
+    var updatedAgents = aiSettings.agents.toMutableList()
 
     for (provider in providersToTest) {
-        val apiKey = importedSettings.getApiKey(provider)
+        onProgress?.invoke(provider.displayName)
+        val apiKey = aiSettings.getApiKey(provider)
         val model = provider.defaultModel
 
         val testResult = onTestApiKey(provider, apiKey, model)
@@ -1443,8 +1513,7 @@ suspend fun performFullImportActions(
                     provider = provider,
                     model = "",
                     apiKey = "",
-                    endpointId = null,
-                    parameters = AiAgentParameters()
+                    endpointId = null
                 )
                 updatedAgents.add(newAgent)
             }
@@ -1457,51 +1526,21 @@ suspend fun performFullImportActions(
         }
         .map { it.id }
 
-    val updatedFlocks = importedSettings.flocks.toMutableList()
-    val existingFlockIndex = updatedFlocks.indexOfFirst {
-        it.name == "default agents"
-    }
+    val updatedFlocks = mutableListOf<AiFlock>()
+    val newFlock = AiFlock(
+        id = java.util.UUID.randomUUID().toString(),
+        name = "default agents",
+        agentIds = defaultAgentIds
+    )
+    updatedFlocks.add(newFlock)
 
-    if (existingFlockIndex >= 0) {
-        updatedFlocks[existingFlockIndex] = updatedFlocks[existingFlockIndex].copy(
-            agentIds = defaultAgentIds
-        )
-    } else {
-        val newFlock = AiFlock(
-            id = java.util.UUID.randomUUID().toString(),
-            name = "default agents",
-            agentIds = defaultAgentIds
-        )
-        updatedFlocks.add(newFlock)
-    }
-
-    onSave(importedSettings.copy(
+    onSave(aiSettings.copy(
         agents = updatedAgents,
-        flocks = updatedFlocks
+        flocks = updatedFlocks,
+        swarms = emptyList()
     ))
 
-    // Step 5: Delete all data (chats, reports, statistics, traces)
-    val cutoffTime = System.currentTimeMillis()
-
-    // Delete all chats
-    com.ai.data.ChatHistoryManager.getAllSessions().forEach { session ->
-        if (session.updatedAt < cutoffTime) {
-            com.ai.data.ChatHistoryManager.deleteSession(session.id)
-        }
-    }
-
-    // Delete all reports
-    com.ai.data.AiReportStorage.getAllReports(context).forEach { report ->
-        if (report.timestamp < cutoffTime) {
-            com.ai.data.AiReportStorage.deleteReport(context, report.id)
-        }
-    }
-
-    // Clear all statistics
-    SettingsPreferences(
-        context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-    ).clearUsageStats()
-
-    // Delete all API traces
-    com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
+    // 10. Clear statistics last (other steps generate stats)
+    onProgress?.invoke("Clearing statistics...")
+    settingsPrefs.clearUsageStats()
 }

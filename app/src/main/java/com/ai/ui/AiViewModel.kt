@@ -341,11 +341,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         model = aiSettings.getEffectiveModelForAgent(agent)
                     )
 
+                    // Resolve agent's parameter presets to AiAgentParameters
+                    val agentParams = aiSettings.resolveAgentParameters(agent)
+
                     val response = try {
                         aiAnalysisRepository.analyzePositionWithAgent(
                             agent = effectiveAgent,
                             fen = "",  // No FEN for generic prompts
                             prompt = aiPrompt,
+                            agentResolvedParams = agentParams,
                             overrideParams = overrideParams,
                             context = context  // For looking up supported parameters
                         )
