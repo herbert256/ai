@@ -247,6 +247,16 @@ data class ApiKeyEntry(
 )
 
 /**
+ * Data class for API keys-only export.
+ */
+data class ApiKeysExport(
+    val type: String = "api_keys",
+    val keys: List<ApiKeyEntry>,
+    val huggingFaceApiKey: String? = null,
+    val openRouterApiKey: String? = null
+)
+
+/**
  * Result of importing AI configuration.
  */
 data class AiConfigImportResult(
@@ -530,6 +540,109 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
     clipboard.setPrimaryClip(clip)
 
     Toast.makeText(context, "${keys.size} API keys copied to clipboard", Toast.LENGTH_SHORT).show()
+}
+
+/**
+ * Export API keys only to a JSON file and share via Android share sheet.
+ * Includes all provider API keys plus HuggingFace and OpenRouter general API keys.
+ */
+fun exportApiKeysToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "", openRouterApiKey: String = "") {
+    val keys = AiService.entries.mapNotNull { service ->
+        val apiKey = aiSettings.getApiKey(service)
+        if (apiKey.isNotBlank()) ApiKeyEntry(service.name, apiKey) else null
+    }
+
+    val export = ApiKeysExport(
+        keys = keys,
+        huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
+        openRouterApiKey = openRouterApiKey.ifBlank { null }
+    )
+
+    val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+    val json = gson.toJson(export)
+
+    try {
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val fileName = "api_keys_$timestamp.json"
+        val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
+        if (!cacheDir.exists()) cacheDir.mkdirs()
+        val file = java.io.File(cacheDir, fileName)
+        file.writeText(json)
+
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(android.content.Intent.createChooser(shareIntent, "Export API Keys"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error exporting API keys: ${e.message}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * Import API keys from a JSON file.
+ * Returns a triple of (updated AiSettings, huggingFaceApiKey, openRouterApiKey) or null on failure.
+ */
+fun importApiKeysFromFile(context: Context, uri: Uri, currentSettings: AiSettings): Triple<AiSettings, String?, String?>? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        if (inputStream == null) {
+            Toast.makeText(context, "Could not open file", Toast.LENGTH_SHORT).show()
+            return null
+        }
+
+        val json = BufferedReader(InputStreamReader(inputStream)).use { reader ->
+            reader.readText()
+        }
+
+        if (json.isBlank()) {
+            Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show()
+            return null
+        }
+
+        val gson = Gson()
+        val export = gson.fromJson(json, ApiKeysExport::class.java)
+
+        if (export.type != "api_keys" || export.keys == null) {
+            Toast.makeText(context, "Not an API keys file", Toast.LENGTH_SHORT).show()
+            return null
+        }
+
+        var settings = currentSettings
+        var importedCount = 0
+
+        for (entry in export.keys) {
+            if (entry.apiKey.isBlank()) continue
+            val service = try {
+                AiService.valueOf(entry.service)
+            } catch (e: IllegalArgumentException) {
+                // Try matching by display name for backward compatibility
+                AiService.entries.firstOrNull { it.displayName == entry.service }
+            }
+            if (service != null) {
+                settings = settings.withApiKey(service, entry.apiKey)
+                importedCount++
+            }
+        }
+
+        Toast.makeText(context, "Imported $importedCount API keys", Toast.LENGTH_SHORT).show()
+
+        Triple(settings, export.huggingFaceApiKey, export.openRouterApiKey)
+    } catch (e: com.google.gson.JsonSyntaxException) {
+        Toast.makeText(context, "Invalid API keys file format", Toast.LENGTH_SHORT).show()
+        null
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error importing API keys: ${e.message}", Toast.LENGTH_SHORT).show()
+        null
+    }
 }
 
 /**

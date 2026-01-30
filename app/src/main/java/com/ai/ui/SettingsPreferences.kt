@@ -614,12 +614,13 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         return try {
             val type = object : TypeToken<List<AiAgent>>() {}.type
             val agents: List<AiAgent>? = gson.fromJson(json, type)
-            // Ensure parameters is never null (migration from older versions without parameters)
-            // Gson bypasses Kotlin default values, so we need to handle null explicitly
-            agents?.map { agent ->
+            // Gson bypasses Kotlin default values and can deserialize removed enum values as null.
+            // Filter out agents with null provider (e.g., removed providers) and fix null parameters.
+            agents?.mapNotNull { agent ->
                 @Suppress("SENSELESS_COMPARISON")
-                if (agent.parameters == null) {
-                    // Recreate agent with default parameters (can't use copy() when parameters is null)
+                if (agent.provider == null) {
+                    null  // Skip agents with unknown/removed providers
+                } else if (agent.parameters == null) {
                     AiAgent(
                         id = agent.id,
                         name = agent.name,

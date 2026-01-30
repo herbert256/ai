@@ -110,6 +110,21 @@ fun HousekeepingScreen(
         }
     }
 
+    // File picker launcher for importing API keys
+    val apiKeysPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            val result = importApiKeysFromFile(context, it, aiSettings)
+            if (result != null) {
+                val (updatedSettings, hfKey, orKey) = result
+                onSave(updatedSettings)
+                hfKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+                orKey?.let { key -> onSaveOpenRouterApiKey(key) }
+            }
+        }
+    }
+
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -613,6 +628,16 @@ fun HousekeepingScreen(
                     }
                     Button(
                         onClick = {
+                            exportApiKeysToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = hasApiKeyForExport,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("API keys", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = {
                             exportModelCostsToCsv(
                                 context = context,
                                 aiSettings = aiSettings,
@@ -687,6 +712,15 @@ fun HousekeepingScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                     ) {
                         Text("AI configuration", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = {
+                            apiKeysPickerLauncher.launch(arrayOf("application/json", "*/*"))
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("API keys", fontSize = 12.sp)
                     }
                     Button(
                         onClick = {

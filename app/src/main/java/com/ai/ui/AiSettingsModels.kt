@@ -714,6 +714,42 @@ data class AiSettings(
         }
     }
 
+    fun withApiKey(service: AiService, apiKey: String): AiSettings {
+        return when (service) {
+            AiService.OPENAI -> copy(chatGptApiKey = apiKey)
+            AiService.ANTHROPIC -> copy(claudeApiKey = apiKey)
+            AiService.GOOGLE -> copy(geminiApiKey = apiKey)
+            AiService.XAI -> copy(grokApiKey = apiKey)
+            AiService.GROQ -> copy(groqApiKey = apiKey)
+            AiService.DEEPSEEK -> copy(deepSeekApiKey = apiKey)
+            AiService.MISTRAL -> copy(mistralApiKey = apiKey)
+            AiService.PERPLEXITY -> copy(perplexityApiKey = apiKey)
+            AiService.TOGETHER -> copy(togetherApiKey = apiKey)
+            AiService.OPENROUTER -> copy(openRouterApiKey = apiKey)
+            AiService.SILICONFLOW -> copy(siliconFlowApiKey = apiKey)
+            AiService.ZAI -> copy(zaiApiKey = apiKey)
+            AiService.MOONSHOT -> copy(moonshotApiKey = apiKey)
+            AiService.COHERE -> copy(cohereApiKey = apiKey)
+            AiService.AI21 -> copy(ai21ApiKey = apiKey)
+            AiService.DASHSCOPE -> copy(dashScopeApiKey = apiKey)
+            AiService.FIREWORKS -> copy(fireworksApiKey = apiKey)
+            AiService.CEREBRAS -> copy(cerebrasApiKey = apiKey)
+            AiService.SAMBANOVA -> copy(sambaNovaApiKey = apiKey)
+            AiService.BAICHUAN -> copy(baichuanApiKey = apiKey)
+            AiService.STEPFUN -> copy(stepFunApiKey = apiKey)
+            AiService.MINIMAX -> copy(miniMaxApiKey = apiKey)
+            AiService.NVIDIA -> copy(nvidiaApiKey = apiKey)
+            AiService.REPLICATE -> copy(replicateApiKey = apiKey)
+            AiService.HUGGINGFACE -> copy(huggingFaceInferenceApiKey = apiKey)
+            AiService.LAMBDA -> copy(lambdaApiKey = apiKey)
+            AiService.LEPTON -> copy(leptonApiKey = apiKey)
+            AiService.YI -> copy(yiApiKey = apiKey)
+            AiService.DOUBAO -> copy(doubaoApiKey = apiKey)
+            AiService.REKA -> copy(rekaApiKey = apiKey)
+            AiService.WRITER -> copy(writerApiKey = apiKey)
+        }
+    }
+
     fun getModel(service: AiService): String {
         return when (service) {
             AiService.OPENAI -> chatGptModel
