@@ -122,6 +122,7 @@ private data class HtmlReportData(
 private data class HtmlAgentData(
     val agentId: String,
     val agentName: String,
+    val provider: com.ai.data.AiService?,
     val providerDisplay: String,
     val model: String,
     val responseText: String?,
@@ -130,11 +131,15 @@ private data class HtmlAgentData(
     val searchResults: List<com.ai.data.SearchResult>?,
     val relatedQuestions: List<String>?,
     val rawUsageJson: String?,
-    val responseHeaders: String?
+    val responseHeaders: String?,
+    val inputTokens: Int? = null,
+    val outputTokens: Int? = null,
+    val inputCost: Double? = null,
+    val outputCost: Double? = null
 )
 
 // Helper function to convert generic AI reports to HTML
-internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: String): String {
+internal fun convertGenericAiReportsToHtml(context: android.content.Context, uiState: AiUiState, appVersion: String): String {
     val data = HtmlReportData(
         title = uiState.genericAiPromptTitle,
         prompt = uiState.genericAiPromptText,
@@ -147,6 +152,7 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
             HtmlAgentData(
                 agentId = agentId,
                 agentName = agent.name,
+                provider = agent.provider,
                 providerDisplay = agent.provider.displayName,
                 model = agent.model,
                 responseText = response.analysis,
@@ -155,7 +161,17 @@ internal fun convertGenericAiReportsToHtml(uiState: AiUiState, appVersion: Strin
                 searchResults = response.searchResults,
                 relatedQuestions = response.relatedQuestions,
                 rawUsageJson = response.rawUsageJson,
-                responseHeaders = response.httpHeaders
+                responseHeaders = response.httpHeaders,
+                inputTokens = response.tokenUsage?.inputTokens,
+                outputTokens = response.tokenUsage?.outputTokens,
+                inputCost = response.tokenUsage?.let { tu ->
+                    val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, agent.model)
+                    tu.inputTokens * pricing.promptPrice
+                },
+                outputCost = response.tokenUsage?.let { tu ->
+                    val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, agent.model)
+                    tu.outputTokens * pricing.completionPrice
+                }
             )
         }.sortedBy { it.agentName.lowercase() }
     )
@@ -168,7 +184,7 @@ internal fun shareGenericAiReports(context: android.content.Context, uiState: Ai
         val appVersion = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
         } catch (e: Exception) { "unknown" }
-        val html = convertGenericAiReportsToHtml(uiState, appVersion)
+        val html = convertGenericAiReportsToHtml(context, uiState, appVersion)
 
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
         if (!cacheDir.exists()) {
@@ -266,7 +282,7 @@ internal fun shareAiReportAsHtml(context: android.content.Context, reportId: Str
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
         } catch (e: Exception) { "unknown" }
 
-        val html = convertAiReportToHtml(report, appVersion, developerMode)
+        val html = convertAiReportToHtml(context, report, appVersion, developerMode)
 
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
         if (!cacheDir.exists()) {
@@ -306,7 +322,7 @@ internal fun openGenericAiReportsInChrome(context: android.content.Context, uiSt
         val appVersion = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
         } catch (e: Exception) { "unknown" }
-        val html = convertGenericAiReportsToHtml(uiState, appVersion)
+        val html = convertGenericAiReportsToHtml(context, uiState, appVersion)
 
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
         if (!cacheDir.exists()) {
@@ -353,7 +369,7 @@ internal fun openAiReportInChrome(context: android.content.Context, reportId: St
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
         } catch (e: Exception) { "unknown" }
 
-        val html = convertAiReportToHtml(report, appVersion, developerMode)
+        val html = convertAiReportToHtml(context, report, appVersion, developerMode)
 
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
         if (!cacheDir.exists()) {
@@ -388,7 +404,7 @@ internal fun openAiReportInChrome(context: android.content.Context, reportId: St
 /**
  * Converts a stored AI-REPORT object to HTML format.
  */
-internal fun convertAiReportToHtml(report: com.ai.data.AiReport, appVersion: String, developerMode: Boolean = false): String {
+internal fun convertAiReportToHtml(context: android.content.Context, report: com.ai.data.AiReport, appVersion: String, developerMode: Boolean = false): String {
     val data = HtmlReportData(
         title = report.title,
         prompt = report.prompt,
@@ -397,17 +413,17 @@ internal fun convertAiReportToHtml(report: com.ai.data.AiReport, appVersion: Str
         rapportText = report.rapportText,
         developerMode = developerMode,
         agents = report.agents.map { agent ->
-            val providerDisplay = try {
-                com.ai.data.AiService.valueOf(agent.provider).displayName
-            } catch (e: Exception) {
-                agent.provider
-            }
+            val providerEnum = try {
+                com.ai.data.AiService.valueOf(agent.provider)
+            } catch (e: Exception) { null }
+            val providerDisplay = providerEnum?.displayName ?: agent.provider
             val errorMsg = if (agent.reportStatus == com.ai.data.ReportStatus.ERROR || agent.errorMessage != null) {
                 agent.errorMessage ?: "Unknown error"
             } else null
             HtmlAgentData(
                 agentId = agent.agentId,
                 agentName = agent.agentName,
+                provider = providerEnum,
                 providerDisplay = providerDisplay,
                 model = agent.model,
                 responseText = if (errorMsg == null) agent.responseBody else null,
@@ -416,7 +432,21 @@ internal fun convertAiReportToHtml(report: com.ai.data.AiReport, appVersion: Str
                 searchResults = agent.searchResults,
                 relatedQuestions = agent.relatedQuestions,
                 rawUsageJson = null,
-                responseHeaders = agent.responseHeaders
+                responseHeaders = agent.responseHeaders,
+                inputTokens = agent.tokenUsage?.inputTokens,
+                outputTokens = agent.tokenUsage?.outputTokens,
+                inputCost = agent.tokenUsage?.let { tu ->
+                    providerEnum?.let { p ->
+                        val pricing = com.ai.data.PricingCache.getPricing(context, p, agent.model)
+                        tu.inputTokens * pricing.promptPrice
+                    }
+                },
+                outputCost = agent.tokenUsage?.let { tu ->
+                    providerEnum?.let { p ->
+                        val pricing = com.ai.data.PricingCache.getPricing(context, p, agent.model)
+                        tu.outputTokens * pricing.completionPrice
+                    }
+                }
             )
         }.sortedBy { it.agentName.lowercase() }
     )
@@ -541,6 +571,12 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     font-size: 0.9em;
                     text-align: center;
                 }
+                .cost-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.85em; }
+                .cost-table th { color: #6B9BFF; text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; font-weight: bold; }
+                .cost-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; }
+                .cost-table td.num { text-align: right; font-family: monospace; }
+                .cost-table tr:last-child td { border-bottom: 2px solid #333; }
+                .cost-table .total-row td { border-top: 2px solid #333; font-weight: bold; color: #6B9BFF; }
                 .think-btn {
                     padding: 4px 12px;
                     border: 1px solid #666;
@@ -589,11 +625,10 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     """.trimIndent())
 
     // Add user-tagged content if present (from <user>...</user> in prompt)
-    // Placed after title, before agent buttons, wrapped with <hr> separators
+    // Placed after title, before agent buttons, with matching title-style divider below
     data.rapportText?.takeIf { it.isNotBlank() }?.let { rapportText ->
-        htmlBuilder.append("<hr>")
         htmlBuilder.append(rapportText)
-        htmlBuilder.append("<hr>")
+        htmlBuilder.append("""<hr style="border:none;border-top:2px solid #333;margin:10px 0 0 0">""")
     }
 
     htmlBuilder.append("""
@@ -715,6 +750,64 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     <pre class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</pre>
                 </div>
     """)
+
+    // Cost summary table sorted by total cost descending
+    val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
+    if (agentsWithCosts.isNotEmpty()) {
+        val sorted = agentsWithCosts.sortedByDescending { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        htmlBuilder.append("""
+                <div class="prompt-section">
+                    <div class="prompt-label">Costs</div>
+                    <table class="cost-table">
+                        <tr>
+                            <th>Provider</th>
+                            <th>Model</th>
+                            <th style="text-align:right">In tokens</th>
+                            <th style="text-align:right">Out tokens</th>
+                            <th style="text-align:right">In ¢</th>
+                            <th style="text-align:right">Out ¢</th>
+                            <th style="text-align:right">Total ¢</th>
+                        </tr>
+        """)
+        fun fmtCents(v: Double): String = "%.2f".format(v)
+        var totalIn = 0
+        var totalOut = 0
+        var totalInCost = 0.0
+        var totalOutCost = 0.0
+        sorted.forEach { agent ->
+            val inTok = agent.inputTokens ?: 0
+            val outTok = agent.outputTokens ?: 0
+            val inCost = (agent.inputCost ?: 0.0) * 100
+            val outCost = (agent.outputCost ?: 0.0) * 100
+            totalIn += inTok
+            totalOut += outTok
+            totalInCost += inCost
+            totalOutCost += outCost
+            htmlBuilder.append("""
+                        <tr>
+                            <td>${agent.providerDisplay}</td>
+                            <td>${agent.model}</td>
+                            <td class="num">${"%,d".format(inTok)}</td>
+                            <td class="num">${"%,d".format(outTok)}</td>
+                            <td class="num">${fmtCents(inCost)}</td>
+                            <td class="num">${fmtCents(outCost)}</td>
+                            <td class="num">${fmtCents(inCost + outCost)}</td>
+                        </tr>
+            """)
+        }
+        htmlBuilder.append("""
+                        <tr class="total-row">
+                            <td colspan="2">Total</td>
+                            <td class="num">${"%,d".format(totalIn)}</td>
+                            <td class="num">${"%,d".format(totalOut)}</td>
+                            <td class="num">${fmtCents(totalInCost)}</td>
+                            <td class="num">${fmtCents(totalOutCost)}</td>
+                            <td class="num">${fmtCents(totalInCost + totalOutCost)}</td>
+                        </tr>
+                    </table>
+                </div>
+        """)
+    }
 
     htmlBuilder.append("""
                 <div class="footer">

@@ -495,6 +495,20 @@ fun AiReportsScreenNav(
 // Selection mode for report generation
 private enum class ReportSelectionMode { SWARMS, AGENTS, FLOCKS, MODELS }
 
+/**
+ * Format model pricing as "input / output" per million tokens (e.g. "2.50 / 10.00").
+ * Returns the formatted string and whether the pricing is from the default fallback.
+ */
+internal data class FormattedPricing(val text: String, val isDefault: Boolean)
+
+internal fun formatPricingPerMillion(context: android.content.Context, provider: com.ai.data.AiService, model: String): FormattedPricing {
+    val pricing = com.ai.data.PricingCache.getPricing(context, provider, model)
+    val input = pricing.promptPrice * 1_000_000
+    val output = pricing.completionPrice * 1_000_000
+    fun fmt(v: Double): String = if (v < 0.01) "%.4f".format(v).trimEnd('0').trimEnd('.') else if (v < 1.0) "%.2f".format(v) else "%.2f".format(v)
+    return FormattedPricing("${fmt(input)} / ${fmt(output)}", pricing.source == "default")
+}
+
 @Composable
 fun AiReportsScreen(
     uiState: AiUiState,
@@ -973,6 +987,14 @@ fun AiReportsScreen(
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f)
                                         )
+                                        val pricing = formatPricingPerMillion(context, agent.provider, agent.model)
+                                        Text(
+                                            text = pricing.text,
+                                            color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                                            fontSize = 10.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            maxLines = 1
+                                        )
                                     }
                                 }
                             }
@@ -1145,6 +1167,14 @@ fun AiReportsScreen(
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f)
+                                        )
+                                        val pricing = formatPricingPerMillion(context, provider, model)
+                                        Text(
+                                            text = pricing.text,
+                                            color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                                            fontSize = 10.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            maxLines = 1
                                         )
                                     }
                                 }
