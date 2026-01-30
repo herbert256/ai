@@ -48,8 +48,8 @@ fun HelpScreen(
             HelpSection(
                 title = "Welcome to AI",
                 content = "Create AI-powered reports and have conversations using ${com.ai.data.AiService.entries.size} different AI services. " +
-                    "Configure multiple agents with custom parameters and endpoints, organize them into flocks, " +
-                    "compare responses side-by-side, track costs, and chat with any AI model using real-time streaming."
+                    "Configure multiple agents with custom parameters and endpoints, organize them into flocks and swarms, " +
+                    "compare responses side-by-side, track costs and usage, and chat with any AI model using real-time streaming."
             )
 
             // Getting Started
@@ -59,49 +59,72 @@ fun HelpScreen(
                 content = "Quick setup:\n\n" +
                     "1. Go to AI Setup > AI Providers\n" +
                     "2. Select a provider and enter your API key\n" +
-                    "3. (Optional) Configure endpoints if needed\n" +
+                    "3. Test the connection with the Test button\n" +
                     "4. Go to AI Setup > AI Agents\n" +
                     "5. Tap '+ Add Agent' or 'Create default agents'\n" +
                     "6. Go to AI Setup > AI Flocks\n" +
                     "7. Create a flock with your agents\n" +
-                    "8. Return to AI Hub and start using the app!\n\n" +
-                    "Tip: Use 'Create default agents' to quickly create one agent per configured provider.\n\n" +
-                    "The home screen will guide you with warnings if setup is incomplete."
+                    "8. Return to AI Hub and start!\n\n" +
+                    "Tip: 'Create default agents' quickly creates one agent per configured provider.\n\n" +
+                    "The home screen shows warnings if setup is incomplete."
             )
 
             // AI Hub
             HelpSection(
                 title = "AI Hub (Home)",
                 icon = "\uD83C\uDFE0",
-                content = "The central hub showing all features:\n\n" +
+                content = "The central hub with all features:\n\n" +
                     "• AI Reports - Generate multi-agent reports\n" +
-                    "• AI Chat - Start or continue conversations with streaming\n" +
-                    "• AI Models - Search and explore all available models\n" +
-                    "• AI Statistics - Track API calls and token usage\n" +
-                    "• AI Costs - View estimated costs per model\n" +
-                    "• AI Setup - Configure providers, agents, flocks\n" +
-                    "• Settings - App preferences and cost configuration\n" +
+                    "• AI Chat - Conversations with streaming\n" +
+                    "• AI Models - Search and explore models\n" +
+                    "• AI Statistics - API calls and token usage\n" +
+                    "• AI Costs - Estimated costs per model\n" +
+                    "• AI Setup - Providers, agents, flocks, swarms\n" +
+                    "• Settings - Preferences and cost config\n" +
                     "• Help - This documentation\n" +
-                    "• Developer Options - API Test and Traces (developer mode)\n\n" +
-                    "Cards appear based on your setup status. Warnings guide you through initial configuration."
+                    "• Developer Options - API Test and Traces\n\n" +
+                    "Cards adapt based on your setup status. Grayed-out cards indicate missing configuration."
             )
 
             // AI Reports
             HelpSection(
                 title = "AI Reports",
                 icon = "\uD83D\uDCDD",
-                content = "Generate reports using multiple AI agents:\n\n" +
+                content = "Generate reports using multiple AI agents in parallel:\n\n" +
                     "Reports Hub:\n" +
                     "• New Report - Create a new AI report\n" +
                     "• Prompt History - Reuse previous prompts\n" +
                     "• AI History - View past reports\n\n" +
                     "Creating a report:\n" +
-                    "1. Enter a title (optional) and your prompt\n" +
-                    "2. Use @DATE@ to insert current date automatically\n" +
-                    "3. Tap 'Generate' and select agents/flocks\n" +
-                    "4. Watch real-time progress with token counts\n" +
-                    "5. View results, share, or open in browser\n\n" +
+                    "1. Enter a title and your prompt\n" +
+                    "2. Use @DATE@ to insert current date\n" +
+                    "3. Tap 'Generate' to select agents\n" +
+                    "4. Choose from 4 selection tabs:\n" +
+                    "   Flocks | Agents | Swarms | Models\n" +
+                    "5. Watch real-time progress\n\n" +
+                    "Each selection tab shows pricing per M tokens (input/output) next to each entry.\n\n" +
                     "Reports are stored persistently and can be exported as JSON or HTML."
+            )
+
+            // Report Selection
+            HelpSection(
+                title = "Report Selection Tabs",
+                icon = "\uD83D\uDCCB",
+                content = "Four ways to select what runs your report:\n\n" +
+                    "Flocks tab:\n" +
+                    "• Select predefined groups of agents\n" +
+                    "• Agents in selected flocks are locked in\n\n" +
+                    "Agents tab:\n" +
+                    "• Pick individual configured agents\n" +
+                    "• Flock agents shown but locked\n\n" +
+                    "Swarms tab:\n" +
+                    "• Select groups of provider/model pairs\n" +
+                    "• Lightweight - uses provider defaults\n\n" +
+                    "Models tab:\n" +
+                    "• Pick individual provider/model combos\n" +
+                    "• Swarm models shown but locked\n\n" +
+                    "All tabs show per-M-token pricing in red (known) or gray (estimated). " +
+                    "Combine selections across tabs freely."
             )
 
             // Report Results
@@ -109,55 +132,58 @@ fun HelpScreen(
                 title = "Report Results",
                 icon = "\uD83D\uDCC4",
                 content = "View and share your results:\n\n" +
-                    "Progress screen shows:\n" +
-                    "• Agent name, provider, model\n" +
+                    "Progress screen shows per agent:\n" +
+                    "• Name, provider, model\n" +
                     "• Status (pending, running, success, error)\n" +
                     "• Input/Output token counts\n" +
-                    "• Cost in cents per agent\n\n" +
+                    "• Cost in cents\n" +
+                    "• Stop button to cancel pending agents\n\n" +
                     "Actions when complete:\n" +
-                    "• View - See formatted responses in-app\n" +
+                    "• View - Formatted responses in-app\n" +
                     "• Share - Export as JSON or HTML\n" +
-                    "• Browser - Open interactive HTML report\n" +
+                    "• Browser - Interactive HTML report\n" +
                     "• Close - Return to reports hub\n\n" +
-                    "Features:\n" +
+                    "HTML reports include:\n" +
                     "• Markdown rendering with formatting\n" +
                     "• Collapsible 'Think' sections for reasoning\n" +
-                    "• Citations and search results (Perplexity, xAI)\n" +
-                    "• Token usage details (developer mode)"
+                    "• Citations and search results\n" +
+                    "• Cost summary table with duration, tokens, and per-agent costs\n" +
+                    "• Content from <user>...</user> tags in prompts"
             )
 
             // AI Chat
             HelpSection(
                 title = "AI Chat",
                 icon = "\uD83D\uDCAC",
-                content = "Have multi-turn conversations with any AI:\n\n" +
+                content = "Multi-turn conversations with any AI:\n\n" +
                     "Starting a chat:\n" +
-                    "1. Tap 'AI Chat' on the home screen\n" +
-                    "2. Choose 'New chat' or 'Continue previous'\n" +
-                    "3. Select a provider (shows only configured ones)\n" +
-                    "4. Select a model (search to filter)\n" +
-                    "5. Optionally configure parameters\n" +
-                    "6. Start chatting!\n\n" +
+                    "1. Choose 'New chat' or 'Continue previous'\n" +
+                    "2. Select a provider or predefined agent\n" +
+                    "3. Select a model (with pricing shown)\n" +
+                    "4. Optionally configure parameters\n" +
+                    "5. Start chatting!\n\n" +
                     "Chat features:\n" +
-                    "• Streaming responses (real-time word-by-word)\n" +
-                    "• System prompt for AI behavior instructions\n" +
-                    "• Temperature, max tokens, and other parameters\n" +
+                    "• Streaming responses (real-time token-by-token)\n" +
+                    "• System prompt for AI behavior\n" +
+                    "• Temperature, max tokens, and more\n" +
                     "• Web search (xAI) and citations (Perplexity)\n" +
+                    "• Cost tracking per session\n" +
                     "• Auto-saved conversations\n" +
-                    "• Continue previous chats from Chat History"
+                    "• Continue any previous chat\n\n" +
+                    "Agent selection shows per-M-token pricing next to each agent."
             )
 
             // Chat History
             HelpSection(
                 title = "Chat History",
                 icon = "\uD83D\uDCDD",
-                content = "Your conversations are automatically saved:\n\n" +
-                    "• Access from AI Hub when starting a new chat\n" +
+                content = "Conversations are automatically saved:\n\n" +
                     "• Shows preview of first message\n" +
                     "• Displays provider, model, and timestamp\n" +
-                    "• Tap to continue any previous conversation\n" +
+                    "• Tap to continue any conversation\n" +
                     "• All messages and parameters restored\n" +
-                    "• Paginated list for easy browsing"
+                    "• Paginated list for easy browsing\n" +
+                    "• Delete old conversations"
             )
 
             // AI Models / Model Search
@@ -168,31 +194,29 @@ fun HelpScreen(
                     "• Unified search across all configured providers\n" +
                     "• Filter by model name\n" +
                     "• Color-coded by provider\n\n" +
-                    "When you tap a model, choose:\n" +
-                    "• Start AI Chat - Begin chatting with this model\n" +
-                    "• Create AI Agent - Create an agent using this model\n" +
-                    "• Model Info - View detailed model information"
+                    "When you tap a model:\n" +
+                    "• Start AI Chat - Begin chatting\n" +
+                    "• Create AI Agent - Make an agent with this model\n" +
+                    "• Model Info - Detailed model information"
             )
 
             // Model Info
             HelpSection(
                 title = "Model Info",
                 icon = "\u2139",
-                content = "View detailed information about any model:\n\n" +
-                    "Data from OpenRouter (if API key configured):\n" +
+                content = "Detailed information about any model:\n\n" +
+                    "OpenRouter data (if API key set):\n" +
                     "• Context length and max tokens\n" +
                     "• Pricing per token (input/output)\n" +
-                    "• Architecture and modality\n" +
-                    "• Provider information\n\n" +
-                    "Data from Hugging Face (if API key configured):\n" +
+                    "• Architecture and modality\n\n" +
+                    "Hugging Face data (if API key set):\n" +
                     "• Author and organization\n" +
-                    "• Downloads and likes\n" +
-                    "• Tags and license info\n\n" +
+                    "• Downloads, likes, tags\n\n" +
                     "AI-generated description:\n" +
                     "• Create an AI Prompt named 'model_info'\n" +
                     "• Assign an agent to generate descriptions\n" +
                     "• Use @MODEL@ and @PROVIDER@ variables\n" +
-                    "• Description auto-generates when viewing model info"
+                    "• Auto-generates when viewing model info"
             )
 
             // AI Statistics
@@ -200,35 +224,38 @@ fun HelpScreen(
                 title = "AI Statistics",
                 icon = "\uD83D\uDCCA",
                 content = "Track your AI usage:\n\n" +
-                    "Summary shows:\n" +
+                    "Summary:\n" +
                     "• Total API calls made\n" +
-                    "• Input token count (prompts sent)\n" +
-                    "• Output token count (responses received)\n" +
+                    "• Input tokens (prompts sent)\n" +
+                    "• Output tokens (responses received)\n" +
                     "• Total tokens processed\n\n" +
                     "Per-model breakdown:\n" +
                     "• Provider and model name\n" +
                     "• Number of calls\n" +
                     "• Token usage details\n\n" +
-                    "• Clear Statistics button to reset all data"
+                    "Clear Statistics button to reset all data."
             )
 
             // AI Costs
             HelpSection(
                 title = "AI Costs",
                 icon = "\uD83D\uDCB0",
-                content = "Track estimated costs for your AI usage:\n\n" +
-                    "Pricing sources (in order of priority):\n" +
-                    "1. Manual overrides (set in Cost Configuration)\n" +
+                content = "Track estimated costs:\n\n" +
+                    "Pricing sources (priority order):\n" +
+                    "1. Manual overrides (Cost Configuration)\n" +
                     "2. OpenRouter API pricing (weekly cached)\n" +
                     "3. LiteLLM community pricing (built-in)\n" +
-                    "4. Fallback estimates\n\n" +
+                    "4. Fallback estimates\n" +
+                    "5. Default estimate\n\n" +
                     "Features:\n" +
-                    "• Total estimated cost across all models\n" +
+                    "• Total cost across all models\n" +
                     "• Input/output cost breakdown\n" +
                     "• Expandable provider groups\n" +
                     "• Per-model cost details\n" +
                     "• Refresh button to update pricing\n" +
                     "• Color-coded pricing sources\n\n" +
+                    "Pricing is shown inline on selection screens as input/output per M tokens " +
+                    "(red = known pricing, gray = estimated).\n\n" +
                     "Cost Configuration (Settings):\n" +
                     "• Set manual price overrides per model\n" +
                     "• Prices in dollars per million tokens"
@@ -243,11 +270,11 @@ fun HelpScreen(
                     "• Paginated list view\n" +
                     "• Tap a report to see options\n\n" +
                     "Actions per report:\n" +
-                    "• View - See formatted responses in-app\n" +
+                    "• View - Formatted responses in-app\n" +
                     "• Share - Export as JSON or HTML\n" +
-                    "• Browser - Open interactive HTML report\n" +
-                    "• Delete - Remove report (with confirmation)\n\n" +
-                    "Reports are stored persistently until deleted."
+                    "• Browser - Interactive HTML report\n" +
+                    "• Delete - Remove (with confirmation)\n\n" +
+                    "HTML reports include a cost table with duration, tokens, and per-agent costs."
             )
 
             // AI Services
@@ -255,9 +282,10 @@ fun HelpScreen(
                 title = "Supported AI Services",
                 icon = "\uD83E\uDD16",
                 content = "${com.ai.data.AiService.entries.size} AI services supported:\n\n" +
+                    "Major providers:\n" +
                     "• OpenAI - GPT-4o, GPT-5.x, o3, o4\n" +
                     "  Endpoints: Chat Completions, Responses API\n" +
-                    "• Anthropic - Claude 4, Claude 3.5 (hardcoded list)\n" +
+                    "• Anthropic - Claude 4, Claude 3.5\n" +
                     "• Google - Gemini 2.0 Flash and more\n" +
                     "• xAI - Grok with optional web search\n" +
                     "• Groq - Ultra-fast inference\n" +
@@ -267,12 +295,14 @@ fun HelpScreen(
                     "  Endpoints: Standard, Codestral (code)\n" +
                     "• Perplexity - Web search with citations\n" +
                     "• Together AI - Open-source models\n" +
-                    "• OpenRouter - Multiple providers, unified API\n" +
-                    "• SiliconFlow - Qwen, DeepSeek models\n" +
-                    "  Endpoints: OpenAI-compatible, Anthropic-compatible\n" +
-                    "• Z.AI - GLM models (ZhipuAI)\n" +
-                    "  Endpoints: General, Coding\n" +
-                    "\n" +
+                    "• OpenRouter - Multiple providers, unified API\n\n" +
+                    "Additional providers:\n" +
+                    "• SiliconFlow, Z.AI, Moonshot/Kimi\n" +
+                    "• Cohere, AI21, DashScope, Fireworks\n" +
+                    "• Cerebras, SambaNova, Baichuan, StepFun\n" +
+                    "• MiniMax, NVIDIA, Replicate, Hugging Face\n" +
+                    "• Lambda, Lepton, 01.AI, Doubao\n" +
+                    "• Reka, Writer\n\n" +
                     "Each requires an API key from the provider's website."
             )
 
@@ -280,61 +310,101 @@ fun HelpScreen(
             HelpSection(
                 title = "AI Agents",
                 icon = "\u2699",
-                content = "Agents are your configured AI assistants:\n\n" +
+                content = "Configured AI assistants with custom settings:\n\n" +
                     "Each agent has:\n" +
-                    "• Name - For easy identification\n" +
+                    "• Name - For identification\n" +
                     "• Provider - Which AI service\n" +
-                    "• Model - Which model (optional, uses provider default)\n" +
-                    "• API Key - Your credentials (optional, uses provider key)\n" +
-                    "• Endpoint - API endpoint (optional, uses provider default)\n" +
-                    "• Parameters - Advanced settings\n\n" +
+                    "• Model - Which model (optional)\n" +
+                    "• API Key - Credentials (optional)\n" +
+                    "• Endpoint - API endpoint (optional)\n" +
+                    "• Parameter presets - Reusable settings\n\n" +
                     "Agent actions:\n" +
-                    "• Edit - Modify configuration\n" +
-                    "• Test - Verify API connectivity\n" +
-                    "• Duplicate - Copy with same settings\n" +
-                    "• Delete - Remove agent\n\n" +
-                    "Quick setup:\n" +
-                    "• Use 'Create default agents' to auto-create one agent per configured provider\n" +
-                    "• These agents inherit all settings from their provider\n\n" +
-                    "Create multiple agents to compare services or configurations."
+                    "• Edit, Test, Duplicate, Delete\n\n" +
+                    "Inheritance (empty fields use provider defaults):\n" +
+                    "• Empty model → provider's default model\n" +
+                    "• Empty API key → provider's API key\n" +
+                    "• No endpoint → provider's default endpoint\n\n" +
+                    "'Create default agents' auto-creates one agent per configured provider."
             )
 
             // AI Flocks
             HelpSection(
                 title = "AI Flocks",
                 icon = "\uD83D\uDC1D",
-                content = "Group agents for quick selection:\n\n" +
+                content = "Named groups of agents for quick selection:\n\n" +
                     "Creating a flock:\n" +
                     "1. Go to AI Setup > AI Flocks\n" +
                     "2. Tap 'Add Flock'\n" +
                     "3. Enter a name\n" +
-                    "4. Select agents to include\n" +
-                    "5. Save\n\n" +
+                    "4. Select agents (with pricing shown)\n" +
+                    "5. Optionally attach parameter presets\n" +
+                    "6. Save\n\n" +
                     "Using flocks:\n" +
-                    "• Select flocks when generating reports\n" +
-                    "• Combine with individual agent selection\n" +
-                    "• Selections are remembered for next time"
+                    "• Select in the Flocks tab when generating reports\n" +
+                    "• Combine with individual agents, swarms, or models\n" +
+                    "• Selections are remembered for next time\n\n" +
+                    "Flocks use each agent's full configuration (model, endpoint, parameters)."
+            )
+
+            // AI Swarms
+            HelpSection(
+                title = "AI Swarms",
+                icon = "\uD83D\uDC1D",
+                content = "Named groups of provider/model pairs:\n\n" +
+                    "Creating a swarm:\n" +
+                    "1. Go to AI Setup > AI Swarms\n" +
+                    "2. Tap 'Add Swarm'\n" +
+                    "3. Enter a name\n" +
+                    "4. Select provider/model combinations (with pricing)\n" +
+                    "5. Optionally attach parameter presets\n" +
+                    "6. Save\n\n" +
+                    "Swarms vs Flocks:\n" +
+                    "• Swarms are lightweight - use provider defaults\n" +
+                    "• Flocks reference configured agents with custom settings\n" +
+                    "• Both can have parameter presets attached\n" +
+                    "• Use swarms for quick multi-model comparisons"
+            )
+
+            // AI Parameters
+            HelpSection(
+                title = "AI Parameters",
+                icon = "\uD83D\uDD27",
+                content = "Reusable parameter presets:\n\n" +
+                    "Create named parameter sets that can be attached to agents, flocks, or swarms.\n\n" +
+                    "Available parameters:\n" +
+                    "• Temperature (0-2) - Creativity level\n" +
+                    "• Max Tokens - Response length limit\n" +
+                    "• System Prompt - AI behavior instructions\n" +
+                    "• Top P / Top K - Sampling settings\n" +
+                    "• Frequency/Presence Penalty - Reduce repetition\n" +
+                    "• Seed - Reproducible outputs\n" +
+                    "• Stop Sequences - Stop at keywords\n\n" +
+                    "Provider-specific:\n" +
+                    "• OpenAI: JSON response format\n" +
+                    "• xAI: Web search toggle\n" +
+                    "• Perplexity: Citations, search recency\n\n" +
+                    "Multiple presets can be stacked - later values override earlier ones."
             )
 
             // AI Prompts
             HelpSection(
                 title = "AI Prompts",
                 icon = "\uD83D\uDCDD",
-                content = "Internal prompts for AI-powered app features:\n\n" +
+                content = "Internal prompts for app features:\n\n" +
                     "Used by:\n" +
-                    "• Model Info - Create agent named 'model_info'\n" +
+                    "• Model Info - Create prompt named 'model_info'\n" +
                     "• Auto-generates model descriptions\n\n" +
                     "Creating a prompt:\n" +
                     "1. Go to AI Setup > AI Prompts\n" +
                     "2. Tap 'Add Prompt'\n" +
                     "3. Enter name (e.g., 'model_info')\n" +
-                    "4. Select an agent to execute the prompt\n" +
+                    "4. Select an agent to execute it\n" +
                     "5. Write the prompt template\n\n" +
                     "Variables (auto-replaced):\n" +
                     "• @MODEL@ - Model name\n" +
                     "• @PROVIDER@ - Provider name\n" +
                     "• @AGENT@ - Agent name\n" +
-                    "• @SWARM@ - Flock name\n" +
+                    "• @SWARM@ - Flock/swarm name\n" +
                     "• @NOW@ - Current date/time"
             )
 
@@ -349,42 +419,19 @@ fun HelpScreen(
                     "API Endpoints:\n" +
                     "• Multiple endpoints per provider\n" +
                     "• Add custom endpoints for self-hosted servers\n" +
-                    "• Set default endpoint for the provider\n" +
-                    "• OpenAI: Chat Completions vs Responses API\n" +
-                    "• DeepSeek: Standard vs Beta (FIM/prefix)\n" +
-                    "• Mistral: Standard vs Codestral (code)\n" +
-                    "• SiliconFlow: OpenAI vs Anthropic compatible\n" +
-                    "• Z.AI: General vs Coding endpoint\n\n" +
+                    "• Set default endpoint per provider\n" +
+                    "• Examples:\n" +
+                    "  OpenAI: Chat Completions vs Responses API\n" +
+                    "  DeepSeek: Standard vs Beta (FIM/prefix)\n" +
+                    "  Mistral: Standard vs Codestral (code)\n" +
+                    "  SiliconFlow: OpenAI vs Anthropic compatible\n" +
+                    "  Z.AI: General vs Coding endpoint\n\n" +
                     "Model List URL:\n" +
                     "• Custom URL for fetching available models\n" +
                     "• Useful for self-hosted or proxy servers\n\n" +
                     "Model Selection:\n" +
                     "• API mode: Fetch models from provider\n" +
                     "• Manual mode: Maintain your own model list"
-            )
-
-            // Agent Parameters
-            HelpSection(
-                title = "Agent Parameters",
-                icon = "\uD83D\uDD27",
-                content = "Customize agent behavior:\n\n" +
-                    "Common parameters:\n" +
-                    "• Temperature (0-2) - Creativity level\n" +
-                    "• Max Tokens - Response length limit\n" +
-                    "• System Prompt - AI behavior instructions\n" +
-                    "• Top P / Top K - Sampling settings\n" +
-                    "• Frequency/Presence Penalty - Reduce repetition\n" +
-                    "• Seed - Reproducible outputs\n" +
-                    "• Stop Sequences - Stop generation at keywords\n\n" +
-                    "Provider-specific:\n" +
-                    "• OpenAI: JSON response format\n" +
-                    "• xAI: Web search toggle\n" +
-                    "• Perplexity: Citations, search recency filter\n\n" +
-                    "Inheritance:\n" +
-                    "• Leave API key empty → uses provider key\n" +
-                    "• Leave model empty → uses provider model\n" +
-                    "• Leave endpoint empty → uses provider endpoint\n" +
-                    "• Leave parameters empty → uses provider defaults"
             )
 
             // Think Sections
@@ -411,23 +458,48 @@ fun HelpScreen(
                     "• Most recent prompts first"
             )
 
+            // HTML Reports
+            HelpSection(
+                title = "HTML Reports",
+                icon = "\uD83C\uDF10",
+                content = "Interactive reports for browser viewing:\n\n" +
+                    "Content:\n" +
+                    "• Agent buttons to toggle between responses\n" +
+                    "• Markdown rendered as formatted HTML\n" +
+                    "• Collapsible think sections\n" +
+                    "• Citations and search results\n\n" +
+                    "Cost summary table:\n" +
+                    "• Provider and model per agent\n" +
+                    "• API request duration in seconds\n" +
+                    "• Input/output token counts\n" +
+                    "• Input/output costs in cents\n" +
+                    "• Total cost per agent\n" +
+                    "• Totals row at bottom\n\n" +
+                    "User content:\n" +
+                    "• Wrap text in <user>...</user> tags in your prompt\n" +
+                    "• This content appears in the HTML report header\n" +
+                    "• It is not sent to the AI agents"
+            )
+
             // Export/Import Configuration
             HelpSection(
                 title = "Export/Import Configuration",
                 icon = "\uD83D\uDCBE",
                 content = "Backup and restore your setup:\n\n" +
                     "Export (AI Setup page):\n" +
-                    "• Saves all providers, agents, flocks, prompts\n" +
-                    "• Includes API keys, parameters, endpoints\n" +
-                    "• Includes model list URLs and admin URLs\n" +
-                    "• Includes manual pricing overrides\n" +
-                    "• Includes Hugging Face API key\n" +
-                    "• JSON format (version 14)\n\n" +
+                    "• All providers with API keys and endpoints\n" +
+                    "• All agents with parameters\n" +
+                    "• All flocks and swarms\n" +
+                    "• AI parameter presets\n" +
+                    "• AI prompts\n" +
+                    "• Manual pricing overrides\n" +
+                    "• External API keys (HuggingFace, OpenRouter)\n" +
+                    "• JSON format\n\n" +
                     "Import:\n" +
                     "• From file picker or clipboard\n" +
-                    "• Requires version 11-14\n" +
-                    "• All settings restored including endpoints\n\n" +
-                    "Refresh model lists: Updates all API-source providers at once."
+                    "• All settings restored\n\n" +
+                    "Refresh model lists:\n" +
+                    "• Updates all API-source providers at once"
             )
 
             // Settings Overview
@@ -441,19 +513,22 @@ fun HelpScreen(
                     "• Developer mode toggle\n" +
                     "• API call tracing (dev mode)\n\n" +
                     "External Services:\n" +
-                    "• Hugging Face API Key - For model info\n\n" +
+                    "• Hugging Face API Key - For model info\n" +
+                    "• OpenRouter API Key - For pricing data\n\n" +
                     "Cost Configuration:\n" +
-                    "• Set manual price overrides per model\n" +
+                    "• Manual price overrides per model\n" +
                     "• Prices in dollars per million tokens\n" +
                     "• Manual overrides have highest priority\n\n" +
                     "AI Setup:\n" +
-                    "• Provider configuration (keys, endpoints, models)\n" +
-                    "• Agent management (create, edit, duplicate)\n" +
-                    "• Flock management (group agents)\n" +
-                    "• AI Prompts (internal app prompts)\n" +
-                    "• Create default agents (one per provider)\n" +
-                    "• Refresh model lists (all providers)\n" +
-                    "• Export/Import configuration (v11)"
+                    "• AI Providers - Keys, endpoints, models\n" +
+                    "• AI Agents - Create, edit, duplicate, test\n" +
+                    "• AI Flocks - Group agents\n" +
+                    "• AI Swarms - Group provider/model pairs\n" +
+                    "• AI Parameters - Reusable parameter presets\n" +
+                    "• AI Prompts - Internal app prompts\n" +
+                    "• Create default agents\n" +
+                    "• Refresh model lists\n" +
+                    "• Export/Import configuration"
             )
 
             // Developer Mode
@@ -465,12 +540,15 @@ fun HelpScreen(
                     "• API call tracing option\n" +
                     "• Token usage in reports\n" +
                     "• HTTP headers in reports\n" +
-                    "• Developer Options on home screen\n\n" +
+                    "• Developer Options on home screen\n" +
+                    "• DUMMY provider (local test server)\n\n" +
                     "Developer Options:\n" +
-                    "• API Test - Test API calls with custom settings\n" +
-                    "• API Traces - View logged API requests/responses\n" +
-                    "• Color-coded HTTP status codes\n" +
-                    "• API keys are masked for security"
+                    "• API Test - Custom API request builder\n" +
+                    "• API Traces - Logged requests/responses\n" +
+                    "  - Color-coded HTTP status codes\n" +
+                    "  - Collapsible JSON tree viewer\n" +
+                    "  - API keys masked for security\n" +
+                    "  - Filter traces by report ID"
             )
 
             // External App Integration
@@ -491,12 +569,13 @@ fun HelpScreen(
                 title = "Privacy & Security",
                 icon = "\uD83D\uDD12",
                 content = "Your data stays on your device:\n\n" +
-                    "• All reports stored locally\n" +
+                    "• All reports and chats stored locally\n" +
                     "• No analytics or telemetry\n" +
                     "• API keys in private storage\n" +
                     "• Keys masked in API traces\n" +
                     "• Direct API calls only to providers\n" +
-                    "• HTTPS encryption in transit"
+                    "• HTTPS encryption in transit\n" +
+                    "• No third-party data sharing"
             )
 
             // Troubleshooting
@@ -510,19 +589,23 @@ fun HelpScreen(
                     "→ Check internet, retries once automatically\n\n" +
                     "\"Model not found\"\n" +
                     "→ Use 'Refresh model lists' in AI Setup\n" +
-                    "→ Check if model is available for your API tier\n\n" +
+                    "→ Check model availability for your API tier\n\n" +
                     "\"No pricing data\"\n" +
-                    "→ Add OpenRouter API key or use Cost Configuration\n\n" +
+                    "→ Add OpenRouter API key in Settings\n" +
+                    "→ Or set manual prices in Cost Configuration\n\n" +
                     "\"Wrong endpoint\"\n" +
                     "→ Check provider settings for correct endpoint\n" +
                     "→ OpenAI: gpt-4o uses Chat, gpt-5.x uses Responses\n\n" +
                     "Slow responses?\n" +
-                    "→ Complex prompts can take minutes (7 min timeout)\n\n" +
-                    "Streaming not working?\n" +
-                    "→ All providers support streaming for chat\n\n" +
+                    "→ Complex prompts can take minutes (7 min timeout)\n" +
+                    "→ Check the duration column in HTML cost table\n\n" +
+                    "Pricing shows gray?\n" +
+                    "→ Gray = estimated fallback pricing\n" +
+                    "→ Red = known pricing from OpenRouter/LiteLLM/manual\n\n" +
                     "Agent using wrong settings?\n" +
-                    "→ Empty fields inherit from provider settings\n" +
-                    "→ Check provider has correct defaults\n\n" +
+                    "→ Empty fields inherit from provider\n" +
+                    "→ Check provider has correct defaults\n" +
+                    "→ Check parameter preset order (later overrides earlier)\n\n" +
                     "For debugging, enable Developer Mode and API tracing."
             )
 

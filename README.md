@@ -1,16 +1,17 @@
 # AI - Multi-Provider AI Report Generator & Chat
 
-An Android app that generates AI-powered reports and enables conversations using 13 different AI services. Compare responses from OpenAI, Anthropic, Google, and 10 other AI providers, chat with real-time streaming responses, configure custom API endpoints, track costs, and explore models across all providers.
+An Android app that generates AI-powered reports and enables conversations using 31 different AI services. Compare responses from OpenAI, Anthropic, Google, and 28 other AI providers, chat with real-time streaming responses, organize agents into flocks and swarms, configure custom API endpoints, track costs, and explore models across all providers.
 
 ## Features
 
 ### Core Features
-- **13 AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, plus DUMMY for testing
+- **31 AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together, OpenRouter, SiliconFlow, Z.AI, Moonshot, Cohere, AI21, DashScope, Fireworks, Cerebras, SambaNova, Baichuan, StepFun, MiniMax, NVIDIA, Replicate, Hugging Face, Lambda, Lepton, 01.AI, Doubao, Reka, Writer
 - **AI Chat**: Multi-turn conversations with real-time streaming responses (word-by-word), auto-saved history
 - **Multi-Agent Reports**: Query multiple AI providers in parallel, compare responses side-by-side
-- **AI Swarms**: Group agents together for quick selection during report generation
-- **Advanced Parameters**: Configure temperature, max tokens, system prompts, and more per agent
-- **Real-time Progress**: Watch as each agent completes, with token counts and costs per agent
+- **AI Flocks**: Group agents together for quick selection during report generation
+- **AI Swarms**: Group provider/model pairs without needing full agent configurations
+- **AI Parameters**: Create reusable parameter presets and assign them to agents, flocks, or swarms
+- **Real-time Progress**: Watch as each agent completes, with token counts, costs, and API duration
 
 ### Provider Endpoints
 - **Multiple Endpoints**: Configure multiple API endpoints per provider
@@ -22,6 +23,7 @@ An Android app that generates AI-powered reports and enables conversations using
 - **Flexible Inheritance**: Agents can inherit API key, model, and endpoint from provider
 - **Quick Setup**: "Create default agents" button creates one agent per configured provider
 - **Per-Agent Endpoints**: Override provider endpoint for specific agents
+- **Parameter Presets**: Assign reusable parameter presets to agents
 - **Test Connectivity**: Test button verifies API key and endpoint work correctly
 
 ### Model Discovery
@@ -31,31 +33,35 @@ An Android app that generates AI-powered reports and enables conversations using
 
 ### Cost Tracking
 - **AI Costs**: Track estimated costs for all API usage
-- **Four-Tier Pricing**: Manual overrides > OpenRouter API (weekly cached) > LiteLLM (bundled) > Fallback
+- **Six-Tier Pricing**: API response > Manual overrides > OpenRouter API (weekly cached) > LiteLLM (bundled) > Fallback > Default
 - **Cost Configuration**: Set manual price overrides per model in dollars per million tokens
-- **Per-Agent Costs**: See input/output token counts and cost in cents for each agent response
+- **Per-Agent Costs**: See input/output token counts, cost in cents, and API duration for each agent response
+- **Pricing Display**: Per-M-token input/output pricing shown on all agent and model selection screens
+- **HTML Cost Table**: Generated reports include a summary table with provider, model, duration, tokens, and costs
 
 ### History & Organization
 - **Chat History**: Automatically saved conversations with streaming support, tap to continue
 - **Report History**: Browse, view, share (JSON or HTML), and delete generated reports
 - **Prompt History**: Automatically saves prompts (up to 100), one-tap reuse
 - **AI Statistics**: Track API calls, input/output tokens per provider and model
-- **Swarm Selection Memory**: Remembers your last selected swarms for convenience
+- **Selection Memory**: Remembers your last selected flocks/swarms for convenience
 
 ### Export & Sharing
-- **Share Reports**: Export as JSON (raw data) or HTML (formatted report)
+- **Share Reports**: Export as JSON (raw data) or HTML (formatted report with cost table)
 - **View in Browser**: Open interactive HTML report with collapsible sections
 - **Markdown Rendering**: AI responses rendered with formatting
 - **Collapsible Think Sections**: AI reasoning hidden behind expandable buttons
 - **Citations & Sources**: Perplexity citations, xAI/Perplexity search results displayed
-- **Configuration Export**: Backup/restore your complete setup as JSON (v11 format)
+- **User Content Tags**: Use `<user>...</user>` tags in prompts to embed content shown in HTML reports but not sent to AI
+- **Configuration Export**: Backup/restore your complete setup as JSON (v16 format)
 
 ### Developer Features
 - **API Tracing**: Log all API requests and responses
-- **Trace Viewer**: Inspect request/response details with header masking
-- **Token Usage**: See input/output token counts in reports
+- **Trace Viewer**: Inspect request/response details with JSON tree view and header masking
+- **API Test**: Send custom JSON requests to any provider endpoint
+- **Token Usage**: See input/output token counts and API duration in reports
 - **HTTP Headers**: View response headers in developer mode
-- **DUMMY Provider**: Local test server for development
+- **Housekeeping**: Test all provider connections, refresh model lists, cleanup tools
 
 ## Requirements
 
@@ -83,7 +89,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ### 1. Configure a Provider
 
-1. Open app → Settings (gear icon) → AI Setup
+1. Open app -> Settings (gear icon) -> AI Setup
 2. Tap "AI Providers"
 3. Select a provider (e.g., OpenAI)
 4. Enter your API key
@@ -93,47 +99,45 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ### 2. Create Your First Agent
 
 **Quick Method:**
-1. Go to AI Setup → AI Agents
+1. Go to AI Setup -> AI Agents
 2. Tap "Create default agents" to auto-create agents for all configured providers
 
 **Manual Method:**
-1. Go to AI Setup → AI Agents
+1. Go to AI Setup -> AI Agents
 2. Tap "+ Add Agent"
-3. Enter:
-   - **Name**: e.g., "My GPT-4"
-   - **Provider**: Select OpenAI
-   - **Model**: (Optional) Leave empty to use provider default, or tap Select to choose
-   - **API Key**: (Optional) Leave empty to use provider key
-   - **Endpoint**: (Optional) Tap Select to choose specific endpoint
-4. Optionally expand "Advanced Parameters" to configure:
-   - Temperature, Max Tokens, Top P, etc.
-   - System Prompt for custom instructions
+3. Enter name, select provider and model
+4. Optionally assign parameter presets
 5. Tap Test to verify connectivity
 6. Save
 
-### 3. Create a Swarm (Optional)
+### 3. Create a Flock or Swarm (Optional)
 
-1. Go to AI Setup → AI Swarms
-2. Tap "Add Swarm"
-3. Enter a name and select agents to include
-4. Save - now you can select this swarm for quick agent selection
+**Flock (agent group):**
+1. Go to AI Setup -> AI Flocks
+2. Tap "Add Flock", name it, select agents
+3. Optionally assign parameter presets
+
+**Swarm (provider/model group):**
+1. Go to AI Setup -> AI Swarms
+2. Tap "Add Swarm", name it, select provider/model pairs
+3. Optionally assign parameter presets
 
 ### 4. Start Using the App
 
 **For Chat (Recommended Start):**
 1. From AI Hub, tap "AI Chat"
 2. Choose "New chat" or "Continue previous"
-3. Select a provider with a configured API key
+3. Select a provider or a pre-configured agent
 4. Select a model
-5. Start chatting - responses stream in real-time, word by word
+5. Start chatting - responses stream in real-time
 6. Conversations are automatically saved
 
 **For Reports:**
 1. From AI Hub, tap "AI Report"
 2. Enter a title and your prompt
 3. Tap "Generate" button at top
-4. Select individual agents or swarms in the dialog
-5. Watch progress with token counts and costs
+4. Select flocks, swarms, or individual agents
+5. Watch progress with token counts, costs, and duration
 6. View results, share as JSON/HTML, or open in browser
 
 **For Model Discovery:**
@@ -143,63 +147,67 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## Supported AI Services
 
-| Service | Website | Get API Key |
-|---------|---------|-------------|
-| **OpenAI** | OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) |
-| **Anthropic** | Anthropic | [console.anthropic.com](https://console.anthropic.com/) |
-| **Google** | Google | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
-| **xAI** | xAI | [console.x.ai](https://console.x.ai/) |
-| **Groq** | Groq | [console.groq.com](https://console.groq.com/) |
-| **DeepSeek** | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com/) |
-| **Mistral** | Mistral AI | [console.mistral.ai](https://console.mistral.ai/) |
-| **Perplexity** | Perplexity | [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
-| **Together** | Together AI | [api.together.xyz](https://api.together.xyz/settings/api-keys) |
-| **OpenRouter** | OpenRouter | [openrouter.ai/keys](https://openrouter.ai/keys) |
-| **SiliconFlow** | SiliconFlow | [siliconflow.cn](https://siliconflow.cn/) |
-| **Z.AI** | Z.AI | [z.ai](https://z.ai/) |
-
-### Default Models
-
-| Service | Default Model |
-|---------|---------------|
-| OpenAI | gpt-4o-mini |
-| Anthropic | claude-sonnet-4-20250514 |
-| Google | gemini-2.0-flash |
-| xAI | grok-3-mini |
-| Groq | llama-3.3-70b-versatile |
-| DeepSeek | deepseek-chat |
-| Mistral | mistral-small-latest |
-| Perplexity | sonar |
-| Together | meta-llama/Llama-3.3-70B-Instruct-Turbo |
-| OpenRouter | anthropic/claude-3.5-sonnet |
-| SiliconFlow | Qwen/Qwen2.5-7B-Instruct |
-| Z.AI | glm-4.7-flash |
+| Service | Default Model | Website |
+|---------|---------------|---------|
+| **OpenAI** | gpt-4o-mini | [platform.openai.com](https://platform.openai.com/api-keys) |
+| **Anthropic** | claude-sonnet-4-20250514 | [console.anthropic.com](https://console.anthropic.com/) |
+| **Google** | gemini-2.0-flash | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| **xAI** | grok-3-mini | [console.x.ai](https://console.x.ai/) |
+| **Groq** | llama-3.3-70b-versatile | [console.groq.com](https://console.groq.com/) |
+| **DeepSeek** | deepseek-chat | [platform.deepseek.com](https://platform.deepseek.com/) |
+| **Mistral** | mistral-small-latest | [console.mistral.ai](https://console.mistral.ai/) |
+| **Perplexity** | sonar | [perplexity.ai](https://www.perplexity.ai/settings/api) |
+| **Together** | Llama-3.3-70B-Instruct-Turbo | [api.together.xyz](https://api.together.xyz/settings/api-keys) |
+| **OpenRouter** | anthropic/claude-3.5-sonnet | [openrouter.ai](https://openrouter.ai/keys) |
+| **SiliconFlow** | Qwen/Qwen2.5-7B-Instruct | [siliconflow.cn](https://siliconflow.cn/) |
+| **Z.AI** | glm-4.7-flash | [open.bigmodel.cn](https://open.bigmodel.cn/) |
+| **Moonshot** | kimi-latest | [platform.moonshot.ai](https://platform.moonshot.ai/) |
+| **Cohere** | command-a-03-2025 | [dashboard.cohere.com](https://dashboard.cohere.com/) |
+| **AI21** | jamba-mini | [studio.ai21.com](https://studio.ai21.com/) |
+| **DashScope** | qwen-plus | [dashscope.console.aliyun.com](https://dashscope.console.aliyun.com/) |
+| **Fireworks** | llama-v3p3-70b-instruct | [app.fireworks.ai](https://app.fireworks.ai/) |
+| **Cerebras** | llama-3.3-70b | [cloud.cerebras.ai](https://cloud.cerebras.ai/) |
+| **SambaNova** | Meta-Llama-3.3-70B-Instruct | [cloud.sambanova.ai](https://cloud.sambanova.ai/) |
+| **Baichuan** | Baichuan4-Turbo | [platform.baichuan-ai.com](https://platform.baichuan-ai.com/) |
+| **StepFun** | step-2-16k | [platform.stepfun.com](https://platform.stepfun.com/) |
+| **MiniMax** | MiniMax-M2.1 | [platform.minimax.io](https://platform.minimax.io/) |
+| **NVIDIA** | llama-3.1-nemotron-70b-instruct | [build.nvidia.com](https://build.nvidia.com/) |
+| **Replicate** | meta/meta-llama-3-70b-instruct | [replicate.com](https://replicate.com/) |
+| **Hugging Face** | Llama-3.1-70B-Instruct | [huggingface.co](https://huggingface.co/settings/tokens) |
+| **Lambda** | hermes-3-llama-3.1-405b-fp8 | [cloud.lambdalabs.com](https://cloud.lambdalabs.com/) |
+| **Lepton** | llama3-1-70b | [dashboard.lepton.ai](https://dashboard.lepton.ai/) |
+| **01.AI** | yi-lightning | [platform.01.ai](https://platform.01.ai/) |
+| **Doubao** | doubao-pro-32k | [console.volcengine.com](https://console.volcengine.com/) |
+| **Reka** | reka-flash | [platform.reka.ai](https://platform.reka.ai/) |
+| **Writer** | palmyra-x-004 | [app.writer.com](https://app.writer.com/) |
 
 ### Service-Specific Features
 
 | Service | Special Features |
 |---------|-----------------|
-| **OpenAI** | JSON response format, Chat Completions API (gpt-4o), Responses API (gpt-5.x/o3/o4), streaming |
-| **Anthropic** | Top-K parameter, content blocks, streaming |
-| **Google** | System instruction, generation config, streaming |
-| **xAI** | Web search toggle, returns search results, streaming |
-| **Perplexity** | Citations, search results, related questions, recency filter, streaming |
-| **DeepSeek** | Reasoning content support (think sections), Standard + Beta endpoints, streaming |
-| **Mistral** | Standard + Codestral endpoints (code generation), streaming |
-| **SiliconFlow** | OpenAI + Anthropic compatible endpoints, Chinese AI models, streaming |
-| **Z.AI** | General + Coding endpoints, GLM models, streaming |
+| **OpenAI** | JSON response format, Chat Completions API (gpt-4o), Responses API (gpt-5.x/o3/o4) |
+| **Anthropic** | Top-K parameter, content blocks, 8 hardcoded models |
+| **Google** | System instruction, generation config |
+| **xAI** | Web search toggle, returns search results |
+| **Perplexity** | Citations, search results, related questions, recency filter |
+| **DeepSeek** | Reasoning content (think sections), Standard + Beta endpoints |
+| **Mistral** | Standard + Codestral endpoints (code generation) |
+| **SiliconFlow** | OpenAI + Anthropic compatible endpoints, Chinese AI models |
+| **Z.AI** | General + Coding endpoints, GLM models |
+| **Moonshot** | Chinese AI provider (Kimi models) |
+| **Cohere** | Command models with compatibility mode |
+| **DashScope** | Alibaba Cloud AI, Qwen models |
 
-### Provider Endpoints
+All 31 services support SSE streaming for real-time responses.
 
-Some providers have multiple API endpoints for different use cases:
+## Flocks vs Swarms
 
-| Provider | Endpoints |
-|----------|-----------|
-| **OpenAI** | Chat Completions (gpt-4o, gpt-4, gpt-3.5), Responses API (gpt-5.x, o3, o4) |
-| **DeepSeek** | Standard (chat/completions), Beta (FIM/prefix completion) |
-| **Mistral** | Standard (api.mistral.ai), Codestral (codestral.mistral.ai for code) |
-| **SiliconFlow** | Chat Completions (OpenAI compatible), Messages (Anthropic compatible) |
-| **Z.AI** | General (chat completions), Coding (GLM Coding Plan) |
+The app offers two ways to group AI configurations:
+
+- **Flocks**: Groups of **agents** (full configurations with provider, model, API key, endpoint). Best when you need specific, reusable agent setups.
+- **Swarms**: Groups of **provider/model pairs** (lightweight, using provider defaults). Best for quickly comparing multiple models without creating agents first.
+
+Both can have parameter presets attached for overriding defaults.
 
 ## Agent Parameters
 
@@ -221,6 +229,14 @@ Each agent can be configured with advanced parameters (availability varies by pr
 | **Return Citations** | Include source URLs | Perplexity |
 | **Search Recency** | Filter by time (day/week/month/year) | Perplexity |
 
+### Parameter Presets
+
+Instead of configuring parameters per-agent, you can create reusable parameter presets:
+1. Go to AI Setup -> AI Parameters
+2. Create named presets (e.g., "Creative", "Precise", "Code")
+3. Assign presets to agents, flocks, or swarms
+4. Multiple presets can be assigned - later ones override earlier ones
+
 ### Agent Inheritance
 
 Agents can inherit settings from their provider:
@@ -228,17 +244,15 @@ Agents can inherit settings from their provider:
 - **Model**: Leave empty to use provider's default model
 - **Endpoint**: Leave empty to use provider's default endpoint
 
-This allows quick setup while maintaining flexibility for specific configurations.
-
 ## Features in Detail
 
 ### AI Chat with Streaming
 
 Have real-time conversations with any AI:
-1. Select a provider (shows only configured ones)
+1. Select a provider or pre-configured agent
 2. Select a model (search to filter)
-3. Optionally configure parameters (system prompt, temperature, etc.)
-4. Start chatting - responses appear word by word as they're generated
+3. Optionally configure parameters
+4. Start chatting - responses appear word by word
 5. Conversations are automatically saved to Chat History
 6. Continue any previous conversation from Chat History
 
@@ -247,68 +261,50 @@ Have real-time conversations with any AI:
 Generate comparative reports from multiple AI agents:
 1. Enter a title (optional) and your prompt
 2. Use `@DATE@` to insert current date automatically
-3. Select agents or swarms to query
-4. Watch real-time progress with:
+3. Use `<user>...</user>` tags to embed content shown in HTML reports but not sent to AI
+4. Select flocks, swarms, or individual agents
+5. Watch real-time progress with:
    - Agent name, provider, model
    - Status (pending, running, success, error)
    - Input/output token counts
    - Cost in cents per agent
-5. When complete:
+   - API duration in seconds
+6. When complete:
    - **View** - See formatted responses in-app
    - **Share** - Export as JSON or HTML
    - **Browser** - Open interactive HTML report
+
+### HTML Reports
+
+Generated reports include:
+- Report title and timestamp
+- Cost summary table: Provider, Model, Seconds, In/Out tokens, In/Out cost (cents), Total
+- User content from `<user>` tags
+- Clickable buttons to toggle each agent's response
+- Collapsible think sections for AI reasoning
+- Markdown-rendered AI responses
+- Citations and sources (when provided)
+- Search results and related questions (when provided)
+- Token usage and HTTP headers (developer mode only)
 
 ### AI Costs
 
 Track your AI spending:
 - **Total cost** across all models
 - **Expandable provider groups** showing per-model breakdown
-- **Pricing sources** (color-coded): Manual, OpenRouter, LiteLLM, Fallback
+- **Pricing sources** (color-coded): API, Manual, OpenRouter, LiteLLM, Fallback
 - **Refresh button** to update OpenRouter pricing (cached weekly)
 - **Cost Configuration** in Settings for manual price overrides
-
-### AI Swarms
-
-Group your agents for convenient selection:
-1. Create swarms in AI Setup → AI Swarms
-2. Add any configured agents to a swarm
-3. When generating a report, select a swarm to include all its agents
-4. Your swarm selections are remembered for next time
+- **Selection pricing**: Input/output per-M-token costs shown on all agent and model selection screens
 
 ### AI Prompts
 
 Create internal prompts for app features:
-1. Go to AI Setup → AI Prompts
+1. Go to AI Setup -> AI Prompts
 2. Create a prompt with a unique name (e.g., "model_info")
 3. Assign an agent to execute the prompt
 4. Use variables: @MODEL@, @PROVIDER@, @AGENT@, @SWARM@, @NOW@
 5. The app uses these prompts for features like auto-generating model descriptions
-
-### Model Search
-
-Search and explore models across all providers:
-1. Unified search across all configured providers
-2. Filter by model name
-3. Color-coded by provider
-4. When you tap a model, choose:
-   - **Start AI Chat** - Begin chatting with this model
-   - **Create AI Agent** - Create an agent using this model
-   - **Model Info** - View detailed model information
-
-### Model Info
-
-View detailed information about any model:
-- **From OpenRouter** (if API key configured): Context length, max tokens, pricing per token, architecture
-- **From Hugging Face** (if API key configured): Author, downloads, likes, tags, license
-- **AI-generated description**: Create an AI Prompt named "model_info" to auto-generate introductions
-
-### AI Statistics
-
-Track your AI usage:
-- Total API calls made
-- Input and output token counts
-- Usage per provider and model
-- Clear statistics button
 
 ### Think Sections
 
@@ -317,38 +313,11 @@ Some AI models (like DeepSeek reasoning models) include `<think>...</think>` sec
 - HTML reports: JavaScript-powered collapsible sections
 - Helps understand AI decision-making while keeping responses clean
 
-### Prompt Templates
-
-Use placeholders in your prompts:
-- `@DATE@` - Current date (e.g., "Saturday, January 25th")
-
-### HTML Reports
-
-Generated reports include:
-- Report title and timestamp
-- Clickable buttons to toggle each agent's response
-- Collapsible think sections for AI reasoning
-- Markdown-rendered AI responses
-- Citations and sources (when provided)
-- Search results and related questions (when provided)
-- Token usage and HTTP headers (developer mode only)
-- Original prompt at bottom
-
-### Export & Share
-
-- **View in Chrome**: Opens HTML report in browser
-- **Share as JSON**: Raw report data for processing
-- **Share as HTML**: Formatted report for viewing
-- **Export Config**: Share your complete setup as JSON (v11 format)
-- **Import Config**: Import from JSON file or clipboard
-
 ## Integration with Other Apps
 
-The AI app can be launched from other Android applications to generate reports. This allows apps like chess analyzers, note-taking apps, or any other app to leverage AI analysis without implementing their own AI integrations.
+The AI app can be launched from other Android applications to generate reports. See `CALL_AI.md` for complete documentation.
 
 ### How to Call the AI App
-
-From your Android app, send an intent:
 
 ```kotlin
 val intent = Intent().apply {
@@ -360,70 +329,45 @@ val intent = Intent().apply {
 startActivity(intent)
 ```
 
-### What Happens
-
-1. AI app opens with the New Report screen
-2. Title and prompt are pre-filled from the intent
-3. User selects which AI agents or swarms to use
-4. Report is generated and displayed in the AI app
-5. User can view, export, or share the results
-
-### Check if AI App is Installed
-
-```kotlin
-val intent = Intent("com.ai.ACTION_NEW_REPORT")
-intent.setPackage("com.ai")
-
-if (intent.resolveActivity(packageManager) != null) {
-    startActivity(intent)
-} else {
-    // Show message that AI app needs to be installed
-}
-```
-
-For detailed integration documentation, see `CALL_AI.md`.
-
 ## App Structure
 
 ```
 AI Hub (Home)
-├── AI Report
-│   ├── Enter title + prompt
-│   ├── Generate → Select agents/swarms
-│   ├── Progress with token counts & costs
-│   └── Results → View/Share (JSON/HTML)/Browser
-├── AI Chat
-│   ├── Select provider + model
-│   ├── Configure parameters
-│   └── Streaming conversation (auto-saved)
-├── AI Models
-│   ├── Search across all providers
-│   └── View info / Start chat / Create agent
-├── AI History
-│   └── Browse → View/Share/Browser/Delete reports
-├── AI Statistics
-│   └── API calls, token usage per provider/model
-├── AI Costs
-│   └── Estimated costs with expandable provider groups
-└── Settings
-    ├── General
-    │   ├── Username for chat display
-    │   ├── Full screen mode toggle
-    │   ├── Developer mode toggle
-    │   └── API tracing toggle
-    ├── Cost Configuration
-    │   └── Manual price overrides per model
-    ├── AI Setup
-    │   ├── AI Providers (API keys, endpoints, models)
-    │   ├── AI Agents (with parameters, endpoint selection)
-    │   ├── AI Swarms (agent groups)
-    │   ├── AI Prompts (internal app prompts)
-    │   ├── Create default agents
-    │   ├── Refresh model lists
-    │   └── Export/Import configuration (v11)
-    ├── External Services
-    │   └── Hugging Face API Key
-    └── Help
++-- AI Report
+|   +-- Enter title + prompt
+|   +-- Generate -> Select flocks/swarms/agents
+|   +-- Progress with token counts, costs & duration
+|   +-- Results -> View/Share (JSON/HTML)/Browser
++-- AI Chat
+|   +-- Select provider/agent + model
+|   +-- Configure parameters
+|   +-- Streaming conversation (auto-saved)
++-- AI Models
+|   +-- Search across all providers
+|   +-- View info / Start chat / Create agent
++-- AI History
+|   +-- Browse -> View/Share/Browser/Delete reports
++-- AI Statistics
+|   +-- API calls, token usage per provider/model
++-- AI Costs
+|   +-- Estimated costs with expandable provider groups
++-- Settings
+    +-- General
+    |   +-- Username, Full screen mode, Developer mode, API tracing
+    +-- Cost Configuration
+    |   +-- Manual price overrides per model
+    +-- AI Setup
+    |   +-- AI Providers (API keys, endpoints, models)
+    |   +-- AI Agents (with parameter presets, endpoint selection)
+    |   +-- AI Flocks (agent groups)
+    |   +-- AI Swarms (provider/model groups)
+    |   +-- AI Parameters (reusable parameter presets)
+    |   +-- AI Prompts (internal app prompts)
+    |   +-- Export/Import configuration (v16)
+    |   +-- Housekeeping (test connections, refresh, cleanup)
+    +-- External Services
+    |   +-- Hugging Face API Key
+    +-- Help
 ```
 
 ## Privacy & Security
@@ -436,7 +380,7 @@ AI Hub (Home)
 ## Troubleshooting
 
 ### "API key not configured"
-Add your API key in Settings → AI Setup → AI Providers
+Add your API key in Settings -> AI Setup -> AI Providers
 
 ### "Network error"
 - Check internet connection
@@ -444,8 +388,8 @@ Add your API key in Settings → AI Setup → AI Providers
 
 ### "Model not found"
 - The model may have been deprecated
-- Use "Refresh model lists" in AI Setup to update
-- For Claude/Perplexity: models are hardcoded (no list API)
+- Use Housekeeping -> "Refresh model lists" to update
+- Some providers have hardcoded model lists (no API)
 
 ### Wrong endpoint being used
 - Check provider settings for correct default endpoint
@@ -462,27 +406,17 @@ Add your API key in Settings → AI Setup → AI Providers
 - Check the parameter availability table above
 - Parameters left empty use provider defaults
 
-### Agent using wrong API key/model
-- Empty fields inherit from provider settings
-- Fill in specific values to override
-- Check provider has correct defaults configured
-
-### Streaming not working
-- All 13 providers support streaming
-- If issues occur, check your API key and network connection
-- Falls back gracefully if partial content received
-
 ### No pricing data
 - Add OpenRouter API key for best pricing coverage
 - Use Cost Configuration to set manual prices
 - LiteLLM bundled data provides fallback pricing
 
 ### Debug API issues
-1. Enable Developer Mode (Settings → General)
-2. Enable "Track API calls" in the same card
+1. Enable Developer Mode (Settings -> General)
+2. Enable "Track API calls"
 3. Reproduce the issue
 4. Check trace viewer (bug icon in title bar)
-5. Inspect request/response details
+5. Inspect request/response details in JSON tree view
 6. Share trace file for support
 
 ## Technical Details
@@ -494,7 +428,7 @@ Add your API key in Settings → AI Setup → AI Providers
 - **Streaming**: Server-Sent Events (SSE) with Kotlin Flow
 - **Min SDK**: 26 (Android 8.0)
 - **Target SDK**: 34 (Android 14)
-- **Codebase**: ~26,000 lines across 25+ files
+- **Codebase**: ~37,700 lines across 42 Kotlin files
 
 ## Building
 
@@ -524,10 +458,10 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 
 ## Configuration Export Format
 
-Version 11 JSON format:
+Version 16 JSON format:
 ```json
 {
-  "version": 11,
+  "version": 16,
   "huggingFaceApiKey": "hf_...",
   "providers": {
     "OPENAI": {
@@ -545,20 +479,33 @@ Version 11 JSON format:
       "name": "My Agent",
       "provider": "OPENAI",
       "model": "gpt-4o",
-      "apiKey": "sk-...",
+      "apiKey": "",
       "endpointId": "openai-chat-completions",
-      "parameters": {
-        "temperature": 0.7,
-        "maxTokens": 2048,
-        "systemPrompt": "You are helpful."
-      }
+      "parametersIds": ["params-uuid"]
+    }
+  ],
+  "flocks": [
+    {
+      "id": "uuid",
+      "name": "My Flock",
+      "agentIds": ["agent-uuid-1", "agent-uuid-2"],
+      "parametersIds": []
     }
   ],
   "swarms": [
     {
       "id": "uuid",
       "name": "My Swarm",
-      "agentIds": ["agent-uuid-1", "agent-uuid-2"]
+      "members": [{"provider": "OPENAI", "model": "gpt-4o"}],
+      "parametersIds": []
+    }
+  ],
+  "params": [
+    {
+      "id": "params-uuid",
+      "name": "Creative",
+      "temperature": 0.9,
+      "maxTokens": 4096
     }
   ],
   "aiPrompts": [
@@ -592,7 +539,7 @@ Version 11 JSON format:
 }
 ```
 
-**Note:** Import requires version 11 format.
+**Note:** Import supports version 16 format. Legacy versions are auto-migrated.
 
 ## License
 
@@ -600,11 +547,11 @@ Private use only. Not for redistribution.
 
 ## Acknowledgments
 
-- **AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI
+- **AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, Moonshot, Cohere, AI21, DashScope, Fireworks, Cerebras, SambaNova, Baichuan, StepFun, MiniMax, NVIDIA, Replicate, Hugging Face, Lambda, Lepton, 01.AI, Doubao, Reka, Writer
 - **Model Data**: OpenRouter API, Hugging Face API, LiteLLM pricing data
 - **UI Framework**: Jetpack Compose, Material 3
 - **Networking**: Retrofit, OkHttp, Gson
 
 ---
 
-*AI - Compare AI providers, chat with streaming, configure endpoints, track costs, generate insights.*
+*AI - Compare 31 AI providers, chat with streaming, organize agents into flocks and swarms, configure endpoints, track costs, generate insights.*
