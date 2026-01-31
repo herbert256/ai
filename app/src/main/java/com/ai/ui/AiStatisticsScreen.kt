@@ -679,16 +679,7 @@ fun CostConfigurationScreen(
     var editOutputPrice by remember { mutableStateOf("") }
 
     // State for adding new entries
-    var showAddDialog by remember { mutableStateOf(false) }
-    var newProvider by remember { mutableStateOf(com.ai.data.AiService.OPENAI) }
-    var newModel by remember { mutableStateOf("") }
-    var newInputPrice by remember { mutableStateOf("") }
-    var newOutputPrice by remember { mutableStateOf("") }
-
-    // Get models for the selected provider
-    fun getModelsForProvider(provider: com.ai.data.AiService): List<String> {
-        return aiSettings.getModels(provider).ifEmpty { listOf(aiSettings.getModel(provider)) }
-    }
+    var showAddScreen by remember { mutableStateOf(false) }
 
     // Force recomposition when manual pricing changes
     var refreshTrigger by remember { mutableStateOf(0) }
@@ -714,13 +705,7 @@ fun CostConfigurationScreen(
 
         // Add button
         Button(
-            onClick = {
-                newProvider = com.ai.data.AiService.OPENAI
-                newModel = ""
-                newInputPrice = ""
-                newOutputPrice = ""
-                showAddDialog = true
-            },
+            onClick = { showAddScreen = true },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
         ) {
@@ -818,128 +803,183 @@ fun CostConfigurationScreen(
         }
     }
 
-    // Add Manual Override Dialog
-    if (showAddDialog) {
-        var providerExpanded by remember { mutableStateOf(false) }
-        var modelExpanded by remember { mutableStateOf(false) }
-        val availableModels = remember(newProvider) { getModelsForProvider(newProvider) }
-
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text("Add Manual Override", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Provider dropdown
-                    Text("Provider", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                    Box {
-                        OutlinedButton(
-                            onClick = { providerExpanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(newProvider.displayName, modifier = Modifier.weight(1f))
-                            Text(if (providerExpanded) "▲" else "▼")
-                        }
-                        DropdownMenu(
-                            expanded = providerExpanded,
-                            onDismissRequest = { providerExpanded = false }
-                        ) {
-                            aiSettings.getActiveServices(developerMode)
-                                .sortedBy { it.displayName.lowercase() }
-                                .forEach { provider ->
-                                    DropdownMenuItem(
-                                        text = { Text(provider.displayName) },
-                                        onClick = {
-                                            newProvider = provider
-                                            newModel = ""  // Reset model when provider changes
-                                            providerExpanded = false
-                                        }
-                                    )
-                                }
-                        }
-                    }
-
-                    // Model dropdown
-                    Text("Model", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                    Box {
-                        OutlinedButton(
-                            onClick = { modelExpanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = newModel.ifBlank { "Select model..." },
-                                modifier = Modifier.weight(1f),
-                                color = if (newModel.isBlank()) Color(0xFF888888) else Color.White
-                            )
-                            Text(if (modelExpanded) "▲" else "▼")
-                        }
-                        DropdownMenu(
-                            expanded = modelExpanded,
-                            onDismissRequest = { modelExpanded = false },
-                            modifier = Modifier.heightIn(max = 300.dp)
-                        ) {
-                            availableModels.forEach { model ->
-                                DropdownMenuItem(
-                                    text = { Text(model, fontSize = 14.sp) },
-                                    onClick = {
-                                        newModel = model
-                                        modelExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    // Prices
-                    Text("Prices (per 1M tokens)", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = newInputPrice,
-                            onValueChange = { newInputPrice = it },
-                            label = { Text("Input $") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                        )
-                        OutlinedTextField(
-                            value = newOutputPrice,
-                            onValueChange = { newOutputPrice = it },
-                            label = { Text("Output $") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                        )
-                    }
-                }
+    // Full-screen Add Manual Override
+    if (showAddScreen) {
+        AddManualOverrideScreen(
+            aiSettings = aiSettings,
+            developerMode = developerMode,
+            onSave = { provider, model, inputPerToken, outputPerToken ->
+                com.ai.data.PricingCache.setManualPricing(
+                    context, provider, model,
+                    inputPerToken, outputPerToken
+                )
+                showAddScreen = false
+                refreshTrigger++
             },
-            confirmButton = {
+            onBack = { showAddScreen = false },
+            onNavigateHome = onNavigateHome
+        )
+    }
+}
+
+/**
+ * Full-screen Add Manual Override screen with model selection via SelectModelScreen.
+ */
+@Composable
+private fun AddManualOverrideScreen(
+    aiSettings: AiSettings,
+    developerMode: Boolean,
+    onSave: (AiService, String, Double, Double) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+
+    var selectedProvider by remember { mutableStateOf(AiService.OPENAI) }
+    var model by remember { mutableStateOf("") }
+    var inputPrice by remember { mutableStateOf("") }
+    var outputPrice by remember { mutableStateOf("") }
+    var showModelSelect by remember { mutableStateOf(false) }
+
+    if (showModelSelect) {
+        SelectModelScreen(
+            provider = selectedProvider,
+            aiSettings = aiSettings,
+            currentModel = model,
+            showDefaultOption = false,
+            onSelectModel = { model = it; showModelSelect = false },
+            onBack = { showModelSelect = false },
+            onNavigateHome = onNavigateHome
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            AiTitleBar(
+                title = "Add Manual Override",
+                onBackClick = onBack,
+                onAiClick = onNavigateHome
+            )
+
+            // Save / Cancel buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onBack,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
                 Button(
                     onClick = {
-                        val inputPerToken = newInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
-                        val outputPerToken = newOutputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
-                        if (newModel.isNotBlank() && inputPerToken != null && outputPerToken != null) {
-                            com.ai.data.PricingCache.setManualPricing(
-                                context, newProvider, newModel,
-                                inputPerToken, outputPerToken
-                            )
-                            showAddDialog = false
-                            refreshTrigger++
+                        val inPerToken = inputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                        val outPerToken = outputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                        if (model.isNotBlank() && inPerToken != null && outPerToken != null) {
+                            onSave(selectedProvider, model, inPerToken, outPerToken)
                         }
                     },
-                    enabled = newModel.isNotBlank() &&
-                            newInputPrice.toDoubleOrNull() != null &&
-                            newOutputPrice.toDoubleOrNull() != null
+                    modifier = Modifier.weight(1f),
+                    enabled = model.isNotBlank() &&
+                            inputPrice.toDoubleOrNull() != null &&
+                            outputPrice.toDoubleOrNull() != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
                 ) {
                     Text("Save")
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) {
-                    Text("Cancel")
+            }
+
+            // Provider dropdown
+            Text("Provider", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+            var providerExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(
+                    onClick = { providerExpanded = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(selectedProvider.displayName, modifier = Modifier.weight(1f))
+                    Text(if (providerExpanded) "▲" else "▼")
+                }
+                DropdownMenu(
+                    expanded = providerExpanded,
+                    onDismissRequest = { providerExpanded = false }
+                ) {
+                    aiSettings.getActiveServices(developerMode)
+                        .sortedBy { it.displayName.lowercase() }
+                        .forEach { provider ->
+                            DropdownMenuItem(
+                                text = { Text(provider.displayName) },
+                                onClick = {
+                                    selectedProvider = provider
+                                    model = ""
+                                    providerExpanded = false
+                                }
+                            )
+                        }
                 }
             }
-        )
+
+            // Model input + Select button
+            Text("Model", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = model,
+                    onValueChange = { model = it },
+                    placeholder = { Text("Model name", color = Color(0xFF666666)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                Button(
+                    onClick = { showModelSelect = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
+                }
+            }
+
+            // Prices
+            Text("Prices (per 1M tokens)", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = inputPrice,
+                    onValueChange = { inputPrice = it },
+                    label = { Text("Input $") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                OutlinedTextField(
+                    value = outputPrice,
+                    onValueChange = { outputPrice = it },
+                    label = { Text("Output $") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+            }
+        }
     }
 }
 
