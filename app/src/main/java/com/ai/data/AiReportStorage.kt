@@ -1,9 +1,9 @@
 package com.ai.data
 
 import android.content.Context
-import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -57,28 +57,71 @@ data class AiReport(
 )
 
 /**
- * Singleton storage manager for AI Reports with thread-safe operations
+ * Singleton storage manager for AI Reports with thread-safe operations.
+ * Stores each report as an individual JSON file in /files/reports/{id}.json
  */
 object AiReportStorage {
-    private const val PREFS_NAME = "ai_reports_storage"
-    private const val KEY_REPORTS = "reports"
+    private const val REPORTS_DIR = "reports"
+    private const val OLD_PREFS_NAME = "ai_reports_storage"
+    private const val OLD_KEY_REPORTS = "reports"
 
     private val gson = Gson()
     private val lock = ReentrantLock()
 
     @Volatile
-    private var prefs: SharedPreferences? = null
+    private var reportsDir: File? = null
 
     /**
-     * Initialize the storage with context (call once at app start)
+     * Initialize the storage with context (call once at app start).
+     * Creates the reports directory and migrates from SharedPreferences if needed.
      */
     fun init(context: Context) {
-        if (prefs == null) {
+        if (reportsDir == null) {
             lock.withLock {
-                if (prefs == null) {
-                    prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                if (reportsDir == null) {
+                    val dir = File(context.filesDir, REPORTS_DIR)
+                    if (!dir.exists()) {
+                        dir.mkdirs()
+                    }
+                    reportsDir = dir
+                    migrateFromSharedPreferences(context)
                 }
             }
+        }
+    }
+
+    /**
+     * One-time migration from SharedPreferences to file-based storage.
+     * Reads old reports, writes each as individual file, then clears SharedPreferences.
+     */
+    private fun migrateFromSharedPreferences(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences(OLD_PREFS_NAME, Context.MODE_PRIVATE)
+            val json = prefs.getString(OLD_KEY_REPORTS, null) ?: return
+            if (json.isBlank()) return
+
+            val type = object : TypeToken<Map<String, AiReport>>() {}.type
+            val reports: Map<String, AiReport> = gson.fromJson(json, type) ?: return
+
+            if (reports.isEmpty()) return
+
+            android.util.Log.d("AiReportStorage", "Migrating ${reports.size} reports from SharedPreferences to files")
+
+            var migrated = 0
+            for ((_, report) in reports) {
+                try {
+                    saveReport(report)
+                    migrated++
+                } catch (e: Exception) {
+                    android.util.Log.e("AiReportStorage", "Failed to migrate report ${report.id}: ${e.message}")
+                }
+            }
+
+            // Clear old SharedPreferences after successful migration
+            prefs.edit().clear().apply()
+            android.util.Log.d("AiReportStorage", "Migration complete: $migrated/${reports.size} reports migrated")
+        } catch (e: Exception) {
+            android.util.Log.e("AiReportStorage", "Migration failed: ${e.message}")
         }
     }
 
@@ -105,9 +148,7 @@ object AiReportStorage {
         )
 
         lock.withLock {
-            val reports = loadAllReports(context).toMutableMap()
-            reports[report.id] = report
-            saveReports(reports)
+            saveReport(report)
         }
 
         return report
@@ -137,8 +178,7 @@ object AiReportStorage {
         init(context)
 
         lock.withLock {
-            val reports = loadAllReports(context).toMutableMap()
-            val report = reports[reportId] ?: return
+            val report = loadReport(reportId) ?: return
 
             val agent = report.agents.find { it.agentId == agentId } ?: return
 
@@ -165,8 +205,7 @@ object AiReportStorage {
                 report.completedAt = System.currentTimeMillis()
             }
 
-            reports[reportId] = report
-            saveReports(reports)
+            saveReport(report)
         }
     }
 
@@ -273,7 +312,7 @@ object AiReportStorage {
     fun getReport(context: Context, reportId: String): AiReport? {
         init(context)
         return lock.withLock {
-            loadAllReports(context)[reportId]
+            loadReport(reportId)
         }
     }
 
@@ -283,7 +322,7 @@ object AiReportStorage {
     fun getAllReports(context: Context): List<AiReport> {
         init(context)
         return lock.withLock {
-            loadAllReports(context).values.sortedByDescending { it.timestamp }
+            loadAllReports().sortedByDescending { it.timestamp }
         }
     }
 
@@ -293,9 +332,10 @@ object AiReportStorage {
     fun deleteReport(context: Context, reportId: String) {
         init(context)
         lock.withLock {
-            val reports = loadAllReports(context).toMutableMap()
-            reports.remove(reportId)
-            saveReports(reports)
+            val file = File(reportsDir, "$reportId.json")
+            if (file.exists()) {
+                file.delete()
+            }
         }
     }
 
@@ -305,7 +345,7 @@ object AiReportStorage {
     fun deleteAllReports(context: Context) {
         init(context)
         lock.withLock {
-            saveReports(emptyMap())
+            reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { it.delete() }
         }
     }
 
@@ -319,29 +359,46 @@ object AiReportStorage {
     }
 
     /**
-     * Load all reports from SharedPreferences
+     * Load a single report from file
      */
-    private fun loadAllReports(context: Context): Map<String, AiReport> {
-        init(context)
-        val json = prefs?.getString(KEY_REPORTS, null) ?: return emptyMap()
+    private fun loadReport(reportId: String): AiReport? {
+        val file = File(reportsDir ?: return null, "$reportId.json")
+        if (!file.exists()) return null
         return try {
-            val type = object : TypeToken<Map<String, AiReport>>() {}.type
-            gson.fromJson(json, type) ?: emptyMap()
+            val json = file.readText()
+            gson.fromJson(json, AiReport::class.java)
         } catch (e: Exception) {
-            android.util.Log.e("AiReportStorage", "Failed to load reports: ${e.message}")
-            emptyMap()
+            android.util.Log.e("AiReportStorage", "Failed to load report $reportId: ${e.message}")
+            null
         }
     }
 
     /**
-     * Save all reports to SharedPreferences
+     * Load all reports from files
      */
-    private fun saveReports(reports: Map<String, AiReport>) {
+    private fun loadAllReports(): List<AiReport> {
+        val dir = reportsDir ?: return emptyList()
+        val files = dir.listFiles { f -> f.extension == "json" } ?: return emptyList()
+        return files.mapNotNull { file ->
+            try {
+                val json = file.readText()
+                gson.fromJson(json, AiReport::class.java)
+            } catch (e: Exception) {
+                android.util.Log.e("AiReportStorage", "Failed to load report from ${file.name}: ${e.message}")
+                null
+            }
+        }
+    }
+
+    /**
+     * Save a single report to file
+     */
+    private fun saveReport(report: AiReport) {
         try {
-            val json = gson.toJson(reports)
-            prefs?.edit()?.putString(KEY_REPORTS, json)?.apply()
+            val file = File(reportsDir ?: return, "${report.id}.json")
+            file.writeText(gson.toJson(report))
         } catch (e: Exception) {
-            android.util.Log.e("AiReportStorage", "Failed to save reports: ${e.message}")
+            android.util.Log.e("AiReportStorage", "Failed to save report ${report.id}: ${e.message}")
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -67,6 +68,15 @@ fun HousekeepingScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Unified progress dialog
+    var progressTitle by remember { mutableStateOf("") }
+    var progressText by remember { mutableStateOf("") }
+    val isAnyRunning by remember { derivedStateOf { progressTitle.isNotEmpty() } }
+
+    // State for refresh all
+    var isRefreshingAll by remember { mutableStateOf(false) }
+    var refreshAllProgressText by remember { mutableStateOf("") }
 
     // State for refresh model lists
     var isRefreshing by remember { mutableStateOf(false) }
@@ -138,6 +148,27 @@ fun HousekeepingScreen(
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
             }
         }
+    }
+
+    // Progress dialog - shown when any operation is running
+    if (isAnyRunning) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text(progressTitle, fontWeight = FontWeight.Bold) },
+            text = {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color(0xFF4CAF50),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(progressText.ifEmpty { "Working..." }, color = Color(0xFFAAAAAA))
+                }
+            },
+            confirmButton = { },
+            containerColor = Color(0xFF2A2A2A)
+        )
     }
 
     // Results dialog for refresh model lists
@@ -290,8 +321,8 @@ fun HousekeepingScreen(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "Refresh",
@@ -300,91 +331,158 @@ fun HousekeepingScreen(
                     color = Color.White
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = {
                             scope.launch {
-                                isRefreshing = true
-                                refreshProgressText = ""
+                                progressTitle = "Refresh All"
+                                isRefreshingAll = true
+
+                                progressText = "Refreshing model lists..."
                                 refreshResults = onRefreshAllModels(aiSettings, true) { provider ->
-                                    refreshProgressText = provider
+                                    progressText = "Models: $provider"
                                 }
-                                refreshProgressText = ""
-                                isRefreshing = false
-                                showResultsDialog = true
+
+                                if (openRouterApiKey.isNotBlank()) {
+                                    progressText = "OpenRouter data..."
+                                    var pricingCount = 0
+                                    var specsPricing = 0
+                                    var specsParams = 0
+                                    val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                                    if (pricing.isNotEmpty()) {
+                                        com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
+                                        pricingCount = pricing.size
+                                    }
+                                    val specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+                                    if (specsResult != null) {
+                                        specsPricing = specsResult.first
+                                        specsParams = specsResult.second
+                                    }
+                                    openRouterResult = if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
+                                }
+
+                                progressText = "Provider state..."
+                                val stateResults = mutableMapOf<String, String>()
+                                for (service in com.ai.data.AiService.values()) {
+                                    progressText = "State: ${service.displayName}"
+                                    val apiKey = aiSettings.getApiKey(service)
+                                    if (apiKey.isBlank()) {
+                                        onProviderStateChange(service, "not-used")
+                                        stateResults[service.displayName] = "not-used"
+                                    } else {
+                                        val model = aiSettings.getModel(service)
+                                        val error = onTestApiKey(service, apiKey, model)
+                                        val state = if (error == null) "ok" else "error"
+                                        onProviderStateChange(service, state)
+                                        stateResults[service.displayName] = state
+                                    }
+                                }
+                                providerStateResults = stateResults
+
+                                progressText = "Default agents..."
+                                val genResults = mutableListOf<Pair<String, Boolean>>()
+                                val providersToTest = AiService.entries.filter { aiSettings.getApiKey(it).isNotBlank() }
+                                var updatedAgents = aiSettings.agents.toMutableList()
+                                for (provider in providersToTest) {
+                                    progressText = "Agents: ${provider.displayName}"
+                                    val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
+                                    val isWorking = testResult == null
+                                    if (isWorking) {
+                                        val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
+                                        if (idx >= 0) {
+                                            updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
+                                        } else {
+                                            updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                                        }
+                                    }
+                                    genResults.add(provider.displayName to isWorking)
+                                }
+                                if (genResults.count { it.second } > 0) {
+                                    val defaultAgentIds = updatedAgents.filter { agent -> AiService.entries.any { it.displayName == agent.name } }.map { it.id }
+                                    val updatedFlocks = aiSettings.flocks.toMutableList()
+                                    val flockIdx = updatedFlocks.indexOfFirst { it.name == "default agents" }
+                                    if (flockIdx >= 0) {
+                                        updatedFlocks[flockIdx] = updatedFlocks[flockIdx].copy(agentIds = defaultAgentIds)
+                                    } else {
+                                        updatedFlocks.add(AiFlock(id = java.util.UUID.randomUUID().toString(), name = "default agents", agentIds = defaultAgentIds))
+                                    }
+                                    onSave(aiSettings.copy(agents = updatedAgents, flocks = updatedFlocks))
+                                }
+                                generationResults = genResults
+
+                                isRefreshingAll = false
+                                progressTitle = ""
+                                progressText = ""
+                                android.widget.Toast.makeText(context, "All refreshed", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         },
-                        enabled = !isRefreshing,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        enabled = !isAnyRunning,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
-                        if (isRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("Model lists", fontSize = 12.sp)
-                        }
+                        Text("All", fontSize = 12.sp)
                     }
                     Button(
                         onClick = {
                             scope.launch {
-                                isRefreshingOpenRouter = true
+                                progressTitle = "Refresh Model Lists"
+                                progressText = "Fetching..."
+                                refreshResults = onRefreshAllModels(aiSettings, true) { provider ->
+                                    progressText = provider
+                                }
+                                progressTitle = ""
+                                progressText = ""
+                                showResultsDialog = true
+                            }
+                        },
+                        enabled = !isAnyRunning,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text("Model lists", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                progressTitle = "Refresh OpenRouter"
+                                progressText = "Fetching pricing..."
                                 var pricingCount = 0
                                 var specsPricing = 0
                                 var specsParams = 0
-
-                                // Fetch and save pricing data
                                 val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
                                 if (pricing.isNotEmpty()) {
                                     com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
                                     pricingCount = pricing.size
                                 }
-
-                                // Fetch and save model specifications
-                                val specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(
-                                    context,
-                                    openRouterApiKey
-                                )
+                                progressText = "Fetching specifications..."
+                                val specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
                                 if (specsResult != null) {
                                     specsPricing = specsResult.first
                                     specsParams = specsResult.second
                                 }
-
-                                openRouterResult = if (pricingCount > 0 || specsPricing > 0) {
-                                    Triple(pricingCount, specsPricing, specsParams)
-                                } else {
-                                    null
-                                }
-                                isRefreshingOpenRouter = false
+                                openRouterResult = if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
+                                progressTitle = ""
+                                progressText = ""
                                 showOpenRouterResultDialog = true
                             }
                         },
-                        enabled = !isRefreshingOpenRouter && openRouterApiKey.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
-                        if (isRefreshingOpenRouter) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("OpenRouter data", fontSize = 12.sp)
-                        }
+                        Text("OpenRouter data", fontSize = 12.sp)
                     }
                     Button(
                         onClick = {
                             scope.launch {
-                                isRefreshingProviderStates = true
-                                providerStateProgressText = ""
+                                progressTitle = "Refresh Provider State"
                                 val results = mutableMapOf<String, String>()
                                 for (service in com.ai.data.AiService.values()) {
-                                    providerStateProgressText = service.displayName
+                                    progressText = service.displayName
                                     val apiKey = aiSettings.getApiKey(service)
                                     if (apiKey.isBlank()) {
                                         onProviderStateChange(service, "not-used")
@@ -397,167 +495,65 @@ fun HousekeepingScreen(
                                         results[service.displayName] = state
                                     }
                                 }
-                                providerStateProgressText = ""
                                 providerStateResults = results
-                                isRefreshingProviderStates = false
+                                progressTitle = ""
+                                progressText = ""
                                 showProviderStateResultDialog = true
                             }
                         },
-                        enabled = !isRefreshingProviderStates,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        enabled = !isAnyRunning,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
-                        if (isRefreshingProviderStates) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("Provider state", fontSize = 12.sp)
-                        }
+                        Text("Provider state", fontSize = 12.sp)
                     }
-                }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                progressTitle = "Generate Default Agents"
+                                val results = mutableListOf<Pair<String, Boolean>>()
+                                val providersToTest = AiService.entries.filter { aiSettings.getApiKey(it).isNotBlank() }
+                                var updatedAgents = aiSettings.agents.toMutableList()
 
-                // Progress text for refresh actions
-                val activeRefreshProgress = when {
-                    isRefreshing && refreshProgressText.isNotEmpty() -> refreshProgressText
-                    isRefreshingProviderStates && providerStateProgressText.isNotEmpty() -> providerStateProgressText
-                    else -> null
-                }
-                if (activeRefreshProgress != null) {
-                    Text(
-                        text = activeRefreshProgress,
-                        fontSize = 11.sp,
-                        color = Color(0xFFAAAAAA)
-                    )
-                }
-            }
-        }
-
-        // Generate card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Generate",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-
-                Button(
-                    onClick = {
-                        scope.launch {
-                            isGenerating = true
-                            generatingProgressText = ""
-                            val results = mutableListOf<Pair<String, Boolean>>()
-
-                            val providersToTest = AiService.entries.filter { provider ->
-                                val apiKey = aiSettings.getApiKey(provider)
-                                apiKey.isNotBlank()
-                            }
-
-                            var updatedAgents = aiSettings.agents.toMutableList()
-
-                            for (provider in providersToTest) {
-                                generatingProgressText = provider.displayName
-                                val apiKey = aiSettings.getApiKey(provider)
-                                val model = provider.defaultModel
-
-                                val testResult = onTestApiKey(provider, apiKey, model)
-                                val isWorking = testResult == null
-
-                                if (isWorking) {
-                                    // Create/update agent with empty values - uses provider settings at runtime
-                                    val existingAgentIndex = updatedAgents.indexOfFirst {
-                                        it.name == provider.displayName
+                                for (provider in providersToTest) {
+                                    progressText = provider.displayName
+                                    val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
+                                    val isWorking = testResult == null
+                                    if (isWorking) {
+                                        val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
+                                        if (idx >= 0) {
+                                            updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
+                                        } else {
+                                            updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                                        }
                                     }
-
-                                    if (existingAgentIndex >= 0) {
-                                        val existingAgent = updatedAgents[existingAgentIndex]
-                                        updatedAgents[existingAgentIndex] = existingAgent.copy(
-                                            model = "",
-                                            apiKey = "",
-                                            provider = provider,
-                                            endpointId = null
-                                        )
+                                    results.add(provider.displayName to isWorking)
+                                }
+                                if (results.count { it.second } > 0) {
+                                    val defaultAgentIds = updatedAgents.filter { agent -> AiService.entries.any { it.displayName == agent.name } }.map { it.id }
+                                    val updatedFlocks = aiSettings.flocks.toMutableList()
+                                    val flockIdx = updatedFlocks.indexOfFirst { it.name == "default agents" }
+                                    if (flockIdx >= 0) {
+                                        updatedFlocks[flockIdx] = updatedFlocks[flockIdx].copy(agentIds = defaultAgentIds)
                                     } else {
-                                        val newAgent = AiAgent(
-                                            id = java.util.UUID.randomUUID().toString(),
-                                            name = provider.displayName,
-                                            provider = provider,
-                                            model = "",
-                                            apiKey = "",
-                                            endpointId = null
-                                        )
-                                        updatedAgents.add(newAgent)
+                                        updatedFlocks.add(AiFlock(id = java.util.UUID.randomUUID().toString(), name = "default agents", agentIds = defaultAgentIds))
                                     }
+                                    onSave(aiSettings.copy(agents = updatedAgents, flocks = updatedFlocks))
                                 }
-
-                                results.add(provider.displayName to isWorking)
+                                generationResults = results
+                                progressTitle = ""
+                                progressText = ""
+                                showGenerationResultsDialog = true
                             }
-
-                            val successCount = results.count { it.second }
-                            if (successCount > 0) {
-                                val defaultAgentIds = updatedAgents
-                                    .filter { agent ->
-                                        AiService.entries.any { it.displayName == agent.name }
-                                    }
-                                    .map { it.id }
-
-                                val updatedFlocks = aiSettings.flocks.toMutableList()
-                                val existingFlockIndex = updatedFlocks.indexOfFirst {
-                                    it.name == "default agents"
-                                }
-
-                                if (existingFlockIndex >= 0) {
-                                    updatedFlocks[existingFlockIndex] = updatedFlocks[existingFlockIndex].copy(
-                                        agentIds = defaultAgentIds
-                                    )
-                                } else {
-                                    val newFlock = AiFlock(
-                                        id = java.util.UUID.randomUUID().toString(),
-                                        name = "default agents",
-                                        agentIds = defaultAgentIds
-                                    )
-                                    updatedFlocks.add(newFlock)
-                                }
-
-                                onSave(aiSettings.copy(
-                                    agents = updatedAgents,
-                                    flocks = updatedFlocks
-                                ))
-                            }
-
-                            generatingProgressText = ""
-                            generationResults = results
-                            isGenerating = false
-                            showGenerationResultsDialog = true
-                        }
-                    },
-                    enabled = !isGenerating,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-                ) {
-                    if (isGenerating) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (generatingProgressText.isNotEmpty()) generatingProgressText else "Testing API keys...",
-                            fontSize = 12.sp
-                        )
-                    } else {
+                        },
+                        enabled = !isAnyRunning,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
                         Text("Default agents", fontSize = 12.sp)
                     }
                 }
+
             }
         }
 
@@ -584,8 +580,8 @@ fun HousekeepingScreen(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "Export",
@@ -594,16 +590,18 @@ fun HousekeepingScreen(
                     color = Color.White
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = {
                             exportAiConfigToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
                         },
                         enabled = canExportConfig,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("AI configuration", fontSize = 12.sp)
                     }
@@ -612,7 +610,8 @@ fun HousekeepingScreen(
                             exportApiKeysToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
                         },
                         enabled = hasApiKeyForExport,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("API keys", fontSize = 12.sp)
                     }
@@ -655,7 +654,8 @@ fun HousekeepingScreen(
                                 availableWriterModels = availableWriterModels
                             )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Model costs", fontSize = 12.sp)
                     }
@@ -669,8 +669,8 @@ fun HousekeepingScreen(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "Import",
@@ -679,15 +679,17 @@ fun HousekeepingScreen(
                     color = Color.White
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
                         onClick = {
                             filePickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("AI configuration", fontSize = 12.sp)
                     }
@@ -695,7 +697,8 @@ fun HousekeepingScreen(
                         onClick = {
                             apiKeysPickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("API keys", fontSize = 12.sp)
                     }
@@ -703,7 +706,8 @@ fun HousekeepingScreen(
                         onClick = {
                             costsCsvPickerLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Model costs", fontSize = 12.sp)
                     }
@@ -742,8 +746,8 @@ fun HousekeepingScreen(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = "Clean up",
@@ -752,42 +756,51 @@ fun HousekeepingScreen(
                     color = Color.White
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
+                        onClick = { showStartCleanConfirm = true },
+                        enabled = !isAnyRunning,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text("Clean up", fontSize = 12.sp)
+                    }
+                    Button(
                         onClick = { showCleanupDaysDialog = "chats" },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Chats", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { showCleanupDaysDialog = "reports" },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Reports", fontSize = 12.sp)
                     }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
                     Button(
                         onClick = { showCleanupDaysDialog = "statistics" },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Statistics", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { showCleanupDaysDialog = "traces" },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("API Trace", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { showCleanupDaysDialog = "prompts" },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Prompts", fontSize = 12.sp)
                     }
@@ -795,33 +808,11 @@ fun HousekeepingScreen(
             }
         }
 
-        // Start clean button
-        Button(
-            onClick = { showStartCleanConfirm = true },
-            enabled = !isStartingClean,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C))
-        ) {
-            if (isStartingClean) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    color = Color.White,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (startCleanProgressText.isNotEmpty()) startCleanProgressText else "Cleaning...",
-                    fontSize = 12.sp
-                )
-            } else {
-                Text("Start clean", fontSize = 12.sp)
-            }
-        }
-
         // Start clean confirmation dialog
         if (showStartCleanConfirm) {
             AlertDialog(
                 onDismissRequest = { showStartCleanConfirm = false },
-                title = { Text("Start Clean", fontWeight = FontWeight.Bold) },
+                title = { Text("Clean Up", fontWeight = FontWeight.Bold) },
                 text = {
                     Text("This will delete all chats, reports, statistics, and API traces, then refresh all providers and generate default agents.\n\nThis cannot be undone.")
                 },
@@ -830,25 +821,98 @@ fun HousekeepingScreen(
                         onClick = {
                             showStartCleanConfirm = false
                             scope.launch {
-                                isStartingClean = true
+                                progressTitle = "Clean Up"
+
+                                // 1. Delete all data
                                 performStartClean(
                                     context = context,
-                                    aiSettings = aiSettings,
-                                    openRouterApiKey = openRouterApiKey,
-                                    onSave = onSave,
-                                    onRefreshAllModels = onRefreshAllModels,
-                                    onTestApiKey = onTestApiKey,
-                                    onProviderStateChange = onProviderStateChange,
-                                    onProgress = { startCleanProgressText = it }
+                                    onProgress = { progressText = it }
                                 )
-                                startCleanProgressText = ""
-                                isStartingClean = false
-                                android.widget.Toast.makeText(context, "Start clean completed", android.widget.Toast.LENGTH_SHORT).show()
+
+                                // 2. Refresh model lists
+                                progressText = "Refreshing model lists..."
+                                refreshResults = onRefreshAllModels(aiSettings, true) { provider ->
+                                    progressText = "Models: $provider"
+                                }
+
+                                // 3. Refresh OpenRouter data
+                                if (openRouterApiKey.isNotBlank()) {
+                                    progressText = "OpenRouter data..."
+                                    var pricingCount = 0
+                                    var specsPricing = 0
+                                    var specsParams = 0
+                                    val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                                    if (pricing.isNotEmpty()) {
+                                        com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
+                                        pricingCount = pricing.size
+                                    }
+                                    val specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+                                    if (specsResult != null) {
+                                        specsPricing = specsResult.first
+                                        specsParams = specsResult.second
+                                    }
+                                    openRouterResult = if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
+                                }
+
+                                // 4. Refresh provider state
+                                progressText = "Provider state..."
+                                val stateResults = mutableMapOf<String, String>()
+                                for (service in com.ai.data.AiService.values()) {
+                                    progressText = "State: ${service.displayName}"
+                                    val apiKey = aiSettings.getApiKey(service)
+                                    if (apiKey.isBlank()) {
+                                        onProviderStateChange(service, "not-used")
+                                        stateResults[service.displayName] = "not-used"
+                                    } else {
+                                        val model = aiSettings.getModel(service)
+                                        val error = onTestApiKey(service, apiKey, model)
+                                        val state = if (error == null) "ok" else "error"
+                                        onProviderStateChange(service, state)
+                                        stateResults[service.displayName] = state
+                                    }
+                                }
+                                providerStateResults = stateResults
+
+                                // 5. Generate default agents
+                                progressText = "Default agents..."
+                                val genResults = mutableListOf<Pair<String, Boolean>>()
+                                val providersToTest = AiService.entries.filter { aiSettings.getApiKey(it).isNotBlank() }
+                                var updatedAgents = aiSettings.agents.toMutableList()
+                                for (provider in providersToTest) {
+                                    progressText = "Agents: ${provider.displayName}"
+                                    val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
+                                    val isWorking = testResult == null
+                                    if (isWorking) {
+                                        val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
+                                        if (idx >= 0) {
+                                            updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
+                                        } else {
+                                            updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                                        }
+                                    }
+                                    genResults.add(provider.displayName to isWorking)
+                                }
+                                if (genResults.count { it.second } > 0) {
+                                    val defaultAgentIds = updatedAgents.filter { agent -> AiService.entries.any { it.displayName == agent.name } }.map { it.id }
+                                    val updatedFlocks = aiSettings.flocks.toMutableList()
+                                    val flockIdx = updatedFlocks.indexOfFirst { it.name == "default agents" }
+                                    if (flockIdx >= 0) {
+                                        updatedFlocks[flockIdx] = updatedFlocks[flockIdx].copy(agentIds = defaultAgentIds)
+                                    } else {
+                                        updatedFlocks.add(AiFlock(id = java.util.UUID.randomUUID().toString(), name = "default agents", agentIds = defaultAgentIds))
+                                    }
+                                    onSave(aiSettings.copy(agents = updatedAgents, flocks = updatedFlocks))
+                                }
+                                generationResults = genResults
+
+                                progressTitle = ""
+                                progressText = ""
+                                android.widget.Toast.makeText(context, "Clean up completed", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
                     ) {
-                        Text("Start Clean")
+                        Text("Clean Up")
                     }
                 },
                 dismissButton = {
@@ -940,7 +1004,7 @@ fun HousekeepingScreen(
                                 }
                                 "statistics" -> {
                                     if (days == 0) {
-                                        SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)).clearUsageStats()
+                                        SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir).clearUsageStats()
                                         android.widget.Toast.makeText(context, "Cleared all statistics", android.widget.Toast.LENGTH_SHORT).show()
                                     } else {
                                         android.widget.Toast.makeText(context, "Enter 0 to clear statistics (no timestamp data)", android.widget.Toast.LENGTH_SHORT).show()
@@ -951,7 +1015,7 @@ fun HousekeepingScreen(
                                     android.widget.Toast.makeText(context, "Deleted $deletedCount trace(s)", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                                 "prompts" -> {
-                                    val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE))
+                                    val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
                                     val history = settingsPrefs.loadPromptHistory()
                                     if (days == 0) {
                                         settingsPrefs.clearPromptHistory()
@@ -962,10 +1026,7 @@ fun HousekeepingScreen(
                                         if (kept.isEmpty()) {
                                             settingsPrefs.clearPromptHistory()
                                         } else {
-                                            // Re-save only kept entries
-                                            val json = com.google.gson.Gson().toJson(kept)
-                                            context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                                                .edit().putString("prompt_history", json).apply()
+                                            settingsPrefs.savePromptHistoryList(kept)
                                         }
                                         android.widget.Toast.makeText(context, "Deleted $deletedCount prompt(s)", android.widget.Toast.LENGTH_SHORT).show()
                                     }

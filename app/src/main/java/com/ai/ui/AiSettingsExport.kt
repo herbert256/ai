@@ -1394,21 +1394,15 @@ fun ImportAiConfigDialog(
  * 10. Generate default agents
  * 11. Clear statistics (last, since other steps generate stats)
  */
-suspend fun performStartClean(
+fun performStartClean(
     context: Context,
-    aiSettings: AiSettings,
-    openRouterApiKey: String,
-    onSave: (AiSettings) -> Unit,
-    onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int>,
-    onTestApiKey: suspend (AiService, String, String) -> String?,
-    onProviderStateChange: (AiService, String) -> Unit,
     onProgress: ((String) -> Unit)? = null
 ) {
     val settingsPrefs = SettingsPreferences(
-        context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE),
+        context.filesDir
     )
 
-    // 1. Delete all chats
     onProgress?.invoke("Deleting chats...")
     val cutoffTime = System.currentTimeMillis()
     com.ai.data.ChatHistoryManager.getAllSessions().forEach { session ->
@@ -1417,7 +1411,6 @@ suspend fun performStartClean(
         }
     }
 
-    // 3. Delete all reports
     onProgress?.invoke("Deleting reports...")
     com.ai.data.AiReportStorage.getAllReports(context).forEach { report ->
         if (report.timestamp < cutoffTime) {
@@ -1425,112 +1418,14 @@ suspend fun performStartClean(
         }
     }
 
-    // 4. Delete all API traces
     onProgress?.invoke("Deleting API traces...")
     com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
 
-    // 5. Clear prompt history, last report prompt, selected report IDs
     onProgress?.invoke("Clearing prompts...")
     settingsPrefs.clearPromptHistory()
     settingsPrefs.clearLastAiReportPrompt()
     settingsPrefs.clearSelectedReportIds()
 
-    // 6. Clear legacy HTML history
-    onProgress?.invoke("Clearing legacy history...")
-    com.ai.data.AiHistoryManager.clearHistory()
-
-    // 6. Refresh model lists
-    onProgress?.invoke("Refreshing model lists...")
-    onRefreshAllModels(aiSettings, true, null)
-
-    // 7. Refresh OpenRouter data
-    if (openRouterApiKey.isNotBlank()) {
-        onProgress?.invoke("Refreshing OpenRouter data...")
-        val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-        if (pricing.isNotEmpty()) {
-            com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
-        }
-        com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
-    }
-
-    // 8. Refresh provider state
-    onProgress?.invoke("Refreshing provider state...")
-    for (service in AiService.entries) {
-        val apiKey = aiSettings.getApiKey(service)
-        if (apiKey.isBlank()) {
-            onProviderStateChange(service, "not-used")
-        } else {
-            val model = aiSettings.getModel(service)
-            val error = onTestApiKey(service, apiKey, model)
-            val state = if (error == null) "ok" else "error"
-            onProviderStateChange(service, state)
-        }
-    }
-
-    // 9. Generate default agents
-    onProgress?.invoke("Generating default agents...")
-    val providersToTest = AiService.entries.filter { provider ->
-        aiSettings.getApiKey(provider).isNotBlank()
-    }
-
-    var updatedAgents = aiSettings.agents.toMutableList()
-
-    for (provider in providersToTest) {
-        onProgress?.invoke(provider.displayName)
-        val apiKey = aiSettings.getApiKey(provider)
-        val model = provider.defaultModel
-
-        val testResult = onTestApiKey(provider, apiKey, model)
-        val isWorking = testResult == null
-
-        if (isWorking) {
-            val existingAgentIndex = updatedAgents.indexOfFirst {
-                it.name == provider.displayName
-            }
-
-            if (existingAgentIndex >= 0) {
-                val existingAgent = updatedAgents[existingAgentIndex]
-                updatedAgents[existingAgentIndex] = existingAgent.copy(
-                    model = "",
-                    apiKey = "",
-                    provider = provider,
-                    endpointId = null
-                )
-            } else {
-                val newAgent = AiAgent(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = provider.displayName,
-                    provider = provider,
-                    model = "",
-                    apiKey = "",
-                    endpointId = null
-                )
-                updatedAgents.add(newAgent)
-            }
-        }
-    }
-
-    val defaultAgentIds = updatedAgents
-        .filter { agent ->
-            AiService.entries.any { it.displayName == agent.name }
-        }
-        .map { it.id }
-
-    val updatedFlocks = mutableListOf<AiFlock>()
-    val newFlock = AiFlock(
-        id = java.util.UUID.randomUUID().toString(),
-        name = "default agents",
-        agentIds = defaultAgentIds
-    )
-    updatedFlocks.add(newFlock)
-
-    onSave(aiSettings.copy(
-        agents = updatedAgents,
-        flocks = updatedFlocks,
-        swarms = emptyList()
-    ))
-
-    // 10. Clear statistics last (other steps generate stats)
     onProgress?.invoke("Clearing statistics...")
     settingsPrefs.clearUsageStats()
 }

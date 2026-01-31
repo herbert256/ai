@@ -4,11 +4,13 @@ import android.content.SharedPreferences
 import com.ai.data.AiService
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.io.File
 
 /**
  * Helper class for managing all settings persistence via SharedPreferences.
+ * Transactional data (usage stats, prompt history) is stored as files in filesDir.
  */
-class SettingsPreferences(private val prefs: SharedPreferences) {
+class SettingsPreferences(private val prefs: SharedPreferences, private val filesDir: File? = null) {
 
     private val gson = Gson()
 
@@ -749,8 +751,11 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     // ============================================================================
 
     fun loadPromptHistory(): List<PromptHistoryEntry> {
-        val json = prefs.getString(KEY_PROMPT_HISTORY, null) ?: return emptyList()
+        migratePromptHistoryFromPrefs()
+        val file = promptHistoryFile() ?: return emptyList()
+        if (!file.exists()) return emptyList()
         return try {
+            val json = file.readText()
             val type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
@@ -778,12 +783,40 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         ))
         // Keep only the last MAX_PROMPT_HISTORY entries
         val trimmed = history.take(MAX_PROMPT_HISTORY)
-        val json = gson.toJson(trimmed)
-        prefs.edit().putString(KEY_PROMPT_HISTORY, json).apply()
+        savePromptHistoryList(trimmed)
+    }
+
+    fun savePromptHistoryList(entries: List<PromptHistoryEntry>) {
+        val file = promptHistoryFile() ?: return
+        try {
+            file.writeText(gson.toJson(entries))
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsPreferences", "Failed to save prompt history: ${e.message}")
+        }
     }
 
     fun clearPromptHistory() {
+        val file = promptHistoryFile()
+        if (file != null && file.exists()) file.delete()
+        // Also clear old prefs if still present
         prefs.edit().remove(KEY_PROMPT_HISTORY).apply()
+    }
+
+    private fun promptHistoryFile(): File? {
+        return filesDir?.let { File(it, FILE_PROMPT_HISTORY) }
+    }
+
+    private fun migratePromptHistoryFromPrefs() {
+        val file = promptHistoryFile() ?: return
+        if (file.exists()) return
+        val json = prefs.getString(KEY_PROMPT_HISTORY, null) ?: return
+        try {
+            file.writeText(json)
+            prefs.edit().remove(KEY_PROMPT_HISTORY).apply()
+            android.util.Log.d("SettingsPreferences", "Migrated prompt history to file")
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsPreferences", "Failed to migrate prompt history: ${e.message}")
+        }
     }
 
     fun clearLastAiReportPrompt() {
@@ -1075,8 +1108,12 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
         // Selected swarm IDs for report generation
         private const val KEY_SELECTED_FLOCK_IDS = "selected_swarm_ids"
 
-        // AI usage statistics
+        // AI usage statistics (legacy SharedPreferences key, used for migration)
         private const val KEY_AI_USAGE_STATS = "ai_usage_stats"
+
+        // File-based storage filenames
+        private const val FILE_USAGE_STATS = "usage-stats.json"
+        private const val FILE_PROMPT_HISTORY = "prompt-history.json"
 
         // API-fetched model lists (cached from API calls)
         private const val KEY_API_MODELS_OPENAI = "api_models_openai"
@@ -1160,19 +1197,27 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     // ============================================================================
 
     fun loadUsageStats(): Map<String, AiUsageStats> {
-        val json = prefs.getString(KEY_AI_USAGE_STATS, null) ?: return emptyMap()
+        migrateUsageStatsFromPrefs()
+        val file = usageStatsFile() ?: return emptyMap()
+        if (!file.exists()) return emptyMap()
         return try {
+            val json = file.readText()
             val type = object : TypeToken<List<AiUsageStats>>() {}.type
             val list: List<AiUsageStats>? = gson.fromJson(json, type)
             list?.associateBy { it.key } ?: emptyMap()
         } catch (e: Exception) {
+            android.util.Log.e("SettingsPreferences", "Failed to load usage stats: ${e.message}")
             emptyMap()
         }
     }
 
     fun saveUsageStats(stats: Map<String, AiUsageStats>) {
-        val json = gson.toJson(stats.values.toList())
-        prefs.edit().putString(KEY_AI_USAGE_STATS, json).apply()
+        val file = usageStatsFile() ?: return
+        try {
+            file.writeText(gson.toJson(stats.values.toList()))
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsPreferences", "Failed to save usage stats: ${e.message}")
+        }
     }
 
     fun updateUsageStats(
@@ -1195,7 +1240,27 @@ class SettingsPreferences(private val prefs: SharedPreferences) {
     }
 
     fun clearUsageStats() {
+        val file = usageStatsFile()
+        if (file != null && file.exists()) file.delete()
+        // Also clear old prefs if still present
         prefs.edit().remove(KEY_AI_USAGE_STATS).apply()
+    }
+
+    private fun usageStatsFile(): File? {
+        return filesDir?.let { File(it, FILE_USAGE_STATS) }
+    }
+
+    private fun migrateUsageStatsFromPrefs() {
+        val file = usageStatsFile() ?: return
+        if (file.exists()) return
+        val json = prefs.getString(KEY_AI_USAGE_STATS, null) ?: return
+        try {
+            file.writeText(json)
+            prefs.edit().remove(KEY_AI_USAGE_STATS).apply()
+            android.util.Log.d("SettingsPreferences", "Migrated usage stats to file")
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsPreferences", "Failed to migrate usage stats: ${e.message}")
+        }
     }
 
     // ============================================================================

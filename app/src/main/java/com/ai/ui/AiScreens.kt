@@ -51,7 +51,7 @@ fun AiHubScreen(
 
     // Check if there is any statistics data
     val hasStatisticsData = remember {
-        val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE))
+        val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
         settingsPrefs.loadUsageStats().isNotEmpty()
     }
 
@@ -235,7 +235,7 @@ fun AiReportsHubScreen(
 
     // Check if there are any stored prompts
     val hasPromptHistory = remember {
-        val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE))
+        val settingsPrefs = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
         settingsPrefs.loadPromptHistory().isNotEmpty()
     }
 
@@ -372,7 +372,7 @@ fun AiNewReportScreen(
                             .apply()
 
                         // Save to prompt history
-                        val settingsPrefs = SettingsPreferences(prefs)
+                        val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
                         settingsPrefs.savePromptToHistory(title, fullPrompt)
 
                         viewModel.showGenericAiAgentSelection(title, fullPrompt)

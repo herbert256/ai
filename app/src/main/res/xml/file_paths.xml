@@ -3,5 +3,5 @@
     <cache-path name="ai_analysis" path="ai_analysis/" />
     <cache-path name="shared_traces" path="shared_traces/" />
     <cache-path name="exports" path="exports/" />
-    <files-path name="ai_history" path="ai-history/" />
+    <files-path name="reports" path="reports/" />
 </paths>

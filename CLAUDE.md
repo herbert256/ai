@@ -80,7 +80,7 @@ com.ai/
 │   ├── AiAnalysisStreaming.kt        # SSE streaming for all providers (~1,460 lines)
 │   ├── AiAnalysisChat.kt            # Chat-specific implementations for all providers (~957 lines)
 │   ├── AiAnalysisModels.kt          # Model list fetching from provider APIs (~853 lines)
-│   ├── AiReportStorage.kt            # Persistent report storage with thread-safe ops (~347 lines)
+│   ├── AiReportStorage.kt            # File-based report storage with thread-safe ops (~404 lines)
 │   ├── AiHistoryManager.kt           # Legacy HTML report storage (~164 lines)
 │   ├── ChatHistoryManager.kt         # Chat session file storage (~122 lines)
 │   ├── PricingCache.kt               # Six-tier pricing cache (~679 lines)
@@ -537,19 +537,11 @@ AI Hub (Home)
 "ai_report_agents"        // Set<String> - last selected agent IDs
 "ai_report_swarms"        // Set<String> - last selected swarm IDs
 
-// History
-"prompt_history"          // JSON List<PromptHistoryEntry>
-
-// Statistics
-"ai_statistics"           // JSON Map<provider:model, AiUsageStats>
 ```
 
 ### Additional SharedPreferences
 
 ```kotlin
-// ai_reports_storage
-"reports"                 // JSON Map<String, AiReport>
-
 // pricing_cache
 "openrouter_pricing"      // JSON Map<String, ModelPricing>
 "openrouter_timestamp"    // Long - cache timestamp (7-day TTL)
@@ -561,6 +553,12 @@ AI Hub (Home)
 ### File Storage
 
 ```
+/files/reports/              # AI Reports (JSON per report)
+  └── {report-uuid}.json
+
+/files/usage-stats.json      # AI usage statistics (call counts, token totals per model)
+/files/prompt-history.json   # Prompt history (last 100 entries)
+
 /files/chat-history/         # Chat sessions (JSON per session)
   └── {session-uuid}.json
 

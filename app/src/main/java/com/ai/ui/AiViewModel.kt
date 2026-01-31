@@ -20,7 +20,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
 
     // Helper classes for settings
-    private val settingsPrefs = SettingsPreferences(prefs)
+    private val settingsPrefs = SettingsPreferences(prefs, application.filesDir)
 
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
@@ -34,9 +34,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     init {
         // Initialize ApiTracer for debugging
         ApiTracer.init(application)
-
-        // Initialize AiHistoryManager for AI report storage
-        AiHistoryManager.init(application)
 
         // Initialize ChatHistoryManager for chat session storage
         ChatHistoryManager.init(application)

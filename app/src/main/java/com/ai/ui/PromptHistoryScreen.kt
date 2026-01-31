@@ -28,7 +28,7 @@ fun PromptHistoryScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
     val allHistoryEntries = remember { mutableStateOf(settingsPrefs.loadPromptHistory()) }
     var searchText by remember { mutableStateOf("") }
     var currentPage by remember { mutableIntStateOf(0) }

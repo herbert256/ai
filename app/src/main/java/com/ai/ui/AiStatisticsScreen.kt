@@ -33,7 +33,7 @@ fun AiStatisticsScreen(
 
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
 
     var stats by remember { mutableStateOf(settingsPrefs.loadUsageStats()) }
 
@@ -268,7 +268,7 @@ fun AiCostsScreen(
 
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
     val scope = rememberCoroutineScope()
 
     val stats = remember {
