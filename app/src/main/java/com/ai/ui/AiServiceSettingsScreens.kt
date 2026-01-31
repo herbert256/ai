@@ -8,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.data.AiService
@@ -80,7 +79,6 @@ fun ChatGptSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "OpenAI",
-        accentColor = Color(0xFF10A37F),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -173,7 +171,6 @@ fun ClaudeSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Anthropic",
-        accentColor = Color(0xFFD97706),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -276,7 +273,6 @@ fun GeminiSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Google",
-        accentColor = Color(0xFF4285F4),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -379,7 +375,6 @@ fun GrokSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "xAI",
-        accentColor = Color(0xFFFFFFFF),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -482,7 +477,6 @@ fun GroqSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Groq",
-        accentColor = Color(0xFFF55036),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -605,7 +599,6 @@ fun DeepSeekSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "DeepSeek",
-        accentColor = Color(0xFF4D6BFE),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -728,7 +721,6 @@ fun MistralSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Mistral",
-        accentColor = Color(0xFFFF7000),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -821,7 +813,6 @@ fun PerplexitySettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Perplexity",
-        accentColor = Color(0xFF20B2AA),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -924,7 +915,6 @@ fun TogetherSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Together",
-        accentColor = Color(0xFF6366F1),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1027,7 +1017,6 @@ fun OpenRouterSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "OpenRouter",
-        accentColor = Color(0xFF6B5AED),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1140,7 +1129,6 @@ fun SiliconFlowSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "SiliconFlow",
-        accentColor = Color(0xFF00B4D8),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1253,7 +1241,6 @@ fun ZaiSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Z.AI",
-        accentColor = Color(0xFF6366F1),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1362,7 +1349,6 @@ fun MoonshotSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Moonshot",
-        accentColor = Color(0xFF7C3AED),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1471,7 +1457,6 @@ fun CohereSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Cohere",
-        accentColor = Color(0xFF39594D),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1580,7 +1565,6 @@ fun Ai21SettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "AI21",
-        accentColor = Color(0xFFFF6F00),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1689,7 +1673,6 @@ fun DashScopeSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "DashScope",
-        accentColor = Color(0xFFFF6A00),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1798,7 +1781,6 @@ fun FireworksSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Fireworks",
-        accentColor = Color(0xFFE34234),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -1907,7 +1889,6 @@ fun CerebrasSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Cerebras",
-        accentColor = Color(0xFF00A3E0),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2016,7 +1997,6 @@ fun SambaNovaSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "SambaNova",
-        accentColor = Color(0xFF6B21A8),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2125,7 +2105,6 @@ fun BaichuanSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Baichuan",
-        accentColor = Color(0xFF1E88E5),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2234,7 +2213,6 @@ fun StepFunSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "StepFun",
-        accentColor = Color(0xFF00BFA5),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2343,7 +2321,6 @@ fun MiniMaxSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "MiniMax",
-        accentColor = Color(0xFFEC407A),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2446,7 +2423,6 @@ fun NvidiaSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "NVIDIA",
-        accentColor = Color(0xFF76B900),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2548,7 +2524,6 @@ fun ReplicateSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Replicate",
-        accentColor = Color(0xFF000000),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2650,7 +2625,6 @@ fun HuggingFaceInferenceSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Hugging Face",
-        accentColor = Color(0xFFFFD21E),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2752,7 +2726,6 @@ fun LambdaSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Lambda",
-        accentColor = Color(0xFF1F41BF),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2854,7 +2827,6 @@ fun LeptonSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Lepton",
-        accentColor = Color(0xFF3B82F6),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -2956,7 +2928,6 @@ fun YiSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "01.AI",
-        accentColor = Color(0xFFFFB81C),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -3058,7 +3029,6 @@ fun DoubaoSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Doubao",
-        accentColor = Color(0xFF1890FF),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -3160,7 +3130,6 @@ fun RekaSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Reka",
-        accentColor = Color(0xFFFF6B35),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
@@ -3262,7 +3231,6 @@ fun WriterSettingsScreen(
 
     AiServiceSettingsScreenTemplate(
         title = "Writer",
-        accentColor = Color(0xFF0066FF),
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {

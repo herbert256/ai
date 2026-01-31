@@ -79,73 +79,61 @@ fun AiSettingsScreen(
         // Provider cards sorted alphabetically
         AiServiceNavigationCard(
             title = "Anthropic",
-            accentColor = Color(0xFFD97706),
             adminUrl = AiService.ANTHROPIC.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_ANTHROPIC) }
         )
         AiServiceNavigationCard(
             title = "DeepSeek",
-            accentColor = Color(0xFF4D6BFE),
             adminUrl = AiService.DEEPSEEK.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_DEEPSEEK) }
         )
         AiServiceNavigationCard(
             title = "Google",
-            accentColor = Color(0xFF4285F4),
             adminUrl = AiService.GOOGLE.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_GOOGLE) }
         )
         AiServiceNavigationCard(
             title = "Groq",
-            accentColor = Color(0xFFF55036),
             adminUrl = AiService.GROQ.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_GROQ) }
         )
         AiServiceNavigationCard(
             title = "Mistral",
-            accentColor = Color(0xFFFF7000),
             adminUrl = AiService.MISTRAL.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_MISTRAL) }
         )
         AiServiceNavigationCard(
             title = "OpenAI",
-            accentColor = Color(0xFF10A37F),
             adminUrl = AiService.OPENAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_OPENAI) }
         )
         AiServiceNavigationCard(
             title = "OpenRouter",
-            accentColor = Color(0xFF6B5AED),
             adminUrl = AiService.OPENROUTER.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_OPENROUTER) }
         )
         AiServiceNavigationCard(
             title = "Perplexity",
-            accentColor = Color(0xFF20B2AA),
             adminUrl = AiService.PERPLEXITY.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_PERPLEXITY) }
         )
         AiServiceNavigationCard(
             title = "SiliconFlow",
-            accentColor = Color(0xFF00B4D8),
             adminUrl = AiService.SILICONFLOW.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_SILICONFLOW) }
         )
         AiServiceNavigationCard(
             title = "Together",
-            accentColor = Color(0xFF6366F1),
             adminUrl = AiService.TOGETHER.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_TOGETHER) }
         )
         AiServiceNavigationCard(
             title = "xAI",
-            accentColor = Color(0xFFFFFFFF),
             adminUrl = AiService.XAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_XAI) }
         )
         AiServiceNavigationCard(
             title = "Z.AI",
-            accentColor = Color(0xFF6366F1),
             adminUrl = AiService.ZAI.adminUrl,
             onEdit = { onNavigate(SettingsSubScreen.AI_ZAI) }
         )
@@ -492,42 +480,41 @@ fun AiProvidersScreen(
     data class ProviderEntry(
         val service: AiService,
         val title: String,
-        val accentColor: Color,
         val screen: SettingsSubScreen
     )
 
     val allProviders = listOf(
-        ProviderEntry(AiService.AI21, "AI21", Color(0xFFFF6F00), SettingsSubScreen.AI_AI21),
-        ProviderEntry(AiService.ANTHROPIC, "Anthropic", Color(0xFFD97706), SettingsSubScreen.AI_ANTHROPIC),
-        ProviderEntry(AiService.BAICHUAN, "Baichuan", Color(0xFF1E88E5), SettingsSubScreen.AI_BAICHUAN),
-        ProviderEntry(AiService.CEREBRAS, "Cerebras", Color(0xFF00A3E0), SettingsSubScreen.AI_CEREBRAS),
-        ProviderEntry(AiService.COHERE, "Cohere", Color(0xFF39594D), SettingsSubScreen.AI_COHERE),
-        ProviderEntry(AiService.DASHSCOPE, "DashScope", Color(0xFFFF6A00), SettingsSubScreen.AI_DASHSCOPE),
-        ProviderEntry(AiService.DEEPSEEK, "DeepSeek", Color(0xFF4D6BFE), SettingsSubScreen.AI_DEEPSEEK),
-        ProviderEntry(AiService.DOUBAO, "Doubao", Color(0xFF1890FF), SettingsSubScreen.AI_DOUBAO),
-        ProviderEntry(AiService.FIREWORKS, "Fireworks", Color(0xFFE34234), SettingsSubScreen.AI_FIREWORKS),
-        ProviderEntry(AiService.GOOGLE, "Google", Color(0xFF4285F4), SettingsSubScreen.AI_GOOGLE),
-        ProviderEntry(AiService.GROQ, "Groq", Color(0xFFF55036), SettingsSubScreen.AI_GROQ),
-        ProviderEntry(AiService.HUGGINGFACE, "Hugging Face", Color(0xFFFFD21E), SettingsSubScreen.AI_HUGGINGFACE),
-        ProviderEntry(AiService.LAMBDA, "Lambda", Color(0xFF1F41BF), SettingsSubScreen.AI_LAMBDA),
-        ProviderEntry(AiService.LEPTON, "Lepton", Color(0xFF3B82F6), SettingsSubScreen.AI_LEPTON),
-        ProviderEntry(AiService.MINIMAX, "MiniMax", Color(0xFFEC407A), SettingsSubScreen.AI_MINIMAX),
-        ProviderEntry(AiService.MISTRAL, "Mistral", Color(0xFFFF7000), SettingsSubScreen.AI_MISTRAL),
-        ProviderEntry(AiService.MOONSHOT, "Moonshot", Color(0xFF7C3AED), SettingsSubScreen.AI_MOONSHOT),
-        ProviderEntry(AiService.NVIDIA, "NVIDIA", Color(0xFF76B900), SettingsSubScreen.AI_NVIDIA),
-        ProviderEntry(AiService.OPENAI, "OpenAI", Color(0xFF10A37F), SettingsSubScreen.AI_OPENAI),
-        ProviderEntry(AiService.OPENROUTER, "OpenRouter", Color(0xFF6B5AED), SettingsSubScreen.AI_OPENROUTER),
-        ProviderEntry(AiService.PERPLEXITY, "Perplexity", Color(0xFF20B2AA), SettingsSubScreen.AI_PERPLEXITY),
-        ProviderEntry(AiService.REKA, "Reka", Color(0xFFFF6B35), SettingsSubScreen.AI_REKA),
-        ProviderEntry(AiService.REPLICATE, "Replicate", Color(0xFF000000), SettingsSubScreen.AI_REPLICATE),
-        ProviderEntry(AiService.SAMBANOVA, "SambaNova", Color(0xFF6B21A8), SettingsSubScreen.AI_SAMBANOVA),
-        ProviderEntry(AiService.SILICONFLOW, "SiliconFlow", Color(0xFF00B4D8), SettingsSubScreen.AI_SILICONFLOW),
-        ProviderEntry(AiService.STEPFUN, "StepFun", Color(0xFF00BFA5), SettingsSubScreen.AI_STEPFUN),
-        ProviderEntry(AiService.TOGETHER, "Together", Color(0xFF6366F1), SettingsSubScreen.AI_TOGETHER),
-        ProviderEntry(AiService.WRITER, "Writer", Color(0xFF0066FF), SettingsSubScreen.AI_WRITER),
-        ProviderEntry(AiService.XAI, "xAI", Color(0xFFFFFFFF), SettingsSubScreen.AI_XAI),
-        ProviderEntry(AiService.YI, "01.AI", Color(0xFFFFB81C), SettingsSubScreen.AI_YI),
-        ProviderEntry(AiService.ZAI, "Z.AI", Color(0xFF6366F1), SettingsSubScreen.AI_ZAI)
+        ProviderEntry(AiService.AI21, "AI21", SettingsSubScreen.AI_AI21),
+        ProviderEntry(AiService.ANTHROPIC, "Anthropic", SettingsSubScreen.AI_ANTHROPIC),
+        ProviderEntry(AiService.BAICHUAN, "Baichuan", SettingsSubScreen.AI_BAICHUAN),
+        ProviderEntry(AiService.CEREBRAS, "Cerebras", SettingsSubScreen.AI_CEREBRAS),
+        ProviderEntry(AiService.COHERE, "Cohere", SettingsSubScreen.AI_COHERE),
+        ProviderEntry(AiService.DASHSCOPE, "DashScope", SettingsSubScreen.AI_DASHSCOPE),
+        ProviderEntry(AiService.DEEPSEEK, "DeepSeek", SettingsSubScreen.AI_DEEPSEEK),
+        ProviderEntry(AiService.DOUBAO, "Doubao", SettingsSubScreen.AI_DOUBAO),
+        ProviderEntry(AiService.FIREWORKS, "Fireworks", SettingsSubScreen.AI_FIREWORKS),
+        ProviderEntry(AiService.GOOGLE, "Google", SettingsSubScreen.AI_GOOGLE),
+        ProviderEntry(AiService.GROQ, "Groq", SettingsSubScreen.AI_GROQ),
+        ProviderEntry(AiService.HUGGINGFACE, "Hugging Face", SettingsSubScreen.AI_HUGGINGFACE),
+        ProviderEntry(AiService.LAMBDA, "Lambda", SettingsSubScreen.AI_LAMBDA),
+        ProviderEntry(AiService.LEPTON, "Lepton", SettingsSubScreen.AI_LEPTON),
+        ProviderEntry(AiService.MINIMAX, "MiniMax", SettingsSubScreen.AI_MINIMAX),
+        ProviderEntry(AiService.MISTRAL, "Mistral", SettingsSubScreen.AI_MISTRAL),
+        ProviderEntry(AiService.MOONSHOT, "Moonshot", SettingsSubScreen.AI_MOONSHOT),
+        ProviderEntry(AiService.NVIDIA, "NVIDIA", SettingsSubScreen.AI_NVIDIA),
+        ProviderEntry(AiService.OPENAI, "OpenAI", SettingsSubScreen.AI_OPENAI),
+        ProviderEntry(AiService.OPENROUTER, "OpenRouter", SettingsSubScreen.AI_OPENROUTER),
+        ProviderEntry(AiService.PERPLEXITY, "Perplexity", SettingsSubScreen.AI_PERPLEXITY),
+        ProviderEntry(AiService.REKA, "Reka", SettingsSubScreen.AI_REKA),
+        ProviderEntry(AiService.REPLICATE, "Replicate", SettingsSubScreen.AI_REPLICATE),
+        ProviderEntry(AiService.SAMBANOVA, "SambaNova", SettingsSubScreen.AI_SAMBANOVA),
+        ProviderEntry(AiService.SILICONFLOW, "SiliconFlow", SettingsSubScreen.AI_SILICONFLOW),
+        ProviderEntry(AiService.STEPFUN, "StepFun", SettingsSubScreen.AI_STEPFUN),
+        ProviderEntry(AiService.TOGETHER, "Together", SettingsSubScreen.AI_TOGETHER),
+        ProviderEntry(AiService.WRITER, "Writer", SettingsSubScreen.AI_WRITER),
+        ProviderEntry(AiService.XAI, "xAI", SettingsSubScreen.AI_XAI),
+        ProviderEntry(AiService.YI, "01.AI", SettingsSubScreen.AI_YI),
+        ProviderEntry(AiService.ZAI, "Z.AI", SettingsSubScreen.AI_ZAI)
     )
 
     val visibleProviders = if (showAll) {
@@ -554,7 +541,6 @@ fun AiProvidersScreen(
         visibleProviders.forEach { entry ->
             AiServiceNavigationCard(
                 title = entry.title,
-                accentColor = entry.accentColor,
                 providerState = aiSettings.getProviderState(entry.service),
                 adminUrl = entry.service.adminUrl,
                 onEdit = { onNavigate(entry.screen) }

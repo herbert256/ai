@@ -27,7 +27,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun AiServiceNavigationCard(
     title: String,
-    accentColor: Color,
     hasApiKey: Boolean = false,
     providerState: String = if (hasApiKey) "ok" else "not-used",
     @Suppress("UNUSED_PARAMETER") adminUrl: String = "",
@@ -48,11 +47,11 @@ fun AiServiceNavigationCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Color indicator
+            // Theme-colored indicator
             Box(
                 modifier = Modifier
                     .size(12.dp)
-                    .background(accentColor, shape = MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small)
             )
 
             Text(
@@ -75,11 +74,9 @@ fun AiServiceNavigationCard(
 /**
  * Template for AI service settings screens.
  */
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun AiServiceSettingsScreenTemplate(
     title: String,
-    accentColor: Color,  // Reserved for future theming
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: () -> Unit,
