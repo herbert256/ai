@@ -177,7 +177,7 @@ fun SwarmEditScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
     existingNames: Set<String>,
-    availableModels: Map<AiService, List<String>>,
+    availableModels: Map<AiService, List<String>> = emptyMap(),
     onSave: (AiSwarm) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
@@ -197,11 +197,8 @@ fun SwarmEditScreen(
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
         val result = mutableListOf<AiSwarmMember>()
         aiSettings.getActiveServices(developerMode).sortedBy { it.displayName.lowercase() }.forEach { provider ->
-            // Combine API models and manual models, deduplicated
-            val apiModels = availableModels[provider] ?: emptyList()
-            val manualModels = aiSettings.getManualModels(provider)
-            val combined = (apiModels + manualModels).distinct().ifEmpty { listOf(aiSettings.getModel(provider)) }
-            combined.forEach { model ->
+            val models = aiSettings.getModels(provider).ifEmpty { listOf(aiSettings.getModel(provider)) }
+            models.forEach { model ->
                 result.add(AiSwarmMember(provider, model))
             }
         }

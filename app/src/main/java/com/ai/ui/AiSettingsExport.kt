@@ -21,15 +21,15 @@ import java.io.InputStreamReader
 
 /**
  * Data class for provider settings in JSON export/import.
- * Version 11: Added defaultModel, adminUrl, modelListUrl.
+ * Version 17: Renamed manualModels → models (unified model list).
  */
 data class ProviderConfigExport(
     val modelSource: String,  // "API" or "MANUAL"
-    val manualModels: List<String>,
-    val apiKey: String = "",   // API key for the provider
-    val defaultModel: String? = null,  // Version 11+
-    val adminUrl: String? = null,       // Version 11+
-    val modelListUrl: String? = null    // Version 11+
+    val models: List<String>,
+    val apiKey: String = "",
+    val defaultModel: String? = null,
+    val adminUrl: String? = null,
+    val modelListUrl: String? = null
 )
 
 /**
@@ -225,7 +225,7 @@ data class ProviderEndpointsExport(
  * Version 14: Added params (reusable parameter presets).
  */
 data class AiConfigExport(
-    val version: Int = 16,
+    val version: Int = 17,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,  // Version 6+
@@ -272,16 +272,16 @@ data class AiConfigImportResult(
  * Exports providers (model config), agents, flocks, huggingFaceApiKey, and openRouterApiKey.
  */
 fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "", openRouterApiKey: String = "") {
-    // Build providers map (model source, manual models, API key, default model, admin URL, model list URL per provider)
+    // Build providers map
     val providers = AiService.entries.associate { service ->
         val config = aiSettings.getProvider(service)
         service.name to ProviderConfigExport(
-            config.modelSource.name,
-            config.manualModels,
-            config.apiKey,
-            config.model,
-            config.adminUrl,
-            config.modelListUrl.ifBlank { null }
+            modelSource = config.modelSource.name,
+            models = config.models,
+            apiKey = config.apiKey,
+            defaultModel = config.model,
+            adminUrl = config.adminUrl,
+            modelListUrl = config.modelListUrl.ifBlank { null }
         )
     }
 
@@ -702,7 +702,7 @@ private fun processImportedConfig(
         val defaultModelSource = defaultProviderConfig(service).modelSource
         val importedConfig = currentConfig.copy(
             modelSource = try { ModelSource.valueOf(p.modelSource) } catch (e: Exception) { defaultModelSource },
-            manualModels = p.manualModels,
+            models = p.models,
             apiKey = p.apiKey,
             model = p.defaultModel ?: currentConfig.model,
             adminUrl = p.adminUrl ?: currentConfig.adminUrl,
@@ -864,8 +864,8 @@ fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): 
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..16) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-16.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..17) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-17.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -910,8 +910,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..16) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-16.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..17) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-17.", Toast.LENGTH_LONG).show()
             return null
         }
 
@@ -956,7 +956,7 @@ fun ImportAiConfigDialog(
                 )
 
                 Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 11-16).",
+                    text = "The clipboard should contain a JSON configuration exported from this app (version 11-17).",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )

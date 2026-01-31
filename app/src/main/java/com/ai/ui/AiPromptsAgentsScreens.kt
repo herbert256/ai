@@ -25,106 +25,17 @@ import kotlinx.coroutines.launch
 fun AiAgentsScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
-    availableChatGptModels: List<String>,
-    availableClaudeModels: List<String>,
-    availableGeminiModels: List<String>,
-    availableGrokModels: List<String>,
-    availableGroqModels: List<String>,
-    availableDeepSeekModels: List<String>,
-    availableMistralModels: List<String>,
-    availablePerplexityModels: List<String>,
-    availableTogetherModels: List<String>,
-    availableOpenRouterModels: List<String>,
-    availableSiliconFlowModels: List<String>,
-    availableZaiModels: List<String>,
-    availableMoonshotModels: List<String>,
-    availableCohereModels: List<String>,
-    availableAi21Models: List<String>,
-    availableDashScopeModels: List<String>,
-    availableFireworksModels: List<String>,
-    availableCerebrasModels: List<String>,
-    availableSambaNovaModels: List<String>,
-    availableBaichuanModels: List<String>,
-    availableStepFunModels: List<String>,
-    availableMiniMaxModels: List<String>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onFetchChatGptModels: (String) -> Unit = {},
-    onFetchClaudeModels: (String) -> Unit = {},
-    onFetchGeminiModels: (String) -> Unit = {},
-    onFetchGrokModels: (String) -> Unit = {},
-    onFetchGroqModels: (String) -> Unit = {},
-    onFetchDeepSeekModels: (String) -> Unit = {},
-    onFetchMistralModels: (String) -> Unit = {},
-    onFetchPerplexityModels: (String) -> Unit = {},
-    onFetchTogetherModels: (String) -> Unit = {},
-    onFetchOpenRouterModels: (String) -> Unit = {},
-    onFetchSiliconFlowModels: (String) -> Unit = {},
-    onFetchZaiModels: (String) -> Unit = {},
-    onFetchMoonshotModels: (String) -> Unit = {},
-    onFetchCohereModels: (String) -> Unit = {},
-    onFetchAi21Models: (String) -> Unit = {},
-    onFetchDashScopeModels: (String) -> Unit = {},
-    onFetchFireworksModels: (String) -> Unit = {},
-    onFetchCerebrasModels: (String) -> Unit = {},
-    onFetchSambaNovaModels: (String) -> Unit = {},
-    onFetchBaichuanModels: (String) -> Unit = {},
-    onFetchStepFunModels: (String) -> Unit = {},
-    onFetchMiniMaxModels: (String) -> Unit = {},
-    onFetchNvidiaModels: (String) -> Unit = {},
-    onFetchReplicateModels: (String) -> Unit = {},
-    onFetchHuggingFaceInferenceModels: (String) -> Unit = {},
-    onFetchLambdaModels: (String) -> Unit = {},
-    onFetchLeptonModels: (String) -> Unit = {},
-    onFetchYiModels: (String) -> Unit = {},
-    onFetchDoubaoModels: (String) -> Unit = {},
-    onFetchRekaModels: (String) -> Unit = {},
-    onFetchWriterModels: (String) -> Unit = {}
+    onFetchModels: (AiService, String) -> Unit = { _, _ -> }
 ) {
     var showAddScreen by remember { mutableStateOf(false) }
     var editingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var copyingAgent by remember { mutableStateOf<AiAgent?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<AiAgent?>(null) }
     var searchQuery by remember { mutableStateOf("") }
-
-    // Helper to fetch models for a provider
-    val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
-        when (provider) {
-            AiService.OPENAI -> onFetchChatGptModels(apiKey)
-            AiService.ANTHROPIC -> onFetchClaudeModels(apiKey)
-            AiService.GOOGLE -> onFetchGeminiModels(apiKey)
-            AiService.XAI -> onFetchGrokModels(apiKey)
-            AiService.GROQ -> onFetchGroqModels(apiKey)
-            AiService.DEEPSEEK -> onFetchDeepSeekModels(apiKey)
-            AiService.MISTRAL -> onFetchMistralModels(apiKey)
-            AiService.PERPLEXITY -> onFetchPerplexityModels(apiKey)
-            AiService.TOGETHER -> onFetchTogetherModels(apiKey)
-            AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
-            AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
-            AiService.ZAI -> onFetchZaiModels(apiKey)
-            AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
-            AiService.COHERE -> onFetchCohereModels(apiKey)
-            AiService.AI21 -> onFetchAi21Models(apiKey)
-            AiService.DASHSCOPE -> onFetchDashScopeModels(apiKey)
-            AiService.FIREWORKS -> onFetchFireworksModels(apiKey)
-            AiService.CEREBRAS -> onFetchCerebrasModels(apiKey)
-            AiService.SAMBANOVA -> onFetchSambaNovaModels(apiKey)
-            AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
-            AiService.STEPFUN -> onFetchStepFunModels(apiKey)
-            AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
-            AiService.NVIDIA -> onFetchNvidiaModels(apiKey)
-            AiService.REPLICATE -> onFetchReplicateModels(apiKey)
-            AiService.HUGGINGFACE -> onFetchHuggingFaceInferenceModels(apiKey)
-            AiService.LAMBDA -> onFetchLambdaModels(apiKey)
-            AiService.LEPTON -> onFetchLeptonModels(apiKey)
-            AiService.YI -> onFetchYiModels(apiKey)
-            AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
-            AiService.REKA -> onFetchRekaModels(apiKey)
-            AiService.WRITER -> onFetchWriterModels(apiKey)
-        }
-    }
 
     // Show Add/Edit/Copy screen (full screen)
     if (showAddScreen || editingAgent != null || copyingAgent != null) {
@@ -142,31 +53,9 @@ fun AiAgentsScreen(
             agent = dialogAgent,
             aiSettings = aiSettings,
             developerMode = developerMode,
-            availableChatGptModels = availableChatGptModels,
-            availableClaudeModels = availableClaudeModels,
-            availableGeminiModels = availableGeminiModels,
-            availableGrokModels = availableGrokModels,
-            availableGroqModels = availableGroqModels,
-            availableDeepSeekModels = availableDeepSeekModels,
-            availableMistralModels = availableMistralModels,
-            availablePerplexityModels = availablePerplexityModels,
-            availableTogetherModels = availableTogetherModels,
-            availableOpenRouterModels = availableOpenRouterModels,
-            availableSiliconFlowModels = availableSiliconFlowModels,
-            availableZaiModels = availableZaiModels,
-            availableMoonshotModels = availableMoonshotModels,
-            availableCohereModels = availableCohereModels,
-            availableAi21Models = availableAi21Models,
-            availableDashScopeModels = availableDashScopeModels,
-            availableFireworksModels = availableFireworksModels,
-            availableCerebrasModels = availableCerebrasModels,
-            availableSambaNovaModels = availableSambaNovaModels,
-            availableBaichuanModels = availableBaichuanModels,
-            availableStepFunModels = availableStepFunModels,
-            availableMiniMaxModels = availableMiniMaxModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
-            onFetchModelsForProvider = fetchModelsForProvider,
+            onFetchModelsForProvider = onFetchModels,
             onSave = { newAgent ->
                 val newAgents = if (isEditMode && editingAgentId != null) {
                     aiSettings.agents.map { if (it.id == editingAgentId) newAgent else it }
@@ -430,37 +319,6 @@ internal fun AgentEditScreen(
     agent: AiAgent?,
     aiSettings: AiSettings,
     developerMode: Boolean,
-    availableChatGptModels: List<String>,
-    availableClaudeModels: List<String>,
-    availableGeminiModels: List<String>,
-    availableGrokModels: List<String>,
-    availableGroqModels: List<String>,
-    availableDeepSeekModels: List<String>,
-    availableMistralModels: List<String>,
-    availablePerplexityModels: List<String>,
-    availableTogetherModels: List<String>,
-    availableOpenRouterModels: List<String>,
-    availableSiliconFlowModels: List<String>,
-    availableZaiModels: List<String>,
-    availableMoonshotModels: List<String>,
-    availableCohereModels: List<String>,
-    availableAi21Models: List<String>,
-    availableDashScopeModels: List<String>,
-    availableFireworksModels: List<String>,
-    availableCerebrasModels: List<String>,
-    availableSambaNovaModels: List<String>,
-    availableBaichuanModels: List<String>,
-    availableStepFunModels: List<String>,
-    availableMiniMaxModels: List<String>,
-    availableNvidiaModels: List<String> = emptyList(),
-    availableReplicateModels: List<String> = emptyList(),
-    availableHuggingFaceInferenceModels: List<String> = emptyList(),
-    availableLambdaModels: List<String> = emptyList(),
-    availableLeptonModels: List<String> = emptyList(),
-    availableYiModels: List<String> = emptyList(),
-    availableDoubaoModels: List<String> = emptyList(),
-    availableRekaModels: List<String> = emptyList(),
-    availableWriterModels: List<String> = emptyList(),
     existingNames: Set<String>,
     onTestAiModel: suspend (AiService, String, String) -> String?,
     onFetchModelsForProvider: (AiService, String) -> Unit,
@@ -503,54 +361,9 @@ internal fun AgentEditScreen(
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
     var showEndpointDialog by remember { mutableStateOf(false) }
 
-    // Build available models map from individual parameters
-    val availableModelsMap = mapOf(
-        AiService.OPENAI to availableChatGptModels,
-        AiService.ANTHROPIC to availableClaudeModels,
-        AiService.GOOGLE to availableGeminiModels,
-        AiService.XAI to availableGrokModels,
-        AiService.GROQ to availableGroqModels,
-        AiService.DEEPSEEK to availableDeepSeekModels,
-        AiService.MISTRAL to availableMistralModels,
-        AiService.PERPLEXITY to availablePerplexityModels,
-        AiService.TOGETHER to availableTogetherModels,
-        AiService.OPENROUTER to availableOpenRouterModels,
-        AiService.SILICONFLOW to availableSiliconFlowModels,
-        AiService.ZAI to availableZaiModels,
-        AiService.MOONSHOT to availableMoonshotModels,
-        AiService.COHERE to availableCohereModels,
-        AiService.AI21 to availableAi21Models,
-        AiService.DASHSCOPE to availableDashScopeModels,
-        AiService.FIREWORKS to availableFireworksModels,
-        AiService.CEREBRAS to availableCerebrasModels,
-        AiService.SAMBANOVA to availableSambaNovaModels,
-        AiService.BAICHUAN to availableBaichuanModels,
-        AiService.STEPFUN to availableStepFunModels,
-        AiService.MINIMAX to availableMiniMaxModels,
-        AiService.NVIDIA to availableNvidiaModels,
-        AiService.REPLICATE to availableReplicateModels,
-        AiService.HUGGINGFACE to availableHuggingFaceInferenceModels,
-        AiService.LAMBDA to availableLambdaModels,
-        AiService.LEPTON to availableLeptonModels,
-        AiService.YI to availableYiModels,
-        AiService.DOUBAO to availableDoubaoModels,
-        AiService.REKA to availableRekaModels,
-        AiService.WRITER to availableWriterModels
-    )
-
-    // Get models for selected provider
-    val modelsForProvider = run {
-        val modelSource = aiSettings.getModelSource(selectedProvider)
-        val availableModelsForProvider = availableModelsMap[selectedProvider] ?: emptyList()
-        val apiModels = if (modelSource == ModelSource.API) availableModelsForProvider else emptyList()
-        val manualModels = if (modelSource == ModelSource.MANUAL) aiSettings.getManualModels(selectedProvider) else emptyList()
-        val defaultModels = defaultProviderConfig(selectedProvider).manualModels
-        (apiModels + manualModels).ifEmpty { defaultModels.ifEmpty { listOf(model) } }
-    }
-
-    // Helper to check if provider uses API model source
-    fun getModelSourceForProvider(provider: AiService): ModelSource {
-        return aiSettings.getModelSource(provider)
+    // Get models for selected provider from unified model list
+    val modelsForProvider = aiSettings.getModels(selectedProvider).ifEmpty {
+        defaultProviderConfig(selectedProvider).models.ifEmpty { listOf(model) }
     }
 
     // Fetch models on initial load (for edit mode) and when provider changes
@@ -558,8 +371,8 @@ internal fun AgentEditScreen(
         // Use agent's API key if set, otherwise fall back to provider's API key
         val effectiveApiKey = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
 
-        // Fetch if using API model source and API key is available
-        if (getModelSourceForProvider(selectedProvider) == ModelSource.API && effectiveApiKey.isNotBlank()) {
+        // Fetch models if API key is available
+        if (effectiveApiKey.isNotBlank()) {
             onFetchModelsForProvider(selectedProvider, effectiveApiKey)
         }
 

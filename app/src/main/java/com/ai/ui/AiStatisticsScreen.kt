@@ -687,55 +687,7 @@ fun CostConfigurationScreen(
 
     // Get models for the selected provider
     fun getModelsForProvider(provider: com.ai.data.AiService): List<String> {
-        return when (provider) {
-            com.ai.data.AiService.OPENAI -> aiSettings.getManualModels(AiService.OPENAI).ifEmpty {
-                listOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo", "o1", "o1-mini", "o1-preview", "o3-mini")
-            }
-            com.ai.data.AiService.ANTHROPIC -> CLAUDE_MODELS
-            com.ai.data.AiService.GOOGLE -> aiSettings.getManualModels(AiService.GOOGLE).ifEmpty {
-                listOf("gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro")
-            }
-            com.ai.data.AiService.XAI -> aiSettings.getManualModels(AiService.XAI).ifEmpty {
-                listOf("grok-3", "grok-3-mini", "grok-2", "grok-2-mini", "grok-beta")
-            }
-            com.ai.data.AiService.GROQ -> aiSettings.getManualModels(AiService.GROQ).ifEmpty {
-                listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768")
-            }
-            com.ai.data.AiService.DEEPSEEK -> aiSettings.getManualModels(AiService.DEEPSEEK).ifEmpty {
-                listOf("deepseek-chat", "deepseek-reasoner")
-            }
-            com.ai.data.AiService.MISTRAL -> aiSettings.getManualModels(AiService.MISTRAL).ifEmpty {
-                listOf("mistral-small-latest", "mistral-medium-latest", "mistral-large-latest", "codestral-latest")
-            }
-            com.ai.data.AiService.PERPLEXITY -> PERPLEXITY_MODELS
-            com.ai.data.AiService.TOGETHER -> aiSettings.getManualModels(AiService.TOGETHER).ifEmpty {
-                listOf("meta-llama/Llama-3.3-70B-Instruct-Turbo", "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo")
-            }
-            com.ai.data.AiService.OPENROUTER -> aiSettings.getManualModels(AiService.OPENROUTER).ifEmpty {
-                listOf("anthropic/claude-3.5-sonnet", "openai/gpt-4o", "google/gemini-pro")
-            }
-            com.ai.data.AiService.SILICONFLOW -> SILICONFLOW_MODELS
-            com.ai.data.AiService.ZAI -> ZAI_MODELS
-            com.ai.data.AiService.MOONSHOT -> MOONSHOT_MODELS
-            com.ai.data.AiService.COHERE -> COHERE_MODELS
-            com.ai.data.AiService.AI21 -> AI21_MODELS
-            com.ai.data.AiService.DASHSCOPE -> DASHSCOPE_MODELS
-            com.ai.data.AiService.FIREWORKS -> FIREWORKS_MODELS
-            com.ai.data.AiService.CEREBRAS -> CEREBRAS_MODELS
-            com.ai.data.AiService.SAMBANOVA -> SAMBANOVA_MODELS
-            com.ai.data.AiService.BAICHUAN -> BAICHUAN_MODELS
-            com.ai.data.AiService.STEPFUN -> STEPFUN_MODELS
-            com.ai.data.AiService.MINIMAX -> MINIMAX_MODELS
-            com.ai.data.AiService.NVIDIA -> aiSettings.getManualModels(AiService.NVIDIA).ifEmpty { listOf(com.ai.data.AiService.NVIDIA.defaultModel) }
-            com.ai.data.AiService.REPLICATE -> REPLICATE_MODELS
-            com.ai.data.AiService.HUGGINGFACE -> HUGGINGFACE_INFERENCE_MODELS
-            com.ai.data.AiService.LAMBDA -> aiSettings.getManualModels(AiService.LAMBDA).ifEmpty { listOf(com.ai.data.AiService.LAMBDA.defaultModel) }
-            com.ai.data.AiService.LEPTON -> LEPTON_MODELS
-            com.ai.data.AiService.YI -> YI_MODELS
-            com.ai.data.AiService.DOUBAO -> DOUBAO_MODELS
-            com.ai.data.AiService.REKA -> REKA_MODELS
-            com.ai.data.AiService.WRITER -> WRITER_MODELS
-        }
+        return aiSettings.getModels(provider).ifEmpty { listOf(aiSettings.getModel(provider)) }
     }
 
     // Force recomposition when manual pricing changes

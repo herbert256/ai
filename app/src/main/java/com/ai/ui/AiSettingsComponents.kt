@@ -48,13 +48,6 @@ fun AiServiceNavigationCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Theme-colored indicator
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small)
-            )
-
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
@@ -79,7 +72,7 @@ fun AiServiceNavigationCard(
                     "ok" -> Text(text = "\uD83D\uDD11", fontSize = 14.sp) // 🔑
                     "error" -> Text(text = "❌", fontSize = 14.sp)
                     "inactive" -> Text(text = "\uD83D\uDCA4", fontSize = 14.sp) // 💤
-                    // "not-used" -> no icon
+                    "not-used" -> Text(text = "\u2B55", fontSize = 14.sp) // ⭕
                 }
             }
         }
@@ -633,11 +626,10 @@ fun ApiKeyInputSection(
 @Composable
 fun UnifiedModelSelectionSection(
     modelSource: ModelSource,
-    manualModels: List<String>,
-    availableApiModels: List<String>,
+    models: List<String>,
     isLoadingModels: Boolean,
     onModelSourceChange: (ModelSource) -> Unit,
-    onManualModelsChange: (List<String>) -> Unit,
+    onModelsChange: (List<String>) -> Unit,
     onFetchModels: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -711,11 +703,11 @@ fun UnifiedModelSelectionSection(
                     }
                 }
 
-                if (availableApiModels.isNotEmpty()) {
+                if (models.isNotEmpty()) {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        availableApiModels.forEach { model ->
+                        models.forEach { model ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -749,11 +741,11 @@ fun UnifiedModelSelectionSection(
                 }
 
                 // Show current manual models with edit/delete
-                if (manualModels.isNotEmpty()) {
+                if (models.isNotEmpty()) {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        manualModels.forEach { model ->
+                        models.forEach { model ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -781,8 +773,8 @@ fun UnifiedModelSelectionSection(
                                 }
                                 IconButton(
                                     onClick = {
-                                        val newList = manualModels.filter { it != model }
-                                        onManualModelsChange(newList)
+                                        val newList = models.filter { it != model }
+                                        onModelsChange(newList)
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {
@@ -823,11 +815,11 @@ fun UnifiedModelSelectionSection(
                     onClick = {
                         if (newModelName.isNotBlank()) {
                             val newList = if (editingModel != null) {
-                                manualModels.map { if (it == editingModel) newModelName.trim() else it }
+                                models.map { if (it == editingModel) newModelName.trim() else it }
                             } else {
-                                manualModels + newModelName.trim()
+                                models + newModelName.trim()
                             }
-                            onManualModelsChange(newList)
+                            onModelsChange(newList)
                         }
                         showAddDialog = false
                         editingModel = null

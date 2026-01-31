@@ -310,93 +310,12 @@ fun AiNavHost(
             ModelSearchScreen(
                 aiSettings = uiState.aiSettings,
                 developerMode = uiState.generalSettings.developerMode,
-                availableChatGptModels = uiState.availableChatGptModels,
-                availableGeminiModels = uiState.availableGeminiModels,
-                availableGrokModels = uiState.availableGrokModels,
-                availableGroqModels = uiState.availableGroqModels,
-                availableDeepSeekModels = uiState.availableDeepSeekModels,
-                availableMistralModels = uiState.availableMistralModels,
-                availablePerplexityModels = uiState.availablePerplexityModels,
-                availableTogetherModels = uiState.availableTogetherModels,
-                availableOpenRouterModels = uiState.availableOpenRouterModels,
-                availableClaudeModels = uiState.availableClaudeModels,
-                availableSiliconFlowModels = uiState.availableSiliconFlowModels,
-                availableZaiModels = uiState.availableZaiModels,
-                availableMoonshotModels = uiState.availableMoonshotModels,
-                availableCohereModels = uiState.availableCohereModels,
-                availableAi21Models = uiState.availableAi21Models,
-                availableDashScopeModels = uiState.availableDashScopeModels,
-                availableFireworksModels = uiState.availableFireworksModels,
-                availableCerebrasModels = uiState.availableCerebrasModels,
-                availableSambaNovaModels = uiState.availableSambaNovaModels,
-                availableBaichuanModels = uiState.availableBaichuanModels,
-                availableStepFunModels = uiState.availableStepFunModels,
-                availableMiniMaxModels = uiState.availableMiniMaxModels,
-                availableNvidiaModels = uiState.availableNvidiaModels,
-                availableReplicateModels = uiState.availableReplicateModels,
-                availableHuggingFaceInferenceModels = uiState.availableHuggingFaceInferenceModels,
-                availableLambdaModels = uiState.availableLambdaModels,
-                availableLeptonModels = uiState.availableLeptonModels,
-                availableYiModels = uiState.availableYiModels,
-                availableDoubaoModels = uiState.availableDoubaoModels,
-                availableRekaModels = uiState.availableRekaModels,
-                availableWriterModels = uiState.availableWriterModels,
-                isLoadingChatGptModels = uiState.isLoadingChatGptModels,
-                isLoadingGeminiModels = uiState.isLoadingGeminiModels,
-                isLoadingGrokModels = uiState.isLoadingGrokModels,
-                isLoadingGroqModels = uiState.isLoadingGroqModels,
-                isLoadingDeepSeekModels = uiState.isLoadingDeepSeekModels,
-                isLoadingMistralModels = uiState.isLoadingMistralModels,
-                isLoadingTogetherModels = uiState.isLoadingTogetherModels,
-                isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
-                isLoadingClaudeModels = uiState.isLoadingClaudeModels,
-                isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
-                isLoadingZaiModels = uiState.isLoadingZaiModels,
-                isLoadingMoonshotModels = uiState.isLoadingMoonshotModels,
-                isLoadingCohereModels = uiState.isLoadingCohereModels,
-                isLoadingAi21Models = uiState.isLoadingAi21Models,
-                isLoadingDashScopeModels = uiState.isLoadingDashScopeModels,
-                isLoadingFireworksModels = uiState.isLoadingFireworksModels,
-                isLoadingCerebrasModels = uiState.isLoadingCerebrasModels,
-                isLoadingSambaNovaModels = uiState.isLoadingSambaNovaModels,
-                isLoadingBaichuanModels = uiState.isLoadingBaichuanModels,
-                isLoadingStepFunModels = uiState.isLoadingStepFunModels,
-                isLoadingMiniMaxModels = uiState.isLoadingMiniMaxModels,
+                loadingModelsFor = uiState.loadingModelsFor,
                 onBackToAiSetup = { navController.popBackStack() },
                 onBackToHome = navigateHome,
                 onSaveAiSettings = { viewModel.updateAiSettings(it) },
                 onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
-                onFetchChatGptModels = { viewModel.fetchChatGptModels(it) },
-                onFetchGeminiModels = { viewModel.fetchGeminiModels(it) },
-                onFetchGrokModels = { viewModel.fetchGrokModels(it) },
-                onFetchGroqModels = { viewModel.fetchGroqModels(it) },
-                onFetchDeepSeekModels = { viewModel.fetchDeepSeekModels(it) },
-                onFetchMistralModels = { viewModel.fetchMistralModels(it) },
-                onFetchPerplexityModels = { viewModel.fetchPerplexityModels(it) },
-                onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
-                onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
-                onFetchClaudeModels = { viewModel.fetchClaudeModels(it) },
-                onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
-                onFetchZaiModels = { viewModel.fetchZaiModels(it) },
-                onFetchMoonshotModels = { viewModel.fetchMoonshotModels(it) },
-                onFetchCohereModels = { viewModel.fetchCohereModels(it) },
-                onFetchAi21Models = { viewModel.fetchAi21Models(it) },
-                onFetchDashScopeModels = { viewModel.fetchDashScopeModels(it) },
-                onFetchFireworksModels = { viewModel.fetchFireworksModels(it) },
-                onFetchCerebrasModels = { viewModel.fetchCerebrasModels(it) },
-                onFetchSambaNovaModels = { viewModel.fetchSambaNovaModels(it) },
-                onFetchBaichuanModels = { viewModel.fetchBaichuanModels(it) },
-                onFetchStepFunModels = { viewModel.fetchStepFunModels(it) },
-                onFetchMiniMaxModels = { viewModel.fetchMiniMaxModels(it) },
-                onFetchNvidiaModels = { viewModel.fetchNvidiaModels(it) },
-                onFetchReplicateModels = { viewModel.fetchReplicateModels(it) },
-                onFetchHuggingFaceInferenceModels = { viewModel.fetchHuggingFaceInferenceModels(it) },
-                onFetchLambdaModels = { viewModel.fetchLambdaModels(it) },
-                onFetchLeptonModels = { viewModel.fetchLeptonModels(it) },
-                onFetchYiModels = { viewModel.fetchYiModels(it) },
-                onFetchDoubaoModels = { viewModel.fetchDoubaoModels(it) },
-                onFetchRekaModels = { viewModel.fetchRekaModels(it) },
-                onFetchWriterModels = { viewModel.fetchWriterModels(it) },
+                onFetchModels = viewModel::fetchModels,
                 onNavigateToChatParams = { provider, model ->
                     navController.navigate(NavRoutes.aiChatParams(provider.name, model))
                 },
@@ -567,78 +486,10 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
 
             if (provider != null) {
-                val availableModels = when (provider) {
-                    com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
-                    com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
-                    com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
-                    com.ai.data.AiService.XAI -> uiState.availableGrokModels
-                    com.ai.data.AiService.GROQ -> uiState.availableGroqModels
-                    com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
-                    com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
-                    com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
-                    com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
-                    com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
-                    com.ai.data.AiService.ZAI -> uiState.availableZaiModels
-                    com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
-                    com.ai.data.AiService.COHERE -> uiState.availableCohereModels
-                    com.ai.data.AiService.AI21 -> uiState.availableAi21Models
-                    com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
-                    com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
-                    com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
-                    com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
-                    com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
-                    com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
-                    com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
-                    com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
-                    com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
-                    com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
-                    com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
-                    com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
-                    com.ai.data.AiService.YI -> uiState.availableYiModels
-                    com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
-                    com.ai.data.AiService.REKA -> uiState.availableRekaModels
-                    com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                    else -> emptyList()
-                }
-                val isLoadingModels = when (provider) {
-                    com.ai.data.AiService.OPENAI -> uiState.isLoadingChatGptModels
-                    com.ai.data.AiService.ANTHROPIC -> uiState.isLoadingClaudeModels
-                    com.ai.data.AiService.GOOGLE -> uiState.isLoadingGeminiModels
-                    com.ai.data.AiService.XAI -> uiState.isLoadingGrokModels
-                    com.ai.data.AiService.GROQ -> uiState.isLoadingGroqModels
-                    com.ai.data.AiService.DEEPSEEK -> uiState.isLoadingDeepSeekModels
-                    com.ai.data.AiService.MISTRAL -> uiState.isLoadingMistralModels
-                    com.ai.data.AiService.TOGETHER -> uiState.isLoadingTogetherModels
-                    com.ai.data.AiService.OPENROUTER -> uiState.isLoadingOpenRouterModels
-                    com.ai.data.AiService.SILICONFLOW -> uiState.isLoadingSiliconFlowModels
-                    com.ai.data.AiService.ZAI -> uiState.isLoadingZaiModels
-                    com.ai.data.AiService.MOONSHOT -> uiState.isLoadingMoonshotModels
-                    com.ai.data.AiService.COHERE -> uiState.isLoadingCohereModels
-                    com.ai.data.AiService.AI21 -> uiState.isLoadingAi21Models
-                    com.ai.data.AiService.DASHSCOPE -> uiState.isLoadingDashScopeModels
-                    com.ai.data.AiService.FIREWORKS -> uiState.isLoadingFireworksModels
-                    com.ai.data.AiService.CEREBRAS -> uiState.isLoadingCerebrasModels
-                    com.ai.data.AiService.SAMBANOVA -> uiState.isLoadingSambaNovaModels
-                    com.ai.data.AiService.BAICHUAN -> uiState.isLoadingBaichuanModels
-                    com.ai.data.AiService.STEPFUN -> uiState.isLoadingStepFunModels
-                    com.ai.data.AiService.MINIMAX -> uiState.isLoadingMiniMaxModels
-                    com.ai.data.AiService.NVIDIA -> uiState.isLoadingNvidiaModels
-                    com.ai.data.AiService.REPLICATE -> uiState.isLoadingReplicateModels
-                    com.ai.data.AiService.HUGGINGFACE -> uiState.isLoadingHuggingFaceInferenceModels
-                    com.ai.data.AiService.LAMBDA -> uiState.isLoadingLambdaModels
-                    com.ai.data.AiService.LEPTON -> uiState.isLoadingLeptonModels
-                    com.ai.data.AiService.YI -> uiState.isLoadingYiModels
-                    com.ai.data.AiService.DOUBAO -> uiState.isLoadingDoubaoModels
-                    com.ai.data.AiService.REKA -> uiState.isLoadingRekaModels
-                    com.ai.data.AiService.WRITER -> uiState.isLoadingWriterModels
-                    else -> false
-                }
-
                 ChatSelectModelScreen(
                     provider = provider,
                     aiSettings = uiState.aiSettings,
-                    availableModels = availableModels,
-                    isLoadingModels = isLoadingModels,
+                    isLoadingModels = provider in uiState.loadingModelsFor,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateHome = navigateHome,
                     onSelectModel = { model ->
@@ -768,104 +619,13 @@ fun SettingsScreenNav(
     SettingsScreen(
         generalSettings = uiState.generalSettings,
         aiSettings = uiState.aiSettings,
-        availableChatGptModels = uiState.availableChatGptModels,
-        isLoadingChatGptModels = uiState.isLoadingChatGptModels,
-        availableClaudeModels = uiState.availableClaudeModels,
-        isLoadingClaudeModels = uiState.isLoadingClaudeModels,
-        availableGeminiModels = uiState.availableGeminiModels,
-        isLoadingGeminiModels = uiState.isLoadingGeminiModels,
-        availableGrokModels = uiState.availableGrokModels,
-        isLoadingGrokModels = uiState.isLoadingGrokModels,
-        availableGroqModels = uiState.availableGroqModels,
-        isLoadingGroqModels = uiState.isLoadingGroqModels,
-        availableDeepSeekModels = uiState.availableDeepSeekModels,
-        isLoadingDeepSeekModels = uiState.isLoadingDeepSeekModels,
-        availableMistralModels = uiState.availableMistralModels,
-        isLoadingMistralModels = uiState.isLoadingMistralModels,
-        availablePerplexityModels = uiState.availablePerplexityModels,
-        isLoadingPerplexityModels = uiState.isLoadingPerplexityModels,
-        availableTogetherModels = uiState.availableTogetherModels,
-        isLoadingTogetherModels = uiState.isLoadingTogetherModels,
-        availableOpenRouterModels = uiState.availableOpenRouterModels,
-        isLoadingOpenRouterModels = uiState.isLoadingOpenRouterModels,
-        availableSiliconFlowModels = uiState.availableSiliconFlowModels,
-        isLoadingSiliconFlowModels = uiState.isLoadingSiliconFlowModels,
-        availableZaiModels = uiState.availableZaiModels,
-        isLoadingZaiModels = uiState.isLoadingZaiModels,
-        availableMoonshotModels = uiState.availableMoonshotModels,
-        isLoadingMoonshotModels = uiState.isLoadingMoonshotModels,
-        availableCohereModels = uiState.availableCohereModels,
-        isLoadingCohereModels = uiState.isLoadingCohereModels,
-        availableAi21Models = uiState.availableAi21Models,
-        isLoadingAi21Models = uiState.isLoadingAi21Models,
-        availableDashScopeModels = uiState.availableDashScopeModels,
-        isLoadingDashScopeModels = uiState.isLoadingDashScopeModels,
-        availableFireworksModels = uiState.availableFireworksModels,
-        isLoadingFireworksModels = uiState.isLoadingFireworksModels,
-        availableCerebrasModels = uiState.availableCerebrasModels,
-        isLoadingCerebrasModels = uiState.isLoadingCerebrasModels,
-        availableSambaNovaModels = uiState.availableSambaNovaModels,
-        isLoadingSambaNovaModels = uiState.isLoadingSambaNovaModels,
-        availableBaichuanModels = uiState.availableBaichuanModels,
-        isLoadingBaichuanModels = uiState.isLoadingBaichuanModels,
-        availableStepFunModels = uiState.availableStepFunModels,
-        isLoadingStepFunModels = uiState.isLoadingStepFunModels,
-        availableMiniMaxModels = uiState.availableMiniMaxModels,
-        isLoadingMiniMaxModels = uiState.isLoadingMiniMaxModels,
-        availableNvidiaModels = uiState.availableNvidiaModels,
-        isLoadingNvidiaModels = uiState.isLoadingNvidiaModels,
-        availableReplicateModels = uiState.availableReplicateModels,
-        isLoadingReplicateModels = uiState.isLoadingReplicateModels,
-        availableHuggingFaceInferenceModels = uiState.availableHuggingFaceInferenceModels,
-        isLoadingHuggingFaceInferenceModels = uiState.isLoadingHuggingFaceInferenceModels,
-        availableLambdaModels = uiState.availableLambdaModels,
-        isLoadingLambdaModels = uiState.isLoadingLambdaModels,
-        availableLeptonModels = uiState.availableLeptonModels,
-        isLoadingLeptonModels = uiState.isLoadingLeptonModels,
-        availableYiModels = uiState.availableYiModels,
-        isLoadingYiModels = uiState.isLoadingYiModels,
-        availableDoubaoModels = uiState.availableDoubaoModels,
-        isLoadingDoubaoModels = uiState.isLoadingDoubaoModels,
-        availableRekaModels = uiState.availableRekaModels,
-        isLoadingRekaModels = uiState.isLoadingRekaModels,
-        availableWriterModels = uiState.availableWriterModels,
-        isLoadingWriterModels = uiState.isLoadingWriterModels,
+        loadingModelsFor = uiState.loadingModelsFor,
+        onFetchModels = viewModel::fetchModels,
         onBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onSaveGeneral = { viewModel.updateGeneralSettings(it) },
         onTrackApiCallsChanged = { viewModel.updateTrackApiCalls(it) },
         onSaveAi = { viewModel.updateAiSettings(it) },
-        onFetchChatGptModels = { viewModel.fetchChatGptModels(it) },
-        onFetchClaudeModels = { viewModel.fetchClaudeModels(it) },
-        onFetchGeminiModels = { viewModel.fetchGeminiModels(it) },
-        onFetchGrokModels = { viewModel.fetchGrokModels(it) },
-        onFetchGroqModels = { viewModel.fetchGroqModels(it) },
-        onFetchDeepSeekModels = { viewModel.fetchDeepSeekModels(it) },
-        onFetchMistralModels = { viewModel.fetchMistralModels(it) },
-        onFetchPerplexityModels = { viewModel.fetchPerplexityModels(it) },
-        onFetchTogetherModels = { viewModel.fetchTogetherModels(it) },
-        onFetchOpenRouterModels = { viewModel.fetchOpenRouterModels(it) },
-        onFetchSiliconFlowModels = { viewModel.fetchSiliconFlowModels(it) },
-        onFetchZaiModels = { viewModel.fetchZaiModels(it) },
-        onFetchMoonshotModels = { viewModel.fetchMoonshotModels(it) },
-        onFetchCohereModels = { viewModel.fetchCohereModels(it) },
-        onFetchAi21Models = { viewModel.fetchAi21Models(it) },
-        onFetchDashScopeModels = { viewModel.fetchDashScopeModels(it) },
-        onFetchFireworksModels = { viewModel.fetchFireworksModels(it) },
-        onFetchCerebrasModels = { viewModel.fetchCerebrasModels(it) },
-        onFetchSambaNovaModels = { viewModel.fetchSambaNovaModels(it) },
-        onFetchBaichuanModels = { viewModel.fetchBaichuanModels(it) },
-        onFetchStepFunModels = { viewModel.fetchStepFunModels(it) },
-        onFetchMiniMaxModels = { viewModel.fetchMiniMaxModels(it) },
-        onFetchNvidiaModels = { viewModel.fetchNvidiaModels(it) },
-        onFetchReplicateModels = { viewModel.fetchReplicateModels(it) },
-        onFetchHuggingFaceInferenceModels = { viewModel.fetchHuggingFaceInferenceModels(it) },
-        onFetchLambdaModels = { viewModel.fetchLambdaModels(it) },
-        onFetchLeptonModels = { viewModel.fetchLeptonModels(it) },
-        onFetchYiModels = { viewModel.fetchYiModels(it) },
-        onFetchDoubaoModels = { viewModel.fetchDoubaoModels(it) },
-        onFetchRekaModels = { viewModel.fetchRekaModels(it) },
-        onFetchWriterModels = { viewModel.fetchWriterModels(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) },
         onRefreshAllModels = { settings, forceRefresh, onProgress -> viewModel.refreshAllModelLists(settings, forceRefresh, onProgress) },
@@ -933,37 +693,6 @@ fun HousekeepingScreenNav(
         huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
         openRouterApiKey = uiState.generalSettings.openRouterApiKey,
         developerMode = uiState.generalSettings.developerMode,
-        availableChatGptModels = uiState.availableChatGptModels,
-        availableClaudeModels = uiState.availableClaudeModels,
-        availableGeminiModels = uiState.availableGeminiModels,
-        availableGrokModels = uiState.availableGrokModels,
-        availableGroqModels = uiState.availableGroqModels,
-        availableDeepSeekModels = uiState.availableDeepSeekModels,
-        availableMistralModels = uiState.availableMistralModels,
-        availablePerplexityModels = uiState.availablePerplexityModels,
-        availableTogetherModels = uiState.availableTogetherModels,
-        availableOpenRouterModels = uiState.availableOpenRouterModels,
-        availableSiliconFlowModels = uiState.availableSiliconFlowModels,
-        availableZaiModels = uiState.availableZaiModels,
-        availableMoonshotModels = uiState.availableMoonshotModels,
-        availableCohereModels = uiState.availableCohereModels,
-        availableAi21Models = uiState.availableAi21Models,
-        availableDashScopeModels = uiState.availableDashScopeModels,
-        availableFireworksModels = uiState.availableFireworksModels,
-        availableCerebrasModels = uiState.availableCerebrasModels,
-        availableSambaNovaModels = uiState.availableSambaNovaModels,
-        availableBaichuanModels = uiState.availableBaichuanModels,
-        availableStepFunModels = uiState.availableStepFunModels,
-        availableMiniMaxModels = uiState.availableMiniMaxModels,
-        availableNvidiaModels = uiState.availableNvidiaModels,
-        availableReplicateModels = uiState.availableReplicateModels,
-        availableHuggingFaceInferenceModels = uiState.availableHuggingFaceInferenceModels,
-        availableLambdaModels = uiState.availableLambdaModels,
-        availableLeptonModels = uiState.availableLeptonModels,
-        availableYiModels = uiState.availableYiModels,
-        availableDoubaoModels = uiState.availableDoubaoModels,
-        availableRekaModels = uiState.availableRekaModels,
-        availableWriterModels = uiState.availableWriterModels,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },
         onRefreshAllModels = { settings, forceRefresh, onProgress -> viewModel.refreshAllModelLists(settings, forceRefresh, onProgress) },

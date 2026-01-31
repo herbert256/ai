@@ -177,7 +177,6 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
 fun ProviderSettingsScreen(
     service: AiService,
     aiSettings: AiSettings,
-    availableModels: List<String> = emptyList(),
     isLoadingModels: Boolean = false,
     providerState: String = aiSettings.getProviderState(service),
     onBackToAiSettings: () -> Unit,
@@ -191,7 +190,7 @@ fun ProviderSettingsScreen(
     var apiKey by remember { mutableStateOf(aiSettings.getApiKey(service)) }
     var defaultModel by remember { mutableStateOf(aiSettings.getModel(service)) }
     var modelSource by remember { mutableStateOf(aiSettings.getModelSource(service)) }
-    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(service)) }
+    var models by remember { mutableStateOf(aiSettings.getModels(service)) }
     var adminUrl by remember { mutableStateOf(aiSettings.getProvider(service).adminUrl) }
     var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(service)) }
     var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(service)) }
@@ -205,14 +204,11 @@ fun ProviderSettingsScreen(
         )
     }
 
-    // Effective model list for dropdown
-    val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
-
     // Track if there are unsaved changes
     val hasChanges = apiKey != aiSettings.getApiKey(service) ||
             defaultModel != aiSettings.getModel(service) ||
             modelSource != aiSettings.getModelSource(service) ||
-            manualModels != aiSettings.getManualModels(service) ||
+            models != aiSettings.getModels(service) ||
             adminUrl != aiSettings.getProvider(service).adminUrl ||
             modelListUrl != aiSettings.getModelListUrl(service) ||
             selectedParametersIds != aiSettings.getParametersIds(service) ||
@@ -234,7 +230,7 @@ fun ProviderSettingsScreen(
                 apiKey = apiKey,
                 model = defaultModel,
                 modelSource = modelSource,
-                manualModels = manualModels,
+                models = models,
                 adminUrl = adminUrl,
                 modelListUrl = modelListUrl,
                 parametersIds = selectedParametersIds
@@ -243,7 +239,7 @@ fun ProviderSettingsScreen(
         hasChanges = hasChanges,
         apiKey = apiKey,
         defaultModel = defaultModel,
-        availableModels = effectiveModels,
+        availableModels = models,
         onDefaultModelChange = { defaultModel = it },
         adminUrl = adminUrl,
         onAdminUrlChange = { adminUrl = it },
@@ -286,40 +282,44 @@ fun ProviderSettingsScreen(
                         strokeWidth = 2.dp
                     )
                 } else {
+                    Text(
+                        text = if (providerState == "inactive") "activate" else "mark inactive",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF888888),
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
                     Switch(
                         checked = providerState == "inactive",
                         onCheckedChange = { makeInactive ->
+                            val providerConfig = ProviderConfig(
+                                apiKey = apiKey,
+                                model = defaultModel,
+                                modelSource = modelSource,
+                                models = models,
+                                adminUrl = adminUrl,
+                                modelListUrl = modelListUrl,
+                                parametersIds = selectedParametersIds
+                            )
                             if (makeInactive) {
-                                onProviderStateChange("inactive")
-                                onSave(aiSettings.withProvider(service, ProviderConfig(
-                                    apiKey = apiKey,
-                                    model = defaultModel,
-                                    modelSource = modelSource,
-                                    manualModels = manualModels,
-                                    adminUrl = adminUrl,
-                                    modelListUrl = modelListUrl,
-                                    parametersIds = selectedParametersIds
-                                )).withEndpoints(service, endpoints))
+                                onSave(aiSettings
+                                    .withProviderState(service, "inactive")
+                                    .withProvider(service, providerConfig)
+                                    .withEndpoints(service, endpoints))
                                 onBackToAiSettings()
                             } else {
                                 scope.launch {
                                     isTesting = true
-                                    if (apiKey.isBlank()) {
-                                        onProviderStateChange("not-used")
+                                    val newState = if (apiKey.isBlank()) {
+                                        "not-used"
                                     } else {
                                         val error = onTestApiKey(service, apiKey, defaultModel)
-                                        onProviderStateChange(if (error == null) "ok" else "error")
+                                        if (error == null) "ok" else "error"
                                     }
                                     isTesting = false
-                                    onSave(aiSettings.withProvider(service, ProviderConfig(
-                                        apiKey = apiKey,
-                                        model = defaultModel,
-                                        modelSource = modelSource,
-                                        manualModels = manualModels,
-                                        adminUrl = adminUrl,
-                                        modelListUrl = modelListUrl,
-                                        parametersIds = selectedParametersIds
-                                    )).withEndpoints(service, endpoints))
+                                    onSave(aiSettings
+                                        .withProviderState(service, newState)
+                                        .withProvider(service, providerConfig)
+                                        .withEndpoints(service, endpoints))
                                     onBackToAiSettings()
                                 }
                             }
@@ -351,11 +351,10 @@ fun ProviderSettingsScreen(
         )
         UnifiedModelSelectionSection(
             modelSource = modelSource,
-            manualModels = manualModels,
-            availableApiModels = availableModels,
+            models = models,
             isLoadingModels = isLoadingModels,
             onModelSourceChange = { modelSource = it },
-            onManualModelsChange = { manualModels = it },
+            onModelsChange = { models = it },
             onFetchModels = { onFetchModels(apiKey) }
         )
     }

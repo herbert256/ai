@@ -1062,42 +1062,8 @@ fun AiReportsScreen(
                             // Build list of all available provider/model combinations (active providers only)
                             val allProviderModels = uiState.aiSettings.getActiveServices(uiState.generalSettings.developerMode)
                                 .flatMap { provider ->
-                                    val apiModels = when (provider) {
-                                        com.ai.data.AiService.OPENAI -> uiState.availableChatGptModels
-                                        com.ai.data.AiService.ANTHROPIC -> uiState.availableClaudeModels
-                                        com.ai.data.AiService.GOOGLE -> uiState.availableGeminiModels
-                                        com.ai.data.AiService.XAI -> uiState.availableGrokModels
-                                        com.ai.data.AiService.GROQ -> uiState.availableGroqModels
-                                        com.ai.data.AiService.DEEPSEEK -> uiState.availableDeepSeekModels
-                                        com.ai.data.AiService.MISTRAL -> uiState.availableMistralModels
-                                        com.ai.data.AiService.PERPLEXITY -> uiState.availablePerplexityModels
-                                        com.ai.data.AiService.TOGETHER -> uiState.availableTogetherModels
-                                        com.ai.data.AiService.OPENROUTER -> uiState.availableOpenRouterModels
-                                        com.ai.data.AiService.SILICONFLOW -> uiState.availableSiliconFlowModels
-                                        com.ai.data.AiService.ZAI -> uiState.availableZaiModels
-                                        com.ai.data.AiService.MOONSHOT -> uiState.availableMoonshotModels
-                                        com.ai.data.AiService.COHERE -> uiState.availableCohereModels
-                                        com.ai.data.AiService.AI21 -> uiState.availableAi21Models
-                                        com.ai.data.AiService.DASHSCOPE -> uiState.availableDashScopeModels
-                                        com.ai.data.AiService.FIREWORKS -> uiState.availableFireworksModels
-                                        com.ai.data.AiService.CEREBRAS -> uiState.availableCerebrasModels
-                                        com.ai.data.AiService.SAMBANOVA -> uiState.availableSambaNovaModels
-                                        com.ai.data.AiService.BAICHUAN -> uiState.availableBaichuanModels
-                                        com.ai.data.AiService.STEPFUN -> uiState.availableStepFunModels
-                                        com.ai.data.AiService.MINIMAX -> uiState.availableMiniMaxModels
-                                        com.ai.data.AiService.NVIDIA -> uiState.availableNvidiaModels
-                                        com.ai.data.AiService.REPLICATE -> uiState.availableReplicateModels
-                                        com.ai.data.AiService.HUGGINGFACE -> uiState.availableHuggingFaceInferenceModels
-                                        com.ai.data.AiService.LAMBDA -> uiState.availableLambdaModels
-                                        com.ai.data.AiService.LEPTON -> uiState.availableLeptonModels
-                                        com.ai.data.AiService.YI -> uiState.availableYiModels
-                                        com.ai.data.AiService.DOUBAO -> uiState.availableDoubaoModels
-                                        com.ai.data.AiService.REKA -> uiState.availableRekaModels
-                                        com.ai.data.AiService.WRITER -> uiState.availableWriterModels
-                                    }
-                                    val manualModels = uiState.aiSettings.getManualModels(provider)
-                                    val combined = (apiModels + manualModels).distinct()
-                                    combined.map { model -> provider to model }
+                                    val modelsForProvider = uiState.aiSettings.getModels(provider)
+                                    modelsForProvider.map { model -> provider to model }
                                 }
 
                             val filteredModels = allProviderModels

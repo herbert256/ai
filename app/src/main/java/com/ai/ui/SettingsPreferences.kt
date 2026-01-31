@@ -76,14 +76,23 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val providers = AiService.entries.associateWith { service ->
             val key = service.prefsKey
             val defaults = defaultProviderConfig(service)
+            val modelSource = loadModelSource("${key}_model_source", defaults.modelSource)
+            val manualModelsLoaded = if (defaults.models.isNotEmpty())
+                loadManualModelsWithDefault("${key}_manual_models", defaults.models)
+            else
+                loadManualModels("${key}_manual_models")
+            // Migration: merge API-fetched models into unified models field
+            val models = if (modelSource == ModelSource.API) {
+                val apiModels = loadApiModels(apiModelsKey(service))
+                if (apiModels.isNotEmpty()) apiModels else manualModelsLoaded
+            } else {
+                manualModelsLoaded
+            }
             ProviderConfig(
                 apiKey = prefs.getString("${key}_api_key", "") ?: "",
                 model = prefs.getString("${key}_model", service.defaultModel) ?: service.defaultModel,
-                modelSource = loadModelSource("${key}_model_source", defaults.modelSource),
-                manualModels = if (defaults.manualModels.isNotEmpty())
-                    loadManualModelsWithDefault("${key}_manual_models", defaults.manualModels)
-                else
-                    loadManualModels("${key}_manual_models"),
+                modelSource = modelSource,
+                models = models,
                 adminUrl = prefs.getString("${key}_admin_url", service.adminUrl) ?: service.adminUrl,
                 modelListUrl = prefs.getString("${key}_model_list_url", "") ?: "",
                 parametersIds = loadParametersIds("${key}_parameters_id")
@@ -178,7 +187,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             editor.putString("${key}_api_key", config.apiKey)
             editor.putString("${key}_model", config.model)
             editor.putString("${key}_model_source", config.modelSource.name)
-            editor.putString("${key}_manual_models", gson.toJson(config.manualModels))
+            editor.putString("${key}_manual_models", gson.toJson(config.models))
             editor.putString("${key}_admin_url", config.adminUrl)
             editor.putString("${key}_model_list_url", config.modelListUrl)
             editor.putString("${key}_parameters_id", saveParametersIds(config.parametersIds))
@@ -191,6 +200,54 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.name }))
             .putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
+            .apply()
+    }
+
+    /**
+     * Map AiService to its legacy api_models SharedPreferences key for backward compatibility.
+     */
+    private fun apiModelsKey(service: AiService): String = when (service) {
+        AiService.OPENAI -> "api_models_openai"
+        AiService.GOOGLE -> "api_models_google"
+        AiService.XAI -> "api_models_xai"
+        AiService.GROQ -> "api_models_groq"
+        AiService.DEEPSEEK -> "api_models_deepseek"
+        AiService.MISTRAL -> "api_models_mistral"
+        AiService.TOGETHER -> "api_models_together"
+        AiService.OPENROUTER -> "api_models_openrouter"
+        AiService.ANTHROPIC -> "api_models_claude"
+        AiService.SILICONFLOW -> "api_models_siliconflow"
+        AiService.ZAI -> "api_models_zai"
+        AiService.MOONSHOT -> "api_models_moonshot"
+        AiService.COHERE -> "api_models_cohere"
+        AiService.AI21 -> "api_models_ai21"
+        AiService.DASHSCOPE -> "api_models_dashscope"
+        AiService.FIREWORKS -> "api_models_fireworks"
+        AiService.CEREBRAS -> "api_models_cerebras"
+        AiService.SAMBANOVA -> "api_models_sambanova"
+        AiService.BAICHUAN -> "api_models_baichuan"
+        AiService.STEPFUN -> "api_models_stepfun"
+        AiService.MINIMAX -> "api_models_minimax"
+        AiService.NVIDIA -> "api_models_nvidia"
+        AiService.REPLICATE -> "api_models_replicate"
+        AiService.HUGGINGFACE -> "api_models_huggingface_inference"
+        AiService.LAMBDA -> "api_models_lambda"
+        AiService.LEPTON -> "api_models_lepton"
+        AiService.YI -> "api_models_yi"
+        AiService.DOUBAO -> "api_models_doubao"
+        AiService.REKA -> "api_models_reka"
+        AiService.WRITER -> "api_models_writer"
+        AiService.PERPLEXITY -> "api_models_perplexity"
+    }
+
+    /**
+     * Save models for a single provider (used during API fetch to avoid saving entire AiSettings).
+     */
+    fun saveModelsForProvider(service: AiService, models: List<String>) {
+        val key = service.prefsKey
+        prefs.edit()
+            .putString("${key}_manual_models", gson.toJson(models))
+            .putString(apiModelsKey(service), gson.toJson(models))
             .apply()
     }
 
@@ -475,38 +532,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val FILE_USAGE_STATS = "usage-stats.json"
         private const val FILE_PROMPT_HISTORY = "prompt-history.json"
 
-        // API-fetched model lists (cached from API calls)
-        private const val KEY_API_MODELS_OPENAI = "api_models_openai"
-        private const val KEY_API_MODELS_GOOGLE = "api_models_google"
-        private const val KEY_API_MODELS_XAI = "api_models_xai"
-        private const val KEY_API_MODELS_GROQ = "api_models_groq"
-        private const val KEY_API_MODELS_DEEPSEEK = "api_models_deepseek"
-        private const val KEY_API_MODELS_MISTRAL = "api_models_mistral"
-        private const val KEY_API_MODELS_TOGETHER = "api_models_together"
-        private const val KEY_API_MODELS_OPENROUTER = "api_models_openrouter"
-        private const val KEY_API_MODELS_CLAUDE = "api_models_claude"
-        private const val KEY_API_MODELS_SILICONFLOW = "api_models_siliconflow"
-        private const val KEY_API_MODELS_ZAI = "api_models_zai"
-        private const val KEY_API_MODELS_MOONSHOT = "api_models_moonshot"
-        private const val KEY_API_MODELS_COHERE = "api_models_cohere"
-        private const val KEY_API_MODELS_AI21 = "api_models_ai21"
-        private const val KEY_API_MODELS_DASHSCOPE = "api_models_dashscope"
-        private const val KEY_API_MODELS_FIREWORKS = "api_models_fireworks"
-        private const val KEY_API_MODELS_CEREBRAS = "api_models_cerebras"
-        private const val KEY_API_MODELS_SAMBANOVA = "api_models_sambanova"
-        private const val KEY_API_MODELS_BAICHUAN = "api_models_baichuan"
-        private const val KEY_API_MODELS_STEPFUN = "api_models_stepfun"
-        private const val KEY_API_MODELS_MINIMAX = "api_models_minimax"
-        private const val KEY_API_MODELS_NVIDIA = "api_models_nvidia"
-        private const val KEY_API_MODELS_REPLICATE = "api_models_replicate"
-        private const val KEY_API_MODELS_HUGGINGFACE_INFERENCE = "api_models_huggingface_inference"
-        private const val KEY_API_MODELS_LAMBDA = "api_models_lambda"
-        private const val KEY_API_MODELS_LEPTON = "api_models_lepton"
-        private const val KEY_API_MODELS_YI = "api_models_yi"
-        private const val KEY_API_MODELS_DOUBAO = "api_models_doubao"
-        private const val KEY_API_MODELS_REKA = "api_models_reka"
-        private const val KEY_API_MODELS_WRITER = "api_models_writer"
-
         // Model lists cache timestamps (24-hour cache per provider)
         private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"
         private const val MODEL_LISTS_CACHE_DURATION_MS = 24 * 60 * 60 * 1000L  // 24 hours
@@ -644,78 +669,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    fun loadChatGptApiModels(): List<String> = loadApiModels(KEY_API_MODELS_OPENAI)
-    fun saveChatGptApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_OPENAI, models)
-
-    fun loadGeminiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GOOGLE)
-    fun saveGeminiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GOOGLE, models)
-
-    fun loadGrokApiModels(): List<String> = loadApiModels(KEY_API_MODELS_XAI)
-    fun saveGrokApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_XAI, models)
-
-    fun loadGroqApiModels(): List<String> = loadApiModels(KEY_API_MODELS_GROQ)
-    fun saveGroqApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_GROQ, models)
-
-    fun loadDeepSeekApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DEEPSEEK)
-    fun saveDeepSeekApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DEEPSEEK, models)
-
-    fun loadMistralApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MISTRAL)
-    fun saveMistralApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MISTRAL, models)
-
-    fun loadTogetherApiModels(): List<String> = loadApiModels(KEY_API_MODELS_TOGETHER)
-    fun saveTogetherApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_TOGETHER, models)
-
-    fun loadOpenRouterApiModels(): List<String> = loadApiModels(KEY_API_MODELS_OPENROUTER)
-    fun saveOpenRouterApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_OPENROUTER, models)
-
-    fun loadClaudeApiModels(): List<String> = loadApiModels(KEY_API_MODELS_CLAUDE)
-    fun saveClaudeApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_CLAUDE, models)
-
-    fun loadSiliconFlowApiModels(): List<String> = loadApiModels(KEY_API_MODELS_SILICONFLOW)
-    fun saveSiliconFlowApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_SILICONFLOW, models)
-
-    fun loadZaiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_ZAI)
-    fun saveZaiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_ZAI, models)
-
-    fun loadMoonshotApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MOONSHOT)
-    fun saveMoonshotApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MOONSHOT, models)
-
-    fun loadCohereApiModels(): List<String> = loadApiModels(KEY_API_MODELS_COHERE)
-    fun saveCohereApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_COHERE, models)
-    fun loadAi21ApiModels(): List<String> = loadApiModels(KEY_API_MODELS_AI21)
-    fun saveAi21ApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_AI21, models)
-    fun loadDashScopeApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DASHSCOPE)
-    fun saveDashScopeApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DASHSCOPE, models)
-    fun loadFireworksApiModels(): List<String> = loadApiModels(KEY_API_MODELS_FIREWORKS)
-    fun saveFireworksApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_FIREWORKS, models)
-    fun loadCerebrasApiModels(): List<String> = loadApiModels(KEY_API_MODELS_CEREBRAS)
-    fun saveCerebrasApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_CEREBRAS, models)
-    fun loadSambaNovaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_SAMBANOVA)
-    fun saveSambaNovaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_SAMBANOVA, models)
-    fun loadBaichuanApiModels(): List<String> = loadApiModels(KEY_API_MODELS_BAICHUAN)
-    fun saveBaichuanApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_BAICHUAN, models)
-    fun loadStepFunApiModels(): List<String> = loadApiModels(KEY_API_MODELS_STEPFUN)
-    fun saveStepFunApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_STEPFUN, models)
-    fun loadMiniMaxApiModels(): List<String> = loadApiModels(KEY_API_MODELS_MINIMAX)
-    fun saveMiniMaxApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_MINIMAX, models)
-    fun loadNvidiaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_NVIDIA)
-    fun saveNvidiaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_NVIDIA, models)
-    fun loadReplicateApiModels(): List<String> = loadApiModels(KEY_API_MODELS_REPLICATE)
-    fun saveReplicateApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_REPLICATE, models)
-    fun loadHuggingFaceInferenceApiModels(): List<String> = loadApiModels(KEY_API_MODELS_HUGGINGFACE_INFERENCE)
-    fun saveHuggingFaceInferenceApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_HUGGINGFACE_INFERENCE, models)
-    fun loadLambdaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_LAMBDA)
-    fun saveLambdaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_LAMBDA, models)
-    fun loadLeptonApiModels(): List<String> = loadApiModels(KEY_API_MODELS_LEPTON)
-    fun saveLeptonApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_LEPTON, models)
-    fun loadYiApiModels(): List<String> = loadApiModels(KEY_API_MODELS_YI)
-    fun saveYiApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_YI, models)
-    fun loadDoubaoApiModels(): List<String> = loadApiModels(KEY_API_MODELS_DOUBAO)
-    fun saveDoubaoApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_DOUBAO, models)
-    fun loadRekaApiModels(): List<String> = loadApiModels(KEY_API_MODELS_REKA)
-    fun saveRekaApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_REKA, models)
-    fun loadWriterApiModels(): List<String> = loadApiModels(KEY_API_MODELS_WRITER)
-    fun saveWriterApiModels(models: List<String>) = saveApiModels(KEY_API_MODELS_WRITER, models)
 
     // ============================================================================
     // Model Lists Cache (24-hour validity per provider)

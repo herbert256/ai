@@ -5,20 +5,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
-import kotlinx.coroutines.launch
 
 /**
  * Model Search screen - search across all provider model lists.
@@ -27,143 +23,19 @@ import kotlinx.coroutines.launch
 fun ModelSearchScreen(
     aiSettings: AiSettings,
     developerMode: Boolean,
-    availableChatGptModels: List<String>,
-    availableClaudeModels: List<String>,
-    availableGeminiModels: List<String>,
-    availableGrokModels: List<String>,
-    availableGroqModels: List<String>,
-    availableDeepSeekModels: List<String>,
-    availableMistralModels: List<String>,
-    availablePerplexityModels: List<String>,
-    availableTogetherModels: List<String>,
-    availableOpenRouterModels: List<String>,
-    availableSiliconFlowModels: List<String>,
-    availableZaiModels: List<String>,
-    availableMoonshotModels: List<String>,
-    availableCohereModels: List<String>,
-    availableAi21Models: List<String>,
-    availableDashScopeModels: List<String>,
-    availableFireworksModels: List<String>,
-    availableCerebrasModels: List<String>,
-    availableSambaNovaModels: List<String>,
-    availableBaichuanModels: List<String>,
-    availableStepFunModels: List<String>,
-    availableMiniMaxModels: List<String>,
-    availableNvidiaModels: List<String> = emptyList(),
-    availableReplicateModels: List<String> = emptyList(),
-    availableHuggingFaceInferenceModels: List<String> = emptyList(),
-    availableLambdaModels: List<String> = emptyList(),
-    availableLeptonModels: List<String> = emptyList(),
-    availableYiModels: List<String> = emptyList(),
-    availableDoubaoModels: List<String> = emptyList(),
-    availableRekaModels: List<String> = emptyList(),
-    availableWriterModels: List<String> = emptyList(),
-    isLoadingChatGptModels: Boolean = false,
-    isLoadingClaudeModels: Boolean = false,
-    isLoadingGeminiModels: Boolean = false,
-    isLoadingGrokModels: Boolean = false,
-    isLoadingGroqModels: Boolean = false,
-    isLoadingDeepSeekModels: Boolean = false,
-    isLoadingMistralModels: Boolean = false,
-    isLoadingTogetherModels: Boolean = false,
-    isLoadingOpenRouterModels: Boolean = false,
-    isLoadingSiliconFlowModels: Boolean = false,
-    isLoadingZaiModels: Boolean = false,
-    isLoadingMoonshotModels: Boolean = false,
-    isLoadingCohereModels: Boolean = false,
-    isLoadingAi21Models: Boolean = false,
-    isLoadingDashScopeModels: Boolean = false,
-    isLoadingFireworksModels: Boolean = false,
-    isLoadingCerebrasModels: Boolean = false,
-    isLoadingSambaNovaModels: Boolean = false,
-    isLoadingBaichuanModels: Boolean = false,
-    isLoadingStepFunModels: Boolean = false,
-    isLoadingMiniMaxModels: Boolean = false,
+    loadingModelsFor: Set<AiService> = emptySet(),
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSaveAiSettings: (AiSettings) -> Unit,
     onTestAiModel: suspend (AiService, String, String) -> String?,
-    onFetchChatGptModels: (String) -> Unit,
-    onFetchClaudeModels: (String) -> Unit,
-    onFetchGeminiModels: (String) -> Unit,
-    onFetchGrokModels: (String) -> Unit,
-    onFetchGroqModels: (String) -> Unit,
-    onFetchDeepSeekModels: (String) -> Unit,
-    onFetchMistralModels: (String) -> Unit,
-    onFetchPerplexityModels: (String) -> Unit,
-    onFetchTogetherModels: (String) -> Unit,
-    onFetchOpenRouterModels: (String) -> Unit,
-    onFetchSiliconFlowModels: (String) -> Unit,
-    onFetchZaiModels: (String) -> Unit,
-    onFetchMoonshotModels: (String) -> Unit,
-    onFetchCohereModels: (String) -> Unit,
-    onFetchAi21Models: (String) -> Unit,
-    onFetchDashScopeModels: (String) -> Unit,
-    onFetchFireworksModels: (String) -> Unit,
-    onFetchCerebrasModels: (String) -> Unit,
-    onFetchSambaNovaModels: (String) -> Unit,
-    onFetchBaichuanModels: (String) -> Unit,
-    onFetchStepFunModels: (String) -> Unit,
-    onFetchMiniMaxModels: (String) -> Unit,
-    onFetchNvidiaModels: (String) -> Unit = {},
-    onFetchReplicateModels: (String) -> Unit = {},
-    onFetchHuggingFaceInferenceModels: (String) -> Unit = {},
-    onFetchLambdaModels: (String) -> Unit = {},
-    onFetchLeptonModels: (String) -> Unit = {},
-    onFetchYiModels: (String) -> Unit = {},
-    onFetchDoubaoModels: (String) -> Unit = {},
-    onFetchRekaModels: (String) -> Unit = {},
-    onFetchWriterModels: (String) -> Unit = {},
+    onFetchModels: (AiService, String) -> Unit,
     onNavigateToChatParams: (AiService, String) -> Unit,
     onNavigateToModelInfo: (AiService, String) -> Unit
 ) {
     // Check if any provider is loading
-    val isLoading = isLoadingChatGptModels || isLoadingClaudeModels || isLoadingGeminiModels || isLoadingGrokModels ||
-            isLoadingGroqModels || isLoadingDeepSeekModels || isLoadingMistralModels ||
-            isLoadingTogetherModels || isLoadingOpenRouterModels || isLoadingSiliconFlowModels ||
-            isLoadingZaiModels || isLoadingMoonshotModels || isLoadingCohereModels || isLoadingAi21Models ||
-            isLoadingDashScopeModels || isLoadingFireworksModels || isLoadingCerebrasModels ||
-            isLoadingSambaNovaModels || isLoadingBaichuanModels || isLoadingStepFunModels ||
-            isLoadingMiniMaxModels
+    val isLoading = loadingModelsFor.isNotEmpty()
     var searchQuery by remember { mutableStateOf("") }
     var selectedModel by remember { mutableStateOf<ModelSearchItem?>(null) }
-
-    // Helper to fetch models for a provider (used by manual refresh button)
-    val fetchModelsForProvider: (AiService, String) -> Unit = { provider, apiKey ->
-        when (provider) {
-            AiService.OPENAI -> onFetchChatGptModels(apiKey)
-            AiService.ANTHROPIC -> onFetchClaudeModels(apiKey)
-            AiService.GOOGLE -> onFetchGeminiModels(apiKey)
-            AiService.XAI -> onFetchGrokModels(apiKey)
-            AiService.GROQ -> onFetchGroqModels(apiKey)
-            AiService.DEEPSEEK -> onFetchDeepSeekModels(apiKey)
-            AiService.MISTRAL -> onFetchMistralModels(apiKey)
-            AiService.PERPLEXITY -> onFetchPerplexityModels(apiKey)
-            AiService.TOGETHER -> onFetchTogetherModels(apiKey)
-            AiService.OPENROUTER -> onFetchOpenRouterModels(apiKey)
-            AiService.SILICONFLOW -> onFetchSiliconFlowModels(apiKey)
-            AiService.ZAI -> onFetchZaiModels(apiKey)
-            AiService.MOONSHOT -> onFetchMoonshotModels(apiKey)
-            AiService.COHERE -> onFetchCohereModels(apiKey)
-            AiService.AI21 -> onFetchAi21Models(apiKey)
-            AiService.DASHSCOPE -> onFetchDashScopeModels(apiKey)
-            AiService.FIREWORKS -> onFetchFireworksModels(apiKey)
-            AiService.CEREBRAS -> onFetchCerebrasModels(apiKey)
-            AiService.SAMBANOVA -> onFetchSambaNovaModels(apiKey)
-            AiService.BAICHUAN -> onFetchBaichuanModels(apiKey)
-            AiService.STEPFUN -> onFetchStepFunModels(apiKey)
-            AiService.MINIMAX -> onFetchMiniMaxModels(apiKey)
-            AiService.NVIDIA -> onFetchNvidiaModels(apiKey)
-            AiService.REPLICATE -> onFetchReplicateModels(apiKey)
-            AiService.HUGGINGFACE -> onFetchHuggingFaceInferenceModels(apiKey)
-            AiService.LAMBDA -> onFetchLambdaModels(apiKey)
-            AiService.LEPTON -> onFetchLeptonModels(apiKey)
-            AiService.YI -> onFetchYiModels(apiKey)
-            AiService.DOUBAO -> onFetchDoubaoModels(apiKey)
-            AiService.REKA -> onFetchRekaModels(apiKey)
-            AiService.WRITER -> onFetchWriterModels(apiKey)
-        }
-    }
 
     // State for model action selection
     var showActionDialog by remember { mutableStateOf(false) }
@@ -273,31 +145,9 @@ fun ModelSearchScreen(
             agent = prefilledAgent,
             aiSettings = aiSettings,
             developerMode = developerMode,
-            availableChatGptModels = availableChatGptModels,
-            availableClaudeModels = availableClaudeModels,
-            availableGeminiModels = availableGeminiModels,
-            availableGrokModels = availableGrokModels,
-            availableGroqModels = availableGroqModels,
-            availableDeepSeekModels = availableDeepSeekModels,
-            availableMistralModels = availableMistralModels,
-            availablePerplexityModels = availablePerplexityModels,
-            availableTogetherModels = availableTogetherModels,
-            availableOpenRouterModels = availableOpenRouterModels,
-            availableSiliconFlowModels = availableSiliconFlowModels,
-            availableZaiModels = availableZaiModels,
-            availableMoonshotModels = availableMoonshotModels,
-            availableCohereModels = availableCohereModels,
-            availableAi21Models = availableAi21Models,
-            availableDashScopeModels = availableDashScopeModels,
-            availableFireworksModels = availableFireworksModels,
-            availableCerebrasModels = availableCerebrasModels,
-            availableSambaNovaModels = availableSambaNovaModels,
-            availableBaichuanModels = availableBaichuanModels,
-            availableStepFunModels = availableStepFunModels,
-            availableMiniMaxModels = availableMiniMaxModels,
             existingNames = aiSettings.agents.map { it.name }.toSet(),
             onTestAiModel = onTestAiModel,
-            onFetchModelsForProvider = fetchModelsForProvider,
+            onFetchModelsForProvider = onFetchModels,
             forceAddMode = true,
             onSave = { newAgent ->
                 val newAgents = aiSettings.agents + newAgent
@@ -315,155 +165,12 @@ fun ModelSearchScreen(
     }
 
     // Combine all models with their provider info
-    val allModels = remember(
-        availableChatGptModels, availableClaudeModels, availableGeminiModels, availableGrokModels,
-        availableGroqModels, availableDeepSeekModels, availableMistralModels,
-        availablePerplexityModels, availableTogetherModels, availableOpenRouterModels,
-        availableSiliconFlowModels, availableZaiModels, availableMoonshotModels,
-        availableCohereModels, availableAi21Models, availableDashScopeModels, availableFireworksModels,
-        availableCerebrasModels, availableSambaNovaModels, availableBaichuanModels, availableStepFunModels,
-        availableMiniMaxModels, availableNvidiaModels, availableReplicateModels, availableHuggingFaceInferenceModels,
-        availableLambdaModels, availableLeptonModels, availableYiModels, availableDoubaoModels,
-        availableRekaModels, availableWriterModels, aiSettings
-    ) {
+    val allModels = remember(aiSettings) {
         buildList {
-            fun isActive(s: AiService) = aiSettings.isProviderActive(s, developerMode)
-            // OpenAI models
-            if (isActive(AiService.OPENAI))
-                availableChatGptModels.forEach { add(ModelSearchItem(AiService.OPENAI, "OpenAI", it)) }
-            // Anthropic models (API or fallback to manual)
-            if (isActive(AiService.ANTHROPIC)) {
-                val claudeModels = if (availableClaudeModels.isNotEmpty()) availableClaudeModels else aiSettings.getManualModels(AiService.ANTHROPIC)
-                claudeModels.forEach { add(ModelSearchItem(AiService.ANTHROPIC, "Anthropic", it)) }
-            }
-            // Google models
-            if (isActive(AiService.GOOGLE))
-                availableGeminiModels.forEach { add(ModelSearchItem(AiService.GOOGLE, "Google", it)) }
-            // xAI models
-            if (isActive(AiService.XAI))
-                availableGrokModels.forEach { add(ModelSearchItem(AiService.XAI, "xAI", it)) }
-            // Groq models
-            if (isActive(AiService.GROQ))
-                availableGroqModels.forEach { add(ModelSearchItem(AiService.GROQ, "Groq", it)) }
-            // DeepSeek models
-            if (isActive(AiService.DEEPSEEK))
-                availableDeepSeekModels.forEach { add(ModelSearchItem(AiService.DEEPSEEK, "DeepSeek", it)) }
-            // Mistral models
-            if (isActive(AiService.MISTRAL))
-                availableMistralModels.forEach { add(ModelSearchItem(AiService.MISTRAL, "Mistral", it)) }
-            // Perplexity models (hardcoded - no API)
-            if (isActive(AiService.PERPLEXITY))
-                aiSettings.getManualModels(AiService.PERPLEXITY).forEach { add(ModelSearchItem(AiService.PERPLEXITY, "Perplexity", it)) }
-            // Together models
-            if (isActive(AiService.TOGETHER))
-                availableTogetherModels.forEach { add(ModelSearchItem(AiService.TOGETHER, "Together", it)) }
-            // OpenRouter models
-            if (isActive(AiService.OPENROUTER))
-                availableOpenRouterModels.forEach { add(ModelSearchItem(AiService.OPENROUTER, "OpenRouter", it)) }
-            // SiliconFlow models (API or fallback to manual)
-            if (isActive(AiService.SILICONFLOW)) {
-                val siliconFlowModels = if (availableSiliconFlowModels.isNotEmpty()) availableSiliconFlowModels else aiSettings.getManualModels(AiService.SILICONFLOW)
-                siliconFlowModels.forEach { add(ModelSearchItem(AiService.SILICONFLOW, "SiliconFlow", it)) }
-            }
-            // Z.AI models (API or fallback to manual)
-            if (isActive(AiService.ZAI)) {
-                val zaiModels = if (availableZaiModels.isNotEmpty()) availableZaiModels else aiSettings.getManualModels(AiService.ZAI)
-                zaiModels.forEach { add(ModelSearchItem(AiService.ZAI, "Z.AI", it)) }
-            }
-            // Moonshot models (API or fallback to manual)
-            if (isActive(AiService.MOONSHOT)) {
-                val moonshotModels = if (availableMoonshotModels.isNotEmpty()) availableMoonshotModels else aiSettings.getManualModels(AiService.MOONSHOT)
-                moonshotModels.forEach { add(ModelSearchItem(AiService.MOONSHOT, "Moonshot", it)) }
-            }
-            // Cohere models (API or fallback to manual)
-            if (isActive(AiService.COHERE)) {
-                val cohereModels = if (availableCohereModels.isNotEmpty()) availableCohereModels else aiSettings.getManualModels(AiService.COHERE)
-                cohereModels.forEach { add(ModelSearchItem(AiService.COHERE, "Cohere", it)) }
-            }
-            // AI21 models (API or fallback to manual)
-            if (isActive(AiService.AI21)) {
-                val ai21Models = if (availableAi21Models.isNotEmpty()) availableAi21Models else aiSettings.getManualModels(AiService.AI21)
-                ai21Models.forEach { add(ModelSearchItem(AiService.AI21, "AI21", it)) }
-            }
-            // DashScope models (API or fallback to manual)
-            if (isActive(AiService.DASHSCOPE)) {
-                val dashScopeModels = if (availableDashScopeModels.isNotEmpty()) availableDashScopeModels else aiSettings.getManualModels(AiService.DASHSCOPE)
-                dashScopeModels.forEach { add(ModelSearchItem(AiService.DASHSCOPE, "DashScope", it)) }
-            }
-            // Fireworks models (API or fallback to manual)
-            if (isActive(AiService.FIREWORKS)) {
-                val fireworksModels = if (availableFireworksModels.isNotEmpty()) availableFireworksModels else aiSettings.getManualModels(AiService.FIREWORKS)
-                fireworksModels.forEach { add(ModelSearchItem(AiService.FIREWORKS, "Fireworks", it)) }
-            }
-            // Cerebras models (API or fallback to manual)
-            if (isActive(AiService.CEREBRAS)) {
-                val cerebrasModels = if (availableCerebrasModels.isNotEmpty()) availableCerebrasModels else aiSettings.getManualModels(AiService.CEREBRAS)
-                cerebrasModels.forEach { add(ModelSearchItem(AiService.CEREBRAS, "Cerebras", it)) }
-            }
-            // SambaNova models (API or fallback to manual)
-            if (isActive(AiService.SAMBANOVA)) {
-                val sambaNovaModels = if (availableSambaNovaModels.isNotEmpty()) availableSambaNovaModels else aiSettings.getManualModels(AiService.SAMBANOVA)
-                sambaNovaModels.forEach { add(ModelSearchItem(AiService.SAMBANOVA, "SambaNova", it)) }
-            }
-            // Baichuan models (API or fallback to manual)
-            if (isActive(AiService.BAICHUAN)) {
-                val baichuanModels = if (availableBaichuanModels.isNotEmpty()) availableBaichuanModels else aiSettings.getManualModels(AiService.BAICHUAN)
-                baichuanModels.forEach { add(ModelSearchItem(AiService.BAICHUAN, "Baichuan", it)) }
-            }
-            // StepFun models (API or fallback to manual)
-            if (isActive(AiService.STEPFUN)) {
-                val stepFunModels = if (availableStepFunModels.isNotEmpty()) availableStepFunModels else aiSettings.getManualModels(AiService.STEPFUN)
-                stepFunModels.forEach { add(ModelSearchItem(AiService.STEPFUN, "StepFun", it)) }
-            }
-            // MiniMax models (API or fallback to manual)
-            if (isActive(AiService.MINIMAX)) {
-                val miniMaxModels = if (availableMiniMaxModels.isNotEmpty()) availableMiniMaxModels else aiSettings.getManualModels(AiService.MINIMAX)
-                miniMaxModels.forEach { add(ModelSearchItem(AiService.MINIMAX, "MiniMax", it)) }
-            }
-            // NVIDIA models
-            if (isActive(AiService.NVIDIA)) {
-                val nvidiaModels = if (availableNvidiaModels.isNotEmpty()) availableNvidiaModels else aiSettings.getManualModels(AiService.NVIDIA)
-                nvidiaModels.forEach { add(ModelSearchItem(AiService.NVIDIA, "NVIDIA", it)) }
-            }
-            // Replicate models
-            if (isActive(AiService.REPLICATE)) {
-                val replicateModels = if (availableReplicateModels.isNotEmpty()) availableReplicateModels else aiSettings.getManualModels(AiService.REPLICATE)
-                replicateModels.forEach { add(ModelSearchItem(AiService.REPLICATE, "Replicate", it)) }
-            }
-            // Hugging Face Inference models
-            if (isActive(AiService.HUGGINGFACE)) {
-                val hfModels = if (availableHuggingFaceInferenceModels.isNotEmpty()) availableHuggingFaceInferenceModels else aiSettings.getManualModels(AiService.HUGGINGFACE)
-                hfModels.forEach { add(ModelSearchItem(AiService.HUGGINGFACE, "Hugging Face", it)) }
-            }
-            // Lambda models
-            if (isActive(AiService.LAMBDA)) {
-                val lambdaModels = if (availableLambdaModels.isNotEmpty()) availableLambdaModels else aiSettings.getManualModels(AiService.LAMBDA)
-                lambdaModels.forEach { add(ModelSearchItem(AiService.LAMBDA, "Lambda", it)) }
-            }
-            // Lepton models
-            if (isActive(AiService.LEPTON)) {
-                val leptonModels = if (availableLeptonModels.isNotEmpty()) availableLeptonModels else aiSettings.getManualModels(AiService.LEPTON)
-                leptonModels.forEach { add(ModelSearchItem(AiService.LEPTON, "Lepton", it)) }
-            }
-            // YI (01.AI) models
-            if (isActive(AiService.YI)) {
-                val yiModels = if (availableYiModels.isNotEmpty()) availableYiModels else aiSettings.getManualModels(AiService.YI)
-                yiModels.forEach { add(ModelSearchItem(AiService.YI, "01.AI", it)) }
-            }
-            // Doubao models
-            if (isActive(AiService.DOUBAO)) {
-                val doubaoModels = if (availableDoubaoModels.isNotEmpty()) availableDoubaoModels else aiSettings.getManualModels(AiService.DOUBAO)
-                doubaoModels.forEach { add(ModelSearchItem(AiService.DOUBAO, "Doubao", it)) }
-            }
-            // Reka models
-            if (isActive(AiService.REKA)) {
-                val rekaModels = if (availableRekaModels.isNotEmpty()) availableRekaModels else aiSettings.getManualModels(AiService.REKA)
-                rekaModels.forEach { add(ModelSearchItem(AiService.REKA, "Reka", it)) }
-            }
-            // Writer models
-            if (isActive(AiService.WRITER)) {
-                val writerModels = if (availableWriterModels.isNotEmpty()) availableWriterModels else aiSettings.getManualModels(AiService.WRITER)
-                writerModels.forEach { add(ModelSearchItem(AiService.WRITER, "Writer", it)) }
+            for (service in AiService.entries) {
+                if (!aiSettings.isProviderActive(service, developerMode)) continue
+                val models = aiSettings.getModels(service)
+                models.forEach { add(ModelSearchItem(service, service.displayName, it)) }
             }
         }
     }

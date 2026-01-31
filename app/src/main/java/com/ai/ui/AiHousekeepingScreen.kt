@@ -27,37 +27,6 @@ fun HousekeepingScreen(
     huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
     developerMode: Boolean = false,
-    availableChatGptModels: List<String> = emptyList(),
-    availableClaudeModels: List<String> = emptyList(),
-    availableGeminiModels: List<String> = emptyList(),
-    availableGrokModels: List<String> = emptyList(),
-    availableGroqModels: List<String> = emptyList(),
-    availableDeepSeekModels: List<String> = emptyList(),
-    availableMistralModels: List<String> = emptyList(),
-    availablePerplexityModels: List<String> = emptyList(),
-    availableTogetherModels: List<String> = emptyList(),
-    availableOpenRouterModels: List<String> = emptyList(),
-    availableSiliconFlowModels: List<String> = emptyList(),
-    availableZaiModels: List<String> = emptyList(),
-    availableMoonshotModels: List<String> = emptyList(),
-    availableCohereModels: List<String> = emptyList(),
-    availableAi21Models: List<String> = emptyList(),
-    availableDashScopeModels: List<String> = emptyList(),
-    availableFireworksModels: List<String> = emptyList(),
-    availableCerebrasModels: List<String> = emptyList(),
-    availableSambaNovaModels: List<String> = emptyList(),
-    availableBaichuanModels: List<String> = emptyList(),
-    availableStepFunModels: List<String> = emptyList(),
-    availableMiniMaxModels: List<String> = emptyList(),
-    availableNvidiaModels: List<String> = emptyList(),
-    availableReplicateModels: List<String> = emptyList(),
-    availableHuggingFaceInferenceModels: List<String> = emptyList(),
-    availableLambdaModels: List<String> = emptyList(),
-    availableLeptonModels: List<String> = emptyList(),
-    availableYiModels: List<String> = emptyList(),
-    availableDoubaoModels: List<String> = emptyList(),
-    availableRekaModels: List<String> = emptyList(),
-    availableWriterModels: List<String> = emptyList(),
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
@@ -177,7 +146,7 @@ fun HousekeepingScreen(
         val manualProviders = buildList {
             for (service in com.ai.data.AiService.entries) {
                 if (aiSettings.getApiKey(service).isNotBlank() && aiSettings.getModelSource(service) == ModelSource.MANUAL) {
-                    add(service.displayName to aiSettings.getManualModels(service).size)
+                    add(service.displayName to aiSettings.getModels(service).size)
                 }
             }
         }
@@ -610,38 +579,7 @@ fun HousekeepingScreen(
                             exportModelCostsToCsv(
                                 context = context,
                                 aiSettings = aiSettings,
-                                developerMode = developerMode,
-                                availableChatGptModels = availableChatGptModels,
-                                availableClaudeModels = availableClaudeModels,
-                                availableGeminiModels = availableGeminiModels,
-                                availableGrokModels = availableGrokModels,
-                                availableGroqModels = availableGroqModels,
-                                availableDeepSeekModels = availableDeepSeekModels,
-                                availableMistralModels = availableMistralModels,
-                                availablePerplexityModels = availablePerplexityModels,
-                                availableTogetherModels = availableTogetherModels,
-                                availableOpenRouterModels = availableOpenRouterModels,
-                                availableSiliconFlowModels = availableSiliconFlowModels,
-                                availableZaiModels = availableZaiModels,
-                                availableMoonshotModels = availableMoonshotModels,
-                                availableCohereModels = availableCohereModels,
-                                availableAi21Models = availableAi21Models,
-                                availableDashScopeModels = availableDashScopeModels,
-                                availableFireworksModels = availableFireworksModels,
-                                availableCerebrasModels = availableCerebrasModels,
-                                availableSambaNovaModels = availableSambaNovaModels,
-                                availableBaichuanModels = availableBaichuanModels,
-                                availableStepFunModels = availableStepFunModels,
-                                availableMiniMaxModels = availableMiniMaxModels,
-                                availableNvidiaModels = availableNvidiaModels,
-                                availableReplicateModels = availableReplicateModels,
-                                availableHuggingFaceInferenceModels = availableHuggingFaceInferenceModels,
-                                availableLambdaModels = availableLambdaModels,
-                                availableLeptonModels = availableLeptonModels,
-                                availableYiModels = availableYiModels,
-                                availableDoubaoModels = availableDoubaoModels,
-                                availableRekaModels = availableRekaModels,
-                                availableWriterModels = availableWriterModels
+                                developerMode = developerMode
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
@@ -1058,38 +996,7 @@ fun HousekeepingScreen(
 private fun exportModelCostsToCsv(
     context: android.content.Context,
     aiSettings: AiSettings,
-    developerMode: Boolean,
-    availableChatGptModels: List<String>,
-    availableClaudeModels: List<String>,
-    availableGeminiModels: List<String>,
-    availableGrokModels: List<String>,
-    availableGroqModels: List<String>,
-    availableDeepSeekModels: List<String>,
-    availableMistralModels: List<String>,
-    availablePerplexityModels: List<String>,
-    availableTogetherModels: List<String>,
-    availableOpenRouterModels: List<String>,
-    availableSiliconFlowModels: List<String>,
-    availableZaiModels: List<String>,
-    availableMoonshotModels: List<String>,
-    availableCohereModels: List<String>,
-    availableAi21Models: List<String>,
-    availableDashScopeModels: List<String>,
-    availableFireworksModels: List<String>,
-    availableCerebrasModels: List<String>,
-    availableSambaNovaModels: List<String>,
-    availableBaichuanModels: List<String>,
-    availableStepFunModels: List<String>,
-    availableMiniMaxModels: List<String>,
-    availableNvidiaModels: List<String>,
-    availableReplicateModels: List<String>,
-    availableHuggingFaceInferenceModels: List<String>,
-    availableLambdaModels: List<String>,
-    availableLeptonModels: List<String>,
-    availableYiModels: List<String>,
-    availableDoubaoModels: List<String>,
-    availableRekaModels: List<String>,
-    availableWriterModels: List<String>
+    developerMode: Boolean
 ) {
     val pricingCache = com.ai.data.PricingCache
 
@@ -1099,126 +1006,14 @@ private fun exportModelCostsToCsv(
     val litellmPricing = pricingCache.getLiteLLMPricing(context)
     val fallbackPricing = pricingCache.getFallbackPricing()
 
-    // Build model list the same way as Model Search - only models that can be used for agents
+    // Build model list from all providers using unified getModels accessor
     data class ProviderModel(val provider: String, val model: String)
     val allModels = mutableListOf<ProviderModel>()
 
-    // OpenAI models (API or fallback to manual)
-    val chatGptModels = availableChatGptModels.ifEmpty { aiSettings.getManualModels(AiService.OPENAI) }
-    chatGptModels.forEach { allModels.add(ProviderModel("OPENAI", it)) }
-
-    // Anthropic models (API or fallback to manual)
-    val claudeModels = availableClaudeModels.ifEmpty { aiSettings.getManualModels(AiService.ANTHROPIC) }
-    claudeModels.forEach { allModels.add(ProviderModel("ANTHROPIC", it)) }
-
-    // Google models
-    availableGeminiModels.forEach { allModels.add(ProviderModel("GOOGLE", it)) }
-
-    // xAI models
-    availableGrokModels.forEach { allModels.add(ProviderModel("XAI", it)) }
-
-    // Groq models
-    availableGroqModels.forEach { allModels.add(ProviderModel("GROQ", it)) }
-
-    // DeepSeek models
-    availableDeepSeekModels.forEach { allModels.add(ProviderModel("DEEPSEEK", it)) }
-
-    // Mistral models
-    availableMistralModels.forEach { allModels.add(ProviderModel("MISTRAL", it)) }
-
-    // Perplexity models (hardcoded - no API, use manual models)
-    val perplexityModels = availablePerplexityModels.ifEmpty { aiSettings.getManualModels(AiService.PERPLEXITY) }
-    perplexityModels.forEach { allModels.add(ProviderModel("PERPLEXITY", it)) }
-
-    // Together models
-    availableTogetherModels.forEach { allModels.add(ProviderModel("TOGETHER", it)) }
-
-    // OpenRouter models
-    availableOpenRouterModels.forEach { allModels.add(ProviderModel("OPENROUTER", it)) }
-
-    // SiliconFlow models (API or fallback to manual)
-    val siliconFlowModels = availableSiliconFlowModels.ifEmpty { aiSettings.getManualModels(AiService.SILICONFLOW) }
-    siliconFlowModels.forEach { allModels.add(ProviderModel("SILICONFLOW", it)) }
-
-    // Z.AI models (API or fallback to manual)
-    val zaiModels = availableZaiModels.ifEmpty { aiSettings.getManualModels(AiService.ZAI) }
-    zaiModels.forEach { allModels.add(ProviderModel("ZAI", it)) }
-
-    // Moonshot models (API or fallback to manual)
-    val moonshotModels = availableMoonshotModels.ifEmpty { aiSettings.getManualModels(AiService.MOONSHOT) }
-    moonshotModels.forEach { allModels.add(ProviderModel("MOONSHOT", it)) }
-
-    // Cohere models (API or fallback to manual)
-    val cohereModelsC = availableCohereModels.ifEmpty { aiSettings.getManualModels(AiService.COHERE) }
-    cohereModelsC.forEach { allModels.add(ProviderModel("COHERE", it)) }
-
-    // AI21 models (API or fallback to manual)
-    val ai21ModelsC = availableAi21Models.ifEmpty { aiSettings.getManualModels(AiService.AI21) }
-    ai21ModelsC.forEach { allModels.add(ProviderModel("AI21", it)) }
-
-    // DashScope models (API or fallback to manual)
-    val dashScopeModelsC = availableDashScopeModels.ifEmpty { aiSettings.getManualModels(AiService.DASHSCOPE) }
-    dashScopeModelsC.forEach { allModels.add(ProviderModel("DASHSCOPE", it)) }
-
-    // Fireworks models (API or fallback to manual)
-    val fireworksModelsC = availableFireworksModels.ifEmpty { aiSettings.getManualModels(AiService.FIREWORKS) }
-    fireworksModelsC.forEach { allModels.add(ProviderModel("FIREWORKS", it)) }
-
-    // Cerebras models (API or fallback to manual)
-    val cerebrasModelsC = availableCerebrasModels.ifEmpty { aiSettings.getManualModels(AiService.CEREBRAS) }
-    cerebrasModelsC.forEach { allModels.add(ProviderModel("CEREBRAS", it)) }
-
-    // SambaNova models (API or fallback to manual)
-    val sambaNovaModelsC = availableSambaNovaModels.ifEmpty { aiSettings.getManualModels(AiService.SAMBANOVA) }
-    sambaNovaModelsC.forEach { allModels.add(ProviderModel("SAMBANOVA", it)) }
-
-    // Baichuan models (API or fallback to manual)
-    val baichuanModelsC = availableBaichuanModels.ifEmpty { aiSettings.getManualModels(AiService.BAICHUAN) }
-    baichuanModelsC.forEach { allModels.add(ProviderModel("BAICHUAN", it)) }
-
-    // StepFun models (API or fallback to manual)
-    val stepFunModelsC = availableStepFunModels.ifEmpty { aiSettings.getManualModels(AiService.STEPFUN) }
-    stepFunModelsC.forEach { allModels.add(ProviderModel("STEPFUN", it)) }
-
-    // MiniMax models (API or fallback to manual)
-    val miniMaxModelsC = availableMiniMaxModels.ifEmpty { aiSettings.getManualModels(AiService.MINIMAX) }
-    miniMaxModelsC.forEach { allModels.add(ProviderModel("MINIMAX", it)) }
-
-    // NVIDIA models (API or fallback to manual)
-    val nvidiaModelsC = availableNvidiaModels.ifEmpty { aiSettings.getManualModels(AiService.NVIDIA) }
-    nvidiaModelsC.forEach { allModels.add(ProviderModel("NVIDIA", it)) }
-
-    // Replicate models (API or fallback to manual)
-    val replicateModelsC = availableReplicateModels.ifEmpty { aiSettings.getManualModels(AiService.REPLICATE) }
-    replicateModelsC.forEach { allModels.add(ProviderModel("REPLICATE", it)) }
-
-    // Hugging Face models (API or fallback to manual)
-    val huggingFaceModelsC = availableHuggingFaceInferenceModels.ifEmpty { aiSettings.getManualModels(AiService.HUGGINGFACE) }
-    huggingFaceModelsC.forEach { allModels.add(ProviderModel("HUGGINGFACE", it)) }
-
-    // Lambda models (API or fallback to manual)
-    val lambdaModelsC = availableLambdaModels.ifEmpty { aiSettings.getManualModels(AiService.LAMBDA) }
-    lambdaModelsC.forEach { allModels.add(ProviderModel("LAMBDA", it)) }
-
-    // Lepton models (API or fallback to manual)
-    val leptonModelsC = availableLeptonModels.ifEmpty { aiSettings.getManualModels(AiService.LEPTON) }
-    leptonModelsC.forEach { allModels.add(ProviderModel("LEPTON", it)) }
-
-    // 01.AI (Yi) models (API or fallback to manual)
-    val yiModelsC = availableYiModels.ifEmpty { aiSettings.getManualModels(AiService.YI) }
-    yiModelsC.forEach { allModels.add(ProviderModel("YI", it)) }
-
-    // Doubao models (API or fallback to manual)
-    val doubaoModelsC = availableDoubaoModels.ifEmpty { aiSettings.getManualModels(AiService.DOUBAO) }
-    doubaoModelsC.forEach { allModels.add(ProviderModel("DOUBAO", it)) }
-
-    // Reka models (API or fallback to manual)
-    val rekaModelsC = availableRekaModels.ifEmpty { aiSettings.getManualModels(AiService.REKA) }
-    rekaModelsC.forEach { allModels.add(ProviderModel("REKA", it)) }
-
-    // Writer models (API or fallback to manual)
-    val writerModelsC = availableWriterModels.ifEmpty { aiSettings.getManualModels(AiService.WRITER) }
-    writerModelsC.forEach { allModels.add(ProviderModel("WRITER", it)) }
+    for (service in AiService.entries) {
+        val models = aiSettings.getModels(service)
+        models.forEach { allModels.add(ProviderModel(service.name, it)) }
+    }
 
     // Sort by provider then model
     val sortedModels = allModels.sortedWith(compareBy({ it.provider }, { it.model }))

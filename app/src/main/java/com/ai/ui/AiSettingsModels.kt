@@ -17,7 +17,7 @@ data class ProviderConfig(
     val apiKey: String = "",
     val model: String = "",
     val modelSource: ModelSource = ModelSource.API,
-    val manualModels: List<String> = emptyList(),
+    val models: List<String> = emptyList(),
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -63,7 +63,7 @@ fun defaultProviderConfig(service: AiService): ProviderConfig {
     return ProviderConfig(
         model = service.defaultModel,
         modelSource = defaultModelSource,
-        manualModels = defaultModels,
+        models = defaultModels,
         adminUrl = service.adminUrl
     )
 }
@@ -547,7 +547,12 @@ data class AiSettings(
 
     fun getModelSource(service: AiService): ModelSource = getProvider(service).modelSource
 
-    fun getManualModels(service: AiService): List<String> = getProvider(service).manualModels
+    fun getModels(service: AiService): List<String> = getProvider(service).models
+
+    fun withModels(service: AiService, models: List<String>): AiSettings =
+        withProvider(service, getProvider(service).copy(models = models))
+
+    fun getModelCount(service: AiService): Int = getModels(service).size
 
     fun hasAnyApiKey(): Boolean = providers.values.any { it.apiKey.isNotBlank() }
 

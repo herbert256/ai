@@ -122,8 +122,7 @@ fun ChatSelectProviderScreen(
 fun ChatSelectModelScreen(
     provider: AiService,
     aiSettings: AiSettings,
-    availableModels: List<String>,
-    isLoadingModels: Boolean,
+    isLoadingModels: Boolean = false,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSelectModel: (String) -> Unit
@@ -131,27 +130,14 @@ fun ChatSelectModelScreen(
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
 
-    // Get API key and model source for this provider
-    val (apiKey, modelSource, manualModels, defaultModel) = remember(provider) {
-        Quadruple(
-            aiSettings.getApiKey(provider),
-            aiSettings.getModelSource(provider),
-            aiSettings.getManualModels(provider),
-            aiSettings.getModel(provider)
-        )
-    }
+    // Get default model for this provider
+    val defaultModel = remember(provider) { aiSettings.getModel(provider) }
 
     // Search state
     var searchQuery by remember { mutableStateOf("") }
 
-    // Determine which models to show
-    val allModels = if (modelSource == ModelSource.API && availableModels.isNotEmpty()) {
-        availableModels
-    } else if (modelSource == ModelSource.MANUAL || availableModels.isEmpty()) {
-        manualModels.ifEmpty { listOf(defaultModel) }
-    } else {
-        listOf(defaultModel)
-    }
+    // Get models from unified list
+    val allModels = aiSettings.getModels(provider).ifEmpty { listOf(defaultModel) }
 
     // Filter models based on search query
     val models = if (searchQuery.isBlank()) {
