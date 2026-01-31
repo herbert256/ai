@@ -89,7 +89,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageGrok(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = GrokRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,
@@ -118,7 +118,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageGroq(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = GroqRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,
@@ -147,7 +147,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageDeepSeek(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = DeepSeekRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,
@@ -176,7 +176,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageMistral(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = MistralRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,
@@ -203,7 +203,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessagePerplexity(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = PerplexityRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,
@@ -232,7 +232,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageTogether(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = TogetherRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,
@@ -262,7 +262,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageOpenRouter(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = OpenRouterRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,
@@ -292,7 +292,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageSiliconFlow(
     params: com.ai.ui.ChatParameters
 ): String {
     val openAiMessages = convertToOpenAiMessages(messages)
-    val request = SiliconFlowRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = openAiMessages,
         max_tokens = params.maxTokens,

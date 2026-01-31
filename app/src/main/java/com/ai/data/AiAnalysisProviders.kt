@@ -253,7 +253,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithGrok(apiKey: String, prompt
     }
 
     val searchValue = if (params?.searchEnabled == true) true else null
-    val request = GrokRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,
@@ -312,7 +312,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithGroq(apiKey: String, prompt
         add(OpenAiMessage(role = "user", content = prompt))
     }
 
-    val request = GroqRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,
@@ -370,7 +370,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithDeepSeek(apiKey: String, pr
         add(OpenAiMessage(role = "user", content = prompt))
     }
 
-    val request = DeepSeekRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,
@@ -432,7 +432,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithMistral(apiKey: String, pro
         add(OpenAiMessage(role = "user", content = prompt))
     }
 
-    val request = MistralRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,
@@ -491,7 +491,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithPerplexity(apiKey: String, 
         add(OpenAiMessage(role = "user", content = prompt))
     }
 
-    val request = PerplexityRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,
@@ -555,7 +555,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithTogether(apiKey: String, pr
         add(OpenAiMessage(role = "user", content = prompt))
     }
 
-    val request = TogetherRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,
@@ -614,7 +614,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenRouter(apiKey: String, 
         add(OpenAiMessage(role = "user", content = prompt))
     }
 
-    val request = OpenRouterRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,
@@ -673,7 +673,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithSiliconFlow(apiKey: String,
         add(OpenAiMessage(role = "user", content = prompt))
     }
 
-    val request = SiliconFlowRequest(
+    val request = OpenAiRequest(
         model = model,
         messages = messages,
         max_tokens = params?.maxTokens,

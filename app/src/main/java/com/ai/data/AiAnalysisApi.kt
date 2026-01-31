@@ -109,11 +109,15 @@ data class OpenAiRequest(
     val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
+    val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
     val seed: Int? = null,
+    val random_seed: Int? = null,  // Mistral uses random_seed instead of seed
     val response_format: OpenAiResponseFormat? = null,
+    val return_citations: Boolean? = null,  // Perplexity
+    val search_recency_filter: String? = null,  // Perplexity: "day", "week", "month", "year"
     val search: Boolean? = null  // Web search (may be ignored by provider)
 )
 
@@ -320,128 +324,6 @@ data class GeminiError(
     val status: String?
 )
 
-// xAI Grok models (uses OpenAI-compatible format)
-data class GrokRequest(
-    val model: String = AiService.XAI.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val seed: Int? = null,
-    val search: Boolean? = null  // Enable web search
-)
-
-// DeepSeek models (uses OpenAI-compatible format)
-data class DeepSeekRequest(
-    val model: String = AiService.DEEPSEEK.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val seed: Int? = null,
-    val search: Boolean? = null  // Web search (may be ignored by provider)
-)
-
-// Mistral models (uses OpenAI-compatible format)
-data class MistralRequest(
-    val model: String = AiService.MISTRAL.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val random_seed: Int? = null,
-    val search: Boolean? = null  // Web search (may be ignored by provider)
-)
-
-// Perplexity models (uses OpenAI-compatible format)
-data class PerplexityRequest(
-    val model: String = AiService.PERPLEXITY.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val seed: Int? = null,
-    val return_citations: Boolean? = null,
-    val search_recency_filter: String? = null,  // "day", "week", "month", "year"
-    val search: Boolean? = null  // Web search (may be ignored by provider)
-)
-
-// Together AI models (uses OpenAI-compatible format)
-data class TogetherRequest(
-    val model: String = AiService.TOGETHER.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val seed: Int? = null,
-    val search: Boolean? = null  // Web search (may be ignored by provider)
-)
-
-// OpenRouter models (uses OpenAI-compatible format)
-data class OpenRouterRequest(
-    val model: String = AiService.OPENROUTER.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val seed: Int? = null,
-    val search: Boolean? = null  // Web search (may be ignored by provider)
-)
-
-// SiliconFlow models (uses OpenAI-compatible format)
-data class SiliconFlowRequest(
-    val model: String = AiService.SILICONFLOW.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val seed: Int? = null,
-    val search: Boolean? = null  // Web search (may be ignored by provider)
-)
-
-// Groq models (uses OpenAI-compatible format)
-data class GroqRequest(
-    val model: String = AiService.GROQ.defaultModel,
-    val messages: List<OpenAiMessage>,
-    val max_tokens: Int? = null,
-    val temperature: Float? = null,
-    val top_p: Float? = null,
-    val top_k: Int? = null,
-    val frequency_penalty: Float? = null,
-    val presence_penalty: Float? = null,
-    val stop: List<String>? = null,
-    val seed: Int? = null,
-    val search: Boolean? = null  // Web search (may be ignored by provider)
-)
-
 /**
  * Retrofit interface for OpenAI API.
  * Uses Chat Completions API for older models (gpt-4o, etc.)
@@ -540,7 +422,7 @@ interface GrokApi {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: GrokRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @retrofit2.http.GET("v1/models")
@@ -556,7 +438,7 @@ interface DeepSeekApi {
     @POST("chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: DeepSeekRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @retrofit2.http.GET("models")
@@ -572,7 +454,7 @@ interface MistralApi {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: MistralRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @retrofit2.http.GET("v1/models")
@@ -588,7 +470,7 @@ interface PerplexityApi {
     @POST("chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: PerplexityRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @retrofit2.http.GET("models")
@@ -605,7 +487,7 @@ interface TogetherApi {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: TogetherRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @retrofit2.http.GET("v1/models")
@@ -621,7 +503,7 @@ interface OpenRouterApi {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: OpenRouterRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @retrofit2.http.GET("v1/models")
@@ -637,7 +519,7 @@ interface SiliconFlowApi {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: SiliconFlowRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @GET("v1/models")
@@ -690,7 +572,7 @@ interface GroqApi {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
-        @Body request: GroqRequest
+        @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
 
     @retrofit2.http.GET("v1/models")
