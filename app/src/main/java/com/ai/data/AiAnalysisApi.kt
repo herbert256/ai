@@ -433,6 +433,12 @@ interface OpenAiCompatibleApi {
         @Url url: String,
         @Header("Authorization") authorization: String
     ): Response<OpenAiModelsResponse>
+
+    @GET
+    suspend fun listModelsArray(
+        @Url url: String,
+        @Header("Authorization") authorization: String
+    ): Response<List<OpenAiModel>>
 }
 
 /**
