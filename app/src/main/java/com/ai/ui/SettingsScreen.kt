@@ -656,36 +656,58 @@ fun SettingsScreen(
                 generateUniqueAgentName(provider.displayName)
             } ?: ""
 
-            AgentEditScreen(
-                agent = null,
-                aiSettings = aiSettings,
-                developerMode = generalSettings.developerMode,
-                existingNames = aiSettings.agents.map { it.name }.toSet(),
-                onTestAiModel = onTestAiModel,
-                onFetchModelsForProvider = onFetchModels,
-                forceAddMode = true,
-                prefillProvider = prefillAgentProvider,
-                prefillApiKey = prefillAgentApiKey,
-                prefillModel = prefillAgentModel,
-                prefillName = prefillName,
-                onSave = { newAgent ->
-                    val newAgents = aiSettings.agents + newAgent
-                    onSaveAi(aiSettings.copy(agents = newAgents))
-                    // Clear prefill data
-                    prefillAgentProvider = null
-                    prefillAgentApiKey = ""
-                    prefillAgentModel = ""
-                    currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-                },
-                onBack = {
-                    // Clear prefill data on back
-                    prefillAgentProvider = null
-                    prefillAgentApiKey = ""
-                    prefillAgentModel = ""
-                    currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-                },
-                onNavigateHome = onNavigateHome
-            )
+            var addAgentModelSelectProvider by remember { mutableStateOf<AiService?>(null) }
+            var addAgentModelSelectCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
+
+            if (addAgentModelSelectProvider != null) {
+                SelectModelScreen(
+                    provider = addAgentModelSelectProvider!!,
+                    aiSettings = aiSettings,
+                    currentModel = "",
+                    showDefaultOption = true,
+                    onSelectModel = { model ->
+                        addAgentModelSelectCallback?.invoke(model)
+                        addAgentModelSelectProvider = null
+                    },
+                    onBack = { addAgentModelSelectProvider = null },
+                    onNavigateHome = onNavigateHome
+                )
+            } else {
+                AgentEditScreen(
+                    agent = null,
+                    aiSettings = aiSettings,
+                    developerMode = generalSettings.developerMode,
+                    existingNames = aiSettings.agents.map { it.name }.toSet(),
+                    onTestAiModel = onTestAiModel,
+                    onFetchModelsForProvider = onFetchModels,
+                    forceAddMode = true,
+                    prefillProvider = prefillAgentProvider,
+                    prefillApiKey = prefillAgentApiKey,
+                    prefillModel = prefillAgentModel,
+                    prefillName = prefillName,
+                    onSave = { newAgent ->
+                        val newAgents = aiSettings.agents + newAgent
+                        onSaveAi(aiSettings.copy(agents = newAgents))
+                        // Clear prefill data
+                        prefillAgentProvider = null
+                        prefillAgentApiKey = ""
+                        prefillAgentModel = ""
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                    },
+                    onBack = {
+                        // Clear prefill data on back
+                        prefillAgentProvider = null
+                        prefillAgentApiKey = ""
+                        prefillAgentModel = ""
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                    },
+                    onNavigateHome = onNavigateHome,
+                    onNavigateToSelectModel = { provider, callback ->
+                        addAgentModelSelectCallback = callback
+                        addAgentModelSelectProvider = provider
+                    }
+                )
+            }
         }
         SettingsSubScreen.AI_SWARMS -> AiFlocksScreen(
             aiSettings = aiSettings,

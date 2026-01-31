@@ -37,8 +37,24 @@ fun AiAgentsScreen(
     var showDeleteConfirm by remember { mutableStateOf<AiAgent?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Show Add/Edit/Copy screen (full screen)
-    if (showAddScreen || editingAgent != null || copyingAgent != null) {
+    // Model selection overlay state
+    var showModelSelectForProvider by remember { mutableStateOf<AiService?>(null) }
+    var modelSelectCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
+
+    if (showModelSelectForProvider != null) {
+        SelectModelScreen(
+            provider = showModelSelectForProvider!!,
+            aiSettings = aiSettings,
+            currentModel = "",
+            showDefaultOption = true,
+            onSelectModel = { model ->
+                modelSelectCallback?.invoke(model)
+                showModelSelectForProvider = null
+            },
+            onBack = { showModelSelectForProvider = null },
+            onNavigateHome = onBackToHome
+        )
+    } else if (showAddScreen || editingAgent != null || copyingAgent != null) {
         // For copy mode, create a template agent with new ID and "(Copy)" suffix
         val dialogAgent = copyingAgent?.let { agent ->
             agent.copy(
@@ -72,7 +88,11 @@ fun AiAgentsScreen(
                 editingAgent = null
                 copyingAgent = null
             },
-            onNavigateHome = onBackToHome
+            onNavigateHome = onBackToHome,
+            onNavigateToSelectModel = { provider, callback ->
+                modelSelectCallback = callback
+                showModelSelectForProvider = provider
+            }
         )
     } else {
         // Agent list screen
@@ -329,7 +349,8 @@ internal fun AgentEditScreen(
     prefillProvider: AiService? = null,
     prefillApiKey: String = "",
     prefillModel: String = "",
-    prefillName: String = ""
+    prefillName: String = "",
+    onNavigateToSelectModel: ((AiService, (String) -> Unit) -> Unit)? = null
 ) {
     val isEditing = agent != null && !forceAddMode
     // Filter providers: must be active (status "ok"), always include current agent's provider when editing
@@ -345,7 +366,6 @@ internal fun AgentEditScreen(
     var name by remember { mutableStateOf(agent?.name ?: prefillName) }
     var selectedProvider by remember { mutableStateOf(defaultProvider) }
     var model by remember { mutableStateOf(agent?.model ?: prefillModel) }
-    var showModelDialog by remember { mutableStateOf(false) }
     var apiKey by remember { mutableStateOf(agent?.apiKey ?: prefillApiKey) }
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
@@ -360,11 +380,6 @@ internal fun AgentEditScreen(
     // Endpoint state - tracks the selected endpoint ID and URL for the agent
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
     var showEndpointDialog by remember { mutableStateOf(false) }
-
-    // Get models for selected provider from unified model list
-    val modelsForProvider = aiSettings.getModels(selectedProvider).ifEmpty {
-        defaultProviderConfig(selectedProvider).models.ifEmpty { listOf(model) }
-    }
 
     // Fetch models on initial load (for edit mode) and when provider changes
     LaunchedEffect(selectedProvider) {
@@ -536,7 +551,13 @@ internal fun AgentEditScreen(
                     singleLine = true
                 )
                 Button(
-                    onClick = { showModelDialog = true },
+                    onClick = {
+                        onNavigateToSelectModel?.invoke(selectedProvider) { selectedModel ->
+                            model = selectedModel
+                            testResult = null
+                        }
+                    },
+                    enabled = onNavigateToSelectModel != null,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
@@ -819,78 +840,6 @@ internal fun AgentEditScreen(
         )
     }
 
-    // Model Selection Dialog
-    if (showModelDialog) {
-        val defaultModel = aiSettings.getModel(selectedProvider)
-
-        AlertDialog(
-            onDismissRequest = { showModelDialog = false },
-            title = { Text("Select Model (${modelsForProvider.size})", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Default option (clears model, uses provider's default at runtime)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                model = ""
-                                showModelDialog = false
-                                testResult = null
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (model.isBlank()) Color(0xFF6366F1).copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Default (use provider setting)", fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text(defaultModel, fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-
-                    // Available models
-                    if (modelsForProvider.isNotEmpty()) {
-                        Text(
-                            "Available Models",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        modelsForProvider.forEach { m ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        model = m
-                                        showModelDialog = false
-                                        testResult = null
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (model == m) Color(0xFF6366F1).copy(alpha = 0.3f)
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(m, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showModelDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
 }
 
 /**

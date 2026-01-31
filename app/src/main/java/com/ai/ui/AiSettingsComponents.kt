@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -13,13 +15,205 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.AiService
+import com.ai.data.PricingCache
 import kotlinx.coroutines.launch
+
+/**
+ * Format a per-token price as per-million-token display string.
+ */
+private fun formatPrice(pricePerToken: Double): String {
+    val perMillion = pricePerToken * 1_000_000
+    return when {
+        perMillion == 0.0 -> "0.00"
+        perMillion < 0.01 -> "<0.01"
+        else -> "%.2f".format(perMillion)
+    }
+}
+
+/**
+ * Full-screen model selection screen with pricing columns.
+ */
+@Composable
+fun SelectModelScreen(
+    provider: AiService,
+    aiSettings: AiSettings,
+    currentModel: String,
+    showDefaultOption: Boolean = false,
+    onSelectModel: (String) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allModels = aiSettings.getModels(provider)
+    val filteredModels = if (searchQuery.isBlank()) allModels
+    else allModels.filter { it.lowercase().contains(searchQuery.lowercase()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Select Model",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Text(
+            text = "${provider.displayName} — ${allModels.size} models",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF888888),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // Search field
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search models...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text("✕", color = Color(0xFF888888))
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Table header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Model",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "In $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.width(70.dp)
+            )
+            Text(
+                text = "Out $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.width(70.dp)
+            )
+        }
+
+        HorizontalDivider(color = Color(0xFF444444))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            // Optional "Default" row
+            if (showDefaultOption) {
+                item(key = "__default__") {
+                    val isSelected = currentModel.isBlank()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (isSelected) Color(0xFF6366F1).copy(alpha = 0.2f)
+                                else Color.Transparent
+                            )
+                            .clickable { onSelectModel("") }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Default (use provider setting)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF6B9BFF),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = aiSettings.getModel(provider),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF666666)
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = Color(0xFF333333))
+                }
+            }
+
+            // Model rows
+            items(filteredModels, key = { it }) { modelName ->
+                val pricing = PricingCache.getPricing(context, provider, modelName)
+                val isSelected = modelName == currentModel
+                val isDefaultSource = pricing.source == "default"
+                val priceColor = if (isDefaultSource) Color(0xFF666666) else Color(0xFFFF6B6B)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (isSelected) Color(0xFF6366F1).copy(alpha = 0.2f)
+                            else Color.Transparent
+                        )
+                        .clickable { onSelectModel(modelName) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = modelName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = formatPrice(pricing.promptPrice),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        modifier = Modifier.width(70.dp)
+                    )
+                    Text(
+                        text = formatPrice(pricing.completionPrice),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        modifier = Modifier.width(70.dp)
+                    )
+                }
+                HorizontalDivider(color = Color(0xFF333333))
+            }
+        }
+    }
+}
 
 /**
  * Navigation card for an AI service.
@@ -99,12 +293,12 @@ fun AiServiceSettingsScreenTemplate(
     onClearApiKey: (() -> Unit)? = null,  // Reserved for future use
     onCreateAgent: (() -> Unit)? = null,
     onProviderStateChange: ((String) -> Unit)? = null,
+    onSelectDefaultModel: (() -> Unit)? = null,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isSaving by remember { mutableStateOf(false) }
-    var showModelDropdown by remember { mutableStateOf(false) }
 
     // Handle save - always saves and navigates back.
     // If API key is present, runs test first to determine provider state,
@@ -261,42 +455,30 @@ fun AiServiceSettingsScreenTemplate(
                         color = Color(0xFFAAAAAA)
                     )
 
-                    Box {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         OutlinedTextField(
                             value = defaultModel,
                             onValueChange = onDefaultModelChange,
                             label = { Text("Model name") },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = availableModels.isNotEmpty(),
-                            trailingIcon = if (availableModels.isNotEmpty()) {
-                                {
-                                    Text(
-                                        text = "▼",
-                                        color = Color(0xFF6B9BFF),
-                                        modifier = Modifier.clickable { showModelDropdown = true }
-                                    )
-                                }
-                            } else null,
+                            modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White
                             )
                         )
-
-                        DropdownMenu(
-                            expanded = showModelDropdown,
-                            onDismissRequest = { showModelDropdown = false },
-                            modifier = Modifier.heightIn(max = 300.dp)
-                        ) {
-                            availableModels.forEach { model ->
-                                DropdownMenuItem(
-                                    text = { Text(model) },
-                                    onClick = {
-                                        onDefaultModelChange(model)
-                                        showModelDropdown = false
-                                    }
-                                )
+                        if (onSelectDefaultModel != null) {
+                            Button(
+                                onClick = onSelectDefaultModel,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF6366F1)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Text("Select", fontSize = 12.sp)
                             }
                         }
                     }

@@ -214,6 +214,8 @@ fun ProviderSettingsScreen(
             selectedParametersIds != aiSettings.getParametersIds(service) ||
             endpoints != aiSettings.getEndpointsForProvider(service)
 
+    var showModelSelect by remember { mutableStateOf(false) }
+
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
         if (aiSettings.getApiKey(service).isNotBlank() && aiSettings.getModelSource(service) == ModelSource.API) {
@@ -221,7 +223,17 @@ fun ProviderSettingsScreen(
         }
     }
 
-    AiServiceSettingsScreenTemplate(
+    if (showModelSelect) {
+        SelectModelScreen(
+            provider = service,
+            aiSettings = aiSettings,
+            currentModel = defaultModel,
+            showDefaultOption = false,
+            onSelectModel = { defaultModel = it; showModelSelect = false },
+            onBack = { showModelSelect = false },
+            onNavigateHome = onBackToHome
+        )
+    } else AiServiceSettingsScreenTemplate(
         title = service.displayName,
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
@@ -246,7 +258,8 @@ fun ProviderSettingsScreen(
         onTestApiKey = { onTestApiKey(service, apiKey, defaultModel) },
         onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent,
-        onProviderStateChange = onProviderStateChange
+        onProviderStateChange = onProviderStateChange,
+        onSelectDefaultModel = { showModelSelect = true }
     ) {
         // Provider state with inactive toggle
         val scope = rememberCoroutineScope()
