@@ -29,6 +29,7 @@ fun AiServiceNavigationCard(
     title: String,
     hasApiKey: Boolean = false,
     providerState: String = if (hasApiKey) "ok" else "not-used",
+    showStateDetails: Boolean = false,
     @Suppress("UNUSED_PARAMETER") adminUrl: String = "",
     onEdit: () -> Unit
 ) {
@@ -61,12 +62,25 @@ fun AiServiceNavigationCard(
                 modifier = Modifier.weight(1f)
             )
 
-            // Provider state indicator
-            when (providerState) {
-                "ok" -> Text(text = "\uD83D\uDD11", fontSize = 14.sp) // 🔑
-                "error" -> Text(text = "❌", fontSize = 14.sp)
-                "inactive" -> Text(text = "⏸", fontSize = 14.sp)
-                // "not-used" -> no icon
+            // Provider state indicator (only shown when viewing all providers)
+            if (showStateDetails) {
+                val stateColor = when (providerState) {
+                    "ok" -> Color(0xFF4CAF50)
+                    "error" -> Color(0xFFFF5252)
+                    "inactive" -> Color(0xFF888888)
+                    else -> Color(0xFF555555)
+                }
+                Text(
+                    text = providerState,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = stateColor
+                )
+                when (providerState) {
+                    "ok" -> Text(text = "\uD83D\uDD11", fontSize = 14.sp) // 🔑
+                    "error" -> Text(text = "❌", fontSize = 14.sp)
+                    "inactive" -> Text(text = "\uD83D\uDCA4", fontSize = 14.sp) // 💤
+                    // "not-used" -> no icon
+                }
             }
         }
     }

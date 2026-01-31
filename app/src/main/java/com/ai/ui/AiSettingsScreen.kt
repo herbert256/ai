@@ -542,6 +542,7 @@ fun AiProvidersScreen(
             AiServiceNavigationCard(
                 title = entry.title,
                 providerState = aiSettings.getProviderState(entry.service),
+                showStateDetails = showAll,
                 adminUrl = entry.service.adminUrl,
                 onEdit = { onNavigate(entry.screen) }
             )
