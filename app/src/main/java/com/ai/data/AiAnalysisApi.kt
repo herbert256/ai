@@ -41,6 +41,15 @@ class FlexibleCostDeserializer : JsonDeserializer<Double?> {
 }
 
 /**
+ * API format used by a provider.
+ */
+enum class ApiFormat {
+    OPENAI_COMPATIBLE,  // 28 providers using OpenAI-compatible chat/completions
+    ANTHROPIC,          // Anthropic Messages API
+    GOOGLE              // Google Gemini GenerativeAI API
+}
+
+/**
  * Enum representing the supported AI services.
  */
 enum class AiService(
@@ -48,20 +57,23 @@ enum class AiService(
     val baseUrl: String,
     val adminUrl: String,
     val defaultModel: String,
-    val openRouterName: String? = null  // Provider name as used in OpenRouter model IDs (e.g., "anthropic" for "anthropic/claude-3-opus")
+    val openRouterName: String? = null,  // Provider name as used in OpenRouter model IDs (e.g., "anthropic" for "anthropic/claude-3-opus")
+    val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE,
+    val chatPath: String = "v1/chat/completions",
+    val modelsPath: String = "v1/models"
 ) {
     OPENAI("OpenAI", "https://api.openai.com/", "https://platform.openai.com/settings/organization/api-keys", "gpt-4o-mini", "openai"),
-    ANTHROPIC("Anthropic", "https://api.anthropic.com/", "https://console.anthropic.com/settings/keys", "claude-sonnet-4-20250514", "anthropic"),
-    GOOGLE("Google", "https://generativelanguage.googleapis.com/", "https://aistudio.google.com/app/apikey", "gemini-2.0-flash", "google"),
+    ANTHROPIC("Anthropic", "https://api.anthropic.com/", "https://console.anthropic.com/settings/keys", "claude-sonnet-4-20250514", "anthropic", apiFormat = ApiFormat.ANTHROPIC, chatPath = "v1/messages", modelsPath = "v1/models"),
+    GOOGLE("Google", "https://generativelanguage.googleapis.com/", "https://aistudio.google.com/app/apikey", "gemini-2.0-flash", "google", apiFormat = ApiFormat.GOOGLE, chatPath = "v1beta/models/{model}:generateContent", modelsPath = "v1beta/models"),
     XAI("xAI", "https://api.x.ai/", "https://console.x.ai/", "grok-3-mini", "x-ai"),
     GROQ("Groq", "https://api.groq.com/openai/", "https://console.groq.com/keys", "llama-3.3-70b-versatile"),
-    DEEPSEEK("DeepSeek", "https://api.deepseek.com/", "https://platform.deepseek.com/api_keys", "deepseek-chat", "deepseek"),
+    DEEPSEEK("DeepSeek", "https://api.deepseek.com/", "https://platform.deepseek.com/api_keys", "deepseek-chat", "deepseek", chatPath = "chat/completions", modelsPath = "models"),
     MISTRAL("Mistral", "https://api.mistral.ai/", "https://console.mistral.ai/api-keys/", "mistral-small-latest", "mistralai"),
-    PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api", "sonar", "perplexity"),
+    PERPLEXITY("Perplexity", "https://api.perplexity.ai/", "https://www.perplexity.ai/settings/api", "sonar", "perplexity", chatPath = "chat/completions", modelsPath = "models"),
     TOGETHER("Together", "https://api.together.xyz/", "https://api.together.xyz/settings/api-keys", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
     OPENROUTER("OpenRouter", "https://openrouter.ai/api/", "https://openrouter.ai/keys", "anthropic/claude-3.5-sonnet"),
     SILICONFLOW("SiliconFlow", "https://api.siliconflow.cn/", "https://cloud.siliconflow.cn/account/ak", "Qwen/Qwen2.5-7B-Instruct"),
-    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash", "z-ai"),
+    ZAI("Z.AI", "https://api.z.ai/api/paas/v4/", "https://open.bigmodel.cn/usercenter/apikeys", "glm-4.7-flash", "z-ai", chatPath = "chat/completions", modelsPath = "models"),
     MOONSHOT("Moonshot", "https://api.moonshot.ai/", "https://platform.moonshot.ai/console/api-keys", "kimi-latest", "moonshot"),
     COHERE("Cohere", "https://api.cohere.ai/compatibility/", "https://dashboard.cohere.com/", "command-a-03-2025", "cohere"),
     AI21("AI21", "https://api.ai21.com/", "https://studio.ai21.com/", "jamba-mini", "ai21"),
@@ -73,12 +85,12 @@ enum class AiService(
     STEPFUN("StepFun", "https://api.stepfun.com/", "https://platform.stepfun.com/", "step-2-16k"),
     MINIMAX("MiniMax", "https://api.minimax.io/", "https://platform.minimax.io/", "MiniMax-M2.1", "minimax"),
     NVIDIA("NVIDIA", "https://integrate.api.nvidia.com/", "https://build.nvidia.com/", "nvidia/llama-3.1-nemotron-70b-instruct"),
-    REPLICATE("Replicate", "https://api.replicate.com/v1/", "https://replicate.com/account/api-tokens", "meta/meta-llama-3-70b-instruct"),
+    REPLICATE("Replicate", "https://api.replicate.com/v1/", "https://replicate.com/account/api-tokens", "meta/meta-llama-3-70b-instruct", chatPath = "chat/completions", modelsPath = "models"),
     HUGGINGFACE("Hugging Face", "https://api-inference.huggingface.co/", "https://huggingface.co/settings/tokens", "meta-llama/Llama-3.1-70B-Instruct"),
     LAMBDA("Lambda", "https://api.lambdalabs.com/", "https://cloud.lambdalabs.com/api-keys", "hermes-3-llama-3.1-405b-fp8"),
     LEPTON("Lepton", "https://api.lepton.ai/", "https://dashboard.lepton.ai/", "llama3-1-70b"),
     YI("01.AI", "https://api.01.ai/", "https://platform.01.ai/", "yi-lightning"),
-    DOUBAO("Doubao", "https://ark.cn-beijing.volces.com/api/", "https://console.volcengine.com/", "doubao-pro-32k"),
+    DOUBAO("Doubao", "https://ark.cn-beijing.volces.com/api/", "https://console.volcengine.com/", "doubao-pro-32k", chatPath = "v3/chat/completions", modelsPath = "v3/models"),
     REKA("Reka", "https://api.reka.ai/", "https://platform.reka.ai/", "reka-flash"),
     WRITER("Writer", "https://api.writer.com/", "https://app.writer.com/", "palmyra-x-004")
 }
