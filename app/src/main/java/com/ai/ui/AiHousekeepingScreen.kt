@@ -157,7 +157,7 @@ fun HousekeepingScreen(
             text = {
                 Column {
                     Text("Models fetched from API:")
-                    refreshResults!!.forEach { (provider, count) ->
+                    refreshResults.orEmpty().forEach { (provider, count) ->
                         Text("• $provider: $count models")
                     }
                     if (manualProviders.isNotEmpty()) {
@@ -184,8 +184,9 @@ fun HousekeepingScreen(
             title = { Text("Generate Default Agents") },
             text = {
                 Column {
-                    val successCount = generationResults!!.count { it.second }
-                    val failCount = generationResults!!.count { !it.second }
+                    val results = generationResults.orEmpty()
+                    val successCount = results.count { it.second }
+                    val failCount = results.count { !it.second }
 
                     if (successCount > 0) {
                         Text("✅ Created/updated $successCount agent(s)")
@@ -194,7 +195,7 @@ fun HousekeepingScreen(
                     }
                     if (failCount > 0) {
                         Text("❌ Failed: $failCount provider(s)")
-                        generationResults!!.filter { !it.second }.forEach { (provider, _) ->
+                        results.filter { !it.second }.forEach { (provider, _) ->
                             Text("• $provider")
                         }
                     }
@@ -249,8 +250,9 @@ fun HousekeepingScreen(
             onDismissRequest = { showOpenRouterResultDialog = false },
             title = { Text("OpenRouter Data Refreshed") },
             text = {
-                if (openRouterResult != null) {
-                    Text("Successfully refreshed:\n• ${openRouterResult!!.first} model prices\n• ${openRouterResult!!.second} pricing entries\n• ${openRouterResult!!.third} parameter entries")
+                val orResult = openRouterResult
+                if (orResult != null) {
+                    Text("Successfully refreshed:\n• ${orResult.first} model prices\n• ${orResult.second} pricing entries\n• ${orResult.third} parameter entries")
                 } else {
                     Text("Failed to fetch OpenRouter data.\nPlease check your OpenRouter API key.")
                 }
@@ -644,8 +646,9 @@ fun HousekeepingScreen(
         }
 
         // Import costs result dialog
-        if (showImportCostsResultDialog && importCostsResult != null) {
-            val (imported, skipped) = importCostsResult!!
+        val costsResult = importCostsResult
+        if (showImportCostsResultDialog && costsResult != null) {
+            val (imported, skipped) = costsResult
             AlertDialog(
                 onDismissRequest = { showImportCostsResultDialog = false },
                 title = { Text("Import Model Costs", color = Color.White) },
@@ -856,8 +859,8 @@ fun HousekeepingScreen(
         }
 
         // Cleanup days dialog
-        if (showCleanupDaysDialog != null) {
-            val cleanupType = showCleanupDaysDialog!!
+        val cleanupType = showCleanupDaysDialog
+        if (cleanupType != null) {
             val title = when (cleanupType) {
                 "chats" -> "Clean up Chats"
                 "reports" -> "Clean up Reports"

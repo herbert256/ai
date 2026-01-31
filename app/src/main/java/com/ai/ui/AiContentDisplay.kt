@@ -165,7 +165,7 @@ fun AiReportsViewerScreen(
                         .verticalScroll(scrollState)
                 ) {
                     // Content rendered with think sections as collapsible blocks
-                    ContentWithThinkSections(analysis = selectedReportAgent.responseBody!!)
+                    ContentWithThinkSections(analysis = selectedReportAgent.responseBody ?: "")
 
                     // Citations section (if available)
                     selectedReportAgent.citations?.takeIf { it.isNotEmpty() }?.let { citations ->

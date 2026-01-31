@@ -362,7 +362,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 } catch (e: IllegalArgumentException) {
                     null
                 }
-            }?.filterKeys { it != null }?.mapKeys { it.key!! } ?: emptyMap()
+            }?.entries?.mapNotNull { (k, v) -> k?.let { it to v } }?.toMap() ?: emptyMap()
         } catch (e: Exception) {
             android.util.Log.w("SettingsPreferences", "Failed to load endpoints: ${e.message}")
             emptyMap()

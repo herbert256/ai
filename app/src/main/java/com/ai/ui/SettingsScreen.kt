@@ -659,9 +659,10 @@ fun SettingsScreen(
             var addAgentModelSelectProvider by remember { mutableStateOf<AiService?>(null) }
             var addAgentModelSelectCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
 
-            if (addAgentModelSelectProvider != null) {
+            val agentModelProvider = addAgentModelSelectProvider
+            if (agentModelProvider != null) {
                 SelectModelScreen(
-                    provider = addAgentModelSelectProvider!!,
+                    provider = agentModelProvider,
                     aiSettings = aiSettings,
                     currentModel = "",
                     showDefaultOption = true,

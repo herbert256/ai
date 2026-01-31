@@ -42,8 +42,9 @@ fun ModelSearchScreen(
     var showAgentEdit by remember { mutableStateOf(false) }
 
     // Show action popup when a model is clicked
-    if (showActionDialog && selectedModel != null) {
-        val model = selectedModel!!
+    val actionModel = selectedModel
+    if (showActionDialog && actionModel != null) {
+        val model = actionModel
         AlertDialog(
             onDismissRequest = {
                 showActionDialog = false
@@ -131,13 +132,14 @@ fun ModelSearchScreen(
     }
 
     // Show AgentEditScreen when Create AI Agent is selected
-    if (showAgentEdit && selectedModel != null) {
-        val provider = providerFromName(selectedModel!!.providerName)
+    val editModel = selectedModel
+    if (showAgentEdit && editModel != null) {
+        val provider = providerFromName(editModel.providerName)
         val prefilledAgent = AiAgent(
             id = java.util.UUID.randomUUID().toString(),
             name = "",
             provider = provider,
-            model = selectedModel!!.modelName,
+            model = editModel.modelName,
             apiKey = aiSettings.getApiKey(provider)
         )
 
@@ -529,11 +531,11 @@ fun ModelInfoScreen(
             }
         } else if (errorMessage != null) {
             Text(
-                text = errorMessage!!,
+                text = errorMessage ?: "",
                 color = Color(0xFFFF6B6B)
             )
         } else if (modelInfo != null) {
-            val info = modelInfo!!
+            val info = modelInfo ?: return
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)

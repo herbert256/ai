@@ -661,7 +661,7 @@ object PricingCache {
             // Build lookup map: "PROVIDER:model" -> List<String>
             supportedParametersCache = entries
                 .filter { it.supported_parameters != null }
-                .associate { "${it.provider}:${it.model}" to it.supported_parameters!! }
+                .associate { "${it.provider}:${it.model}" to (it.supported_parameters ?: emptyList()) }
 
             android.util.Log.d("PricingCache", "Loaded ${supportedParametersCache?.size ?: 0} supported parameter entries")
         } catch (e: Exception) {

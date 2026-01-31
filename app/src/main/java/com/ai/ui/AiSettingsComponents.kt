@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -119,12 +120,14 @@ fun SelectModelScreen(
                 text = "In $/M",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color(0xFF888888),
+                textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
             Text(
                 text = "Out $/M",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color(0xFF888888),
+                textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
         }
@@ -199,6 +202,7 @@ fun SelectModelScreen(
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                         color = priceColor,
+                        textAlign = TextAlign.End,
                         modifier = Modifier.width(70.dp)
                     )
                     Text(
@@ -206,6 +210,7 @@ fun SelectModelScreen(
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                         color = priceColor,
+                        textAlign = TextAlign.End,
                         modifier = Modifier.width(70.dp)
                     )
                 }
@@ -790,7 +795,7 @@ fun ApiKeyInputSection(
                     // Test result
                     if (testResult != null) {
                         Text(
-                            text = testResult!!,
+                            text = testResult ?: "",
                             color = if (testSuccess) Color(0xFF4CAF50) else Color(0xFFEF5350),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f)
@@ -1270,10 +1275,11 @@ fun EndpointsSection(
                 TextButton(
                     onClick = {
                         if (endpointName.isNotBlank() && endpointUrl.isNotBlank()) {
-                            val newList = if (editingEndpoint != null) {
+                            val currentEditing = editingEndpoint
+                            val newList = if (currentEditing != null) {
                                 // Editing existing endpoint
                                 endpoints.map {
-                                    if (it.id == editingEndpoint!!.id) {
+                                    if (it.id == currentEditing.id) {
                                         it.copy(name = endpointName.trim(), url = endpointUrl.trim())
                                     } else {
                                         it

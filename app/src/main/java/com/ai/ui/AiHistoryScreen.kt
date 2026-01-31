@@ -43,9 +43,10 @@ fun AiHistoryScreenNav(
     var selectedReportId by remember { mutableStateOf<String?>(null) }
 
     // Show viewer screen when a report is selected
-    if (selectedReportId != null) {
+    val reportId = selectedReportId
+    if (reportId != null) {
         AiReportsViewerScreen(
-            reportId = selectedReportId!!,
+            reportId = reportId,
             onDismiss = { selectedReportId = null },
             onNavigateHome = onNavigateHome
         )

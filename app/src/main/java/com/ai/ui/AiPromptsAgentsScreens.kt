@@ -41,9 +41,10 @@ fun AiAgentsScreen(
     var showModelSelectForProvider by remember { mutableStateOf<AiService?>(null) }
     var modelSelectCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
 
-    if (showModelSelectForProvider != null) {
+    val modelSelectProvider = showModelSelectForProvider
+    if (modelSelectProvider != null) {
         SelectModelScreen(
-            provider = showModelSelectForProvider!!,
+            provider = modelSelectProvider,
             aiSettings = aiSettings,
             currentModel = "",
             showDefaultOption = true,
@@ -674,7 +675,7 @@ internal fun AgentEditScreen(
             // Test result message
             if (testResult != null) {
                 Text(
-                    text = testResult!!,
+                    text = testResult ?: "",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (testSuccess) Color(0xFF4CAF50) else Color(0xFFF44336)
                 )
@@ -842,9 +843,3 @@ internal fun AgentEditScreen(
 
 }
 
-/**
- * Get default model for a provider.
- */
-fun getDefaultModelForProvider(provider: AiService): String {
-    return provider.defaultModel
-}

@@ -552,8 +552,6 @@ data class AiSettings(
     fun withModels(service: AiService, models: List<String>): AiSettings =
         withProvider(service, getProvider(service).copy(models = models))
 
-    fun getModelCount(service: AiService): Int = getModels(service).size
-
     fun hasAnyApiKey(): Boolean = providers.values.any { it.apiKey.isNotBlank() }
 
     // Helper methods for agents

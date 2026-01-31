@@ -289,7 +289,7 @@ fun SwarmEditScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
             ) {
                 Text(
-                    if (selectedParametersIds.isNotEmpty()) "\uD83D\uDCCE Parameters" else "Parameters",
+                    if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
                     fontSize = 13.sp, maxLines = 1
                 )
             }

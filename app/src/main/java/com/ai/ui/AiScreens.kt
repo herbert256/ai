@@ -734,7 +734,7 @@ fun AiReportsScreen(
                     )
                 ) {
                     Text(
-                        if (selectedParametersIds.isNotEmpty()) "\uD83D\uDCCE Parameters" else "Parameters",
+                        if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
                         fontSize = 13.sp, maxLines = 1
                     )
                 }

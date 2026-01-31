@@ -626,7 +626,7 @@ fun ParametersSelector(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         if (hasParams) {
-            Text("\uD83D\uDCCE ", fontSize = 14.sp)
+            Text("⚙ ", fontSize = 14.sp)
         }
         Text(
             if (hasParams) "$label (${selectedParametersIds.size})" else label,

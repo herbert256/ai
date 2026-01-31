@@ -1004,16 +1004,6 @@ fun ChatHistoryScreen(
 }
 
 /**
- * Helper class to return 4 values.
- */
-private data class Quadruple<A, B, C, D>(
-    val first: A,
-    val second: B,
-    val third: C,
-    val fourth: D
-)
-
-/**
  * AI Chats Hub screen - shows options for starting or continuing chats.
  */
 @Composable
