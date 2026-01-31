@@ -325,7 +325,8 @@ fun SettingsScreen(
             onTestApiKey = onTestAiModel,
             onProviderStateChange = onProviderStateChange
         )
-        SettingsSubScreen.AI_OPENAI -> ChatGptSettingsScreen(
+        SettingsSubScreen.AI_OPENAI -> ProviderSettingsScreen(
+            service = AiService.OPENAI,
             aiSettings = aiSettings,
             availableModels = availableChatGptModels,
             isLoadingModels = isLoadingChatGptModels,
@@ -337,7 +338,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.OPENAI, aiSettings.getApiKey(AiService.OPENAI), aiSettings.getModel(AiService.OPENAI)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.OPENAI, state) }
         )
-        SettingsSubScreen.AI_ANTHROPIC -> ClaudeSettingsScreen(
+        SettingsSubScreen.AI_ANTHROPIC -> ProviderSettingsScreen(
+            service = AiService.ANTHROPIC,
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
@@ -346,7 +348,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.ANTHROPIC, aiSettings.getApiKey(AiService.ANTHROPIC), aiSettings.getModel(AiService.ANTHROPIC)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.ANTHROPIC, state) }
         )
-        SettingsSubScreen.AI_GOOGLE -> GeminiSettingsScreen(
+        SettingsSubScreen.AI_GOOGLE -> ProviderSettingsScreen(
+            service = AiService.GOOGLE,
             aiSettings = aiSettings,
             availableModels = availableGeminiModels,
             isLoadingModels = isLoadingGeminiModels,
@@ -358,7 +361,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.GOOGLE, aiSettings.getApiKey(AiService.GOOGLE), aiSettings.getModel(AiService.GOOGLE)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.GOOGLE, state) }
         )
-        SettingsSubScreen.AI_XAI -> GrokSettingsScreen(
+        SettingsSubScreen.AI_XAI -> ProviderSettingsScreen(
+            service = AiService.XAI,
             aiSettings = aiSettings,
             availableModels = availableGrokModels,
             isLoadingModels = isLoadingGrokModels,
@@ -370,7 +374,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.XAI, aiSettings.getApiKey(AiService.XAI), aiSettings.getModel(AiService.XAI)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.XAI, state) }
         )
-        SettingsSubScreen.AI_GROQ -> GroqSettingsScreen(
+        SettingsSubScreen.AI_GROQ -> ProviderSettingsScreen(
+            service = AiService.GROQ,
             aiSettings = aiSettings,
             availableModels = availableGroqModels,
             isLoadingModels = isLoadingGroqModels,
@@ -382,7 +387,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.GROQ, aiSettings.getApiKey(AiService.GROQ), aiSettings.getModel(AiService.GROQ)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.GROQ, state) }
         )
-        SettingsSubScreen.AI_DEEPSEEK -> DeepSeekSettingsScreen(
+        SettingsSubScreen.AI_DEEPSEEK -> ProviderSettingsScreen(
+            service = AiService.DEEPSEEK,
             aiSettings = aiSettings,
             availableModels = availableDeepSeekModels,
             isLoadingModels = isLoadingDeepSeekModels,
@@ -394,7 +400,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.DEEPSEEK, aiSettings.getApiKey(AiService.DEEPSEEK), aiSettings.getModel(AiService.DEEPSEEK)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.DEEPSEEK, state) }
         )
-        SettingsSubScreen.AI_MISTRAL -> MistralSettingsScreen(
+        SettingsSubScreen.AI_MISTRAL -> ProviderSettingsScreen(
+            service = AiService.MISTRAL,
             aiSettings = aiSettings,
             availableModels = availableMistralModels,
             isLoadingModels = isLoadingMistralModels,
@@ -406,7 +413,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.MISTRAL, aiSettings.getApiKey(AiService.MISTRAL), aiSettings.getModel(AiService.MISTRAL)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.MISTRAL, state) }
         )
-        SettingsSubScreen.AI_PERPLEXITY -> PerplexitySettingsScreen(
+        SettingsSubScreen.AI_PERPLEXITY -> ProviderSettingsScreen(
+            service = AiService.PERPLEXITY,
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
@@ -415,7 +423,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.PERPLEXITY, aiSettings.getApiKey(AiService.PERPLEXITY), aiSettings.getModel(AiService.PERPLEXITY)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.PERPLEXITY, state) }
         )
-        SettingsSubScreen.AI_TOGETHER -> TogetherSettingsScreen(
+        SettingsSubScreen.AI_TOGETHER -> ProviderSettingsScreen(
+            service = AiService.TOGETHER,
             aiSettings = aiSettings,
             availableModels = availableTogetherModels,
             isLoadingModels = isLoadingTogetherModels,
@@ -427,7 +436,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.TOGETHER, aiSettings.getApiKey(AiService.TOGETHER), aiSettings.getModel(AiService.TOGETHER)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.TOGETHER, state) }
         )
-        SettingsSubScreen.AI_OPENROUTER -> OpenRouterSettingsScreen(
+        SettingsSubScreen.AI_OPENROUTER -> ProviderSettingsScreen(
+            service = AiService.OPENROUTER,
             aiSettings = aiSettings,
             availableModels = availableOpenRouterModels,
             isLoadingModels = isLoadingOpenRouterModels,
@@ -439,7 +449,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.OPENROUTER, aiSettings.getApiKey(AiService.OPENROUTER), aiSettings.getModel(AiService.OPENROUTER)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.OPENROUTER, state) }
         )
-        SettingsSubScreen.AI_SILICONFLOW -> SiliconFlowSettingsScreen(
+        SettingsSubScreen.AI_SILICONFLOW -> ProviderSettingsScreen(
+            service = AiService.SILICONFLOW,
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
@@ -448,7 +459,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.SILICONFLOW, aiSettings.getApiKey(AiService.SILICONFLOW), aiSettings.getModel(AiService.SILICONFLOW)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.SILICONFLOW, state) }
         )
-        SettingsSubScreen.AI_ZAI -> ZaiSettingsScreen(
+        SettingsSubScreen.AI_ZAI -> ProviderSettingsScreen(
+            service = AiService.ZAI,
             aiSettings = aiSettings,
             onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onBackToHome = onNavigateHome,
@@ -457,7 +469,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.ZAI, aiSettings.getApiKey(AiService.ZAI), aiSettings.getModel(AiService.ZAI)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.ZAI, state) }
         )
-        SettingsSubScreen.AI_MOONSHOT -> MoonshotSettingsScreen(
+        SettingsSubScreen.AI_MOONSHOT -> ProviderSettingsScreen(
+            service = AiService.MOONSHOT,
             aiSettings = aiSettings,
             availableModels = availableMoonshotModels,
             isLoadingModels = isLoadingMoonshotModels,
@@ -469,7 +482,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.MOONSHOT, aiSettings.getApiKey(AiService.MOONSHOT), aiSettings.getModel(AiService.MOONSHOT)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.MOONSHOT, state) }
         )
-        SettingsSubScreen.AI_COHERE -> CohereSettingsScreen(
+        SettingsSubScreen.AI_COHERE -> ProviderSettingsScreen(
+            service = AiService.COHERE,
             aiSettings = aiSettings,
             availableModels = availableCohereModels,
             isLoadingModels = isLoadingCohereModels,
@@ -481,7 +495,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.COHERE, aiSettings.getApiKey(AiService.COHERE), aiSettings.getModel(AiService.COHERE)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.COHERE, state) }
         )
-        SettingsSubScreen.AI_AI21 -> Ai21SettingsScreen(
+        SettingsSubScreen.AI_AI21 -> ProviderSettingsScreen(
+            service = AiService.AI21,
             aiSettings = aiSettings,
             availableModels = availableAi21Models,
             isLoadingModels = isLoadingAi21Models,
@@ -493,7 +508,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.AI21, aiSettings.getApiKey(AiService.AI21), aiSettings.getModel(AiService.AI21)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.AI21, state) }
         )
-        SettingsSubScreen.AI_DASHSCOPE -> DashScopeSettingsScreen(
+        SettingsSubScreen.AI_DASHSCOPE -> ProviderSettingsScreen(
+            service = AiService.DASHSCOPE,
             aiSettings = aiSettings,
             availableModels = availableDashScopeModels,
             isLoadingModels = isLoadingDashScopeModels,
@@ -505,7 +521,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.DASHSCOPE, aiSettings.getApiKey(AiService.DASHSCOPE), aiSettings.getModel(AiService.DASHSCOPE)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.DASHSCOPE, state) }
         )
-        SettingsSubScreen.AI_FIREWORKS -> FireworksSettingsScreen(
+        SettingsSubScreen.AI_FIREWORKS -> ProviderSettingsScreen(
+            service = AiService.FIREWORKS,
             aiSettings = aiSettings,
             availableModels = availableFireworksModels,
             isLoadingModels = isLoadingFireworksModels,
@@ -517,7 +534,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.FIREWORKS, aiSettings.getApiKey(AiService.FIREWORKS), aiSettings.getModel(AiService.FIREWORKS)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.FIREWORKS, state) }
         )
-        SettingsSubScreen.AI_CEREBRAS -> CerebrasSettingsScreen(
+        SettingsSubScreen.AI_CEREBRAS -> ProviderSettingsScreen(
+            service = AiService.CEREBRAS,
             aiSettings = aiSettings,
             availableModels = availableCerebrasModels,
             isLoadingModels = isLoadingCerebrasModels,
@@ -529,7 +547,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.CEREBRAS, aiSettings.getApiKey(AiService.CEREBRAS), aiSettings.getModel(AiService.CEREBRAS)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.CEREBRAS, state) }
         )
-        SettingsSubScreen.AI_SAMBANOVA -> SambaNovaSettingsScreen(
+        SettingsSubScreen.AI_SAMBANOVA -> ProviderSettingsScreen(
+            service = AiService.SAMBANOVA,
             aiSettings = aiSettings,
             availableModels = availableSambaNovaModels,
             isLoadingModels = isLoadingSambaNovaModels,
@@ -541,7 +560,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.SAMBANOVA, aiSettings.getApiKey(AiService.SAMBANOVA), aiSettings.getModel(AiService.SAMBANOVA)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.SAMBANOVA, state) }
         )
-        SettingsSubScreen.AI_BAICHUAN -> BaichuanSettingsScreen(
+        SettingsSubScreen.AI_BAICHUAN -> ProviderSettingsScreen(
+            service = AiService.BAICHUAN,
             aiSettings = aiSettings,
             availableModels = availableBaichuanModels,
             isLoadingModels = isLoadingBaichuanModels,
@@ -553,7 +573,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.BAICHUAN, aiSettings.getApiKey(AiService.BAICHUAN), aiSettings.getModel(AiService.BAICHUAN)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.BAICHUAN, state) }
         )
-        SettingsSubScreen.AI_STEPFUN -> StepFunSettingsScreen(
+        SettingsSubScreen.AI_STEPFUN -> ProviderSettingsScreen(
+            service = AiService.STEPFUN,
             aiSettings = aiSettings,
             availableModels = availableStepFunModels,
             isLoadingModels = isLoadingStepFunModels,
@@ -565,7 +586,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.STEPFUN, aiSettings.getApiKey(AiService.STEPFUN), aiSettings.getModel(AiService.STEPFUN)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.STEPFUN, state) }
         )
-        SettingsSubScreen.AI_MINIMAX -> MiniMaxSettingsScreen(
+        SettingsSubScreen.AI_MINIMAX -> ProviderSettingsScreen(
+            service = AiService.MINIMAX,
             aiSettings = aiSettings,
             availableModels = availableMiniMaxModels,
             isLoadingModels = isLoadingMiniMaxModels,
@@ -577,7 +599,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.MINIMAX, aiSettings.getApiKey(AiService.MINIMAX), aiSettings.getModel(AiService.MINIMAX)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.MINIMAX, state) }
         )
-        SettingsSubScreen.AI_NVIDIA -> NvidiaSettingsScreen(
+        SettingsSubScreen.AI_NVIDIA -> ProviderSettingsScreen(
+            service = AiService.NVIDIA,
             aiSettings = aiSettings,
             availableModels = availableNvidiaModels,
             isLoadingModels = isLoadingNvidiaModels,
@@ -589,7 +612,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.NVIDIA, aiSettings.getApiKey(AiService.NVIDIA), aiSettings.getModel(AiService.NVIDIA)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.NVIDIA, state) }
         )
-        SettingsSubScreen.AI_REPLICATE -> ReplicateSettingsScreen(
+        SettingsSubScreen.AI_REPLICATE -> ProviderSettingsScreen(
+            service = AiService.REPLICATE,
             aiSettings = aiSettings,
             availableModels = availableReplicateModels,
             isLoadingModels = isLoadingReplicateModels,
@@ -601,7 +625,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.REPLICATE, aiSettings.getApiKey(AiService.REPLICATE), aiSettings.getModel(AiService.REPLICATE)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.REPLICATE, state) }
         )
-        SettingsSubScreen.AI_HUGGINGFACE -> HuggingFaceInferenceSettingsScreen(
+        SettingsSubScreen.AI_HUGGINGFACE -> ProviderSettingsScreen(
+            service = AiService.HUGGINGFACE,
             aiSettings = aiSettings,
             availableModels = availableHuggingFaceInferenceModels,
             isLoadingModels = isLoadingHuggingFaceInferenceModels,
@@ -613,7 +638,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.HUGGINGFACE, aiSettings.getApiKey(AiService.HUGGINGFACE), aiSettings.getModel(AiService.HUGGINGFACE)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.HUGGINGFACE, state) }
         )
-        SettingsSubScreen.AI_LAMBDA -> LambdaSettingsScreen(
+        SettingsSubScreen.AI_LAMBDA -> ProviderSettingsScreen(
+            service = AiService.LAMBDA,
             aiSettings = aiSettings,
             availableModels = availableLambdaModels,
             isLoadingModels = isLoadingLambdaModels,
@@ -625,7 +651,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.LAMBDA, aiSettings.getApiKey(AiService.LAMBDA), aiSettings.getModel(AiService.LAMBDA)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.LAMBDA, state) }
         )
-        SettingsSubScreen.AI_LEPTON -> LeptonSettingsScreen(
+        SettingsSubScreen.AI_LEPTON -> ProviderSettingsScreen(
+            service = AiService.LEPTON,
             aiSettings = aiSettings,
             availableModels = availableLeptonModels,
             isLoadingModels = isLoadingLeptonModels,
@@ -637,7 +664,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.LEPTON, aiSettings.getApiKey(AiService.LEPTON), aiSettings.getModel(AiService.LEPTON)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.LEPTON, state) }
         )
-        SettingsSubScreen.AI_YI -> YiSettingsScreen(
+        SettingsSubScreen.AI_YI -> ProviderSettingsScreen(
+            service = AiService.YI,
             aiSettings = aiSettings,
             availableModels = availableYiModels,
             isLoadingModels = isLoadingYiModels,
@@ -649,7 +677,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.YI, aiSettings.getApiKey(AiService.YI), aiSettings.getModel(AiService.YI)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.YI, state) }
         )
-        SettingsSubScreen.AI_DOUBAO -> DoubaoSettingsScreen(
+        SettingsSubScreen.AI_DOUBAO -> ProviderSettingsScreen(
+            service = AiService.DOUBAO,
             aiSettings = aiSettings,
             availableModels = availableDoubaoModels,
             isLoadingModels = isLoadingDoubaoModels,
@@ -661,7 +690,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.DOUBAO, aiSettings.getApiKey(AiService.DOUBAO), aiSettings.getModel(AiService.DOUBAO)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.DOUBAO, state) }
         )
-        SettingsSubScreen.AI_REKA -> RekaSettingsScreen(
+        SettingsSubScreen.AI_REKA -> ProviderSettingsScreen(
+            service = AiService.REKA,
             aiSettings = aiSettings,
             availableModels = availableRekaModels,
             isLoadingModels = isLoadingRekaModels,
@@ -673,7 +703,8 @@ fun SettingsScreen(
             onCreateAgent = { navigateToAddAgent(AiService.REKA, aiSettings.getApiKey(AiService.REKA), aiSettings.getModel(AiService.REKA)) },
             onProviderStateChange = { state -> onProviderStateChange(AiService.REKA, state) }
         )
-        SettingsSubScreen.AI_WRITER -> WriterSettingsScreen(
+        SettingsSubScreen.AI_WRITER -> ProviderSettingsScreen(
+            service = AiService.WRITER,
             aiSettings = aiSettings,
             availableModels = availableWriterModels,
             isLoadingModels = isLoadingWriterModels,
