@@ -73,68 +73,107 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 ```
 com.ai/
 ├── MainActivity.kt                    # Entry point, sets up Compose theme (~102 lines)
-├── data/                              # Data layer (~8,665 lines)
-│   ├── AiAnalysisApi.kt              # Retrofit interfaces, AiService enum, request/response models (~1,507 lines)
-│   ├── AiAnalysisRepository.kt       # Repository facade, TokenUsage, AiAnalysisResponse (~456 lines)
-│   ├── AiAnalysisProviders.kt        # Provider-specific analysis implementations (~1,793 lines)
-│   ├── AiAnalysisStreaming.kt        # SSE streaming for all providers (~1,460 lines)
-│   ├── AiAnalysisChat.kt            # Chat-specific implementations for all providers (~957 lines)
-│   ├── AiAnalysisModels.kt          # Model list fetching from provider APIs (~853 lines)
+├── data/                              # Data layer (~4,595 lines)
+│   ├── AiAnalysisApi.kt              # Retrofit interfaces, AiService enum with provider config, unified OpenAiCompatibleApi, request/response models (~1,461 lines)
+│   ├── AiAnalysisRepository.kt       # Repository facade, TokenUsage, AiAnalysisResponse (~348 lines)
+│   ├── AiAnalysisProviders.kt        # 3 unique + 1 unified OpenAI-compatible analysis method (~326 lines)
+│   ├── AiAnalysisStreaming.kt        # 3 unique + 1 unified streaming method (~411 lines)
+│   ├── AiAnalysisChat.kt            # 3 unique + 1 unified chat method (~166 lines)
+│   ├── AiAnalysisModels.kt          # Unified model fetching with provider-specific handling (~351 lines)
 │   ├── AiReportStorage.kt            # File-based report storage with thread-safe ops (~404 lines)
-│   ├── AiHistoryManager.kt           # Legacy HTML report storage (~164 lines)
 │   ├── ChatHistoryManager.kt         # Chat session file storage (~122 lines)
 │   ├── PricingCache.kt               # Six-tier pricing cache (~679 lines)
 │   └── ApiTracer.kt                  # Debug API request/response logging (~327 lines)
-└── ui/                                # UI layer (~29,040 lines)
-    ├── AiViewModel.kt                # Central state management (~1,701 lines)
+└── ui/                                # UI layer (~24,003 lines)
+    ├── AiViewModel.kt                # Central state management (~1,698 lines)
     ├── AiModels.kt                   # Core UI state: AiUiState, GeneralSettings (~107 lines)
-    ├── AiSettingsModels.kt           # Settings data: AiSettings, AiAgent, AiFlock, AiSwarm, AiParameters (~1,394 lines)
+    ├── AiSettingsModels.kt           # Settings data: ProviderConfig, AiSettings with Map<AiService, ProviderConfig> (~883 lines)
     ├── AiScreens.kt                  # Report screens: Hub, NewReport, Results, pricing utility (~1,845 lines)
-    ├── ChatScreens.kt                # AI Chat: conversation UI, streaming, agent/model selection (~1,637 lines)
+    ├── ChatScreens.kt                # AI Chat: conversation UI, streaming, agent/model selection (~1,610 lines)
     ├── AiContentDisplay.kt           # AI response rendering with think sections (~658 lines)
     ├── AiHistoryScreen.kt            # Report history browser (~681 lines)
-    ├── AiReportExport.kt             # HTML report generation with cost table (~844 lines)
-    ├── AiModelScreens.kt             # Model search and model info screens (~1,077 lines)
-    ├── AiStatisticsScreen.kt         # Statistics and Costs screens (~1,125 lines)
-    ├── AiServiceSettingsScreens.kt   # Per-service config screens for all 31 providers (~3,321 lines)
-    ├── AiSettingsScreen.kt           # AI settings navigation hub (~576 lines)
-    ├── AiSettingsComponents.kt       # Reusable AI settings UI components (~1,126 lines)
-    ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (~1,243 lines)
+    ├── AiReportExport.kt             # HTML report generation with cost table (~847 lines)
+    ├── AiModelScreens.kt             # Model search and model info screens (~1,076 lines)
+    ├── AiStatisticsScreen.kt         # Statistics and Costs screens (~1,126 lines)
+    ├── AiServiceSettingsScreens.kt   # Single unified ProviderSettingsScreen + defaultEndpointsForProvider helper (~277 lines)
+    ├── AiSettingsScreen.kt           # AI settings navigation hub (~562 lines)
+    ├── AiSettingsComponents.kt       # Reusable AI settings UI components (~1,123 lines)
+    ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (~1,088 lines)
     ├── AiFlocksScreen.kt             # Flock management CRUD (~396 lines)
     ├── AiSwarmsScreen.kt             # Swarm management CRUD (~406 lines)
     ├── AiParametersScreen.kt         # Parameter preset editor (~760 lines)
     ├── AiPromptsScreen.kt            # AI Prompts CRUD (~391 lines)
     ├── PromptHistoryScreen.kt        # Prompt history browser (~283 lines)
-    ├── AiHousekeepingScreen.kt       # Housekeeping: test connections, refresh models, cleanup (~1,580 lines)
+    ├── AiHousekeepingScreen.kt       # Housekeeping: test connections, refresh models, cleanup (~1,479 lines)
     ├── AiDeveloperScreens.kt         # Developer mode: API test, traces, logs (~917 lines)
-    ├── AiSettingsExport.kt           # Configuration export/import v16 (~1,546 lines)
-    ├── SettingsScreen.kt             # Settings hub + navigation (~1,420 lines)
-    ├── SettingsPreferences.kt        # SharedPreferences persistence (~1,318 lines)
+    ├── AiSettingsExport.kt           # Configuration export/import v16 (~1,040 lines)
+    ├── SettingsScreen.kt             # Settings hub + navigation (~1,451 lines)
+    ├── SettingsPreferences.kt        # SharedPreferences persistence (~743 lines)
     ├── HelpScreen.kt                 # In-app documentation (~659 lines)
     ├── TraceScreen.kt                # API trace list and detail viewer with JSON tree (~765 lines)
-    ├── Navigation.kt                 # Jetpack Navigation routes (~1,011 lines)
+    ├── Navigation.kt                 # Jetpack Navigation routes (~979 lines)
     ├── SharedComponents.kt           # AiTitleBar, common widgets (~121 lines)
     └── theme/Theme.kt                # Material3 dark theme (~32 lines)
 ```
 
-**Total:** ~37,707 lines of Kotlin code across 42 files
+**Total:** ~28,700 lines of Kotlin code across 40 files
 
 ### Key Data Classes
 
 ```kotlin
-// AI Services enum (31 services - all use OpenAI-compatible format except Anthropic and Google)
+// API format enum - determines which Retrofit interface and parser to use
+enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE }
+
+// AI Services enum (31 services) - each entry carries full provider configuration
 enum class AiService(
     val displayName: String,
+    val apiFormat: ApiFormat,           // Determines analysis/streaming/chat method
+    val chatPath: String,              // API path for chat completions (e.g., "v1/chat/completions")
+    val modelsPath: String?,           // API path for model listing (null = hardcoded models)
+    val modelFilter: String?,          // Regex filter for model list responses
     val baseUrl: String,
     val adminUrl: String,
     val defaultModel: String,
-    val openRouterName: String? = null  // Provider prefix for OpenRouter model IDs
+    val openRouterName: String? = null, // Provider prefix for OpenRouter model IDs
+    val prefsKey: String               // SharedPreferences key prefix (e.g., "openai", "anthropic")
 ) {
     OPENAI, ANTHROPIC, GOOGLE, XAI, GROQ, DEEPSEEK, MISTRAL, PERPLEXITY,
     TOGETHER, OPENROUTER, SILICONFLOW, ZAI, MOONSHOT, COHERE, AI21,
     DASHSCOPE, FIREWORKS, CEREBRAS, SAMBANOVA, BAICHUAN, STEPFUN,
     MINIMAX, NVIDIA, REPLICATE, HUGGINGFACE, LAMBDA, LEPTON, YI,
     DOUBAO, REKA, WRITER
+}
+
+// Provider configuration - per-service settings stored in a map
+data class ProviderConfig(
+    val apiKey: String = "",
+    val model: String = "",
+    val modelSource: ModelSource = ModelSource.API,
+    val manualModels: List<String> = emptyList(),
+    val adminUrl: String = "",
+    val modelListUrl: String = "",
+    val parametersIds: List<String> = emptyList()
+)
+
+// AI Settings - uses Map<AiService, ProviderConfig> instead of per-provider fields
+data class AiSettings(
+    val providers: Map<AiService, ProviderConfig> = emptyMap(),
+    // ... other settings
+) {
+    // Accessor methods for provider config
+    fun getProvider(service: AiService): ProviderConfig
+    fun withProvider(service: AiService, config: ProviderConfig): AiSettings
+    fun getApiKey(service: AiService): String
+    fun withApiKey(service: AiService, key: String): AiSettings
+    fun getModel(service: AiService): String
+    fun withModel(service: AiService, model: String): AiSettings
+    fun getModelSource(service: AiService): ModelSource
+    fun getManualModels(service: AiService): List<String>
+    fun hasAnyApiKey(): Boolean
+    fun getModelListUrl(service: AiService): String
+    fun getDefaultModelListUrl(service: AiService): String
+    fun getParametersIds(service: AiService): List<String>
+    fun withParametersIds(service: AiService, ids: List<String>): AiSettings
 }
 
 // AI Agent - references parameter presets instead of inline parameters
@@ -257,32 +296,35 @@ Both can have parameter presets (paramsIds) attached for overriding agent defaul
 1. **MVVM with StateFlow**: `AiViewModel` exposes `StateFlow<AiUiState>`, UI recomposes reactively via `collectAsState()`
 
 2. **Repository Pattern**: `AiAnalysisRepository` facade delegates to specialized files:
-   - `AiAnalysisProviders.kt` - Provider-specific analysis implementations
-   - `AiAnalysisStreaming.kt` - SSE streaming for all providers
-   - `AiAnalysisChat.kt` - Chat-specific implementations
-   - `AiAnalysisModels.kt` - Model list fetching
+   - `AiAnalysisProviders.kt` - Unified analysis (1 generic + 3 format-specific methods)
+   - `AiAnalysisStreaming.kt` - Unified streaming (1 generic + 3 format-specific methods)
+   - `AiAnalysisChat.kt` - Unified chat (1 generic + 3 format-specific methods)
+   - `AiAnalysisModels.kt` - Unified model fetching with provider-specific handling
 
-3. **Singleton Storage Managers**:
+3. **Provider Consolidation**: 28 OpenAI-compatible providers share a single code path. The `AiService` enum carries `apiFormat`, `chatPath`, `modelsPath`, and `modelFilter` so generic methods can handle any provider without per-provider branching. Only Anthropic (Claude format) and Google (Gemini format) have unique implementations.
+
+4. **Singleton Storage Managers**:
    - `AiReportStorage` - Thread-safe report persistence with ReentrantLock
    - `ChatHistoryManager` - Chat session file storage
-   - `AiHistoryManager` - Legacy HTML report storage
    - `PricingCache` - Six-tier pricing with weekly caching
    - `ApiTracer` - Debug API logging
 
-4. **Factory Pattern**: `AiApiFactory` creates and caches Retrofit instances per base URL using `ConcurrentHashMap`
+5. **Factory Pattern**: `AiApiFactory` uses `createOpenAiCompatibleApi(baseUrl)` with `ConcurrentHashMap` cache for the 28 OpenAI-compatible providers. Only special factories remain for Claude (`createClaudeApi`), Gemini (`createGeminiApi`), and OpenAI Responses API (`createOpenAiApi`).
 
-5. **Flow-based Streaming**: SSE parsing returns `Flow<String>` for real-time token emission
+6. **Flow-based Streaming**: SSE parsing returns `Flow<String>` for real-time token emission
 
-6. **Inheritance Pattern**: Agents inherit API key, model, and endpoint from provider when left empty
+7. **Inheritance Pattern**: Agents inherit API key, model, and endpoint from provider when left empty
 
-7. **Parameter Merging**: Multiple parameter presets can be applied in order, with later presets overriding earlier ones. `mergeParameters()` in `AiSettingsModels.kt` handles the merge logic.
+8. **Parameter Merging**: Multiple parameter presets can be applied in order, with later presets overriding earlier ones. `mergeParameters()` in `AiSettingsModels.kt` handles the merge logic.
 
-8. **Thread Safety**:
-   - `ConcurrentHashMap` for Retrofit instance cache
-   - `ReentrantLock` for AiReportStorage
-   - Synchronized access to `isTracingEnabled` flag
-   - Coroutines with `Dispatchers.IO` for network calls
-   - StateFlow for thread-safe state updates
+9. **Unified Settings Map**: `AiSettings` uses `providers: Map<AiService, ProviderConfig>` with accessor methods instead of 217 individual per-provider fields. `SettingsPreferences` loops over `AiService.entries` using `service.prefsKey` for load/save.
+
+10. **Thread Safety**:
+    - `ConcurrentHashMap` for Retrofit instance cache
+    - `ReentrantLock` for AiReportStorage
+    - Synchronized access to `isTracingEnabled` flag
+    - Coroutines with `Dispatchers.IO` for network calls
+    - StateFlow for thread-safe state updates
 
 ## AI Services
 
@@ -364,16 +406,20 @@ Providers with multiple API endpoints:
 ## Streaming Implementation
 
 Chat uses Server-Sent Events (SSE) for real-time streaming. Implementation is split across:
-- `AiAnalysisStreaming.kt` - SSE parsers (OpenAI, Claude, Gemini formats)
-- `AiAnalysisChat.kt` - Per-provider chat stream implementations
+- `AiAnalysisStreaming.kt` - SSE parsers (OpenAI, Claude, Gemini formats) + unified streaming dispatcher
+- `AiAnalysisChat.kt` - Unified chat stream dispatcher + 3 format-specific implementations
 
 ### Provider-Specific Parsers
 
 | Provider | Stream Format | Parser |
 |----------|--------------|--------|
-| Most providers (28) | OpenAI SSE | `parseOpenAiSseStream()` |
+| 28 OpenAI-compatible providers | OpenAI SSE | `parseOpenAiSseStream()` |
 | Anthropic | Claude SSE with events | `parseClaudeSseStream()` |
 | Google | Gemini SSE | `parseGeminiSseStream()` |
+
+### Unified Dispatch
+
+All 28 OpenAI-compatible providers are handled by single unified methods that use `AiService.apiFormat`, `AiService.chatPath`, and `OpenAiCompatibleApi` with `@Url` parameter. Only Anthropic and Google require separate code paths.
 
 ## Pricing System
 
@@ -515,14 +561,14 @@ AI Hub (Home)
 "full_screen_mode"        // Boolean
 "hugging_face_api_key"    // String (for model info)
 
-// Per-service AI settings (×31 services)
-"ai_{service}_api_key"           // String
-"ai_{service}_model"             // String
-"ai_{service}_model_source"      // Enum: API or MANUAL
-"ai_{service}_manual_models"     // JSON List<String>
-"ai_{service}_admin_url"         // String
-"ai_{service}_model_list_url"    // String (custom model list URL)
-"ai_{service}_parameters_id"     // JSON List<String> (parameter preset IDs)
+// Per-service AI settings (×31 services, using service.prefsKey)
+"ai_{prefsKey}_api_key"           // String
+"ai_{prefsKey}_model"             // String
+"ai_{prefsKey}_model_source"      // Enum: API or MANUAL
+"ai_{prefsKey}_manual_models"     // JSON List<String>
+"ai_{prefsKey}_admin_url"         // String
+"ai_{prefsKey}_model_list_url"    // String (custom model list URL)
+"ai_{prefsKey}_parameters_id"     // JSON List<String> (parameter preset IDs)
 
 // Collections (JSON)
 "ai_agents"               // JSON List<AiAgent>
@@ -562,9 +608,6 @@ AI Hub (Home)
 /files/chat-history/         # Chat sessions (JSON per session)
   └── {session-uuid}.json
 
-/files/ai-history/           # Legacy HTML report files
-  └── ai_{yyyyMMdd}_{HHmmss}.html
-
 /files/trace/                # API traces (when enabled)
   └── {hostname}_{yyyyMMdd_HHmmss_SSS}.json
 
@@ -579,20 +622,20 @@ AI Hub (Home)
 
 ### Adding a New AI Service
 
-1. Add enum value to `AiService` in `AiAnalysisApi.kt` (with openRouterName if applicable)
-2. Create Retrofit interface in `AiAnalysisApi.kt` (if format differs from OpenAI)
-3. Add factory methods in `AiApiFactory` section of `AiAnalysisApi.kt`
-4. Add analysis method in `AiAnalysisProviders.kt`
-5. Add streaming method in `AiAnalysisStreaming.kt`
-6. Add chat method in `AiAnalysisChat.kt`
-7. Add model fetching in `AiAnalysisModels.kt` (if provider has model list API)
-8. Add settings fields to `AiSettings` in `AiSettingsModels.kt` (31 provider-specific fields per service)
-9. Add hardcoded models list in `AiSettingsModels.kt` (if no list API)
-10. Add UI settings screen in `AiServiceSettingsScreens.kt`
-11. Add SharedPreferences keys and load/save in `SettingsPreferences.kt`
-12. Update export/import in `AiSettingsExport.kt`
-13. Update `SettingsScreen.kt` navigation enum and when block
-14. Add OpenRouter prefix mapping in `PricingCache.kt` if applicable
+Adding a new OpenAI-compatible service is now streamlined thanks to the provider consolidation:
+
+1. Add enum value to `AiService` in `AiAnalysisApi.kt` with all properties (`apiFormat`, `chatPath`, `modelsPath`, `modelFilter`, `baseUrl`, `adminUrl`, `defaultModel`, `openRouterName`, `prefsKey`)
+2. Add hardcoded models list in `AiSettingsModels.kt` (only if provider has no model list API, i.e., `modelsPath` is null)
+3. Add default endpoints in `defaultEndpointsForProvider()` in `AiServiceSettingsScreens.kt` (only if provider has multiple API endpoints)
+4. Add OpenRouter prefix mapping in `PricingCache.kt` if applicable
+
+That's it for OpenAI-compatible providers. All analysis, streaming, chat, model fetching, settings UI, preferences load/save, and export/import are handled generically.
+
+For a non-OpenAI-compatible provider (new API format), additional steps would be needed:
+1. Add a new `ApiFormat` enum value
+2. Create a new Retrofit interface in `AiAnalysisApi.kt`
+3. Add format-specific methods in `AiAnalysisProviders.kt`, `AiAnalysisStreaming.kt`, `AiAnalysisChat.kt`
+4. Add a new SSE parser in `AiAnalysisStreaming.kt`
 
 ### Adding a New Agent Parameter
 
@@ -701,7 +744,7 @@ After making changes:
 - [ ] Build succeeds: `JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug`
 - [ ] App launches without crash
 - [ ] AI Hub displays correctly as home page
-- [ ] New AI Report flow works (prompt → flock/swarm selection → results)
+- [ ] New AI Report flow works (prompt -> flock/swarm selection -> results)
 - [ ] Report progress shows input/output tokens, costs, and duration
 - [ ] HTML reports render with cost table in browser
 - [ ] AI Chat works with streaming (real-time responses)
@@ -750,7 +793,6 @@ After making changes:
 ```kotlin
 android.util.Log.d("GeminiAPI", "Response code: ${response.code()}")
 android.util.Log.w("AiAnalysis", "First attempt failed, retrying...")
-android.util.Log.e("AiHistoryManager", "Failed to save: ${e.message}")
 android.util.Log.d("PricingCache", "Saved ${pricing.size} OpenRouter prices")
 android.util.Log.d("AiReportStorage", "Updated agent status: $agentId")
 android.util.Log.d("ChatHistoryManager", "Saved chat session: ${session.id}")

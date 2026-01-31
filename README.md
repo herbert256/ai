@@ -428,7 +428,7 @@ Add your API key in Settings -> AI Setup -> AI Providers
 - **Streaming**: Server-Sent Events (SSE) with Kotlin Flow
 - **Min SDK**: 26 (Android 8.0)
 - **Target SDK**: 34 (Android 14)
-- **Codebase**: ~37,700 lines across 42 Kotlin files
+- **Codebase**: ~28,700 lines across 40 Kotlin files
 
 ## Building
 
