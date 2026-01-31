@@ -52,7 +52,7 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 - Prompt history (up to 100 entries)
 - Chat history with automatic conversation saving
 - Developer mode with comprehensive API tracing
-- Configuration export/import (JSON format, version 16)
+- Configuration export/import (JSON format, version 17)
 - External app integration via Intent (see CALL_AI.md)
 
 **Technical Stack:**
@@ -72,51 +72,51 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 
 ```
 com.ai/
-├── MainActivity.kt                    # Entry point, sets up Compose theme (~102 lines)
-├── data/                              # Data layer (~4,595 lines)
-│   ├── AiAnalysisApi.kt              # Retrofit interfaces, AiService enum with provider config, unified OpenAiCompatibleApi, request/response models (~1,461 lines)
-│   ├── AiAnalysisRepository.kt       # Repository facade, TokenUsage, AiAnalysisResponse (~348 lines)
-│   ├── AiAnalysisProviders.kt        # 3 unique + 1 unified OpenAI-compatible analysis method (~326 lines)
-│   ├── AiAnalysisStreaming.kt        # 3 unique + 1 unified streaming method (~411 lines)
-│   ├── AiAnalysisChat.kt            # 3 unique + 1 unified chat method (~166 lines)
-│   ├── AiAnalysisModels.kt          # Unified model fetching with provider-specific handling (~351 lines)
-│   ├── AiReportStorage.kt            # File-based report storage with thread-safe ops (~404 lines)
-│   ├── ChatHistoryManager.kt         # Chat session file storage (~122 lines)
-│   ├── PricingCache.kt               # Six-tier pricing cache (~679 lines)
-│   └── ApiTracer.kt                  # Debug API request/response logging (~327 lines)
-└── ui/                                # UI layer (~24,003 lines)
-    ├── AiViewModel.kt                # Central state management (~1,698 lines)
-    ├── AiModels.kt                   # Core UI state: AiUiState, GeneralSettings (~107 lines)
-    ├── AiSettingsModels.kt           # Settings data: ProviderConfig, AiSettings with Map<AiService, ProviderConfig> (~883 lines)
-    ├── AiScreens.kt                  # Report screens: Hub, NewReport, Results, pricing utility (~1,845 lines)
-    ├── ChatScreens.kt                # AI Chat: conversation UI, streaming, agent/model selection (~1,610 lines)
-    ├── AiContentDisplay.kt           # AI response rendering with think sections (~658 lines)
-    ├── AiHistoryScreen.kt            # Report history browser (~681 lines)
-    ├── AiReportExport.kt             # HTML report generation with cost table (~847 lines)
-    ├── AiModelScreens.kt             # Model search and model info screens (~1,076 lines)
-    ├── AiStatisticsScreen.kt         # Statistics and Costs screens (~1,126 lines)
-    ├── AiServiceSettingsScreens.kt   # Single unified ProviderSettingsScreen + defaultEndpointsForProvider helper (~277 lines)
-    ├── AiSettingsScreen.kt           # AI settings navigation hub (~562 lines)
-    ├── AiSettingsComponents.kt       # Reusable AI settings UI components (~1,123 lines)
-    ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (~1,088 lines)
-    ├── AiFlocksScreen.kt             # Flock management CRUD (~396 lines)
-    ├── AiSwarmsScreen.kt             # Swarm management CRUD (~406 lines)
-    ├── AiParametersScreen.kt         # Parameter preset editor (~760 lines)
-    ├── AiPromptsScreen.kt            # AI Prompts CRUD (~391 lines)
-    ├── PromptHistoryScreen.kt        # Prompt history browser (~283 lines)
-    ├── AiHousekeepingScreen.kt       # Housekeeping: test connections, refresh models, cleanup (~1,479 lines)
-    ├── AiDeveloperScreens.kt         # Developer mode: API test, traces, logs (~917 lines)
-    ├── AiSettingsExport.kt           # Configuration export/import v16 (~1,040 lines)
-    ├── SettingsScreen.kt             # Settings hub + navigation (~1,451 lines)
-    ├── SettingsPreferences.kt        # SharedPreferences persistence (~743 lines)
-    ├── HelpScreen.kt                 # In-app documentation (~659 lines)
-    ├── TraceScreen.kt                # API trace list and detail viewer with JSON tree (~765 lines)
-    ├── Navigation.kt                 # Jetpack Navigation routes (~979 lines)
-    ├── SharedComponents.kt           # AiTitleBar, common widgets (~121 lines)
+├── MainActivity.kt                    # Entry point, sets up Compose theme (102 lines)
+├── data/                              # Data layer (3,968 lines)
+│   ├── AiAnalysisApi.kt              # Retrofit interfaces, AiService enum, unified OpenAiCompatibleApi, request/response models (834 lines)
+│   ├── AiAnalysisRepository.kt       # Repository facade, TokenUsage, AiAnalysisResponse (348 lines)
+│   ├── AiAnalysisProviders.kt        # 3 unique + 1 unified OpenAI-compatible analysis method (326 lines)
+│   ├── AiAnalysisStreaming.kt        # 3 unique + 1 unified streaming method, SSE parsers (411 lines)
+│   ├── AiAnalysisChat.kt            # 3 unique + 1 unified chat method (166 lines)
+│   ├── AiAnalysisModels.kt          # Unified model fetching with provider-specific handling (351 lines)
+│   ├── AiReportStorage.kt            # File-based report storage with thread-safe ops (404 lines)
+│   ├── ChatHistoryManager.kt         # Chat session file storage (122 lines)
+│   ├── PricingCache.kt               # Six-tier pricing cache (679 lines)
+│   └── ApiTracer.kt                  # Debug API request/response logging, TracingInterceptor (327 lines)
+└── ui/                                # UI layer (21,739 lines)
+    ├── AiViewModel.kt                # Central state management (713 lines)
+    ├── AiModels.kt                   # Core UI state: AiUiState, GeneralSettings (46 lines)
+    ├── AiSettingsModels.kt           # Settings data: ProviderConfig, AiSettings with Map<AiService, ProviderConfig> (888 lines)
+    ├── AiScreens.kt                  # Report screens: Hub, NewReport, Results, pricing utility (1,811 lines)
+    ├── ChatScreens.kt                # AI Chat: conversation UI, streaming, agent/model selection (1,465 lines)
+    ├── AiContentDisplay.kt           # AI response rendering with think sections (658 lines)
+    ├── AiHistoryScreen.kt            # Report history browser (682 lines)
+    ├── AiReportExport.kt             # HTML report generation with cost table (847 lines)
+    ├── AiModelScreens.kt             # Model search and model info screens (785 lines)
+    ├── AiStatisticsScreen.kt         # Statistics and Costs screens (1,118 lines)
+    ├── AiServiceSettingsScreens.kt   # Single unified ProviderSettingsScreen + defaultEndpointsForProvider (374 lines)
+    ├── AiSettingsScreen.kt           # AI settings navigation hub (563 lines)
+    ├── AiSettingsComponents.kt       # Reusable UI components: template, SelectModelScreen, dialogs (1,318 lines)
+    ├── AiPromptsAgentsScreens.kt     # Agents CRUD with parameter editing (845 lines)
+    ├── AiFlocksScreen.kt             # Flock management CRUD (396 lines)
+    ├── AiSwarmsScreen.kt             # Swarm management CRUD (403 lines)
+    ├── AiParametersScreen.kt         # Parameter preset editor (760 lines)
+    ├── AiPromptsScreen.kt            # AI Prompts CRUD (391 lines)
+    ├── PromptHistoryScreen.kt        # Prompt history browser (283 lines)
+    ├── AiHousekeepingScreen.kt       # Housekeeping: test connections, refresh models, cleanup (1,289 lines)
+    ├── AiDeveloperScreens.kt         # Developer mode: API test, traces, logs (917 lines)
+    ├── AiSettingsExport.kt           # Configuration export/import v17 (1,040 lines)
+    ├── SettingsScreen.kt             # Settings hub + two-tier navigation (1,198 lines)
+    ├── SettingsPreferences.kt        # SharedPreferences persistence (696 lines)
+    ├── HelpScreen.kt                 # In-app documentation (659 lines)
+    ├── TraceScreen.kt                # API trace list and detail viewer with JSON tree (765 lines)
+    ├── Navigation.kt                 # Jetpack Navigation routes (708 lines)
+    ├── SharedComponents.kt           # AiTitleBar, common widgets (121 lines)
     └── theme/Theme.kt                # Material3 dark theme (~32 lines)
 ```
 
-**Total:** ~28,700 lines of Kotlin code across 40 files
+**Total:** ~25,800 lines of Kotlin code across 40 files
 
 ### Key Data Classes
 
@@ -149,7 +149,7 @@ data class ProviderConfig(
     val apiKey: String = "",
     val model: String = "",
     val modelSource: ModelSource = ModelSource.API,
-    val manualModels: List<String> = emptyList(),
+    val models: List<String> = emptyList(),        // Cached model list (API-fetched or hardcoded)
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -168,7 +168,7 @@ data class AiSettings(
     fun getModel(service: AiService): String
     fun withModel(service: AiService, model: String): AiSettings
     fun getModelSource(service: AiService): ModelSource
-    fun getManualModels(service: AiService): List<String>
+    fun getModels(service: AiService): List<String>
     fun hasAnyApiKey(): Boolean
     fun getModelListUrl(service: AiService): String
     fun getDefaultModelListUrl(service: AiService): String
@@ -293,7 +293,7 @@ Both can have parameter presets (paramsIds) attached for overriding agent defaul
 
 ### Design Patterns
 
-1. **MVVM with StateFlow**: `AiViewModel` exposes `StateFlow<AiUiState>`, UI recomposes reactively via `collectAsState()`
+1. **MVVM with StateFlow**: `AiViewModel` exposes `StateFlow<AiUiState>`, UI recomposes reactively via `collectAsState()`. State updates use `_uiState.value = _uiState.value.copy(...)` for most updates and `_uiState.update { }` for thread-safe read-modify-write in model fetching.
 
 2. **Repository Pattern**: `AiAnalysisRepository` facade delegates to specialized files:
    - `AiAnalysisProviders.kt` - Unified analysis (1 generic + 3 format-specific methods)
@@ -305,26 +305,30 @@ Both can have parameter presets (paramsIds) attached for overriding agent defaul
 
 4. **Singleton Storage Managers**:
    - `AiReportStorage` - Thread-safe report persistence with ReentrantLock
-   - `ChatHistoryManager` - Chat session file storage
-   - `PricingCache` - Six-tier pricing with weekly caching
-   - `ApiTracer` - Debug API logging
+   - `ChatHistoryManager` - Chat session file storage (no locking - single-thread assumption)
+   - `PricingCache` - Six-tier pricing with `@Volatile` fields + `synchronized(lock)`
+   - `ApiTracer` - Debug API logging with `@Volatile` + synchronized state flags
 
 5. **Factory Pattern**: `AiApiFactory` uses `createOpenAiCompatibleApi(baseUrl)` with `ConcurrentHashMap` cache for the 28 OpenAI-compatible providers. Only special factories remain for Claude (`createClaudeApi`), Gemini (`createGeminiApi`), and OpenAI Responses API (`createOpenAiApi`).
 
-6. **Flow-based Streaming**: SSE parsing returns `Flow<String>` for real-time token emission
+6. **Flow-based Streaming**: SSE parsing returns `Flow<String>` for real-time token emission. Three format-specific parsers: `parseOpenAiSseStream()`, `parseClaudeSseStream()`, `parseGeminiSseStream()`. OpenAI SSE terminates on `data: [DONE]`, Claude on `event: message_stop`, Gemini on stream end.
 
-7. **Inheritance Pattern**: Agents inherit API key, model, and endpoint from provider when left empty
+7. **Inheritance Pattern**: Agents inherit API key, model, and endpoint from provider when left empty. Resolution: `agent.apiKey ?: provider.apiKey`, `agent.model ?: provider.model`, `agent.endpointId ?: provider default endpoint ?: first endpoint ?: hardcoded baseUrl`.
 
-8. **Parameter Merging**: Multiple parameter presets can be applied in order, with later presets overriding earlier ones. `mergeParameters()` in `AiSettingsModels.kt` handles the merge logic.
+8. **Parameter Merging**: Multiple parameter presets applied via `reduce`: later non-null values override earlier ones. Boolean fields are "sticky true" (once enabled, stays enabled). Two-level resolution in reports: agent's own `paramsIds` merged first, then report-level `overrideParams` take final precedence.
 
-9. **Unified Settings Map**: `AiSettings` uses `providers: Map<AiService, ProviderConfig>` with accessor methods instead of 217 individual per-provider fields. `SettingsPreferences` loops over `AiService.entries` using `service.prefsKey` for load/save.
+9. **Unified Settings Map**: `AiSettings` uses `providers: Map<AiService, ProviderConfig>` with accessor methods instead of per-provider fields. `SettingsPreferences` loops over `AiService.entries` using `service.prefsKey` for load/save.
 
-10. **Thread Safety**:
+10. **Full-Screen Overlay Pattern**: Used extensively to present selection/edit screens without losing parent state. The pattern: `if (showOverlay) { OverlayScreen(...); return }` renders the overlay instead of parent content. When dismissed, parent recomposes with all `remember` state intact. Used in: ProviderSettingsScreen (model select), AgentEditScreen (model select), AiReportsScreen (viewer, parameters), ModelSearchScreen (agent creation).
+
+11. **Two-Tier Navigation**: Main screens use Jetpack Navigation (`NavHost` with routes). Settings screens use `SettingsSubScreen` enum with a `when` expression inside `SettingsScreen` composable. This avoids Navigation route complexity for the ~40+ settings sub-screens while allowing `BackHandler` to map back navigation comprehensively.
+
+12. **Thread Safety**:
     - `ConcurrentHashMap` for Retrofit instance cache
-    - `ReentrantLock` for AiReportStorage
-    - Synchronized access to `isTracingEnabled` flag
-    - Coroutines with `Dispatchers.IO` for network calls
-    - StateFlow for thread-safe state updates
+    - `ReentrantLock` for AiReportStorage (held during file I/O)
+    - `@Volatile` + `synchronized` for ApiTracer and PricingCache state
+    - Coroutines with `Dispatchers.IO` for all network calls
+    - StateFlow for thread-safe UI state updates
 
 ## AI Services
 
@@ -570,14 +574,14 @@ AI Hub (Home)
 "ai_{prefsKey}_model_list_url"    // String (custom model list URL)
 "ai_{prefsKey}_parameters_id"     // JSON List<String> (parameter preset IDs)
 
-// Collections (JSON)
+// Collections (JSON) - NOTE: ai_flocks/ai_swarms keys are historically swapped!
 "ai_agents"               // JSON List<AiAgent>
-"ai_flocks"               // JSON List<AiFlock>
-"ai_swarms"               // JSON List<AiSwarm>
+"ai_flocks"               // JSON List<AiSwarm> (SWAPPED: key "ai_flocks" stores swarms)
+"ai_swarms"               // JSON List<AiFlock> (SWAPPED: key "ai_swarms" stores flocks)
 "ai_parameters"           // JSON List<AiParameters>
 "ai_prompts"              // JSON List<AiPrompt>
 "ai_endpoints"            // JSON Map<AiService, List<AiEndpoint>>
-"provider_states"         // JSON Map<String, String> ("ok"|"error"|"not-used")
+"provider_states"         // JSON Map<String, String> ("ok"|"error"|"inactive"|"not-used")
 
 // Report generation
 "ai_report_agents"        // Set<String> - last selected agent IDs
@@ -611,11 +615,15 @@ AI Hub (Home)
 /files/trace/                # API traces (when enabled)
   └── {hostname}_{yyyyMMdd_HHmmss_SSS}.json
 
+/files/model_pricing.json        # OpenRouter pricing entries (from fetchAndSaveModelSpecifications)
+/files/model_supported_parameters.json  # OpenRouter supported params per model
+
 /cache/ai_analysis/          # Temp files for sharing
 /cache/shared_traces/        # Exported traces
+/cache/exports/              # Configuration export files
 
 /assets/
-  └── model_prices_and_context_window.json  # LiteLLM pricing data
+  └── model_prices_and_context_window.json  # Bundled LiteLLM pricing data (1.2 MB)
 ```
 
 ## Common Tasks
@@ -668,16 +676,16 @@ AI responses containing `<think>...</think>` tags:
 
 ## Export/Import Configuration
 
-### Version 16 Format (Current)
+### Version 17 Format (Current)
 
 ```json
 {
-  "version": 16,
+  "version": 17,
   "huggingFaceApiKey": "hf_...",
   "providers": {
     "OPENAI": {
       "modelSource": "API",
-      "manualModels": [],
+      "models": [],
       "apiKey": "sk-...",
       "defaultModel": "gpt-4o-mini",
       "adminUrl": "https://platform.openai.com/usage",
@@ -725,7 +733,9 @@ AI responses containing `<think>...</think>` tags:
 }
 ```
 
-**Version history:** v11 (endpoints), v13 (swarm members), v14 (params presets + flock/swarm rename), v15 (multi-select params), v16 (agent parametersIds).
+**Version history:** v11 (endpoints), v13 (swarm members), v14 (params presets + flock/swarm rename), v15 (multi-select params), v16 (agent parametersIds), v17 (renamed manualModels to models).
+
+**Import acceptance range:** Versions 11 through 17. Legacy formats are auto-migrated (inline agent parameters converted to standalone presets, flock/swarm name swap handled).
 
 ## External App Integration
 
@@ -766,7 +776,7 @@ After making changes:
 - [ ] Settings navigation works (General, Cost Config, AI Setup)
 - [ ] Provider endpoints can be added/edited/deleted
 - [ ] API tracing captures requests when enabled
-- [ ] Export/import configuration works (v16)
+- [ ] Export/import configuration works (v17)
 - [ ] All 31 providers show in provider list
 
 ## Code Quality Notes
@@ -797,3 +807,120 @@ android.util.Log.d("PricingCache", "Saved ${pricing.size} OpenRouter prices")
 android.util.Log.d("AiReportStorage", "Updated agent status: $agentId")
 android.util.Log.d("ChatHistoryManager", "Saved chat session: ${session.id}")
 ```
+
+## Build Configuration
+
+| Property | Value |
+|----------|-------|
+| Root project name | `Eval` (historical, in `settings.gradle.kts`) |
+| Application ID | `com.ai` |
+| Gradle | 8.5 |
+| Android Gradle Plugin | 8.2.2 |
+| Kotlin | 1.9.22 |
+| Compose Compiler Extension | 1.5.8 |
+| Java compatibility | Source/Target: Java 1.8, Build requires Java 17 |
+
+### Dependencies
+
+| Category | Library | Version |
+|----------|---------|---------|
+| AndroidX | core-ktx | 1.12.0 |
+| AndroidX | lifecycle-runtime-ktx | 2.7.0 |
+| AndroidX | activity-compose | 1.8.2 |
+| AndroidX | compose-bom (platform) | 2024.02.00 |
+| AndroidX | lifecycle-viewmodel-compose | 2.7.0 |
+| AndroidX | navigation-compose | 2.7.7 |
+| Networking | retrofit | 2.9.0 |
+| Networking | converter-gson | 2.9.0 |
+| Networking | converter-scalars | 2.9.0 |
+| Networking | okhttp | 4.12.0 |
+| Networking | logging-interceptor | 4.12.0 |
+| Coroutines | kotlinx-coroutines-core | 1.7.3 |
+| Coroutines | kotlinx-coroutines-android | 1.7.3 |
+| Markdown | compose-markdown (JitPack) | 0.5.8 |
+
+### Android Manifest
+
+- **Permission**: Only `INTERNET` (no storage, camera, or other permissions)
+- **Backup**: Disabled (`allowBackup=false`) to protect API keys
+- **Network security**: Cleartext HTTP allowed only for localhost/127.0.0.1
+- **Single activity**: `MainActivity` with `singleTop` launch mode
+- **External intent**: `com.ai.ACTION_NEW_REPORT` with `title` and `prompt` extras
+- **FileProvider**: `com.ai.fileprovider` for sharing reports, traces, and exports
+
+### Legacy Items (from chess app origin)
+
+The project evolved from a chess evaluation app ("Eval"). Unused legacy resources remain:
+- 12 chess piece PNG drawables in `res/drawable/`
+- 4 audio WAV files in `res/raw/` (move, capture, castle, check)
+- Chess colors in `res/values/colors.xml` (board_light, board_dark, eval_*)
+- `eco_codes.json` (420 KB) chess opening database in assets
+- ProGuard rules referencing `com.chessreplay.*` packages
+- `useLegacyPackaging = true` and `extractNativeLibs = true` for former Stockfish JNI
+
+## Data Flow Details
+
+### Report Generation Flow
+
+1. User presses Generate → `generateGenericAiReports()` called
+2. Merges parameter presets via `aiSettings.mergeParameters(parametersIds)`, falls back to `reportAdvancedParameters`
+3. Resolves agents from IDs, swarm members via `getMembersForSwarms()`, direct models
+4. Generates synthetic IDs for swarm members: `"swarm:PROVIDER_NAME:model_name"`
+5. Extracts `<user>...</user>` content from prompt → stored in `rapportText`, stripped from AI prompt
+6. Creates report skeleton via `AiReportStorage.createReport()`
+7. Dispatches all agents/swarm members in parallel via `async { }` blocks
+8. Each agent: marks RUNNING → resolves effective key/model/endpoint → calls `analyzePositionWithAgent()` → calculates cost → marks SUCCESS/ERROR in storage → updates UI state incrementally
+9. `(agentJobs + swarmJobs).awaitAll()` waits for completion
+
+### Streaming Chat Flow
+
+1. `sendChatMessageStream()` returns `Flow<String>` immediately
+2. Flow dispatches to format-specific streaming method via `AiAnalysisChat.kt`
+3. Streaming method calls Retrofit API on `Dispatchers.IO`
+4. Format-specific SSE parser reads response body line-by-line, parses JSON chunks, emits text deltas
+5. UI collects deltas, accumulates in `streamingContent`, auto-scrolls via `LaunchedEffect`
+6. After completion, `recordChatStatistics()` persists usage stats
+
+### Six-Tier Pricing Lookup
+
+1. **API response cost** (`TokenUsage.apiCost`) - checked at call site before `getPricing()`
+2. **Manual overrides** - key `"PROVIDER_NAME:model"`, source: `"OVERRIDE"`
+3. **OpenRouter API** - exact match → prefixed match (`openRouterName/model`) → partial match, source: `"OPENROUTER"`, 7-day cache
+4. **LiteLLM bundled data** - exact match → prefixed match (`getLiteLLMPrefix(provider)`), source: `"LITELLM"`
+5. **Hardcoded fallback** - ~50 entries in `FALLBACK_PRICING` map, source: `"FALLBACK"`
+6. **Default** - `$2.50/$5.00 per M tokens`, source: `"DEFAULT"`
+
+### API Format Differences
+
+| Aspect | OpenAI-Compatible (28) | Anthropic | Google Gemini |
+|--------|----------------------|-----------|---------------|
+| Auth | `Authorization: Bearer` | `x-api-key` header | `?key=` query param |
+| System prompt | In messages array | Separate `system` field | Separate `systemInstruction` |
+| Response content | `choices[].message.content` | `content[].text` blocks | `candidates[].content.parts[].text` |
+| Token usage | `prompt_tokens`/`completion_tokens` | `input_tokens`/`output_tokens` | `promptTokenCount`/`candidatesTokenCount` |
+| Stream format | `data: {choices:[{delta:{content:""}}]}` | Event-typed: `content_block_delta` | `data: {candidates:[...]}` |
+| Stream end | `data: [DONE]` | `event: message_stop` | Stream ends |
+| max_tokens | Optional (null) | Required (defaults to 4096) | Optional (`maxOutputTokens`) |
+
+## Error Handling by Component
+
+| Component | Strategy |
+|-----------|----------|
+| Analysis (report) | Two-attempt retry with 500ms delay; wraps final error in `AiAnalysisResponse` |
+| Chat (non-streaming) | Returns `null` on failure; no retry |
+| Chat (streaming) | Throws on HTTP errors; individual chunk parse failures log and continue |
+| Model fetching | Returns `emptyList()` on any error; logs to `Log.e` |
+| Report storage | try-catch around all file I/O; returns null/skips on failure |
+| Pricing cache | Falls back to next tier on any error |
+
+## Thread Safety by Component
+
+| Component | Strategy |
+|-----------|----------|
+| Analysis/Chat/Streaming | `withContext(Dispatchers.IO)` for all network calls |
+| Report storage | `ReentrantLock` held during all file read/write operations |
+| Chat history | No locking (single-thread assumption via ViewModel) |
+| Pricing cache | `@Volatile` cache fields + `synchronized(lock)` for initialization/writes |
+| API tracing | `@Volatile` + `synchronized` for state; interceptor reads safely from OkHttp threads |
+| Retrofit cache | `ConcurrentHashMap` in `AiApiFactory` |
+| StateFlow | Thread-safe by design; `_uiState.update { }` for atomic operations |

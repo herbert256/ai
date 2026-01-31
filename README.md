@@ -53,7 +53,7 @@ An Android app that generates AI-powered reports and enables conversations using
 - **Collapsible Think Sections**: AI reasoning hidden behind expandable buttons
 - **Citations & Sources**: Perplexity citations, xAI/Perplexity search results displayed
 - **User Content Tags**: Use `<user>...</user>` tags in prompts to embed content shown in HTML reports but not sent to AI
-- **Configuration Export**: Backup/restore your complete setup as JSON (v16 format)
+- **Configuration Export**: Backup/restore your complete setup as JSON (v17 format)
 
 ### Developer Features
 - **API Tracing**: Log all API requests and responses
@@ -363,7 +363,7 @@ AI Hub (Home)
     |   +-- AI Swarms (provider/model groups)
     |   +-- AI Parameters (reusable parameter presets)
     |   +-- AI Prompts (internal app prompts)
-    |   +-- Export/Import configuration (v16)
+    |   +-- Export/Import configuration (v17)
     |   +-- Housekeeping (test connections, refresh, cleanup)
     +-- External Services
     |   +-- Hugging Face API Key
@@ -421,14 +421,18 @@ Add your API key in Settings -> AI Setup -> AI Providers
 
 ## Technical Details
 
-- **Language**: Kotlin
-- **UI**: Jetpack Compose with Material 3 (dark theme)
-- **Architecture**: MVVM with StateFlow
-- **Networking**: Retrofit 2 with OkHttp
-- **Streaming**: Server-Sent Events (SSE) with Kotlin Flow
+- **Language**: Kotlin 1.9.22
+- **UI**: Jetpack Compose with Material 3 (dark theme, black background)
+- **Architecture**: MVVM with StateFlow, Repository pattern
+- **Networking**: Retrofit 2.9.0 with OkHttp 4.12.0, Gson serialization
+- **Streaming**: Server-Sent Events (SSE) with Kotlin Flow (3 format-specific parsers)
+- **Persistence**: SharedPreferences (JSON) + file-based storage
 - **Min SDK**: 26 (Android 8.0)
 - **Target SDK**: 34 (Android 14)
-- **Codebase**: ~28,700 lines across 40 Kotlin files
+- **Build tools**: Gradle 8.5, AGP 8.2.2, Java 17
+- **Codebase**: ~25,800 lines across 40 Kotlin files
+- **Permissions**: Only INTERNET (no storage, camera, or other sensitive permissions)
+- **Provider architecture**: 28 OpenAI-compatible providers share unified code paths; only Anthropic and Google Gemini have unique implementations
 
 ## Building
 
@@ -458,15 +462,15 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 
 ## Configuration Export Format
 
-Version 16 JSON format:
+Version 17 JSON format:
 ```json
 {
-  "version": 16,
+  "version": 17,
   "huggingFaceApiKey": "hf_...",
   "providers": {
     "OPENAI": {
       "modelSource": "API",
-      "manualModels": [],
+      "models": [],
       "apiKey": "sk-...",
       "defaultModel": "gpt-4o-mini",
       "adminUrl": "https://platform.openai.com/usage",
@@ -539,7 +543,7 @@ Version 16 JSON format:
 }
 ```
 
-**Note:** Import supports version 16 format. Legacy versions are auto-migrated.
+**Note:** Import supports versions 11-17. Legacy versions are auto-migrated.
 
 ## License
 
