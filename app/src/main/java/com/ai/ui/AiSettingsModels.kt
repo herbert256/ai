@@ -11,6 +11,71 @@ enum class ModelSource {
 }
 
 /**
+ * Per-provider configuration stored in AiSettings.
+ */
+data class ProviderConfig(
+    val apiKey: String = "",
+    val model: String = "",
+    val modelSource: ModelSource = ModelSource.API,
+    val manualModels: List<String> = emptyList(),
+    val adminUrl: String = "",
+    val modelListUrl: String = "",
+    val parametersIds: List<String> = emptyList()
+)
+
+/**
+ * Create default ProviderConfig for a service, including provider-specific defaults
+ * for model source and manual model lists.
+ */
+fun defaultProviderConfig(service: AiService): ProviderConfig {
+    val defaultModels: List<String> = when (service) {
+        AiService.ANTHROPIC -> CLAUDE_MODELS
+        AiService.PERPLEXITY -> PERPLEXITY_MODELS
+        AiService.SILICONFLOW -> SILICONFLOW_MODELS
+        AiService.ZAI -> ZAI_MODELS
+        AiService.MOONSHOT -> MOONSHOT_MODELS
+        AiService.COHERE -> COHERE_MODELS
+        AiService.AI21 -> AI21_MODELS
+        AiService.DASHSCOPE -> DASHSCOPE_MODELS
+        AiService.FIREWORKS -> FIREWORKS_MODELS
+        AiService.CEREBRAS -> CEREBRAS_MODELS
+        AiService.SAMBANOVA -> SAMBANOVA_MODELS
+        AiService.BAICHUAN -> BAICHUAN_MODELS
+        AiService.STEPFUN -> STEPFUN_MODELS
+        AiService.MINIMAX -> MINIMAX_MODELS
+        AiService.REPLICATE -> REPLICATE_MODELS
+        AiService.HUGGINGFACE -> HUGGINGFACE_INFERENCE_MODELS
+        AiService.LEPTON -> LEPTON_MODELS
+        AiService.YI -> YI_MODELS
+        AiService.DOUBAO -> DOUBAO_MODELS
+        AiService.REKA -> REKA_MODELS
+        AiService.WRITER -> WRITER_MODELS
+        else -> emptyList()
+    }
+    val defaultModelSource = when (service) {
+        AiService.OPENAI, AiService.GOOGLE, AiService.XAI, AiService.GROQ,
+        AiService.DEEPSEEK, AiService.MISTRAL, AiService.TOGETHER,
+        AiService.OPENROUTER, AiService.SILICONFLOW, AiService.ZAI,
+        AiService.MOONSHOT, AiService.NVIDIA, AiService.LAMBDA,
+        AiService.YI -> ModelSource.API
+        else -> if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
+    }
+    return ProviderConfig(
+        model = service.defaultModel,
+        modelSource = defaultModelSource,
+        manualModels = defaultModels,
+        adminUrl = service.adminUrl
+    )
+}
+
+/**
+ * Create the default providers map with correct defaults for all services.
+ */
+fun defaultProvidersMap(): Map<AiService, ProviderConfig> {
+    return AiService.entries.associateWith { defaultProviderConfig(it) }
+}
+
+/**
  * AI Parameter types that can be configured per agent.
  */
 enum class AiParameter {
@@ -414,223 +479,7 @@ data class AiPrompt(
  * AI Settings data class for storing API keys for various AI services.
  */
 data class AiSettings(
-    val chatGptApiKey: String = "",
-    val chatGptModel: String = AiService.OPENAI.defaultModel,
-    val chatGptModelSource: ModelSource = ModelSource.API,
-    val chatGptManualModels: List<String> = emptyList(),
-    val chatGptAdminUrl: String = AiService.OPENAI.adminUrl,
-    val chatGptModelListUrl: String = "",  // Custom model list URL (empty = use default)
-    val chatGptParametersIds: List<String> = emptyList(),   // Default parameters presets for this provider
-    val claudeApiKey: String = "",
-    val claudeModel: String = AiService.ANTHROPIC.defaultModel,
-    val claudeModelSource: ModelSource = ModelSource.API,
-    val claudeManualModels: List<String> = CLAUDE_MODELS,
-    val claudeAdminUrl: String = AiService.ANTHROPIC.adminUrl,
-    val claudeModelListUrl: String = "",
-    val claudeParametersIds: List<String> = emptyList(),
-    val geminiApiKey: String = "",
-    val geminiModel: String = AiService.GOOGLE.defaultModel,
-    val geminiModelSource: ModelSource = ModelSource.API,
-    val geminiManualModels: List<String> = emptyList(),
-    val geminiAdminUrl: String = AiService.GOOGLE.adminUrl,
-    val geminiModelListUrl: String = "",
-    val geminiParametersIds: List<String> = emptyList(),
-    val grokApiKey: String = "",
-    val grokModel: String = AiService.XAI.defaultModel,
-    val grokModelSource: ModelSource = ModelSource.API,
-    val grokManualModels: List<String> = emptyList(),
-    val grokAdminUrl: String = AiService.XAI.adminUrl,
-    val grokModelListUrl: String = "",
-    val grokParametersIds: List<String> = emptyList(),
-    val groqApiKey: String = "",
-    val groqModel: String = AiService.GROQ.defaultModel,
-    val groqModelSource: ModelSource = ModelSource.API,
-    val groqManualModels: List<String> = emptyList(),
-    val groqAdminUrl: String = AiService.GROQ.adminUrl,
-    val groqModelListUrl: String = "",
-    val groqParametersIds: List<String> = emptyList(),
-    val deepSeekApiKey: String = "",
-    val deepSeekModel: String = AiService.DEEPSEEK.defaultModel,
-    val deepSeekModelSource: ModelSource = ModelSource.API,
-    val deepSeekManualModels: List<String> = emptyList(),
-    val deepSeekAdminUrl: String = AiService.DEEPSEEK.adminUrl,
-    val deepSeekModelListUrl: String = "",
-    val deepSeekParametersIds: List<String> = emptyList(),
-    val mistralApiKey: String = "",
-    val mistralModel: String = AiService.MISTRAL.defaultModel,
-    val mistralModelSource: ModelSource = ModelSource.API,
-    val mistralManualModels: List<String> = emptyList(),
-    val mistralAdminUrl: String = AiService.MISTRAL.adminUrl,
-    val mistralModelListUrl: String = "",
-    val mistralParametersIds: List<String> = emptyList(),
-    val perplexityApiKey: String = "",
-    val perplexityModel: String = AiService.PERPLEXITY.defaultModel,
-    val perplexityModelSource: ModelSource = ModelSource.MANUAL,
-    val perplexityManualModels: List<String> = PERPLEXITY_MODELS,
-    val perplexityAdminUrl: String = AiService.PERPLEXITY.adminUrl,
-    val perplexityModelListUrl: String = "",
-    val perplexityParametersIds: List<String> = emptyList(),
-    val togetherApiKey: String = "",
-    val togetherModel: String = AiService.TOGETHER.defaultModel,
-    val togetherModelSource: ModelSource = ModelSource.API,
-    val togetherManualModels: List<String> = emptyList(),
-    val togetherAdminUrl: String = AiService.TOGETHER.adminUrl,
-    val togetherModelListUrl: String = "",
-    val togetherParametersIds: List<String> = emptyList(),
-    val openRouterApiKey: String = "",
-    val openRouterModel: String = AiService.OPENROUTER.defaultModel,
-    val openRouterModelSource: ModelSource = ModelSource.API,
-    val openRouterManualModels: List<String> = emptyList(),
-    val openRouterAdminUrl: String = AiService.OPENROUTER.adminUrl,
-    val openRouterModelListUrl: String = "",
-    val openRouterParametersIds: List<String> = emptyList(),
-    val siliconFlowApiKey: String = "",
-    val siliconFlowModel: String = AiService.SILICONFLOW.defaultModel,
-    val siliconFlowModelSource: ModelSource = ModelSource.API,
-    val siliconFlowManualModels: List<String> = SILICONFLOW_MODELS,
-    val siliconFlowAdminUrl: String = AiService.SILICONFLOW.adminUrl,
-    val siliconFlowModelListUrl: String = "",
-    val siliconFlowParametersIds: List<String> = emptyList(),
-    val zaiApiKey: String = "",
-    val zaiModel: String = AiService.ZAI.defaultModel,
-    val zaiModelSource: ModelSource = ModelSource.API,
-    val zaiManualModels: List<String> = ZAI_MODELS,
-    val zaiAdminUrl: String = AiService.ZAI.adminUrl,
-    val zaiModelListUrl: String = "",
-    val zaiParametersIds: List<String> = emptyList(),
-    val moonshotApiKey: String = "",
-    val moonshotModel: String = AiService.MOONSHOT.defaultModel,
-    val moonshotModelSource: ModelSource = ModelSource.API,
-    val moonshotManualModels: List<String> = MOONSHOT_MODELS,
-    val moonshotAdminUrl: String = AiService.MOONSHOT.adminUrl,
-    val moonshotModelListUrl: String = "",
-    val moonshotParametersIds: List<String> = emptyList(),
-    val cohereApiKey: String = "",
-    val cohereModel: String = AiService.COHERE.defaultModel,
-    val cohereModelSource: ModelSource = ModelSource.MANUAL,
-    val cohereManualModels: List<String> = COHERE_MODELS,
-    val cohereAdminUrl: String = AiService.COHERE.adminUrl,
-    val cohereModelListUrl: String = "",
-    val cohereParametersIds: List<String> = emptyList(),
-    val ai21ApiKey: String = "",
-    val ai21Model: String = AiService.AI21.defaultModel,
-    val ai21ModelSource: ModelSource = ModelSource.MANUAL,
-    val ai21ManualModels: List<String> = AI21_MODELS,
-    val ai21AdminUrl: String = AiService.AI21.adminUrl,
-    val ai21ModelListUrl: String = "",
-    val ai21ParametersIds: List<String> = emptyList(),
-    val dashScopeApiKey: String = "",
-    val dashScopeModel: String = AiService.DASHSCOPE.defaultModel,
-    val dashScopeModelSource: ModelSource = ModelSource.MANUAL,
-    val dashScopeManualModels: List<String> = DASHSCOPE_MODELS,
-    val dashScopeAdminUrl: String = AiService.DASHSCOPE.adminUrl,
-    val dashScopeModelListUrl: String = "",
-    val dashScopeParametersIds: List<String> = emptyList(),
-    val fireworksApiKey: String = "",
-    val fireworksModel: String = AiService.FIREWORKS.defaultModel,
-    val fireworksModelSource: ModelSource = ModelSource.MANUAL,
-    val fireworksManualModels: List<String> = FIREWORKS_MODELS,
-    val fireworksAdminUrl: String = AiService.FIREWORKS.adminUrl,
-    val fireworksModelListUrl: String = "",
-    val fireworksParametersIds: List<String> = emptyList(),
-    val cerebrasApiKey: String = "",
-    val cerebrasModel: String = AiService.CEREBRAS.defaultModel,
-    val cerebrasModelSource: ModelSource = ModelSource.MANUAL,
-    val cerebrasManualModels: List<String> = CEREBRAS_MODELS,
-    val cerebrasAdminUrl: String = AiService.CEREBRAS.adminUrl,
-    val cerebrasModelListUrl: String = "",
-    val cerebrasParametersIds: List<String> = emptyList(),
-    val sambaNovaApiKey: String = "",
-    val sambaNovaModel: String = AiService.SAMBANOVA.defaultModel,
-    val sambaNovaModelSource: ModelSource = ModelSource.MANUAL,
-    val sambaNovaManualModels: List<String> = SAMBANOVA_MODELS,
-    val sambaNovaAdminUrl: String = AiService.SAMBANOVA.adminUrl,
-    val sambaNovaModelListUrl: String = "",
-    val sambaNovaParametersIds: List<String> = emptyList(),
-    val baichuanApiKey: String = "",
-    val baichuanModel: String = AiService.BAICHUAN.defaultModel,
-    val baichuanModelSource: ModelSource = ModelSource.MANUAL,
-    val baichuanManualModels: List<String> = BAICHUAN_MODELS,
-    val baichuanAdminUrl: String = AiService.BAICHUAN.adminUrl,
-    val baichuanModelListUrl: String = "",
-    val baichuanParametersIds: List<String> = emptyList(),
-    val stepFunApiKey: String = "",
-    val stepFunModel: String = AiService.STEPFUN.defaultModel,
-    val stepFunModelSource: ModelSource = ModelSource.MANUAL,
-    val stepFunManualModels: List<String> = STEPFUN_MODELS,
-    val stepFunAdminUrl: String = AiService.STEPFUN.adminUrl,
-    val stepFunModelListUrl: String = "",
-    val stepFunParametersIds: List<String> = emptyList(),
-    val miniMaxApiKey: String = "",
-    val miniMaxModel: String = AiService.MINIMAX.defaultModel,
-    val miniMaxModelSource: ModelSource = ModelSource.MANUAL,
-    val miniMaxManualModels: List<String> = MINIMAX_MODELS,
-    val miniMaxAdminUrl: String = AiService.MINIMAX.adminUrl,
-    val miniMaxModelListUrl: String = "",
-    val miniMaxParametersIds: List<String> = emptyList(),
-    val nvidiaApiKey: String = "",
-    val nvidiaModel: String = AiService.NVIDIA.defaultModel,
-    val nvidiaModelSource: ModelSource = ModelSource.API,
-    val nvidiaManualModels: List<String> = emptyList(),
-    val nvidiaAdminUrl: String = AiService.NVIDIA.adminUrl,
-    val nvidiaModelListUrl: String = "",
-    val nvidiaParametersIds: List<String> = emptyList(),
-    val replicateApiKey: String = "",
-    val replicateModel: String = AiService.REPLICATE.defaultModel,
-    val replicateModelSource: ModelSource = ModelSource.MANUAL,
-    val replicateManualModels: List<String> = REPLICATE_MODELS,
-    val replicateAdminUrl: String = AiService.REPLICATE.adminUrl,
-    val replicateModelListUrl: String = "",
-    val replicateParametersIds: List<String> = emptyList(),
-    val huggingFaceInferenceApiKey: String = "",
-    val huggingFaceInferenceModel: String = AiService.HUGGINGFACE.defaultModel,
-    val huggingFaceInferenceModelSource: ModelSource = ModelSource.MANUAL,
-    val huggingFaceInferenceManualModels: List<String> = HUGGINGFACE_INFERENCE_MODELS,
-    val huggingFaceInferenceAdminUrl: String = AiService.HUGGINGFACE.adminUrl,
-    val huggingFaceInferenceModelListUrl: String = "",
-    val huggingFaceInferenceParametersIds: List<String> = emptyList(),
-    val lambdaApiKey: String = "",
-    val lambdaModel: String = AiService.LAMBDA.defaultModel,
-    val lambdaModelSource: ModelSource = ModelSource.API,
-    val lambdaManualModels: List<String> = emptyList(),
-    val lambdaAdminUrl: String = AiService.LAMBDA.adminUrl,
-    val lambdaModelListUrl: String = "",
-    val lambdaParametersIds: List<String> = emptyList(),
-    val leptonApiKey: String = "",
-    val leptonModel: String = AiService.LEPTON.defaultModel,
-    val leptonModelSource: ModelSource = ModelSource.MANUAL,
-    val leptonManualModels: List<String> = LEPTON_MODELS,
-    val leptonAdminUrl: String = AiService.LEPTON.adminUrl,
-    val leptonModelListUrl: String = "",
-    val leptonParametersIds: List<String> = emptyList(),
-    val yiApiKey: String = "",
-    val yiModel: String = AiService.YI.defaultModel,
-    val yiModelSource: ModelSource = ModelSource.API,
-    val yiManualModels: List<String> = YI_MODELS,
-    val yiAdminUrl: String = AiService.YI.adminUrl,
-    val yiModelListUrl: String = "",
-    val yiParametersIds: List<String> = emptyList(),
-    val doubaoApiKey: String = "",
-    val doubaoModel: String = AiService.DOUBAO.defaultModel,
-    val doubaoModelSource: ModelSource = ModelSource.MANUAL,
-    val doubaoManualModels: List<String> = DOUBAO_MODELS,
-    val doubaoAdminUrl: String = AiService.DOUBAO.adminUrl,
-    val doubaoModelListUrl: String = "",
-    val doubaoParametersIds: List<String> = emptyList(),
-    val rekaApiKey: String = "",
-    val rekaModel: String = AiService.REKA.defaultModel,
-    val rekaModelSource: ModelSource = ModelSource.MANUAL,
-    val rekaManualModels: List<String> = REKA_MODELS,
-    val rekaAdminUrl: String = AiService.REKA.adminUrl,
-    val rekaModelListUrl: String = "",
-    val rekaParametersIds: List<String> = emptyList(),
-    val writerApiKey: String = "",
-    val writerModel: String = AiService.WRITER.defaultModel,
-    val writerModelSource: ModelSource = ModelSource.API,
-    val writerManualModels: List<String> = WRITER_MODELS,
-    val writerAdminUrl: String = AiService.WRITER.adminUrl,
-    val writerModelListUrl: String = "",
-    val writerParametersIds: List<String> = emptyList(),
+    val providers: Map<AiService, ProviderConfig> = defaultProvidersMap(),
     // AI Agents
     val agents: List<AiAgent> = emptyList(),
     // AI Flocks
@@ -678,255 +527,27 @@ data class AiSettings(
         return copy(providerStates = providerStates + (service.name to state))
     }
 
-    fun getApiKey(service: AiService): String {
-        return when (service) {
-            AiService.OPENAI -> chatGptApiKey
-            AiService.ANTHROPIC -> claudeApiKey
-            AiService.GOOGLE -> geminiApiKey
-            AiService.XAI -> grokApiKey
-            AiService.GROQ -> groqApiKey
-            AiService.DEEPSEEK -> deepSeekApiKey
-            AiService.MISTRAL -> mistralApiKey
-            AiService.PERPLEXITY -> perplexityApiKey
-            AiService.TOGETHER -> togetherApiKey
-            AiService.OPENROUTER -> openRouterApiKey
-            AiService.SILICONFLOW -> siliconFlowApiKey
-            AiService.ZAI -> zaiApiKey
-            AiService.MOONSHOT -> moonshotApiKey
-            AiService.COHERE -> cohereApiKey
-            AiService.AI21 -> ai21ApiKey
-            AiService.DASHSCOPE -> dashScopeApiKey
-            AiService.FIREWORKS -> fireworksApiKey
-            AiService.CEREBRAS -> cerebrasApiKey
-            AiService.SAMBANOVA -> sambaNovaApiKey
-            AiService.BAICHUAN -> baichuanApiKey
-            AiService.STEPFUN -> stepFunApiKey
-            AiService.MINIMAX -> miniMaxApiKey
-            AiService.NVIDIA -> nvidiaApiKey
-            AiService.REPLICATE -> replicateApiKey
-            AiService.HUGGINGFACE -> huggingFaceInferenceApiKey
-            AiService.LAMBDA -> lambdaApiKey
-            AiService.LEPTON -> leptonApiKey
-            AiService.YI -> yiApiKey
-            AiService.DOUBAO -> doubaoApiKey
-            AiService.REKA -> rekaApiKey
-            AiService.WRITER -> writerApiKey
-        }
-    }
+    fun getProvider(service: AiService): ProviderConfig =
+        providers[service] ?: defaultProviderConfig(service)
 
-    fun withApiKey(service: AiService, apiKey: String): AiSettings {
-        return when (service) {
-            AiService.OPENAI -> copy(chatGptApiKey = apiKey)
-            AiService.ANTHROPIC -> copy(claudeApiKey = apiKey)
-            AiService.GOOGLE -> copy(geminiApiKey = apiKey)
-            AiService.XAI -> copy(grokApiKey = apiKey)
-            AiService.GROQ -> copy(groqApiKey = apiKey)
-            AiService.DEEPSEEK -> copy(deepSeekApiKey = apiKey)
-            AiService.MISTRAL -> copy(mistralApiKey = apiKey)
-            AiService.PERPLEXITY -> copy(perplexityApiKey = apiKey)
-            AiService.TOGETHER -> copy(togetherApiKey = apiKey)
-            AiService.OPENROUTER -> copy(openRouterApiKey = apiKey)
-            AiService.SILICONFLOW -> copy(siliconFlowApiKey = apiKey)
-            AiService.ZAI -> copy(zaiApiKey = apiKey)
-            AiService.MOONSHOT -> copy(moonshotApiKey = apiKey)
-            AiService.COHERE -> copy(cohereApiKey = apiKey)
-            AiService.AI21 -> copy(ai21ApiKey = apiKey)
-            AiService.DASHSCOPE -> copy(dashScopeApiKey = apiKey)
-            AiService.FIREWORKS -> copy(fireworksApiKey = apiKey)
-            AiService.CEREBRAS -> copy(cerebrasApiKey = apiKey)
-            AiService.SAMBANOVA -> copy(sambaNovaApiKey = apiKey)
-            AiService.BAICHUAN -> copy(baichuanApiKey = apiKey)
-            AiService.STEPFUN -> copy(stepFunApiKey = apiKey)
-            AiService.MINIMAX -> copy(miniMaxApiKey = apiKey)
-            AiService.NVIDIA -> copy(nvidiaApiKey = apiKey)
-            AiService.REPLICATE -> copy(replicateApiKey = apiKey)
-            AiService.HUGGINGFACE -> copy(huggingFaceInferenceApiKey = apiKey)
-            AiService.LAMBDA -> copy(lambdaApiKey = apiKey)
-            AiService.LEPTON -> copy(leptonApiKey = apiKey)
-            AiService.YI -> copy(yiApiKey = apiKey)
-            AiService.DOUBAO -> copy(doubaoApiKey = apiKey)
-            AiService.REKA -> copy(rekaApiKey = apiKey)
-            AiService.WRITER -> copy(writerApiKey = apiKey)
-        }
-    }
+    fun withProvider(service: AiService, config: ProviderConfig): AiSettings =
+        copy(providers = providers + (service to config))
 
-    fun getModel(service: AiService): String {
-        return when (service) {
-            AiService.OPENAI -> chatGptModel
-            AiService.ANTHROPIC -> claudeModel
-            AiService.GOOGLE -> geminiModel
-            AiService.XAI -> grokModel
-            AiService.GROQ -> groqModel
-            AiService.DEEPSEEK -> deepSeekModel
-            AiService.MISTRAL -> mistralModel
-            AiService.PERPLEXITY -> perplexityModel
-            AiService.TOGETHER -> togetherModel
-            AiService.OPENROUTER -> openRouterModel
-            AiService.SILICONFLOW -> siliconFlowModel
-            AiService.ZAI -> zaiModel
-            AiService.MOONSHOT -> moonshotModel
-            AiService.COHERE -> cohereModel
-            AiService.AI21 -> ai21Model
-            AiService.DASHSCOPE -> dashScopeModel
-            AiService.FIREWORKS -> fireworksModel
-            AiService.CEREBRAS -> cerebrasModel
-            AiService.SAMBANOVA -> sambaNovaModel
-            AiService.BAICHUAN -> baichuanModel
-            AiService.STEPFUN -> stepFunModel
-            AiService.MINIMAX -> miniMaxModel
-            AiService.NVIDIA -> nvidiaModel
-            AiService.REPLICATE -> replicateModel
-            AiService.HUGGINGFACE -> huggingFaceInferenceModel
-            AiService.LAMBDA -> lambdaModel
-            AiService.LEPTON -> leptonModel
-            AiService.YI -> yiModel
-            AiService.DOUBAO -> doubaoModel
-            AiService.REKA -> rekaModel
-            AiService.WRITER -> writerModel
-        }
-    }
+    fun getApiKey(service: AiService): String = getProvider(service).apiKey
 
-    fun withModel(service: AiService, model: String): AiSettings {
-        return when (service) {
-            AiService.OPENAI -> copy(chatGptModel = model)
-            AiService.ANTHROPIC -> copy(claudeModel = model)
-            AiService.GOOGLE -> copy(geminiModel = model)
-            AiService.XAI -> copy(grokModel = model)
-            AiService.GROQ -> copy(groqModel = model)
-            AiService.DEEPSEEK -> copy(deepSeekModel = model)
-            AiService.MISTRAL -> copy(mistralModel = model)
-            AiService.PERPLEXITY -> copy(perplexityModel = model)
-            AiService.TOGETHER -> copy(togetherModel = model)
-            AiService.OPENROUTER -> copy(openRouterModel = model)
-            AiService.SILICONFLOW -> copy(siliconFlowModel = model)
-            AiService.ZAI -> copy(zaiModel = model)
-            AiService.MOONSHOT -> copy(moonshotModel = model)
-            AiService.COHERE -> copy(cohereModel = model)
-            AiService.AI21 -> copy(ai21Model = model)
-            AiService.DASHSCOPE -> copy(dashScopeModel = model)
-            AiService.FIREWORKS -> copy(fireworksModel = model)
-            AiService.CEREBRAS -> copy(cerebrasModel = model)
-            AiService.SAMBANOVA -> copy(sambaNovaModel = model)
-            AiService.BAICHUAN -> copy(baichuanModel = model)
-            AiService.STEPFUN -> copy(stepFunModel = model)
-            AiService.MINIMAX -> copy(miniMaxModel = model)
-            AiService.NVIDIA -> copy(nvidiaModel = model)
-            AiService.REPLICATE -> copy(replicateModel = model)
-            AiService.HUGGINGFACE -> copy(huggingFaceInferenceModel = model)
-            AiService.LAMBDA -> copy(lambdaModel = model)
-            AiService.LEPTON -> copy(leptonModel = model)
-            AiService.YI -> copy(yiModel = model)
-            AiService.DOUBAO -> copy(doubaoModel = model)
-            AiService.REKA -> copy(rekaModel = model)
-            AiService.WRITER -> copy(writerModel = model)
-        }
-    }
+    fun withApiKey(service: AiService, apiKey: String): AiSettings =
+        withProvider(service, getProvider(service).copy(apiKey = apiKey))
 
-    fun getModelSource(service: AiService): ModelSource {
-        return when (service) {
-            AiService.OPENAI -> chatGptModelSource
-            AiService.ANTHROPIC -> claudeModelSource
-            AiService.GOOGLE -> geminiModelSource
-            AiService.XAI -> grokModelSource
-            AiService.GROQ -> groqModelSource
-            AiService.DEEPSEEK -> deepSeekModelSource
-            AiService.MISTRAL -> mistralModelSource
-            AiService.PERPLEXITY -> perplexityModelSource
-            AiService.TOGETHER -> togetherModelSource
-            AiService.OPENROUTER -> openRouterModelSource
-            AiService.SILICONFLOW -> siliconFlowModelSource
-            AiService.ZAI -> zaiModelSource
-            AiService.MOONSHOT -> moonshotModelSource
-            AiService.COHERE -> cohereModelSource
-            AiService.AI21 -> ai21ModelSource
-            AiService.DASHSCOPE -> dashScopeModelSource
-            AiService.FIREWORKS -> fireworksModelSource
-            AiService.CEREBRAS -> cerebrasModelSource
-            AiService.SAMBANOVA -> sambaNovaModelSource
-            AiService.BAICHUAN -> baichuanModelSource
-            AiService.STEPFUN -> stepFunModelSource
-            AiService.MINIMAX -> miniMaxModelSource
-            AiService.NVIDIA -> nvidiaModelSource
-            AiService.REPLICATE -> replicateModelSource
-            AiService.HUGGINGFACE -> huggingFaceInferenceModelSource
-            AiService.LAMBDA -> lambdaModelSource
-            AiService.LEPTON -> leptonModelSource
-            AiService.YI -> yiModelSource
-            AiService.DOUBAO -> doubaoModelSource
-            AiService.REKA -> rekaModelSource
-            AiService.WRITER -> writerModelSource
-        }
-    }
+    fun getModel(service: AiService): String = getProvider(service).model
 
-    fun getManualModels(service: AiService): List<String> {
-        return when (service) {
-            AiService.OPENAI -> chatGptManualModels
-            AiService.ANTHROPIC -> claudeManualModels
-            AiService.GOOGLE -> geminiManualModels
-            AiService.XAI -> grokManualModels
-            AiService.GROQ -> groqManualModels
-            AiService.DEEPSEEK -> deepSeekManualModels
-            AiService.MISTRAL -> mistralManualModels
-            AiService.PERPLEXITY -> perplexityManualModels
-            AiService.TOGETHER -> togetherManualModels
-            AiService.OPENROUTER -> openRouterManualModels
-            AiService.SILICONFLOW -> siliconFlowManualModels
-            AiService.ZAI -> zaiManualModels
-            AiService.MOONSHOT -> moonshotManualModels
-            AiService.COHERE -> cohereManualModels
-            AiService.AI21 -> ai21ManualModels
-            AiService.DASHSCOPE -> dashScopeManualModels
-            AiService.FIREWORKS -> fireworksManualModels
-            AiService.CEREBRAS -> cerebrasManualModels
-            AiService.SAMBANOVA -> sambaNovaManualModels
-            AiService.BAICHUAN -> baichuanManualModels
-            AiService.STEPFUN -> stepFunManualModels
-            AiService.MINIMAX -> miniMaxManualModels
-            AiService.NVIDIA -> nvidiaManualModels
-            AiService.REPLICATE -> replicateManualModels
-            AiService.HUGGINGFACE -> huggingFaceInferenceManualModels
-            AiService.LAMBDA -> lambdaManualModels
-            AiService.LEPTON -> leptonManualModels
-            AiService.YI -> yiManualModels
-            AiService.DOUBAO -> doubaoManualModels
-            AiService.REKA -> rekaManualModels
-            AiService.WRITER -> writerManualModels
-        }
-    }
+    fun withModel(service: AiService, model: String): AiSettings =
+        withProvider(service, getProvider(service).copy(model = model))
 
-    fun hasAnyApiKey(): Boolean {
-        return chatGptApiKey.isNotBlank() ||
-                claudeApiKey.isNotBlank() ||
-                geminiApiKey.isNotBlank() ||
-                grokApiKey.isNotBlank() ||
-                groqApiKey.isNotBlank() ||
-                deepSeekApiKey.isNotBlank() ||
-                mistralApiKey.isNotBlank() ||
-                perplexityApiKey.isNotBlank() ||
-                togetherApiKey.isNotBlank() ||
-                openRouterApiKey.isNotBlank() ||
-                siliconFlowApiKey.isNotBlank() ||
-                zaiApiKey.isNotBlank() ||
-                moonshotApiKey.isNotBlank() ||
-                cohereApiKey.isNotBlank() ||
-                ai21ApiKey.isNotBlank() ||
-                dashScopeApiKey.isNotBlank() ||
-                fireworksApiKey.isNotBlank() ||
-                cerebrasApiKey.isNotBlank() ||
-                sambaNovaApiKey.isNotBlank() ||
-                baichuanApiKey.isNotBlank() ||
-                stepFunApiKey.isNotBlank() ||
-                miniMaxApiKey.isNotBlank() ||
-                nvidiaApiKey.isNotBlank() ||
-                replicateApiKey.isNotBlank() ||
-                huggingFaceInferenceApiKey.isNotBlank() ||
-                lambdaApiKey.isNotBlank() ||
-                leptonApiKey.isNotBlank() ||
-                yiApiKey.isNotBlank() ||
-                doubaoApiKey.isNotBlank() ||
-                rekaApiKey.isNotBlank() ||
-                writerApiKey.isNotBlank()
-    }
+    fun getModelSource(service: AiService): ModelSource = getProvider(service).modelSource
+
+    fun getManualModels(service: AiService): List<String> = getProvider(service).manualModels
+
+    fun hasAnyApiKey(): Boolean = providers.values.any { it.apiKey.isNotBlank() }
 
     // Helper methods for agents
     fun getAgentById(id: String): AiAgent? = agents.find { it.id == id }
@@ -1139,79 +760,14 @@ data class AiSettings(
      * Get the custom model list URL for a provider.
      * Returns empty string if using default (hardcoded) URL.
      */
-    fun getModelListUrl(service: AiService): String {
-        return when (service) {
-            AiService.OPENAI -> chatGptModelListUrl
-            AiService.ANTHROPIC -> claudeModelListUrl
-            AiService.GOOGLE -> geminiModelListUrl
-            AiService.XAI -> grokModelListUrl
-            AiService.GROQ -> groqModelListUrl
-            AiService.DEEPSEEK -> deepSeekModelListUrl
-            AiService.MISTRAL -> mistralModelListUrl
-            AiService.PERPLEXITY -> perplexityModelListUrl
-            AiService.TOGETHER -> togetherModelListUrl
-            AiService.OPENROUTER -> openRouterModelListUrl
-            AiService.SILICONFLOW -> siliconFlowModelListUrl
-            AiService.ZAI -> zaiModelListUrl
-            AiService.MOONSHOT -> moonshotModelListUrl
-            AiService.COHERE -> cohereModelListUrl
-            AiService.AI21 -> ai21ModelListUrl
-            AiService.DASHSCOPE -> dashScopeModelListUrl
-            AiService.FIREWORKS -> fireworksModelListUrl
-            AiService.CEREBRAS -> cerebrasModelListUrl
-            AiService.SAMBANOVA -> sambaNovaModelListUrl
-            AiService.BAICHUAN -> baichuanModelListUrl
-            AiService.STEPFUN -> stepFunModelListUrl
-            AiService.MINIMAX -> miniMaxModelListUrl
-            AiService.NVIDIA -> nvidiaModelListUrl
-            AiService.REPLICATE -> replicateModelListUrl
-            AiService.HUGGINGFACE -> huggingFaceInferenceModelListUrl
-            AiService.LAMBDA -> lambdaModelListUrl
-            AiService.LEPTON -> leptonModelListUrl
-            AiService.YI -> yiModelListUrl
-            AiService.DOUBAO -> doubaoModelListUrl
-            AiService.REKA -> rekaModelListUrl
-            AiService.WRITER -> writerModelListUrl
-        }
-    }
+    fun getModelListUrl(service: AiService): String = getProvider(service).modelListUrl
 
     /**
-     * Get the default model list URL for a provider (hardcoded).
+     * Get the default model list URL for a provider (derived from baseUrl + modelsPath).
      */
     fun getDefaultModelListUrl(service: AiService): String {
-        return when (service) {
-            AiService.OPENAI -> "https://api.openai.com/v1/models"
-            AiService.ANTHROPIC -> "https://api.anthropic.com/v1/models"
-            AiService.GOOGLE -> "https://generativelanguage.googleapis.com/v1beta/models"
-            AiService.XAI -> "https://api.x.ai/v1/models"
-            AiService.GROQ -> "https://api.groq.com/openai/v1/models"
-            AiService.DEEPSEEK -> "https://api.deepseek.com/models"
-            AiService.MISTRAL -> "https://api.mistral.ai/v1/models"
-            AiService.PERPLEXITY -> "https://api.perplexity.ai/models"
-            AiService.TOGETHER -> "https://api.together.xyz/v1/models"
-            AiService.OPENROUTER -> "https://openrouter.ai/api/v1/models"
-            AiService.SILICONFLOW -> "https://api.siliconflow.cn/v1/models"
-            AiService.ZAI -> "https://api.z.ai/api/paas/v4/models"
-            AiService.MOONSHOT -> "https://api.moonshot.cn/v1/models"
-            AiService.COHERE -> "https://api.cohere.ai/compatibility/v1/models"
-            AiService.AI21 -> "https://api.ai21.com/v1/models"
-            AiService.DASHSCOPE -> "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models"
-            AiService.FIREWORKS -> "https://api.fireworks.ai/inference/v1/models"
-            AiService.CEREBRAS -> "https://api.cerebras.ai/v1/models"
-            AiService.SAMBANOVA -> "https://api.sambanova.ai/v1/models"
-            AiService.BAICHUAN -> "https://api.baichuan-ai.com/v1/models"
-            AiService.STEPFUN -> "https://api.stepfun.com/v1/models"
-            AiService.MINIMAX -> "https://api.minimax.io/v1/models"
-            AiService.NVIDIA -> "https://integrate.api.nvidia.com/v1/models"
-            AiService.REPLICATE -> "https://api.replicate.com/v1/models"
-            AiService.HUGGINGFACE -> "https://api-inference.huggingface.co/v1/models"
-            AiService.LAMBDA -> "https://api.lambdalabs.com/v1/models"
-            AiService.LEPTON -> "https://api.lepton.ai/v1/models"
-            AiService.YI -> "https://api.01.ai/v1/models"
-            AiService.DOUBAO -> "https://ark.cn-beijing.volces.com/api/v3/models"
-            AiService.REKA -> "https://api.reka.ai/v1/models"
-            AiService.WRITER -> "https://api.writer.com/v1/models"
-        }
+        val base = if (service.baseUrl.endsWith("/")) service.baseUrl else "${service.baseUrl}/"
+        return base + service.modelsPath
     }
 
     /**
@@ -1226,80 +782,13 @@ data class AiSettings(
     /**
      * Get the default parameters preset IDs for a provider.
      */
-    fun getParametersIds(service: AiService): List<String> {
-        return when (service) {
-            AiService.OPENAI -> chatGptParametersIds
-            AiService.ANTHROPIC -> claudeParametersIds
-            AiService.GOOGLE -> geminiParametersIds
-            AiService.XAI -> grokParametersIds
-            AiService.GROQ -> groqParametersIds
-            AiService.DEEPSEEK -> deepSeekParametersIds
-            AiService.MISTRAL -> mistralParametersIds
-            AiService.PERPLEXITY -> perplexityParametersIds
-            AiService.TOGETHER -> togetherParametersIds
-            AiService.OPENROUTER -> openRouterParametersIds
-            AiService.SILICONFLOW -> siliconFlowParametersIds
-            AiService.ZAI -> zaiParametersIds
-            AiService.MOONSHOT -> moonshotParametersIds
-            AiService.COHERE -> cohereParametersIds
-            AiService.AI21 -> ai21ParametersIds
-            AiService.DASHSCOPE -> dashScopeParametersIds
-            AiService.FIREWORKS -> fireworksParametersIds
-            AiService.CEREBRAS -> cerebrasParametersIds
-            AiService.SAMBANOVA -> sambaNovaParametersIds
-            AiService.BAICHUAN -> baichuanParametersIds
-            AiService.STEPFUN -> stepFunParametersIds
-            AiService.MINIMAX -> miniMaxParametersIds
-            AiService.NVIDIA -> nvidiaParametersIds
-            AiService.REPLICATE -> replicateParametersIds
-            AiService.HUGGINGFACE -> huggingFaceInferenceParametersIds
-            AiService.LAMBDA -> lambdaParametersIds
-            AiService.LEPTON -> leptonParametersIds
-            AiService.YI -> yiParametersIds
-            AiService.DOUBAO -> doubaoParametersIds
-            AiService.REKA -> rekaParametersIds
-            AiService.WRITER -> writerParametersIds
-        }
-    }
+    fun getParametersIds(service: AiService): List<String> = getProvider(service).parametersIds
 
     /**
      * Set the default parameters preset IDs for a provider.
      */
-    fun withParametersIds(service: AiService, paramsIds: List<String>): AiSettings {
-        return when (service) {
-            AiService.OPENAI -> copy(chatGptParametersIds = paramsIds)
-            AiService.ANTHROPIC -> copy(claudeParametersIds = paramsIds)
-            AiService.GOOGLE -> copy(geminiParametersIds = paramsIds)
-            AiService.XAI -> copy(grokParametersIds = paramsIds)
-            AiService.GROQ -> copy(groqParametersIds = paramsIds)
-            AiService.DEEPSEEK -> copy(deepSeekParametersIds = paramsIds)
-            AiService.MISTRAL -> copy(mistralParametersIds = paramsIds)
-            AiService.PERPLEXITY -> copy(perplexityParametersIds = paramsIds)
-            AiService.TOGETHER -> copy(togetherParametersIds = paramsIds)
-            AiService.OPENROUTER -> copy(openRouterParametersIds = paramsIds)
-            AiService.SILICONFLOW -> copy(siliconFlowParametersIds = paramsIds)
-            AiService.ZAI -> copy(zaiParametersIds = paramsIds)
-            AiService.MOONSHOT -> copy(moonshotParametersIds = paramsIds)
-            AiService.COHERE -> copy(cohereParametersIds = paramsIds)
-            AiService.AI21 -> copy(ai21ParametersIds = paramsIds)
-            AiService.DASHSCOPE -> copy(dashScopeParametersIds = paramsIds)
-            AiService.FIREWORKS -> copy(fireworksParametersIds = paramsIds)
-            AiService.CEREBRAS -> copy(cerebrasParametersIds = paramsIds)
-            AiService.SAMBANOVA -> copy(sambaNovaParametersIds = paramsIds)
-            AiService.BAICHUAN -> copy(baichuanParametersIds = paramsIds)
-            AiService.STEPFUN -> copy(stepFunParametersIds = paramsIds)
-            AiService.MINIMAX -> copy(miniMaxParametersIds = paramsIds)
-            AiService.NVIDIA -> copy(nvidiaParametersIds = paramsIds)
-            AiService.REPLICATE -> copy(replicateParametersIds = paramsIds)
-            AiService.HUGGINGFACE -> copy(huggingFaceInferenceParametersIds = paramsIds)
-            AiService.LAMBDA -> copy(lambdaParametersIds = paramsIds)
-            AiService.LEPTON -> copy(leptonParametersIds = paramsIds)
-            AiService.YI -> copy(yiParametersIds = paramsIds)
-            AiService.DOUBAO -> copy(doubaoParametersIds = paramsIds)
-            AiService.REKA -> copy(rekaParametersIds = paramsIds)
-            AiService.WRITER -> copy(writerParametersIds = paramsIds)
-        }
-    }
+    fun withParametersIds(service: AiService, paramsIds: List<String>): AiSettings =
+        withProvider(service, getProvider(service).copy(parametersIds = paramsIds))
 
     /**
      * Resolve a list of parameter preset IDs to AiParameters objects.

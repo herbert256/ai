@@ -175,17 +175,10 @@ fun HousekeepingScreen(
     if (showResultsDialog && refreshResults != null) {
         // Only show providers that are set to MANUAL model source
         val manualProviders = buildList {
-            if (aiSettings.claudeApiKey.isNotBlank() && aiSettings.claudeModelSource == ModelSource.MANUAL) {
-                add("Anthropic" to aiSettings.claudeManualModels.size)
-            }
-            if (aiSettings.perplexityApiKey.isNotBlank() && aiSettings.perplexityModelSource == ModelSource.MANUAL) {
-                add("Perplexity" to aiSettings.perplexityManualModels.size)
-            }
-            if (aiSettings.siliconFlowApiKey.isNotBlank() && aiSettings.siliconFlowModelSource == ModelSource.MANUAL) {
-                add("SiliconFlow" to aiSettings.siliconFlowManualModels.size)
-            }
-            if (aiSettings.zaiApiKey.isNotBlank() && aiSettings.zaiModelSource == ModelSource.MANUAL) {
-                add("Z.AI" to aiSettings.zaiManualModels.size)
+            for (service in com.ai.data.AiService.entries) {
+                if (aiSettings.getApiKey(service).isNotBlank() && aiSettings.getModelSource(service) == ModelSource.MANUAL) {
+                    add(service.displayName to aiSettings.getManualModels(service).size)
+                }
             }
         }
 
@@ -558,18 +551,7 @@ fun HousekeepingScreen(
         }
 
         // Export card
-        val hasApiKeyForExport = aiSettings.chatGptApiKey.isNotBlank() ||
-                aiSettings.claudeApiKey.isNotBlank() ||
-                aiSettings.geminiApiKey.isNotBlank() ||
-                aiSettings.grokApiKey.isNotBlank() ||
-                aiSettings.groqApiKey.isNotBlank() ||
-                aiSettings.deepSeekApiKey.isNotBlank() ||
-                aiSettings.mistralApiKey.isNotBlank() ||
-                aiSettings.perplexityApiKey.isNotBlank() ||
-                aiSettings.togetherApiKey.isNotBlank() ||
-                aiSettings.openRouterApiKey.isNotBlank() ||
-                aiSettings.siliconFlowApiKey.isNotBlank() ||
-                aiSettings.zaiApiKey.isNotBlank()
+        val hasApiKeyForExport = aiSettings.hasAnyApiKey()
         val visibleAgentsForExport = aiSettings.agents
         val canExportConfig = hasApiKeyForExport &&
                 visibleAgentsForExport.isNotEmpty() &&
@@ -1110,11 +1092,11 @@ private fun exportModelCostsToCsv(
     val allModels = mutableListOf<ProviderModel>()
 
     // OpenAI models (API or fallback to manual)
-    val chatGptModels = availableChatGptModels.ifEmpty { aiSettings.chatGptManualModels }
+    val chatGptModels = availableChatGptModels.ifEmpty { aiSettings.getManualModels(AiService.OPENAI) }
     chatGptModels.forEach { allModels.add(ProviderModel("OPENAI", it)) }
 
     // Anthropic models (API or fallback to manual)
-    val claudeModels = availableClaudeModels.ifEmpty { aiSettings.claudeManualModels }
+    val claudeModels = availableClaudeModels.ifEmpty { aiSettings.getManualModels(AiService.ANTHROPIC) }
     claudeModels.forEach { allModels.add(ProviderModel("ANTHROPIC", it)) }
 
     // Google models
@@ -1133,7 +1115,7 @@ private fun exportModelCostsToCsv(
     availableMistralModels.forEach { allModels.add(ProviderModel("MISTRAL", it)) }
 
     // Perplexity models (hardcoded - no API, use manual models)
-    val perplexityModels = availablePerplexityModels.ifEmpty { aiSettings.perplexityManualModels }
+    val perplexityModels = availablePerplexityModels.ifEmpty { aiSettings.getManualModels(AiService.PERPLEXITY) }
     perplexityModels.forEach { allModels.add(ProviderModel("PERPLEXITY", it)) }
 
     // Together models
@@ -1143,87 +1125,87 @@ private fun exportModelCostsToCsv(
     availableOpenRouterModels.forEach { allModels.add(ProviderModel("OPENROUTER", it)) }
 
     // SiliconFlow models (API or fallback to manual)
-    val siliconFlowModels = availableSiliconFlowModels.ifEmpty { aiSettings.siliconFlowManualModels }
+    val siliconFlowModels = availableSiliconFlowModels.ifEmpty { aiSettings.getManualModels(AiService.SILICONFLOW) }
     siliconFlowModels.forEach { allModels.add(ProviderModel("SILICONFLOW", it)) }
 
     // Z.AI models (API or fallback to manual)
-    val zaiModels = availableZaiModels.ifEmpty { aiSettings.zaiManualModels }
+    val zaiModels = availableZaiModels.ifEmpty { aiSettings.getManualModels(AiService.ZAI) }
     zaiModels.forEach { allModels.add(ProviderModel("ZAI", it)) }
 
     // Moonshot models (API or fallback to manual)
-    val moonshotModels = availableMoonshotModels.ifEmpty { aiSettings.moonshotManualModels }
+    val moonshotModels = availableMoonshotModels.ifEmpty { aiSettings.getManualModels(AiService.MOONSHOT) }
     moonshotModels.forEach { allModels.add(ProviderModel("MOONSHOT", it)) }
 
     // Cohere models (API or fallback to manual)
-    val cohereModelsC = availableCohereModels.ifEmpty { aiSettings.cohereManualModels }
+    val cohereModelsC = availableCohereModels.ifEmpty { aiSettings.getManualModels(AiService.COHERE) }
     cohereModelsC.forEach { allModels.add(ProviderModel("COHERE", it)) }
 
     // AI21 models (API or fallback to manual)
-    val ai21ModelsC = availableAi21Models.ifEmpty { aiSettings.ai21ManualModels }
+    val ai21ModelsC = availableAi21Models.ifEmpty { aiSettings.getManualModels(AiService.AI21) }
     ai21ModelsC.forEach { allModels.add(ProviderModel("AI21", it)) }
 
     // DashScope models (API or fallback to manual)
-    val dashScopeModelsC = availableDashScopeModels.ifEmpty { aiSettings.dashScopeManualModels }
+    val dashScopeModelsC = availableDashScopeModels.ifEmpty { aiSettings.getManualModels(AiService.DASHSCOPE) }
     dashScopeModelsC.forEach { allModels.add(ProviderModel("DASHSCOPE", it)) }
 
     // Fireworks models (API or fallback to manual)
-    val fireworksModelsC = availableFireworksModels.ifEmpty { aiSettings.fireworksManualModels }
+    val fireworksModelsC = availableFireworksModels.ifEmpty { aiSettings.getManualModels(AiService.FIREWORKS) }
     fireworksModelsC.forEach { allModels.add(ProviderModel("FIREWORKS", it)) }
 
     // Cerebras models (API or fallback to manual)
-    val cerebrasModelsC = availableCerebrasModels.ifEmpty { aiSettings.cerebrasManualModels }
+    val cerebrasModelsC = availableCerebrasModels.ifEmpty { aiSettings.getManualModels(AiService.CEREBRAS) }
     cerebrasModelsC.forEach { allModels.add(ProviderModel("CEREBRAS", it)) }
 
     // SambaNova models (API or fallback to manual)
-    val sambaNovaModelsC = availableSambaNovaModels.ifEmpty { aiSettings.sambaNovaManualModels }
+    val sambaNovaModelsC = availableSambaNovaModels.ifEmpty { aiSettings.getManualModels(AiService.SAMBANOVA) }
     sambaNovaModelsC.forEach { allModels.add(ProviderModel("SAMBANOVA", it)) }
 
     // Baichuan models (API or fallback to manual)
-    val baichuanModelsC = availableBaichuanModels.ifEmpty { aiSettings.baichuanManualModels }
+    val baichuanModelsC = availableBaichuanModels.ifEmpty { aiSettings.getManualModels(AiService.BAICHUAN) }
     baichuanModelsC.forEach { allModels.add(ProviderModel("BAICHUAN", it)) }
 
     // StepFun models (API or fallback to manual)
-    val stepFunModelsC = availableStepFunModels.ifEmpty { aiSettings.stepFunManualModels }
+    val stepFunModelsC = availableStepFunModels.ifEmpty { aiSettings.getManualModels(AiService.STEPFUN) }
     stepFunModelsC.forEach { allModels.add(ProviderModel("STEPFUN", it)) }
 
     // MiniMax models (API or fallback to manual)
-    val miniMaxModelsC = availableMiniMaxModels.ifEmpty { aiSettings.miniMaxManualModels }
+    val miniMaxModelsC = availableMiniMaxModels.ifEmpty { aiSettings.getManualModels(AiService.MINIMAX) }
     miniMaxModelsC.forEach { allModels.add(ProviderModel("MINIMAX", it)) }
 
     // NVIDIA models (API or fallback to manual)
-    val nvidiaModelsC = availableNvidiaModels.ifEmpty { aiSettings.nvidiaManualModels }
+    val nvidiaModelsC = availableNvidiaModels.ifEmpty { aiSettings.getManualModels(AiService.NVIDIA) }
     nvidiaModelsC.forEach { allModels.add(ProviderModel("NVIDIA", it)) }
 
     // Replicate models (API or fallback to manual)
-    val replicateModelsC = availableReplicateModels.ifEmpty { aiSettings.replicateManualModels }
+    val replicateModelsC = availableReplicateModels.ifEmpty { aiSettings.getManualModels(AiService.REPLICATE) }
     replicateModelsC.forEach { allModels.add(ProviderModel("REPLICATE", it)) }
 
     // Hugging Face models (API or fallback to manual)
-    val huggingFaceModelsC = availableHuggingFaceInferenceModels.ifEmpty { aiSettings.huggingFaceInferenceManualModels }
+    val huggingFaceModelsC = availableHuggingFaceInferenceModels.ifEmpty { aiSettings.getManualModels(AiService.HUGGINGFACE) }
     huggingFaceModelsC.forEach { allModels.add(ProviderModel("HUGGINGFACE", it)) }
 
     // Lambda models (API or fallback to manual)
-    val lambdaModelsC = availableLambdaModels.ifEmpty { aiSettings.lambdaManualModels }
+    val lambdaModelsC = availableLambdaModels.ifEmpty { aiSettings.getManualModels(AiService.LAMBDA) }
     lambdaModelsC.forEach { allModels.add(ProviderModel("LAMBDA", it)) }
 
     // Lepton models (API or fallback to manual)
-    val leptonModelsC = availableLeptonModels.ifEmpty { aiSettings.leptonManualModels }
+    val leptonModelsC = availableLeptonModels.ifEmpty { aiSettings.getManualModels(AiService.LEPTON) }
     leptonModelsC.forEach { allModels.add(ProviderModel("LEPTON", it)) }
 
     // 01.AI (Yi) models (API or fallback to manual)
-    val yiModelsC = availableYiModels.ifEmpty { aiSettings.yiManualModels }
+    val yiModelsC = availableYiModels.ifEmpty { aiSettings.getManualModels(AiService.YI) }
     yiModelsC.forEach { allModels.add(ProviderModel("YI", it)) }
 
     // Doubao models (API or fallback to manual)
-    val doubaoModelsC = availableDoubaoModels.ifEmpty { aiSettings.doubaoManualModels }
+    val doubaoModelsC = availableDoubaoModels.ifEmpty { aiSettings.getManualModels(AiService.DOUBAO) }
     doubaoModelsC.forEach { allModels.add(ProviderModel("DOUBAO", it)) }
 
     // Reka models (API or fallback to manual)
-    val rekaModelsC = availableRekaModels.ifEmpty { aiSettings.rekaManualModels }
+    val rekaModelsC = availableRekaModels.ifEmpty { aiSettings.getManualModels(AiService.REKA) }
     rekaModelsC.forEach { allModels.add(ProviderModel("REKA", it)) }
 
     // Writer models (API or fallback to manual)
-    val writerModelsC = availableWriterModels.ifEmpty { aiSettings.writerManualModels }
+    val writerModelsC = availableWriterModels.ifEmpty { aiSettings.getManualModels(AiService.WRITER) }
     writerModelsC.forEach { allModels.add(ProviderModel("WRITER", it)) }
 
     // Sort by provider then model

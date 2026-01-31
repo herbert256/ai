@@ -133,39 +133,12 @@ fun ChatSelectModelScreen(
 
     // Get API key and model source for this provider
     val (apiKey, modelSource, manualModels, defaultModel) = remember(provider) {
-        when (provider) {
-            AiService.OPENAI -> Quadruple(aiSettings.chatGptApiKey, aiSettings.chatGptModelSource, aiSettings.chatGptManualModels, aiSettings.chatGptModel)
-            AiService.ANTHROPIC -> Quadruple(aiSettings.claudeApiKey, ModelSource.MANUAL, aiSettings.claudeManualModels, aiSettings.claudeModel)
-            AiService.GOOGLE -> Quadruple(aiSettings.geminiApiKey, aiSettings.geminiModelSource, aiSettings.geminiManualModels, aiSettings.geminiModel)
-            AiService.XAI -> Quadruple(aiSettings.grokApiKey, aiSettings.grokModelSource, aiSettings.grokManualModels, aiSettings.grokModel)
-            AiService.GROQ -> Quadruple(aiSettings.groqApiKey, aiSettings.groqModelSource, aiSettings.groqManualModels, aiSettings.groqModel)
-            AiService.DEEPSEEK -> Quadruple(aiSettings.deepSeekApiKey, aiSettings.deepSeekModelSource, aiSettings.deepSeekManualModels, aiSettings.deepSeekModel)
-            AiService.MISTRAL -> Quadruple(aiSettings.mistralApiKey, aiSettings.mistralModelSource, aiSettings.mistralManualModels, aiSettings.mistralModel)
-            AiService.PERPLEXITY -> Quadruple(aiSettings.perplexityApiKey, ModelSource.MANUAL, aiSettings.perplexityManualModels, aiSettings.perplexityModel)
-            AiService.TOGETHER -> Quadruple(aiSettings.togetherApiKey, aiSettings.togetherModelSource, aiSettings.togetherManualModels, aiSettings.togetherModel)
-            AiService.OPENROUTER -> Quadruple(aiSettings.openRouterApiKey, aiSettings.openRouterModelSource, aiSettings.openRouterManualModels, aiSettings.openRouterModel)
-            AiService.SILICONFLOW -> Quadruple(aiSettings.siliconFlowApiKey, ModelSource.MANUAL, aiSettings.siliconFlowManualModels, aiSettings.siliconFlowModel)
-            AiService.ZAI -> Quadruple(aiSettings.zaiApiKey, ModelSource.MANUAL, aiSettings.zaiManualModels, aiSettings.zaiModel)
-            AiService.MOONSHOT -> Quadruple(aiSettings.moonshotApiKey, aiSettings.moonshotModelSource, aiSettings.moonshotManualModels, aiSettings.moonshotModel)
-            AiService.COHERE -> Quadruple(aiSettings.cohereApiKey, aiSettings.cohereModelSource, aiSettings.cohereManualModels, aiSettings.cohereModel)
-            AiService.AI21 -> Quadruple(aiSettings.ai21ApiKey, aiSettings.ai21ModelSource, aiSettings.ai21ManualModels, aiSettings.ai21Model)
-            AiService.DASHSCOPE -> Quadruple(aiSettings.dashScopeApiKey, aiSettings.dashScopeModelSource, aiSettings.dashScopeManualModels, aiSettings.dashScopeModel)
-            AiService.FIREWORKS -> Quadruple(aiSettings.fireworksApiKey, aiSettings.fireworksModelSource, aiSettings.fireworksManualModels, aiSettings.fireworksModel)
-            AiService.CEREBRAS -> Quadruple(aiSettings.cerebrasApiKey, aiSettings.cerebrasModelSource, aiSettings.cerebrasManualModels, aiSettings.cerebrasModel)
-            AiService.SAMBANOVA -> Quadruple(aiSettings.sambaNovaApiKey, aiSettings.sambaNovaModelSource, aiSettings.sambaNovaManualModels, aiSettings.sambaNovaModel)
-            AiService.BAICHUAN -> Quadruple(aiSettings.baichuanApiKey, aiSettings.baichuanModelSource, aiSettings.baichuanManualModels, aiSettings.baichuanModel)
-            AiService.STEPFUN -> Quadruple(aiSettings.stepFunApiKey, aiSettings.stepFunModelSource, aiSettings.stepFunManualModels, aiSettings.stepFunModel)
-            AiService.MINIMAX -> Quadruple(aiSettings.miniMaxApiKey, aiSettings.miniMaxModelSource, aiSettings.miniMaxManualModels, aiSettings.miniMaxModel)
-            AiService.NVIDIA -> Quadruple(aiSettings.nvidiaApiKey, aiSettings.nvidiaModelSource, aiSettings.nvidiaManualModels, aiSettings.nvidiaModel)
-            AiService.REPLICATE -> Quadruple(aiSettings.replicateApiKey, aiSettings.replicateModelSource, aiSettings.replicateManualModels, aiSettings.replicateModel)
-            AiService.HUGGINGFACE -> Quadruple(aiSettings.huggingFaceInferenceApiKey, aiSettings.huggingFaceInferenceModelSource, aiSettings.huggingFaceInferenceManualModels, aiSettings.huggingFaceInferenceModel)
-            AiService.LAMBDA -> Quadruple(aiSettings.lambdaApiKey, aiSettings.lambdaModelSource, aiSettings.lambdaManualModels, aiSettings.lambdaModel)
-            AiService.LEPTON -> Quadruple(aiSettings.leptonApiKey, aiSettings.leptonModelSource, aiSettings.leptonManualModels, aiSettings.leptonModel)
-            AiService.YI -> Quadruple(aiSettings.yiApiKey, aiSettings.yiModelSource, aiSettings.yiManualModels, aiSettings.yiModel)
-            AiService.DOUBAO -> Quadruple(aiSettings.doubaoApiKey, aiSettings.doubaoModelSource, aiSettings.doubaoManualModels, aiSettings.doubaoModel)
-            AiService.REKA -> Quadruple(aiSettings.rekaApiKey, aiSettings.rekaModelSource, aiSettings.rekaManualModels, aiSettings.rekaModel)
-            AiService.WRITER -> Quadruple(aiSettings.writerApiKey, aiSettings.writerModelSource, aiSettings.writerManualModels, aiSettings.writerModel)
-        }
+        Quadruple(
+            aiSettings.getApiKey(provider),
+            aiSettings.getModelSource(provider),
+            aiSettings.getManualModels(provider),
+            aiSettings.getModel(provider)
+        )
     }
 
     // Search state

@@ -28,13 +28,13 @@ fun ChatGptSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.chatGptApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.chatGptModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.chatGptModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.chatGptManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.chatGptAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.chatGptModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.chatGptParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.OPENAI)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.OPENAI)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.OPENAI)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.OPENAI)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.OPENAI).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.OPENAI)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.OPENAI)) }
 
     // Default OpenAI endpoints - Chat Completions for gpt-4o etc, Responses for gpt-5.x/o3/o4
     val defaultOpenAiEndpoints = listOf(
@@ -61,19 +61,19 @@ fun ChatGptSettingsScreen(
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
     // Track if there are unsaved changes
-    val hasChanges = apiKey != aiSettings.chatGptApiKey ||
-            defaultModel != aiSettings.chatGptModel ||
-            modelSource != aiSettings.chatGptModelSource ||
-            manualModels != aiSettings.chatGptManualModels ||
-            adminUrl != aiSettings.chatGptAdminUrl ||
-            modelListUrl != aiSettings.chatGptModelListUrl ||
-            selectedParametersIds != aiSettings.chatGptParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.OPENAI) ||
+            defaultModel != aiSettings.getModel(AiService.OPENAI) ||
+            modelSource != aiSettings.getModelSource(AiService.OPENAI) ||
+            manualModels != aiSettings.getManualModels(AiService.OPENAI) ||
+            adminUrl != aiSettings.getProvider(AiService.OPENAI).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.OPENAI) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.OPENAI) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.OPENAI)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.chatGptApiKey.isNotBlank() && aiSettings.chatGptModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.chatGptApiKey)
+        if (aiSettings.getApiKey(AiService.OPENAI).isNotBlank() && aiSettings.getModelSource(AiService.OPENAI) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.OPENAI))
         }
     }
 
@@ -82,15 +82,15 @@ fun ChatGptSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                chatGptApiKey = apiKey,
-                chatGptModel = defaultModel,
-                chatGptModelSource = modelSource,
-                chatGptManualModels = manualModels,
-                chatGptAdminUrl = adminUrl,
-                chatGptModelListUrl = modelListUrl,
-                chatGptParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.OPENAI, endpoints))
+            onSave(aiSettings.withProvider(AiService.OPENAI, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.OPENAI, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -149,24 +149,24 @@ fun ClaudeSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.claudeApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.claudeModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.claudeModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.claudeManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.claudeAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.claudeModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.ANTHROPIC)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.ANTHROPIC)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.ANTHROPIC)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.ANTHROPIC)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.ANTHROPIC).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.ANTHROPIC)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.ANTHROPIC)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.claudeParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.ANTHROPIC)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
-    val hasChanges = apiKey != aiSettings.claudeApiKey ||
-            defaultModel != aiSettings.claudeModel ||
-            modelSource != aiSettings.claudeModelSource ||
-            manualModels != aiSettings.claudeManualModels ||
-            adminUrl != aiSettings.claudeAdminUrl ||
-            modelListUrl != aiSettings.claudeModelListUrl ||
-            selectedParametersIds != aiSettings.claudeParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.ANTHROPIC) ||
+            defaultModel != aiSettings.getModel(AiService.ANTHROPIC) ||
+            modelSource != aiSettings.getModelSource(AiService.ANTHROPIC) ||
+            manualModels != aiSettings.getManualModels(AiService.ANTHROPIC) ||
+            adminUrl != aiSettings.getProvider(AiService.ANTHROPIC).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.ANTHROPIC) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.ANTHROPIC) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.ANTHROPIC)
 
     AiServiceSettingsScreenTemplate(
@@ -174,15 +174,15 @@ fun ClaudeSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                claudeApiKey = apiKey,
-                claudeModel = defaultModel,
-                claudeModelSource = modelSource,
-                claudeManualModels = manualModels,
-                claudeAdminUrl = adminUrl,
-                claudeModelListUrl = modelListUrl,
-                claudeParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.ANTHROPIC, endpoints))
+            onSave(aiSettings.withProvider(AiService.ANTHROPIC, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.ANTHROPIC, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -244,30 +244,30 @@ fun GeminiSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.geminiApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.geminiModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.geminiModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.geminiManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.geminiAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.geminiModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.GOOGLE)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.GOOGLE)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.GOOGLE)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.GOOGLE)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.GOOGLE).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.GOOGLE)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.GOOGLE)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.geminiParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.GOOGLE)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.geminiApiKey ||
-            defaultModel != aiSettings.geminiModel ||
-            modelSource != aiSettings.geminiModelSource ||
-            manualModels != aiSettings.geminiManualModels ||
-            adminUrl != aiSettings.geminiAdminUrl ||
-            modelListUrl != aiSettings.geminiModelListUrl ||
-            selectedParametersIds != aiSettings.geminiParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.GOOGLE) ||
+            defaultModel != aiSettings.getModel(AiService.GOOGLE) ||
+            modelSource != aiSettings.getModelSource(AiService.GOOGLE) ||
+            manualModels != aiSettings.getManualModels(AiService.GOOGLE) ||
+            adminUrl != aiSettings.getProvider(AiService.GOOGLE).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.GOOGLE) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.GOOGLE) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.GOOGLE)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.geminiApiKey.isNotBlank() && aiSettings.geminiModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.geminiApiKey)
+        if (aiSettings.getApiKey(AiService.GOOGLE).isNotBlank() && aiSettings.getModelSource(AiService.GOOGLE) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.GOOGLE))
         }
     }
 
@@ -276,15 +276,15 @@ fun GeminiSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                geminiApiKey = apiKey,
-                geminiModel = defaultModel,
-                geminiModelSource = modelSource,
-                geminiManualModels = manualModels,
-                geminiAdminUrl = adminUrl,
-                geminiModelListUrl = modelListUrl,
-                geminiParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.GOOGLE, endpoints))
+            onSave(aiSettings.withProvider(AiService.GOOGLE, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.GOOGLE, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -346,30 +346,30 @@ fun GrokSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.grokApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.grokModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.grokModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.grokManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.grokAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.grokModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.XAI)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.XAI)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.XAI)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.XAI)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.XAI).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.XAI)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.XAI)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.grokParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.XAI)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.grokApiKey ||
-            defaultModel != aiSettings.grokModel ||
-            modelSource != aiSettings.grokModelSource ||
-            manualModels != aiSettings.grokManualModels ||
-            adminUrl != aiSettings.grokAdminUrl ||
-            modelListUrl != aiSettings.grokModelListUrl ||
-            selectedParametersIds != aiSettings.grokParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.XAI) ||
+            defaultModel != aiSettings.getModel(AiService.XAI) ||
+            modelSource != aiSettings.getModelSource(AiService.XAI) ||
+            manualModels != aiSettings.getManualModels(AiService.XAI) ||
+            adminUrl != aiSettings.getProvider(AiService.XAI).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.XAI) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.XAI) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.XAI)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.grokApiKey.isNotBlank() && aiSettings.grokModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.grokApiKey)
+        if (aiSettings.getApiKey(AiService.XAI).isNotBlank() && aiSettings.getModelSource(AiService.XAI) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.XAI))
         }
     }
 
@@ -378,15 +378,15 @@ fun GrokSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                grokApiKey = apiKey,
-                grokModel = defaultModel,
-                grokModelSource = modelSource,
-                grokManualModels = manualModels,
-                grokAdminUrl = adminUrl,
-                grokModelListUrl = modelListUrl,
-                grokParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.XAI, endpoints))
+            onSave(aiSettings.withProvider(AiService.XAI, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.XAI, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -448,30 +448,30 @@ fun GroqSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.groqApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.groqModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.groqModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.groqManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.groqAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.groqModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.GROQ)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.GROQ)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.GROQ)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.GROQ)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.GROQ).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.GROQ)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.GROQ)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.groqParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.GROQ)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.groqApiKey ||
-            defaultModel != aiSettings.groqModel ||
-            modelSource != aiSettings.groqModelSource ||
-            manualModels != aiSettings.groqManualModels ||
-            adminUrl != aiSettings.groqAdminUrl ||
-            modelListUrl != aiSettings.groqModelListUrl ||
-            selectedParametersIds != aiSettings.groqParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.GROQ) ||
+            defaultModel != aiSettings.getModel(AiService.GROQ) ||
+            modelSource != aiSettings.getModelSource(AiService.GROQ) ||
+            manualModels != aiSettings.getManualModels(AiService.GROQ) ||
+            adminUrl != aiSettings.getProvider(AiService.GROQ).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.GROQ) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.GROQ) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.GROQ)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.groqApiKey.isNotBlank() && aiSettings.groqModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.groqApiKey)
+        if (aiSettings.getApiKey(AiService.GROQ).isNotBlank() && aiSettings.getModelSource(AiService.GROQ) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.GROQ))
         }
     }
 
@@ -480,15 +480,15 @@ fun GroqSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                groqApiKey = apiKey,
-                groqModel = defaultModel,
-                groqModelSource = modelSource,
-                groqManualModels = manualModels,
-                groqAdminUrl = adminUrl,
-                groqModelListUrl = modelListUrl,
-                groqParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.GROQ, endpoints))
+            onSave(aiSettings.withProvider(AiService.GROQ, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.GROQ, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -550,13 +550,13 @@ fun DeepSeekSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.deepSeekApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.deepSeekModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.deepSeekModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.deepSeekManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.deepSeekAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.deepSeekModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.deepSeekParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.DEEPSEEK)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.DEEPSEEK)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.DEEPSEEK)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.DEEPSEEK)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.DEEPSEEK).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.DEEPSEEK)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.DEEPSEEK)) }
 
     // Default DeepSeek endpoints - Standard chat and Beta (FIM/prefix completion)
     val defaultDeepSeekEndpoints = listOf(
@@ -581,19 +581,19 @@ fun DeepSeekSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.deepSeekApiKey ||
-            defaultModel != aiSettings.deepSeekModel ||
-            modelSource != aiSettings.deepSeekModelSource ||
-            manualModels != aiSettings.deepSeekManualModels ||
-            adminUrl != aiSettings.deepSeekAdminUrl ||
-            modelListUrl != aiSettings.deepSeekModelListUrl ||
-            selectedParametersIds != aiSettings.deepSeekParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.DEEPSEEK) ||
+            defaultModel != aiSettings.getModel(AiService.DEEPSEEK) ||
+            modelSource != aiSettings.getModelSource(AiService.DEEPSEEK) ||
+            manualModels != aiSettings.getManualModels(AiService.DEEPSEEK) ||
+            adminUrl != aiSettings.getProvider(AiService.DEEPSEEK).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.DEEPSEEK) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.DEEPSEEK) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.DEEPSEEK)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.deepSeekApiKey.isNotBlank() && aiSettings.deepSeekModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.deepSeekApiKey)
+        if (aiSettings.getApiKey(AiService.DEEPSEEK).isNotBlank() && aiSettings.getModelSource(AiService.DEEPSEEK) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.DEEPSEEK))
         }
     }
 
@@ -602,15 +602,15 @@ fun DeepSeekSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                deepSeekApiKey = apiKey,
-                deepSeekModel = defaultModel,
-                deepSeekModelSource = modelSource,
-                deepSeekManualModels = manualModels,
-                deepSeekAdminUrl = adminUrl,
-                deepSeekModelListUrl = modelListUrl,
-                deepSeekParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.DEEPSEEK, endpoints))
+            onSave(aiSettings.withProvider(AiService.DEEPSEEK, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.DEEPSEEK, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -672,13 +672,13 @@ fun MistralSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.mistralApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.mistralModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.mistralModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.mistralManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.mistralAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.mistralModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.mistralParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.MISTRAL)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.MISTRAL)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.MISTRAL)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.MISTRAL)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.MISTRAL).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.MISTRAL)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.MISTRAL)) }
 
     // Default Mistral endpoints - Standard chat and Codestral for code generation
     val defaultMistralEndpoints = listOf(
@@ -703,19 +703,19 @@ fun MistralSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.mistralApiKey ||
-            defaultModel != aiSettings.mistralModel ||
-            modelSource != aiSettings.mistralModelSource ||
-            manualModels != aiSettings.mistralManualModels ||
-            adminUrl != aiSettings.mistralAdminUrl ||
-            modelListUrl != aiSettings.mistralModelListUrl ||
-            selectedParametersIds != aiSettings.mistralParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.MISTRAL) ||
+            defaultModel != aiSettings.getModel(AiService.MISTRAL) ||
+            modelSource != aiSettings.getModelSource(AiService.MISTRAL) ||
+            manualModels != aiSettings.getManualModels(AiService.MISTRAL) ||
+            adminUrl != aiSettings.getProvider(AiService.MISTRAL).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.MISTRAL) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.MISTRAL) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.MISTRAL)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.mistralApiKey.isNotBlank() && aiSettings.mistralModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.mistralApiKey)
+        if (aiSettings.getApiKey(AiService.MISTRAL).isNotBlank() && aiSettings.getModelSource(AiService.MISTRAL) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.MISTRAL))
         }
     }
 
@@ -724,15 +724,15 @@ fun MistralSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                mistralApiKey = apiKey,
-                mistralModel = defaultModel,
-                mistralModelSource = modelSource,
-                mistralManualModels = manualModels,
-                mistralAdminUrl = adminUrl,
-                mistralModelListUrl = modelListUrl,
-                mistralParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.MISTRAL, endpoints))
+            onSave(aiSettings.withProvider(AiService.MISTRAL, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.MISTRAL, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -791,24 +791,24 @@ fun PerplexitySettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.perplexityApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.perplexityModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.perplexityModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.perplexityManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.perplexityAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.perplexityModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.PERPLEXITY)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.PERPLEXITY)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.PERPLEXITY)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.PERPLEXITY)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.PERPLEXITY).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.PERPLEXITY)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.PERPLEXITY)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.perplexityParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.PERPLEXITY)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
-    val hasChanges = apiKey != aiSettings.perplexityApiKey ||
-            defaultModel != aiSettings.perplexityModel ||
-            modelSource != aiSettings.perplexityModelSource ||
-            manualModels != aiSettings.perplexityManualModels ||
-            adminUrl != aiSettings.perplexityAdminUrl ||
-            modelListUrl != aiSettings.perplexityModelListUrl ||
-            selectedParametersIds != aiSettings.perplexityParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.PERPLEXITY) ||
+            defaultModel != aiSettings.getModel(AiService.PERPLEXITY) ||
+            modelSource != aiSettings.getModelSource(AiService.PERPLEXITY) ||
+            manualModels != aiSettings.getManualModels(AiService.PERPLEXITY) ||
+            adminUrl != aiSettings.getProvider(AiService.PERPLEXITY).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.PERPLEXITY) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.PERPLEXITY) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.PERPLEXITY)
 
     AiServiceSettingsScreenTemplate(
@@ -816,15 +816,15 @@ fun PerplexitySettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                perplexityApiKey = apiKey,
-                perplexityModel = defaultModel,
-                perplexityModelSource = modelSource,
-                perplexityManualModels = manualModels,
-                perplexityAdminUrl = adminUrl,
-                perplexityModelListUrl = modelListUrl,
-                perplexityParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.PERPLEXITY, endpoints))
+            onSave(aiSettings.withProvider(AiService.PERPLEXITY, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.PERPLEXITY, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -886,30 +886,30 @@ fun TogetherSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.togetherApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.togetherModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.togetherModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.togetherManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.togetherAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.togetherModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.TOGETHER)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.TOGETHER)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.TOGETHER)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.TOGETHER)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.TOGETHER).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.TOGETHER)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.TOGETHER)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.togetherParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.TOGETHER)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.togetherApiKey ||
-            defaultModel != aiSettings.togetherModel ||
-            modelSource != aiSettings.togetherModelSource ||
-            manualModels != aiSettings.togetherManualModels ||
-            adminUrl != aiSettings.togetherAdminUrl ||
-            modelListUrl != aiSettings.togetherModelListUrl ||
-            selectedParametersIds != aiSettings.togetherParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.TOGETHER) ||
+            defaultModel != aiSettings.getModel(AiService.TOGETHER) ||
+            modelSource != aiSettings.getModelSource(AiService.TOGETHER) ||
+            manualModels != aiSettings.getManualModels(AiService.TOGETHER) ||
+            adminUrl != aiSettings.getProvider(AiService.TOGETHER).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.TOGETHER) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.TOGETHER) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.TOGETHER)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.togetherApiKey.isNotBlank() && aiSettings.togetherModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.togetherApiKey)
+        if (aiSettings.getApiKey(AiService.TOGETHER).isNotBlank() && aiSettings.getModelSource(AiService.TOGETHER) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.TOGETHER))
         }
     }
 
@@ -918,15 +918,15 @@ fun TogetherSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                togetherApiKey = apiKey,
-                togetherModel = defaultModel,
-                togetherModelSource = modelSource,
-                togetherManualModels = manualModels,
-                togetherAdminUrl = adminUrl,
-                togetherModelListUrl = modelListUrl,
-                togetherParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.TOGETHER, endpoints))
+            onSave(aiSettings.withProvider(AiService.TOGETHER, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.TOGETHER, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -988,30 +988,30 @@ fun OpenRouterSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.openRouterApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.openRouterModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.openRouterModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.openRouterManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.openRouterAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.openRouterModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.OPENROUTER)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.OPENROUTER)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.OPENROUTER)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.OPENROUTER)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.OPENROUTER).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.OPENROUTER)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.OPENROUTER)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.openRouterParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.OPENROUTER)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.openRouterApiKey ||
-            defaultModel != aiSettings.openRouterModel ||
-            modelSource != aiSettings.openRouterModelSource ||
-            manualModels != aiSettings.openRouterManualModels ||
-            adminUrl != aiSettings.openRouterAdminUrl ||
-            modelListUrl != aiSettings.openRouterModelListUrl ||
-            selectedParametersIds != aiSettings.openRouterParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.OPENROUTER) ||
+            defaultModel != aiSettings.getModel(AiService.OPENROUTER) ||
+            modelSource != aiSettings.getModelSource(AiService.OPENROUTER) ||
+            manualModels != aiSettings.getManualModels(AiService.OPENROUTER) ||
+            adminUrl != aiSettings.getProvider(AiService.OPENROUTER).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.OPENROUTER) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.OPENROUTER) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.OPENROUTER)
 
     // Auto-refresh model list on page load
     LaunchedEffect(Unit) {
-        if (aiSettings.openRouterApiKey.isNotBlank() && aiSettings.openRouterModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.openRouterApiKey)
+        if (aiSettings.getApiKey(AiService.OPENROUTER).isNotBlank() && aiSettings.getModelSource(AiService.OPENROUTER) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.OPENROUTER))
         }
     }
 
@@ -1020,15 +1020,15 @@ fun OpenRouterSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                openRouterApiKey = apiKey,
-                openRouterModel = defaultModel,
-                openRouterModelSource = modelSource,
-                openRouterManualModels = manualModels,
-                openRouterAdminUrl = adminUrl,
-                openRouterModelListUrl = modelListUrl,
-                openRouterParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.OPENROUTER, endpoints))
+            onSave(aiSettings.withProvider(AiService.OPENROUTER, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.OPENROUTER, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1087,13 +1087,13 @@ fun SiliconFlowSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.siliconFlowApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.siliconFlowModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.siliconFlowModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.siliconFlowManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.siliconFlowAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.siliconFlowModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.siliconFlowParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.SILICONFLOW)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.SILICONFLOW)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.SILICONFLOW)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.SILICONFLOW)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.SILICONFLOW).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.SILICONFLOW)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.SILICONFLOW)) }
 
     // Default SiliconFlow endpoints - Chat Completions (OpenAI) and Messages (Anthropic)
     val defaultSiliconFlowEndpoints = listOf(
@@ -1118,13 +1118,13 @@ fun SiliconFlowSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
-    val hasChanges = apiKey != aiSettings.siliconFlowApiKey ||
-            defaultModel != aiSettings.siliconFlowModel ||
-            modelSource != aiSettings.siliconFlowModelSource ||
-            manualModels != aiSettings.siliconFlowManualModels ||
-            adminUrl != aiSettings.siliconFlowAdminUrl ||
-            modelListUrl != aiSettings.siliconFlowModelListUrl ||
-            selectedParametersIds != aiSettings.siliconFlowParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.SILICONFLOW) ||
+            defaultModel != aiSettings.getModel(AiService.SILICONFLOW) ||
+            modelSource != aiSettings.getModelSource(AiService.SILICONFLOW) ||
+            manualModels != aiSettings.getManualModels(AiService.SILICONFLOW) ||
+            adminUrl != aiSettings.getProvider(AiService.SILICONFLOW).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.SILICONFLOW) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.SILICONFLOW) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.SILICONFLOW)
 
     AiServiceSettingsScreenTemplate(
@@ -1132,15 +1132,15 @@ fun SiliconFlowSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                siliconFlowApiKey = apiKey,
-                siliconFlowModel = defaultModel,
-                siliconFlowModelSource = modelSource,
-                siliconFlowManualModels = manualModels,
-                siliconFlowAdminUrl = adminUrl,
-                siliconFlowModelListUrl = modelListUrl,
-                siliconFlowParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.SILICONFLOW, endpoints))
+            onSave(aiSettings.withProvider(AiService.SILICONFLOW, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.SILICONFLOW, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1199,13 +1199,13 @@ fun ZaiSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.zaiApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.zaiModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.zaiModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.zaiManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.zaiAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.zaiModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.zaiParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.ZAI)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.ZAI)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.ZAI)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.ZAI)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.ZAI).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.ZAI)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.ZAI)) }
 
     // Default Z.AI endpoints - General chat and Coding-specific
     val defaultZaiEndpoints = listOf(
@@ -1230,13 +1230,13 @@ fun ZaiSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) emptyList() else manualModels
 
-    val hasChanges = apiKey != aiSettings.zaiApiKey ||
-            defaultModel != aiSettings.zaiModel ||
-            modelSource != aiSettings.zaiModelSource ||
-            manualModels != aiSettings.zaiManualModels ||
-            adminUrl != aiSettings.zaiAdminUrl ||
-            modelListUrl != aiSettings.zaiModelListUrl ||
-            selectedParametersIds != aiSettings.zaiParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.ZAI) ||
+            defaultModel != aiSettings.getModel(AiService.ZAI) ||
+            modelSource != aiSettings.getModelSource(AiService.ZAI) ||
+            manualModels != aiSettings.getManualModels(AiService.ZAI) ||
+            adminUrl != aiSettings.getProvider(AiService.ZAI).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.ZAI) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.ZAI) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.ZAI)
 
     AiServiceSettingsScreenTemplate(
@@ -1244,15 +1244,15 @@ fun ZaiSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                zaiApiKey = apiKey,
-                zaiModel = defaultModel,
-                zaiModelSource = modelSource,
-                zaiManualModels = manualModels,
-                zaiAdminUrl = adminUrl,
-                zaiModelListUrl = modelListUrl,
-                zaiParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.ZAI, endpoints))
+            onSave(aiSettings.withProvider(AiService.ZAI, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.ZAI, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1314,13 +1314,13 @@ fun MoonshotSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.moonshotApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.moonshotModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.moonshotModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.moonshotManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.moonshotAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.moonshotModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.moonshotParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.MOONSHOT)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.MOONSHOT)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.MOONSHOT)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.MOONSHOT)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.MOONSHOT).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.MOONSHOT)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.MOONSHOT)) }
 
     val defaultMoonshotEndpoints = listOf(
         AiEndpoint(
@@ -1338,13 +1338,13 @@ fun MoonshotSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.moonshotApiKey ||
-            defaultModel != aiSettings.moonshotModel ||
-            modelSource != aiSettings.moonshotModelSource ||
-            manualModels != aiSettings.moonshotManualModels ||
-            adminUrl != aiSettings.moonshotAdminUrl ||
-            modelListUrl != aiSettings.moonshotModelListUrl ||
-            selectedParametersIds != aiSettings.moonshotParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.MOONSHOT) ||
+            defaultModel != aiSettings.getModel(AiService.MOONSHOT) ||
+            modelSource != aiSettings.getModelSource(AiService.MOONSHOT) ||
+            manualModels != aiSettings.getManualModels(AiService.MOONSHOT) ||
+            adminUrl != aiSettings.getProvider(AiService.MOONSHOT).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.MOONSHOT) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.MOONSHOT) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.MOONSHOT)
 
     AiServiceSettingsScreenTemplate(
@@ -1352,15 +1352,15 @@ fun MoonshotSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                moonshotApiKey = apiKey,
-                moonshotModel = defaultModel,
-                moonshotModelSource = modelSource,
-                moonshotManualModels = manualModels,
-                moonshotAdminUrl = adminUrl,
-                moonshotModelListUrl = modelListUrl,
-                moonshotParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.MOONSHOT, endpoints))
+            onSave(aiSettings.withProvider(AiService.MOONSHOT, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.MOONSHOT, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1422,13 +1422,13 @@ fun CohereSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.cohereApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.cohereModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.cohereModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.cohereManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.cohereAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.cohereModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.cohereParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.COHERE)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.COHERE)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.COHERE)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.COHERE)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.COHERE).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.COHERE)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.COHERE)) }
 
     val defaultCohereEndpoints = listOf(
         AiEndpoint(
@@ -1446,13 +1446,13 @@ fun CohereSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.cohereApiKey ||
-            defaultModel != aiSettings.cohereModel ||
-            modelSource != aiSettings.cohereModelSource ||
-            manualModels != aiSettings.cohereManualModels ||
-            adminUrl != aiSettings.cohereAdminUrl ||
-            modelListUrl != aiSettings.cohereModelListUrl ||
-            selectedParametersIds != aiSettings.cohereParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.COHERE) ||
+            defaultModel != aiSettings.getModel(AiService.COHERE) ||
+            modelSource != aiSettings.getModelSource(AiService.COHERE) ||
+            manualModels != aiSettings.getManualModels(AiService.COHERE) ||
+            adminUrl != aiSettings.getProvider(AiService.COHERE).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.COHERE) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.COHERE) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.COHERE)
 
     AiServiceSettingsScreenTemplate(
@@ -1460,15 +1460,15 @@ fun CohereSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                cohereApiKey = apiKey,
-                cohereModel = defaultModel,
-                cohereModelSource = modelSource,
-                cohereManualModels = manualModels,
-                cohereAdminUrl = adminUrl,
-                cohereModelListUrl = modelListUrl,
-                cohereParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.COHERE, endpoints))
+            onSave(aiSettings.withProvider(AiService.COHERE, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.COHERE, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1530,13 +1530,13 @@ fun Ai21SettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.ai21ApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.ai21Model) }
-    var modelSource by remember { mutableStateOf(aiSettings.ai21ModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.ai21ManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.ai21AdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.ai21ModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.ai21ParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.AI21)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.AI21)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.AI21)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.AI21)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.AI21).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.AI21)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.AI21)) }
 
     val defaultAi21Endpoints = listOf(
         AiEndpoint(
@@ -1554,13 +1554,13 @@ fun Ai21SettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.ai21ApiKey ||
-            defaultModel != aiSettings.ai21Model ||
-            modelSource != aiSettings.ai21ModelSource ||
-            manualModels != aiSettings.ai21ManualModels ||
-            adminUrl != aiSettings.ai21AdminUrl ||
-            modelListUrl != aiSettings.ai21ModelListUrl ||
-            selectedParametersIds != aiSettings.ai21ParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.AI21) ||
+            defaultModel != aiSettings.getModel(AiService.AI21) ||
+            modelSource != aiSettings.getModelSource(AiService.AI21) ||
+            manualModels != aiSettings.getManualModels(AiService.AI21) ||
+            adminUrl != aiSettings.getProvider(AiService.AI21).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.AI21) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.AI21) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.AI21)
 
     AiServiceSettingsScreenTemplate(
@@ -1568,15 +1568,15 @@ fun Ai21SettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                ai21ApiKey = apiKey,
-                ai21Model = defaultModel,
-                ai21ModelSource = modelSource,
-                ai21ManualModels = manualModels,
-                ai21AdminUrl = adminUrl,
-                ai21ModelListUrl = modelListUrl,
-                ai21ParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.AI21, endpoints))
+            onSave(aiSettings.withProvider(AiService.AI21, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.AI21, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1638,13 +1638,13 @@ fun DashScopeSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.dashScopeApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.dashScopeModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.dashScopeModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.dashScopeManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.dashScopeAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.dashScopeModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.dashScopeParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.DASHSCOPE)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.DASHSCOPE)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.DASHSCOPE)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.DASHSCOPE)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.DASHSCOPE).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.DASHSCOPE)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.DASHSCOPE)) }
 
     val defaultDashScopeEndpoints = listOf(
         AiEndpoint(
@@ -1662,13 +1662,13 @@ fun DashScopeSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.dashScopeApiKey ||
-            defaultModel != aiSettings.dashScopeModel ||
-            modelSource != aiSettings.dashScopeModelSource ||
-            manualModels != aiSettings.dashScopeManualModels ||
-            adminUrl != aiSettings.dashScopeAdminUrl ||
-            modelListUrl != aiSettings.dashScopeModelListUrl ||
-            selectedParametersIds != aiSettings.dashScopeParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.DASHSCOPE) ||
+            defaultModel != aiSettings.getModel(AiService.DASHSCOPE) ||
+            modelSource != aiSettings.getModelSource(AiService.DASHSCOPE) ||
+            manualModels != aiSettings.getManualModels(AiService.DASHSCOPE) ||
+            adminUrl != aiSettings.getProvider(AiService.DASHSCOPE).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.DASHSCOPE) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.DASHSCOPE) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.DASHSCOPE)
 
     AiServiceSettingsScreenTemplate(
@@ -1676,15 +1676,15 @@ fun DashScopeSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                dashScopeApiKey = apiKey,
-                dashScopeModel = defaultModel,
-                dashScopeModelSource = modelSource,
-                dashScopeManualModels = manualModels,
-                dashScopeAdminUrl = adminUrl,
-                dashScopeModelListUrl = modelListUrl,
-                dashScopeParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.DASHSCOPE, endpoints))
+            onSave(aiSettings.withProvider(AiService.DASHSCOPE, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.DASHSCOPE, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1746,13 +1746,13 @@ fun FireworksSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.fireworksApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.fireworksModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.fireworksModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.fireworksManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.fireworksAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.fireworksModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.fireworksParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.FIREWORKS)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.FIREWORKS)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.FIREWORKS)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.FIREWORKS)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.FIREWORKS).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.FIREWORKS)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.FIREWORKS)) }
 
     val defaultFireworksEndpoints = listOf(
         AiEndpoint(
@@ -1770,13 +1770,13 @@ fun FireworksSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.fireworksApiKey ||
-            defaultModel != aiSettings.fireworksModel ||
-            modelSource != aiSettings.fireworksModelSource ||
-            manualModels != aiSettings.fireworksManualModels ||
-            adminUrl != aiSettings.fireworksAdminUrl ||
-            modelListUrl != aiSettings.fireworksModelListUrl ||
-            selectedParametersIds != aiSettings.fireworksParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.FIREWORKS) ||
+            defaultModel != aiSettings.getModel(AiService.FIREWORKS) ||
+            modelSource != aiSettings.getModelSource(AiService.FIREWORKS) ||
+            manualModels != aiSettings.getManualModels(AiService.FIREWORKS) ||
+            adminUrl != aiSettings.getProvider(AiService.FIREWORKS).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.FIREWORKS) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.FIREWORKS) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.FIREWORKS)
 
     AiServiceSettingsScreenTemplate(
@@ -1784,15 +1784,15 @@ fun FireworksSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                fireworksApiKey = apiKey,
-                fireworksModel = defaultModel,
-                fireworksModelSource = modelSource,
-                fireworksManualModels = manualModels,
-                fireworksAdminUrl = adminUrl,
-                fireworksModelListUrl = modelListUrl,
-                fireworksParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.FIREWORKS, endpoints))
+            onSave(aiSettings.withProvider(AiService.FIREWORKS, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.FIREWORKS, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1854,13 +1854,13 @@ fun CerebrasSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.cerebrasApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.cerebrasModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.cerebrasModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.cerebrasManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.cerebrasAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.cerebrasModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.cerebrasParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.CEREBRAS)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.CEREBRAS)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.CEREBRAS)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.CEREBRAS)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.CEREBRAS).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.CEREBRAS)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.CEREBRAS)) }
 
     val defaultCerebrasEndpoints = listOf(
         AiEndpoint(
@@ -1878,13 +1878,13 @@ fun CerebrasSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.cerebrasApiKey ||
-            defaultModel != aiSettings.cerebrasModel ||
-            modelSource != aiSettings.cerebrasModelSource ||
-            manualModels != aiSettings.cerebrasManualModels ||
-            adminUrl != aiSettings.cerebrasAdminUrl ||
-            modelListUrl != aiSettings.cerebrasModelListUrl ||
-            selectedParametersIds != aiSettings.cerebrasParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.CEREBRAS) ||
+            defaultModel != aiSettings.getModel(AiService.CEREBRAS) ||
+            modelSource != aiSettings.getModelSource(AiService.CEREBRAS) ||
+            manualModels != aiSettings.getManualModels(AiService.CEREBRAS) ||
+            adminUrl != aiSettings.getProvider(AiService.CEREBRAS).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.CEREBRAS) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.CEREBRAS) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.CEREBRAS)
 
     AiServiceSettingsScreenTemplate(
@@ -1892,15 +1892,15 @@ fun CerebrasSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                cerebrasApiKey = apiKey,
-                cerebrasModel = defaultModel,
-                cerebrasModelSource = modelSource,
-                cerebrasManualModels = manualModels,
-                cerebrasAdminUrl = adminUrl,
-                cerebrasModelListUrl = modelListUrl,
-                cerebrasParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.CEREBRAS, endpoints))
+            onSave(aiSettings.withProvider(AiService.CEREBRAS, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.CEREBRAS, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -1962,13 +1962,13 @@ fun SambaNovaSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.sambaNovaApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.sambaNovaModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.sambaNovaModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.sambaNovaManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.sambaNovaAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.sambaNovaModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.sambaNovaParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.SAMBANOVA)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.SAMBANOVA)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.SAMBANOVA)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.SAMBANOVA)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.SAMBANOVA).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.SAMBANOVA)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.SAMBANOVA)) }
 
     val defaultSambaNovaEndpoints = listOf(
         AiEndpoint(
@@ -1986,13 +1986,13 @@ fun SambaNovaSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.sambaNovaApiKey ||
-            defaultModel != aiSettings.sambaNovaModel ||
-            modelSource != aiSettings.sambaNovaModelSource ||
-            manualModels != aiSettings.sambaNovaManualModels ||
-            adminUrl != aiSettings.sambaNovaAdminUrl ||
-            modelListUrl != aiSettings.sambaNovaModelListUrl ||
-            selectedParametersIds != aiSettings.sambaNovaParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.SAMBANOVA) ||
+            defaultModel != aiSettings.getModel(AiService.SAMBANOVA) ||
+            modelSource != aiSettings.getModelSource(AiService.SAMBANOVA) ||
+            manualModels != aiSettings.getManualModels(AiService.SAMBANOVA) ||
+            adminUrl != aiSettings.getProvider(AiService.SAMBANOVA).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.SAMBANOVA) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.SAMBANOVA) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.SAMBANOVA)
 
     AiServiceSettingsScreenTemplate(
@@ -2000,15 +2000,15 @@ fun SambaNovaSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                sambaNovaApiKey = apiKey,
-                sambaNovaModel = defaultModel,
-                sambaNovaModelSource = modelSource,
-                sambaNovaManualModels = manualModels,
-                sambaNovaAdminUrl = adminUrl,
-                sambaNovaModelListUrl = modelListUrl,
-                sambaNovaParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.SAMBANOVA, endpoints))
+            onSave(aiSettings.withProvider(AiService.SAMBANOVA, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.SAMBANOVA, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2070,13 +2070,13 @@ fun BaichuanSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.baichuanApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.baichuanModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.baichuanModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.baichuanManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.baichuanAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.baichuanModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.baichuanParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.BAICHUAN)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.BAICHUAN)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.BAICHUAN)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.BAICHUAN)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.BAICHUAN).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.BAICHUAN)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.BAICHUAN)) }
 
     val defaultBaichuanEndpoints = listOf(
         AiEndpoint(
@@ -2094,13 +2094,13 @@ fun BaichuanSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.baichuanApiKey ||
-            defaultModel != aiSettings.baichuanModel ||
-            modelSource != aiSettings.baichuanModelSource ||
-            manualModels != aiSettings.baichuanManualModels ||
-            adminUrl != aiSettings.baichuanAdminUrl ||
-            modelListUrl != aiSettings.baichuanModelListUrl ||
-            selectedParametersIds != aiSettings.baichuanParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.BAICHUAN) ||
+            defaultModel != aiSettings.getModel(AiService.BAICHUAN) ||
+            modelSource != aiSettings.getModelSource(AiService.BAICHUAN) ||
+            manualModels != aiSettings.getManualModels(AiService.BAICHUAN) ||
+            adminUrl != aiSettings.getProvider(AiService.BAICHUAN).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.BAICHUAN) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.BAICHUAN) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.BAICHUAN)
 
     AiServiceSettingsScreenTemplate(
@@ -2108,15 +2108,15 @@ fun BaichuanSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                baichuanApiKey = apiKey,
-                baichuanModel = defaultModel,
-                baichuanModelSource = modelSource,
-                baichuanManualModels = manualModels,
-                baichuanAdminUrl = adminUrl,
-                baichuanModelListUrl = modelListUrl,
-                baichuanParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.BAICHUAN, endpoints))
+            onSave(aiSettings.withProvider(AiService.BAICHUAN, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.BAICHUAN, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2178,13 +2178,13 @@ fun StepFunSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.stepFunApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.stepFunModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.stepFunModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.stepFunManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.stepFunAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.stepFunModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.stepFunParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.STEPFUN)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.STEPFUN)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.STEPFUN)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.STEPFUN)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.STEPFUN).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.STEPFUN)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.STEPFUN)) }
 
     val defaultStepFunEndpoints = listOf(
         AiEndpoint(
@@ -2202,13 +2202,13 @@ fun StepFunSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.stepFunApiKey ||
-            defaultModel != aiSettings.stepFunModel ||
-            modelSource != aiSettings.stepFunModelSource ||
-            manualModels != aiSettings.stepFunManualModels ||
-            adminUrl != aiSettings.stepFunAdminUrl ||
-            modelListUrl != aiSettings.stepFunModelListUrl ||
-            selectedParametersIds != aiSettings.stepFunParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.STEPFUN) ||
+            defaultModel != aiSettings.getModel(AiService.STEPFUN) ||
+            modelSource != aiSettings.getModelSource(AiService.STEPFUN) ||
+            manualModels != aiSettings.getManualModels(AiService.STEPFUN) ||
+            adminUrl != aiSettings.getProvider(AiService.STEPFUN).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.STEPFUN) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.STEPFUN) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.STEPFUN)
 
     AiServiceSettingsScreenTemplate(
@@ -2216,15 +2216,15 @@ fun StepFunSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                stepFunApiKey = apiKey,
-                stepFunModel = defaultModel,
-                stepFunModelSource = modelSource,
-                stepFunManualModels = manualModels,
-                stepFunAdminUrl = adminUrl,
-                stepFunModelListUrl = modelListUrl,
-                stepFunParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.STEPFUN, endpoints))
+            onSave(aiSettings.withProvider(AiService.STEPFUN, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.STEPFUN, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2286,13 +2286,13 @@ fun MiniMaxSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.miniMaxApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.miniMaxModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.miniMaxModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.miniMaxManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.miniMaxAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.miniMaxModelListUrl) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.miniMaxParametersIds) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.MINIMAX)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.MINIMAX)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.MINIMAX)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.MINIMAX)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.MINIMAX).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.MINIMAX)) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.MINIMAX)) }
 
     val defaultMiniMaxEndpoints = listOf(
         AiEndpoint(
@@ -2310,13 +2310,13 @@ fun MiniMaxSettingsScreen(
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.miniMaxApiKey ||
-            defaultModel != aiSettings.miniMaxModel ||
-            modelSource != aiSettings.miniMaxModelSource ||
-            manualModels != aiSettings.miniMaxManualModels ||
-            adminUrl != aiSettings.miniMaxAdminUrl ||
-            modelListUrl != aiSettings.miniMaxModelListUrl ||
-            selectedParametersIds != aiSettings.miniMaxParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.MINIMAX) ||
+            defaultModel != aiSettings.getModel(AiService.MINIMAX) ||
+            modelSource != aiSettings.getModelSource(AiService.MINIMAX) ||
+            manualModels != aiSettings.getManualModels(AiService.MINIMAX) ||
+            adminUrl != aiSettings.getProvider(AiService.MINIMAX).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.MINIMAX) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.MINIMAX) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.MINIMAX)
 
     AiServiceSettingsScreenTemplate(
@@ -2324,15 +2324,15 @@ fun MiniMaxSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                miniMaxApiKey = apiKey,
-                miniMaxModel = defaultModel,
-                miniMaxModelSource = modelSource,
-                miniMaxManualModels = manualModels,
-                miniMaxAdminUrl = adminUrl,
-                miniMaxModelListUrl = modelListUrl,
-                miniMaxParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.MINIMAX, endpoints))
+            onSave(aiSettings.withProvider(AiService.MINIMAX, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.MINIMAX, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2395,29 +2395,29 @@ fun NvidiaSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.nvidiaApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.nvidiaModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.nvidiaModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.nvidiaManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.nvidiaAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.nvidiaModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.NVIDIA)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.NVIDIA)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.NVIDIA)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.NVIDIA)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.NVIDIA).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.NVIDIA)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.NVIDIA)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.nvidiaParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.NVIDIA)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.nvidiaApiKey ||
-            defaultModel != aiSettings.nvidiaModel ||
-            modelSource != aiSettings.nvidiaModelSource ||
-            manualModels != aiSettings.nvidiaManualModels ||
-            adminUrl != aiSettings.nvidiaAdminUrl ||
-            modelListUrl != aiSettings.nvidiaModelListUrl ||
-            selectedParametersIds != aiSettings.nvidiaParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.NVIDIA) ||
+            defaultModel != aiSettings.getModel(AiService.NVIDIA) ||
+            modelSource != aiSettings.getModelSource(AiService.NVIDIA) ||
+            manualModels != aiSettings.getManualModels(AiService.NVIDIA) ||
+            adminUrl != aiSettings.getProvider(AiService.NVIDIA).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.NVIDIA) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.NVIDIA) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.NVIDIA)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.nvidiaApiKey.isNotBlank() && aiSettings.nvidiaModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.nvidiaApiKey)
+        if (aiSettings.getApiKey(AiService.NVIDIA).isNotBlank() && aiSettings.getModelSource(AiService.NVIDIA) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.NVIDIA))
         }
     }
 
@@ -2426,15 +2426,15 @@ fun NvidiaSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                nvidiaApiKey = apiKey,
-                nvidiaModel = defaultModel,
-                nvidiaModelSource = modelSource,
-                nvidiaManualModels = manualModels,
-                nvidiaAdminUrl = adminUrl,
-                nvidiaModelListUrl = modelListUrl,
-                nvidiaParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.NVIDIA, endpoints))
+            onSave(aiSettings.withProvider(AiService.NVIDIA, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.NVIDIA, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2496,29 +2496,29 @@ fun ReplicateSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.replicateApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.replicateModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.replicateModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.replicateManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.replicateAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.replicateModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.REPLICATE)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.REPLICATE)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.REPLICATE)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.REPLICATE)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.REPLICATE).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.REPLICATE)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.REPLICATE)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.replicateParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.REPLICATE)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.replicateApiKey ||
-            defaultModel != aiSettings.replicateModel ||
-            modelSource != aiSettings.replicateModelSource ||
-            manualModels != aiSettings.replicateManualModels ||
-            adminUrl != aiSettings.replicateAdminUrl ||
-            modelListUrl != aiSettings.replicateModelListUrl ||
-            selectedParametersIds != aiSettings.replicateParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.REPLICATE) ||
+            defaultModel != aiSettings.getModel(AiService.REPLICATE) ||
+            modelSource != aiSettings.getModelSource(AiService.REPLICATE) ||
+            manualModels != aiSettings.getManualModels(AiService.REPLICATE) ||
+            adminUrl != aiSettings.getProvider(AiService.REPLICATE).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.REPLICATE) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.REPLICATE) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.REPLICATE)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.replicateApiKey.isNotBlank() && aiSettings.replicateModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.replicateApiKey)
+        if (aiSettings.getApiKey(AiService.REPLICATE).isNotBlank() && aiSettings.getModelSource(AiService.REPLICATE) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.REPLICATE))
         }
     }
 
@@ -2527,15 +2527,15 @@ fun ReplicateSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                replicateApiKey = apiKey,
-                replicateModel = defaultModel,
-                replicateModelSource = modelSource,
-                replicateManualModels = manualModels,
-                replicateAdminUrl = adminUrl,
-                replicateModelListUrl = modelListUrl,
-                replicateParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.REPLICATE, endpoints))
+            onSave(aiSettings.withProvider(AiService.REPLICATE, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.REPLICATE, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2597,29 +2597,29 @@ fun HuggingFaceInferenceSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.huggingFaceInferenceApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.huggingFaceInferenceModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.huggingFaceInferenceModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.huggingFaceInferenceManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.huggingFaceInferenceAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.huggingFaceInferenceModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.HUGGINGFACE)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.HUGGINGFACE)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.HUGGINGFACE)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.HUGGINGFACE)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.HUGGINGFACE).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.HUGGINGFACE)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.HUGGINGFACE)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.huggingFaceInferenceParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.HUGGINGFACE)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.huggingFaceInferenceApiKey ||
-            defaultModel != aiSettings.huggingFaceInferenceModel ||
-            modelSource != aiSettings.huggingFaceInferenceModelSource ||
-            manualModels != aiSettings.huggingFaceInferenceManualModels ||
-            adminUrl != aiSettings.huggingFaceInferenceAdminUrl ||
-            modelListUrl != aiSettings.huggingFaceInferenceModelListUrl ||
-            selectedParametersIds != aiSettings.huggingFaceInferenceParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.HUGGINGFACE) ||
+            defaultModel != aiSettings.getModel(AiService.HUGGINGFACE) ||
+            modelSource != aiSettings.getModelSource(AiService.HUGGINGFACE) ||
+            manualModels != aiSettings.getManualModels(AiService.HUGGINGFACE) ||
+            adminUrl != aiSettings.getProvider(AiService.HUGGINGFACE).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.HUGGINGFACE) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.HUGGINGFACE) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.HUGGINGFACE)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.huggingFaceInferenceApiKey.isNotBlank() && aiSettings.huggingFaceInferenceModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.huggingFaceInferenceApiKey)
+        if (aiSettings.getApiKey(AiService.HUGGINGFACE).isNotBlank() && aiSettings.getModelSource(AiService.HUGGINGFACE) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.HUGGINGFACE))
         }
     }
 
@@ -2628,15 +2628,15 @@ fun HuggingFaceInferenceSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                huggingFaceInferenceApiKey = apiKey,
-                huggingFaceInferenceModel = defaultModel,
-                huggingFaceInferenceModelSource = modelSource,
-                huggingFaceInferenceManualModels = manualModels,
-                huggingFaceInferenceAdminUrl = adminUrl,
-                huggingFaceInferenceModelListUrl = modelListUrl,
-                huggingFaceInferenceParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.HUGGINGFACE, endpoints))
+            onSave(aiSettings.withProvider(AiService.HUGGINGFACE, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.HUGGINGFACE, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2698,29 +2698,29 @@ fun LambdaSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.lambdaApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.lambdaModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.lambdaModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.lambdaManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.lambdaAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.lambdaModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.LAMBDA)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.LAMBDA)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.LAMBDA)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.LAMBDA)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.LAMBDA).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.LAMBDA)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.LAMBDA)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.lambdaParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.LAMBDA)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.lambdaApiKey ||
-            defaultModel != aiSettings.lambdaModel ||
-            modelSource != aiSettings.lambdaModelSource ||
-            manualModels != aiSettings.lambdaManualModels ||
-            adminUrl != aiSettings.lambdaAdminUrl ||
-            modelListUrl != aiSettings.lambdaModelListUrl ||
-            selectedParametersIds != aiSettings.lambdaParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.LAMBDA) ||
+            defaultModel != aiSettings.getModel(AiService.LAMBDA) ||
+            modelSource != aiSettings.getModelSource(AiService.LAMBDA) ||
+            manualModels != aiSettings.getManualModels(AiService.LAMBDA) ||
+            adminUrl != aiSettings.getProvider(AiService.LAMBDA).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.LAMBDA) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.LAMBDA) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.LAMBDA)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.lambdaApiKey.isNotBlank() && aiSettings.lambdaModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.lambdaApiKey)
+        if (aiSettings.getApiKey(AiService.LAMBDA).isNotBlank() && aiSettings.getModelSource(AiService.LAMBDA) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.LAMBDA))
         }
     }
 
@@ -2729,15 +2729,15 @@ fun LambdaSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                lambdaApiKey = apiKey,
-                lambdaModel = defaultModel,
-                lambdaModelSource = modelSource,
-                lambdaManualModels = manualModels,
-                lambdaAdminUrl = adminUrl,
-                lambdaModelListUrl = modelListUrl,
-                lambdaParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.LAMBDA, endpoints))
+            onSave(aiSettings.withProvider(AiService.LAMBDA, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.LAMBDA, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2799,29 +2799,29 @@ fun LeptonSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.leptonApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.leptonModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.leptonModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.leptonManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.leptonAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.leptonModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.LEPTON)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.LEPTON)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.LEPTON)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.LEPTON)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.LEPTON).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.LEPTON)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.LEPTON)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.leptonParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.LEPTON)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.leptonApiKey ||
-            defaultModel != aiSettings.leptonModel ||
-            modelSource != aiSettings.leptonModelSource ||
-            manualModels != aiSettings.leptonManualModels ||
-            adminUrl != aiSettings.leptonAdminUrl ||
-            modelListUrl != aiSettings.leptonModelListUrl ||
-            selectedParametersIds != aiSettings.leptonParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.LEPTON) ||
+            defaultModel != aiSettings.getModel(AiService.LEPTON) ||
+            modelSource != aiSettings.getModelSource(AiService.LEPTON) ||
+            manualModels != aiSettings.getManualModels(AiService.LEPTON) ||
+            adminUrl != aiSettings.getProvider(AiService.LEPTON).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.LEPTON) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.LEPTON) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.LEPTON)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.leptonApiKey.isNotBlank() && aiSettings.leptonModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.leptonApiKey)
+        if (aiSettings.getApiKey(AiService.LEPTON).isNotBlank() && aiSettings.getModelSource(AiService.LEPTON) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.LEPTON))
         }
     }
 
@@ -2830,15 +2830,15 @@ fun LeptonSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                leptonApiKey = apiKey,
-                leptonModel = defaultModel,
-                leptonModelSource = modelSource,
-                leptonManualModels = manualModels,
-                leptonAdminUrl = adminUrl,
-                leptonModelListUrl = modelListUrl,
-                leptonParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.LEPTON, endpoints))
+            onSave(aiSettings.withProvider(AiService.LEPTON, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.LEPTON, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -2900,29 +2900,29 @@ fun YiSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.yiApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.yiModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.yiModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.yiManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.yiAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.yiModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.YI)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.YI)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.YI)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.YI)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.YI).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.YI)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.YI)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.yiParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.YI)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.yiApiKey ||
-            defaultModel != aiSettings.yiModel ||
-            modelSource != aiSettings.yiModelSource ||
-            manualModels != aiSettings.yiManualModels ||
-            adminUrl != aiSettings.yiAdminUrl ||
-            modelListUrl != aiSettings.yiModelListUrl ||
-            selectedParametersIds != aiSettings.yiParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.YI) ||
+            defaultModel != aiSettings.getModel(AiService.YI) ||
+            modelSource != aiSettings.getModelSource(AiService.YI) ||
+            manualModels != aiSettings.getManualModels(AiService.YI) ||
+            adminUrl != aiSettings.getProvider(AiService.YI).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.YI) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.YI) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.YI)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.yiApiKey.isNotBlank() && aiSettings.yiModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.yiApiKey)
+        if (aiSettings.getApiKey(AiService.YI).isNotBlank() && aiSettings.getModelSource(AiService.YI) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.YI))
         }
     }
 
@@ -2931,15 +2931,15 @@ fun YiSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                yiApiKey = apiKey,
-                yiModel = defaultModel,
-                yiModelSource = modelSource,
-                yiManualModels = manualModels,
-                yiAdminUrl = adminUrl,
-                yiModelListUrl = modelListUrl,
-                yiParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.YI, endpoints))
+            onSave(aiSettings.withProvider(AiService.YI, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.YI, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -3001,29 +3001,29 @@ fun DoubaoSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.doubaoApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.doubaoModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.doubaoModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.doubaoManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.doubaoAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.doubaoModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.DOUBAO)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.DOUBAO)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.DOUBAO)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.DOUBAO)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.DOUBAO).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.DOUBAO)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.DOUBAO)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.doubaoParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.DOUBAO)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.doubaoApiKey ||
-            defaultModel != aiSettings.doubaoModel ||
-            modelSource != aiSettings.doubaoModelSource ||
-            manualModels != aiSettings.doubaoManualModels ||
-            adminUrl != aiSettings.doubaoAdminUrl ||
-            modelListUrl != aiSettings.doubaoModelListUrl ||
-            selectedParametersIds != aiSettings.doubaoParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.DOUBAO) ||
+            defaultModel != aiSettings.getModel(AiService.DOUBAO) ||
+            modelSource != aiSettings.getModelSource(AiService.DOUBAO) ||
+            manualModels != aiSettings.getManualModels(AiService.DOUBAO) ||
+            adminUrl != aiSettings.getProvider(AiService.DOUBAO).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.DOUBAO) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.DOUBAO) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.DOUBAO)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.doubaoApiKey.isNotBlank() && aiSettings.doubaoModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.doubaoApiKey)
+        if (aiSettings.getApiKey(AiService.DOUBAO).isNotBlank() && aiSettings.getModelSource(AiService.DOUBAO) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.DOUBAO))
         }
     }
 
@@ -3032,15 +3032,15 @@ fun DoubaoSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                doubaoApiKey = apiKey,
-                doubaoModel = defaultModel,
-                doubaoModelSource = modelSource,
-                doubaoManualModels = manualModels,
-                doubaoAdminUrl = adminUrl,
-                doubaoModelListUrl = modelListUrl,
-                doubaoParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.DOUBAO, endpoints))
+            onSave(aiSettings.withProvider(AiService.DOUBAO, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.DOUBAO, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -3102,29 +3102,29 @@ fun RekaSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.rekaApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.rekaModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.rekaModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.rekaManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.rekaAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.rekaModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.REKA)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.REKA)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.REKA)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.REKA)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.REKA).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.REKA)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.REKA)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.rekaParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.REKA)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.rekaApiKey ||
-            defaultModel != aiSettings.rekaModel ||
-            modelSource != aiSettings.rekaModelSource ||
-            manualModels != aiSettings.rekaManualModels ||
-            adminUrl != aiSettings.rekaAdminUrl ||
-            modelListUrl != aiSettings.rekaModelListUrl ||
-            selectedParametersIds != aiSettings.rekaParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.REKA) ||
+            defaultModel != aiSettings.getModel(AiService.REKA) ||
+            modelSource != aiSettings.getModelSource(AiService.REKA) ||
+            manualModels != aiSettings.getManualModels(AiService.REKA) ||
+            adminUrl != aiSettings.getProvider(AiService.REKA).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.REKA) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.REKA) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.REKA)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.rekaApiKey.isNotBlank() && aiSettings.rekaModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.rekaApiKey)
+        if (aiSettings.getApiKey(AiService.REKA).isNotBlank() && aiSettings.getModelSource(AiService.REKA) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.REKA))
         }
     }
 
@@ -3133,15 +3133,15 @@ fun RekaSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                rekaApiKey = apiKey,
-                rekaModel = defaultModel,
-                rekaModelSource = modelSource,
-                rekaManualModels = manualModels,
-                rekaAdminUrl = adminUrl,
-                rekaModelListUrl = modelListUrl,
-                rekaParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.REKA, endpoints))
+            onSave(aiSettings.withProvider(AiService.REKA, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.REKA, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,
@@ -3203,29 +3203,29 @@ fun WriterSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {}
 ) {
-    var apiKey by remember { mutableStateOf(aiSettings.writerApiKey) }
-    var defaultModel by remember { mutableStateOf(aiSettings.writerModel) }
-    var modelSource by remember { mutableStateOf(aiSettings.writerModelSource) }
-    var manualModels by remember { mutableStateOf(aiSettings.writerManualModels) }
-    var adminUrl by remember { mutableStateOf(aiSettings.writerAdminUrl) }
-    var modelListUrl by remember { mutableStateOf(aiSettings.writerModelListUrl) }
+    var apiKey by remember { mutableStateOf(aiSettings.getApiKey(AiService.WRITER)) }
+    var defaultModel by remember { mutableStateOf(aiSettings.getModel(AiService.WRITER)) }
+    var modelSource by remember { mutableStateOf(aiSettings.getModelSource(AiService.WRITER)) }
+    var manualModels by remember { mutableStateOf(aiSettings.getManualModels(AiService.WRITER)) }
+    var adminUrl by remember { mutableStateOf(aiSettings.getProvider(AiService.WRITER).adminUrl) }
+    var modelListUrl by remember { mutableStateOf(aiSettings.getModelListUrl(AiService.WRITER)) }
     var endpoints by remember { mutableStateOf(aiSettings.getEndpointsForProvider(AiService.WRITER)) }
-    var selectedParametersIds by remember { mutableStateOf(aiSettings.writerParametersIds) }
+    var selectedParametersIds by remember { mutableStateOf(aiSettings.getParametersIds(AiService.WRITER)) }
 
     val effectiveModels = if (modelSource == ModelSource.API) availableModels else manualModels
 
-    val hasChanges = apiKey != aiSettings.writerApiKey ||
-            defaultModel != aiSettings.writerModel ||
-            modelSource != aiSettings.writerModelSource ||
-            manualModels != aiSettings.writerManualModels ||
-            adminUrl != aiSettings.writerAdminUrl ||
-            modelListUrl != aiSettings.writerModelListUrl ||
-            selectedParametersIds != aiSettings.writerParametersIds ||
+    val hasChanges = apiKey != aiSettings.getApiKey(AiService.WRITER) ||
+            defaultModel != aiSettings.getModel(AiService.WRITER) ||
+            modelSource != aiSettings.getModelSource(AiService.WRITER) ||
+            manualModels != aiSettings.getManualModels(AiService.WRITER) ||
+            adminUrl != aiSettings.getProvider(AiService.WRITER).adminUrl ||
+            modelListUrl != aiSettings.getModelListUrl(AiService.WRITER) ||
+            selectedParametersIds != aiSettings.getParametersIds(AiService.WRITER) ||
             endpoints != aiSettings.getEndpointsForProvider(AiService.WRITER)
 
     LaunchedEffect(Unit) {
-        if (aiSettings.writerApiKey.isNotBlank() && aiSettings.writerModelSource == ModelSource.API) {
-            onFetchModels(aiSettings.writerApiKey)
+        if (aiSettings.getApiKey(AiService.WRITER).isNotBlank() && aiSettings.getModelSource(AiService.WRITER) == ModelSource.API) {
+            onFetchModels(aiSettings.getApiKey(AiService.WRITER))
         }
     }
 
@@ -3234,15 +3234,15 @@ fun WriterSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         onSave = {
-            onSave(aiSettings.copy(
-                writerApiKey = apiKey,
-                writerModel = defaultModel,
-                writerModelSource = modelSource,
-                writerManualModels = manualModels,
-                writerAdminUrl = adminUrl,
-                writerModelListUrl = modelListUrl,
-                writerParametersIds = selectedParametersIds
-            ).withEndpoints(AiService.WRITER, endpoints))
+            onSave(aiSettings.withProvider(AiService.WRITER, ProviderConfig(
+                apiKey = apiKey,
+                model = defaultModel,
+                modelSource = modelSource,
+                manualModels = manualModels,
+                adminUrl = adminUrl,
+                modelListUrl = modelListUrl,
+                parametersIds = selectedParametersIds
+            )).withEndpoints(AiService.WRITER, endpoints))
         },
         hasChanges = hasChanges,
         apiKey = apiKey,

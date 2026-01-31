@@ -333,7 +333,7 @@ fun ModelSearchScreen(
                 availableChatGptModels.forEach { add(ModelSearchItem(AiService.OPENAI, "OpenAI", it)) }
             // Anthropic models (API or fallback to manual)
             if (isActive(AiService.ANTHROPIC)) {
-                val claudeModels = if (availableClaudeModels.isNotEmpty()) availableClaudeModels else aiSettings.claudeManualModels
+                val claudeModels = if (availableClaudeModels.isNotEmpty()) availableClaudeModels else aiSettings.getManualModels(AiService.ANTHROPIC)
                 claudeModels.forEach { add(ModelSearchItem(AiService.ANTHROPIC, "Anthropic", it)) }
             }
             // Google models
@@ -353,7 +353,7 @@ fun ModelSearchScreen(
                 availableMistralModels.forEach { add(ModelSearchItem(AiService.MISTRAL, "Mistral", it)) }
             // Perplexity models (hardcoded - no API)
             if (isActive(AiService.PERPLEXITY))
-                aiSettings.perplexityManualModels.forEach { add(ModelSearchItem(AiService.PERPLEXITY, "Perplexity", it)) }
+                aiSettings.getManualModels(AiService.PERPLEXITY).forEach { add(ModelSearchItem(AiService.PERPLEXITY, "Perplexity", it)) }
             // Together models
             if (isActive(AiService.TOGETHER))
                 availableTogetherModels.forEach { add(ModelSearchItem(AiService.TOGETHER, "Together", it)) }
@@ -362,107 +362,107 @@ fun ModelSearchScreen(
                 availableOpenRouterModels.forEach { add(ModelSearchItem(AiService.OPENROUTER, "OpenRouter", it)) }
             // SiliconFlow models (API or fallback to manual)
             if (isActive(AiService.SILICONFLOW)) {
-                val siliconFlowModels = if (availableSiliconFlowModels.isNotEmpty()) availableSiliconFlowModels else aiSettings.siliconFlowManualModels
+                val siliconFlowModels = if (availableSiliconFlowModels.isNotEmpty()) availableSiliconFlowModels else aiSettings.getManualModels(AiService.SILICONFLOW)
                 siliconFlowModels.forEach { add(ModelSearchItem(AiService.SILICONFLOW, "SiliconFlow", it)) }
             }
             // Z.AI models (API or fallback to manual)
             if (isActive(AiService.ZAI)) {
-                val zaiModels = if (availableZaiModels.isNotEmpty()) availableZaiModels else aiSettings.zaiManualModels
+                val zaiModels = if (availableZaiModels.isNotEmpty()) availableZaiModels else aiSettings.getManualModels(AiService.ZAI)
                 zaiModels.forEach { add(ModelSearchItem(AiService.ZAI, "Z.AI", it)) }
             }
             // Moonshot models (API or fallback to manual)
             if (isActive(AiService.MOONSHOT)) {
-                val moonshotModels = if (availableMoonshotModels.isNotEmpty()) availableMoonshotModels else aiSettings.moonshotManualModels
+                val moonshotModels = if (availableMoonshotModels.isNotEmpty()) availableMoonshotModels else aiSettings.getManualModels(AiService.MOONSHOT)
                 moonshotModels.forEach { add(ModelSearchItem(AiService.MOONSHOT, "Moonshot", it)) }
             }
             // Cohere models (API or fallback to manual)
             if (isActive(AiService.COHERE)) {
-                val cohereModels = if (availableCohereModels.isNotEmpty()) availableCohereModels else aiSettings.cohereManualModels
+                val cohereModels = if (availableCohereModels.isNotEmpty()) availableCohereModels else aiSettings.getManualModels(AiService.COHERE)
                 cohereModels.forEach { add(ModelSearchItem(AiService.COHERE, "Cohere", it)) }
             }
             // AI21 models (API or fallback to manual)
             if (isActive(AiService.AI21)) {
-                val ai21Models = if (availableAi21Models.isNotEmpty()) availableAi21Models else aiSettings.ai21ManualModels
+                val ai21Models = if (availableAi21Models.isNotEmpty()) availableAi21Models else aiSettings.getManualModels(AiService.AI21)
                 ai21Models.forEach { add(ModelSearchItem(AiService.AI21, "AI21", it)) }
             }
             // DashScope models (API or fallback to manual)
             if (isActive(AiService.DASHSCOPE)) {
-                val dashScopeModels = if (availableDashScopeModels.isNotEmpty()) availableDashScopeModels else aiSettings.dashScopeManualModels
+                val dashScopeModels = if (availableDashScopeModels.isNotEmpty()) availableDashScopeModels else aiSettings.getManualModels(AiService.DASHSCOPE)
                 dashScopeModels.forEach { add(ModelSearchItem(AiService.DASHSCOPE, "DashScope", it)) }
             }
             // Fireworks models (API or fallback to manual)
             if (isActive(AiService.FIREWORKS)) {
-                val fireworksModels = if (availableFireworksModels.isNotEmpty()) availableFireworksModels else aiSettings.fireworksManualModels
+                val fireworksModels = if (availableFireworksModels.isNotEmpty()) availableFireworksModels else aiSettings.getManualModels(AiService.FIREWORKS)
                 fireworksModels.forEach { add(ModelSearchItem(AiService.FIREWORKS, "Fireworks", it)) }
             }
             // Cerebras models (API or fallback to manual)
             if (isActive(AiService.CEREBRAS)) {
-                val cerebrasModels = if (availableCerebrasModels.isNotEmpty()) availableCerebrasModels else aiSettings.cerebrasManualModels
+                val cerebrasModels = if (availableCerebrasModels.isNotEmpty()) availableCerebrasModels else aiSettings.getManualModels(AiService.CEREBRAS)
                 cerebrasModels.forEach { add(ModelSearchItem(AiService.CEREBRAS, "Cerebras", it)) }
             }
             // SambaNova models (API or fallback to manual)
             if (isActive(AiService.SAMBANOVA)) {
-                val sambaNovaModels = if (availableSambaNovaModels.isNotEmpty()) availableSambaNovaModels else aiSettings.sambaNovaManualModels
+                val sambaNovaModels = if (availableSambaNovaModels.isNotEmpty()) availableSambaNovaModels else aiSettings.getManualModels(AiService.SAMBANOVA)
                 sambaNovaModels.forEach { add(ModelSearchItem(AiService.SAMBANOVA, "SambaNova", it)) }
             }
             // Baichuan models (API or fallback to manual)
             if (isActive(AiService.BAICHUAN)) {
-                val baichuanModels = if (availableBaichuanModels.isNotEmpty()) availableBaichuanModels else aiSettings.baichuanManualModels
+                val baichuanModels = if (availableBaichuanModels.isNotEmpty()) availableBaichuanModels else aiSettings.getManualModels(AiService.BAICHUAN)
                 baichuanModels.forEach { add(ModelSearchItem(AiService.BAICHUAN, "Baichuan", it)) }
             }
             // StepFun models (API or fallback to manual)
             if (isActive(AiService.STEPFUN)) {
-                val stepFunModels = if (availableStepFunModels.isNotEmpty()) availableStepFunModels else aiSettings.stepFunManualModels
+                val stepFunModels = if (availableStepFunModels.isNotEmpty()) availableStepFunModels else aiSettings.getManualModels(AiService.STEPFUN)
                 stepFunModels.forEach { add(ModelSearchItem(AiService.STEPFUN, "StepFun", it)) }
             }
             // MiniMax models (API or fallback to manual)
             if (isActive(AiService.MINIMAX)) {
-                val miniMaxModels = if (availableMiniMaxModels.isNotEmpty()) availableMiniMaxModels else aiSettings.miniMaxManualModels
+                val miniMaxModels = if (availableMiniMaxModels.isNotEmpty()) availableMiniMaxModels else aiSettings.getManualModels(AiService.MINIMAX)
                 miniMaxModels.forEach { add(ModelSearchItem(AiService.MINIMAX, "MiniMax", it)) }
             }
             // NVIDIA models
             if (isActive(AiService.NVIDIA)) {
-                val nvidiaModels = if (availableNvidiaModels.isNotEmpty()) availableNvidiaModels else aiSettings.nvidiaManualModels
+                val nvidiaModels = if (availableNvidiaModels.isNotEmpty()) availableNvidiaModels else aiSettings.getManualModels(AiService.NVIDIA)
                 nvidiaModels.forEach { add(ModelSearchItem(AiService.NVIDIA, "NVIDIA", it)) }
             }
             // Replicate models
             if (isActive(AiService.REPLICATE)) {
-                val replicateModels = if (availableReplicateModels.isNotEmpty()) availableReplicateModels else aiSettings.replicateManualModels
+                val replicateModels = if (availableReplicateModels.isNotEmpty()) availableReplicateModels else aiSettings.getManualModels(AiService.REPLICATE)
                 replicateModels.forEach { add(ModelSearchItem(AiService.REPLICATE, "Replicate", it)) }
             }
             // Hugging Face Inference models
             if (isActive(AiService.HUGGINGFACE)) {
-                val hfModels = if (availableHuggingFaceInferenceModels.isNotEmpty()) availableHuggingFaceInferenceModels else aiSettings.huggingFaceInferenceManualModels
+                val hfModels = if (availableHuggingFaceInferenceModels.isNotEmpty()) availableHuggingFaceInferenceModels else aiSettings.getManualModels(AiService.HUGGINGFACE)
                 hfModels.forEach { add(ModelSearchItem(AiService.HUGGINGFACE, "Hugging Face", it)) }
             }
             // Lambda models
             if (isActive(AiService.LAMBDA)) {
-                val lambdaModels = if (availableLambdaModels.isNotEmpty()) availableLambdaModels else aiSettings.lambdaManualModels
+                val lambdaModels = if (availableLambdaModels.isNotEmpty()) availableLambdaModels else aiSettings.getManualModels(AiService.LAMBDA)
                 lambdaModels.forEach { add(ModelSearchItem(AiService.LAMBDA, "Lambda", it)) }
             }
             // Lepton models
             if (isActive(AiService.LEPTON)) {
-                val leptonModels = if (availableLeptonModels.isNotEmpty()) availableLeptonModels else aiSettings.leptonManualModels
+                val leptonModels = if (availableLeptonModels.isNotEmpty()) availableLeptonModels else aiSettings.getManualModels(AiService.LEPTON)
                 leptonModels.forEach { add(ModelSearchItem(AiService.LEPTON, "Lepton", it)) }
             }
             // YI (01.AI) models
             if (isActive(AiService.YI)) {
-                val yiModels = if (availableYiModels.isNotEmpty()) availableYiModels else aiSettings.yiManualModels
+                val yiModels = if (availableYiModels.isNotEmpty()) availableYiModels else aiSettings.getManualModels(AiService.YI)
                 yiModels.forEach { add(ModelSearchItem(AiService.YI, "01.AI", it)) }
             }
             // Doubao models
             if (isActive(AiService.DOUBAO)) {
-                val doubaoModels = if (availableDoubaoModels.isNotEmpty()) availableDoubaoModels else aiSettings.doubaoManualModels
+                val doubaoModels = if (availableDoubaoModels.isNotEmpty()) availableDoubaoModels else aiSettings.getManualModels(AiService.DOUBAO)
                 doubaoModels.forEach { add(ModelSearchItem(AiService.DOUBAO, "Doubao", it)) }
             }
             // Reka models
             if (isActive(AiService.REKA)) {
-                val rekaModels = if (availableRekaModels.isNotEmpty()) availableRekaModels else aiSettings.rekaManualModels
+                val rekaModels = if (availableRekaModels.isNotEmpty()) availableRekaModels else aiSettings.getManualModels(AiService.REKA)
                 rekaModels.forEach { add(ModelSearchItem(AiService.REKA, "Reka", it)) }
             }
             // Writer models
             if (isActive(AiService.WRITER)) {
-                val writerModels = if (availableWriterModels.isNotEmpty()) availableWriterModels else aiSettings.writerManualModels
+                val writerModels = if (availableWriterModels.isNotEmpty()) availableWriterModels else aiSettings.getManualModels(AiService.WRITER)
                 writerModels.forEach { add(ModelSearchItem(AiService.WRITER, "Writer", it)) }
             }
         }

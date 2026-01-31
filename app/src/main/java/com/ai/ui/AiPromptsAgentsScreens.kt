@@ -202,16 +202,7 @@ fun AiAgentsScreen(
             )
 
             // Check if any provider has an API key configured
-            val hasAnyApiKey = aiSettings.chatGptApiKey.isNotBlank() ||
-                    aiSettings.claudeApiKey.isNotBlank() ||
-                    aiSettings.geminiApiKey.isNotBlank() ||
-                    aiSettings.grokApiKey.isNotBlank() ||
-                    aiSettings.groqApiKey.isNotBlank() ||
-                    aiSettings.deepSeekApiKey.isNotBlank() ||
-                    aiSettings.mistralApiKey.isNotBlank() ||
-                    aiSettings.perplexityApiKey.isNotBlank() ||
-                    aiSettings.togetherApiKey.isNotBlank() ||
-                    aiSettings.openRouterApiKey.isNotBlank()
+            val hasAnyApiKey = aiSettings.hasAnyApiKey()
 
             if (!hasAnyApiKey) {
                 // Show error if no API keys configured
@@ -512,200 +503,54 @@ internal fun AgentEditScreen(
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
     var showEndpointDialog by remember { mutableStateOf(false) }
 
+    // Build available models map from individual parameters
+    val availableModelsMap = mapOf(
+        AiService.OPENAI to availableChatGptModels,
+        AiService.ANTHROPIC to availableClaudeModels,
+        AiService.GOOGLE to availableGeminiModels,
+        AiService.XAI to availableGrokModels,
+        AiService.GROQ to availableGroqModels,
+        AiService.DEEPSEEK to availableDeepSeekModels,
+        AiService.MISTRAL to availableMistralModels,
+        AiService.PERPLEXITY to availablePerplexityModels,
+        AiService.TOGETHER to availableTogetherModels,
+        AiService.OPENROUTER to availableOpenRouterModels,
+        AiService.SILICONFLOW to availableSiliconFlowModels,
+        AiService.ZAI to availableZaiModels,
+        AiService.MOONSHOT to availableMoonshotModels,
+        AiService.COHERE to availableCohereModels,
+        AiService.AI21 to availableAi21Models,
+        AiService.DASHSCOPE to availableDashScopeModels,
+        AiService.FIREWORKS to availableFireworksModels,
+        AiService.CEREBRAS to availableCerebrasModels,
+        AiService.SAMBANOVA to availableSambaNovaModels,
+        AiService.BAICHUAN to availableBaichuanModels,
+        AiService.STEPFUN to availableStepFunModels,
+        AiService.MINIMAX to availableMiniMaxModels,
+        AiService.NVIDIA to availableNvidiaModels,
+        AiService.REPLICATE to availableReplicateModels,
+        AiService.HUGGINGFACE to availableHuggingFaceInferenceModels,
+        AiService.LAMBDA to availableLambdaModels,
+        AiService.LEPTON to availableLeptonModels,
+        AiService.YI to availableYiModels,
+        AiService.DOUBAO to availableDoubaoModels,
+        AiService.REKA to availableRekaModels,
+        AiService.WRITER to availableWriterModels
+    )
+
     // Get models for selected provider
-    val modelsForProvider = when (selectedProvider) {
-        AiService.OPENAI -> {
-            val apiModels = if (aiSettings.chatGptModelSource == ModelSource.API) availableChatGptModels else emptyList()
-            val manualModels = if (aiSettings.chatGptModelSource == ModelSource.MANUAL) aiSettings.chatGptManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.ANTHROPIC -> {
-            val apiModels = if (aiSettings.claudeModelSource == ModelSource.API) availableClaudeModels else emptyList()
-            val manualModels = if (aiSettings.claudeModelSource == ModelSource.MANUAL) aiSettings.claudeManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { CLAUDE_MODELS }
-        }
-        AiService.GOOGLE -> {
-            val apiModels = if (aiSettings.geminiModelSource == ModelSource.API) availableGeminiModels else emptyList()
-            val manualModels = if (aiSettings.geminiModelSource == ModelSource.MANUAL) aiSettings.geminiManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.XAI -> {
-            val apiModels = if (aiSettings.grokModelSource == ModelSource.API) availableGrokModels else emptyList()
-            val manualModels = if (aiSettings.grokModelSource == ModelSource.MANUAL) aiSettings.grokManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.GROQ -> {
-            val apiModels = if (aiSettings.groqModelSource == ModelSource.API) availableGroqModels else emptyList()
-            val manualModels = if (aiSettings.groqModelSource == ModelSource.MANUAL) aiSettings.groqManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.DEEPSEEK -> {
-            val apiModels = if (aiSettings.deepSeekModelSource == ModelSource.API) availableDeepSeekModels else emptyList()
-            val manualModels = if (aiSettings.deepSeekModelSource == ModelSource.MANUAL) aiSettings.deepSeekManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.MISTRAL -> {
-            val apiModels = if (aiSettings.mistralModelSource == ModelSource.API) availableMistralModels else emptyList()
-            val manualModels = if (aiSettings.mistralModelSource == ModelSource.MANUAL) aiSettings.mistralManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.PERPLEXITY -> {
-            val apiModels = if (aiSettings.perplexityModelSource == ModelSource.API) availablePerplexityModels else emptyList()
-            val manualModels = if (aiSettings.perplexityModelSource == ModelSource.MANUAL) aiSettings.perplexityManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.TOGETHER -> {
-            val apiModels = if (aiSettings.togetherModelSource == ModelSource.API) availableTogetherModels else emptyList()
-            val manualModels = if (aiSettings.togetherModelSource == ModelSource.MANUAL) aiSettings.togetherManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.OPENROUTER -> {
-            val apiModels = if (aiSettings.openRouterModelSource == ModelSource.API) availableOpenRouterModels else emptyList()
-            val manualModels = if (aiSettings.openRouterModelSource == ModelSource.MANUAL) aiSettings.openRouterManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.SILICONFLOW -> {
-            val apiModels = if (aiSettings.siliconFlowModelSource == ModelSource.API) availableSiliconFlowModels else emptyList()
-            val manualModels = if (aiSettings.siliconFlowModelSource == ModelSource.MANUAL) aiSettings.siliconFlowManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { SILICONFLOW_MODELS }
-        }
-        AiService.ZAI -> {
-            val apiModels = if (aiSettings.zaiModelSource == ModelSource.API) availableZaiModels else emptyList()
-            val manualModels = if (aiSettings.zaiModelSource == ModelSource.MANUAL) aiSettings.zaiManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { ZAI_MODELS }
-        }
-        AiService.MOONSHOT -> {
-            val apiModels = if (aiSettings.moonshotModelSource == ModelSource.API) availableMoonshotModels else emptyList()
-            val manualModels = if (aiSettings.moonshotModelSource == ModelSource.MANUAL) aiSettings.moonshotManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { MOONSHOT_MODELS }
-        }
-        AiService.COHERE -> {
-            val apiModels = if (aiSettings.cohereModelSource == ModelSource.API) availableCohereModels else emptyList()
-            val manualModels = if (aiSettings.cohereModelSource == ModelSource.MANUAL) aiSettings.cohereManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { COHERE_MODELS }
-        }
-        AiService.AI21 -> {
-            val apiModels = if (aiSettings.ai21ModelSource == ModelSource.API) availableAi21Models else emptyList()
-            val manualModels = if (aiSettings.ai21ModelSource == ModelSource.MANUAL) aiSettings.ai21ManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { AI21_MODELS }
-        }
-        AiService.DASHSCOPE -> {
-            val apiModels = if (aiSettings.dashScopeModelSource == ModelSource.API) availableDashScopeModels else emptyList()
-            val manualModels = if (aiSettings.dashScopeModelSource == ModelSource.MANUAL) aiSettings.dashScopeManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { DASHSCOPE_MODELS }
-        }
-        AiService.FIREWORKS -> {
-            val apiModels = if (aiSettings.fireworksModelSource == ModelSource.API) availableFireworksModels else emptyList()
-            val manualModels = if (aiSettings.fireworksModelSource == ModelSource.MANUAL) aiSettings.fireworksManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { FIREWORKS_MODELS }
-        }
-        AiService.CEREBRAS -> {
-            val apiModels = if (aiSettings.cerebrasModelSource == ModelSource.API) availableCerebrasModels else emptyList()
-            val manualModels = if (aiSettings.cerebrasModelSource == ModelSource.MANUAL) aiSettings.cerebrasManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { CEREBRAS_MODELS }
-        }
-        AiService.SAMBANOVA -> {
-            val apiModels = if (aiSettings.sambaNovaModelSource == ModelSource.API) availableSambaNovaModels else emptyList()
-            val manualModels = if (aiSettings.sambaNovaModelSource == ModelSource.MANUAL) aiSettings.sambaNovaManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { SAMBANOVA_MODELS }
-        }
-        AiService.BAICHUAN -> {
-            val apiModels = if (aiSettings.baichuanModelSource == ModelSource.API) availableBaichuanModels else emptyList()
-            val manualModels = if (aiSettings.baichuanModelSource == ModelSource.MANUAL) aiSettings.baichuanManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { BAICHUAN_MODELS }
-        }
-        AiService.STEPFUN -> {
-            val apiModels = if (aiSettings.stepFunModelSource == ModelSource.API) availableStepFunModels else emptyList()
-            val manualModels = if (aiSettings.stepFunModelSource == ModelSource.MANUAL) aiSettings.stepFunManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { STEPFUN_MODELS }
-        }
-        AiService.MINIMAX -> {
-            val apiModels = if (aiSettings.miniMaxModelSource == ModelSource.API) availableMiniMaxModels else emptyList()
-            val manualModels = if (aiSettings.miniMaxModelSource == ModelSource.MANUAL) aiSettings.miniMaxManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { MINIMAX_MODELS }
-        }
-        AiService.NVIDIA -> {
-            val apiModels = if (aiSettings.nvidiaModelSource == ModelSource.API) availableNvidiaModels else emptyList()
-            val manualModels = if (aiSettings.nvidiaModelSource == ModelSource.MANUAL) aiSettings.nvidiaManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.REPLICATE -> {
-            val apiModels = if (aiSettings.replicateModelSource == ModelSource.API) availableReplicateModels else emptyList()
-            val manualModels = if (aiSettings.replicateModelSource == ModelSource.MANUAL) aiSettings.replicateManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { REPLICATE_MODELS }
-        }
-        AiService.HUGGINGFACE -> {
-            val apiModels = if (aiSettings.huggingFaceInferenceModelSource == ModelSource.API) availableHuggingFaceInferenceModels else emptyList()
-            val manualModels = if (aiSettings.huggingFaceInferenceModelSource == ModelSource.MANUAL) aiSettings.huggingFaceInferenceManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { HUGGINGFACE_INFERENCE_MODELS }
-        }
-        AiService.LAMBDA -> {
-            val apiModels = if (aiSettings.lambdaModelSource == ModelSource.API) availableLambdaModels else emptyList()
-            val manualModels = if (aiSettings.lambdaModelSource == ModelSource.MANUAL) aiSettings.lambdaManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { listOf(model) }
-        }
-        AiService.LEPTON -> {
-            val apiModels = if (aiSettings.leptonModelSource == ModelSource.API) availableLeptonModels else emptyList()
-            val manualModels = if (aiSettings.leptonModelSource == ModelSource.MANUAL) aiSettings.leptonManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { LEPTON_MODELS }
-        }
-        AiService.YI -> {
-            val apiModels = if (aiSettings.yiModelSource == ModelSource.API) availableYiModels else emptyList()
-            val manualModels = if (aiSettings.yiModelSource == ModelSource.MANUAL) aiSettings.yiManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { YI_MODELS }
-        }
-        AiService.DOUBAO -> {
-            val apiModels = if (aiSettings.doubaoModelSource == ModelSource.API) availableDoubaoModels else emptyList()
-            val manualModels = if (aiSettings.doubaoModelSource == ModelSource.MANUAL) aiSettings.doubaoManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { DOUBAO_MODELS }
-        }
-        AiService.REKA -> {
-            val apiModels = if (aiSettings.rekaModelSource == ModelSource.API) availableRekaModels else emptyList()
-            val manualModels = if (aiSettings.rekaModelSource == ModelSource.MANUAL) aiSettings.rekaManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { REKA_MODELS }
-        }
-        AiService.WRITER -> {
-            val apiModels = if (aiSettings.writerModelSource == ModelSource.API) availableWriterModels else emptyList()
-            val manualModels = if (aiSettings.writerModelSource == ModelSource.MANUAL) aiSettings.writerManualModels else emptyList()
-            (apiModels + manualModels).ifEmpty { WRITER_MODELS }
-        }
+    val modelsForProvider = run {
+        val modelSource = aiSettings.getModelSource(selectedProvider)
+        val availableModelsForProvider = availableModelsMap[selectedProvider] ?: emptyList()
+        val apiModels = if (modelSource == ModelSource.API) availableModelsForProvider else emptyList()
+        val manualModels = if (modelSource == ModelSource.MANUAL) aiSettings.getManualModels(selectedProvider) else emptyList()
+        val defaultModels = defaultProviderConfig(selectedProvider).manualModels
+        (apiModels + manualModels).ifEmpty { defaultModels.ifEmpty { listOf(model) } }
     }
 
     // Helper to check if provider uses API model source
     fun getModelSourceForProvider(provider: AiService): ModelSource {
-        return when (provider) {
-            AiService.OPENAI -> aiSettings.chatGptModelSource
-            AiService.GOOGLE -> aiSettings.geminiModelSource
-            AiService.XAI -> aiSettings.grokModelSource
-            AiService.GROQ -> aiSettings.groqModelSource
-            AiService.DEEPSEEK -> aiSettings.deepSeekModelSource
-            AiService.MISTRAL -> aiSettings.mistralModelSource
-            AiService.PERPLEXITY -> aiSettings.perplexityModelSource
-            AiService.TOGETHER -> aiSettings.togetherModelSource
-            AiService.OPENROUTER -> aiSettings.openRouterModelSource
-            AiService.ANTHROPIC -> ModelSource.MANUAL // Claude has hardcoded models
-            AiService.SILICONFLOW -> ModelSource.MANUAL // SiliconFlow has hardcoded models
-            AiService.ZAI -> ModelSource.MANUAL // Z.AI has hardcoded models
-            AiService.MOONSHOT -> aiSettings.moonshotModelSource
-            AiService.COHERE -> aiSettings.cohereModelSource
-            AiService.AI21 -> aiSettings.ai21ModelSource
-            AiService.DASHSCOPE -> aiSettings.dashScopeModelSource
-            AiService.FIREWORKS -> aiSettings.fireworksModelSource
-            AiService.CEREBRAS -> aiSettings.cerebrasModelSource
-            AiService.SAMBANOVA -> aiSettings.sambaNovaModelSource
-            AiService.BAICHUAN -> aiSettings.baichuanModelSource
-            AiService.STEPFUN -> aiSettings.stepFunModelSource
-            AiService.MINIMAX -> aiSettings.miniMaxModelSource
-            AiService.NVIDIA -> aiSettings.nvidiaModelSource
-            AiService.REPLICATE -> aiSettings.replicateModelSource
-            AiService.HUGGINGFACE -> aiSettings.huggingFaceInferenceModelSource
-            AiService.LAMBDA -> aiSettings.lambdaModelSource
-            AiService.LEPTON -> aiSettings.leptonModelSource
-            AiService.YI -> aiSettings.yiModelSource
-            AiService.DOUBAO -> aiSettings.doubaoModelSource
-            AiService.REKA -> aiSettings.rekaModelSource
-            AiService.WRITER -> aiSettings.writerModelSource
-        }
+        return aiSettings.getModelSource(provider)
     }
 
     // Fetch models on initial load (for edit mode) and when provider changes

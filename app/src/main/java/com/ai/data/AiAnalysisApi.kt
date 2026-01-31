@@ -93,7 +93,13 @@ enum class AiService(
     YI("01.AI", "https://api.01.ai/", "https://platform.01.ai/", "yi-lightning"),
     DOUBAO("Doubao", "https://ark.cn-beijing.volces.com/api/", "https://console.volcengine.com/", "doubao-pro-32k", chatPath = "v3/chat/completions", modelsPath = "v3/models"),
     REKA("Reka", "https://api.reka.ai/", "https://platform.reka.ai/", "reka-flash"),
-    WRITER("Writer", "https://api.writer.com/", "https://app.writer.com/", "palmyra-x-004")
+    WRITER("Writer", "https://api.writer.com/", "https://app.writer.com/", "palmyra-x-004");
+
+    /** SharedPreferences key prefix for this provider (e.g., "ai_openai" → keys like "ai_openai_api_key"). */
+    val prefsKey: String get() = when (this) {
+        HUGGINGFACE -> "ai_huggingface_inference"
+        else -> "ai_${name.lowercase()}"
+    }
 }
 
 // OpenAI models

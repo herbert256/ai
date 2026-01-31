@@ -289,7 +289,7 @@ fun AiNavHost(
         composable(NavRoutes.AI_COSTS) {
             val uiState by viewModel.uiState.collectAsState()
             AiCostsScreen(
-                openRouterApiKey = uiState.aiSettings.openRouterApiKey,
+                openRouterApiKey = uiState.aiSettings.getApiKey(com.ai.data.AiService.OPENROUTER),
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -442,7 +442,7 @@ fun AiNavHost(
                 ModelInfoScreen(
                     provider = provider,
                     modelName = model,
-                    openRouterApiKey = uiState.aiSettings.openRouterApiKey,
+                    openRouterApiKey = uiState.aiSettings.getApiKey(com.ai.data.AiService.OPENROUTER),
                     huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
                     aiSettings = uiState.aiSettings,
                     onNavigateBack = { navController.popBackStack() },
@@ -677,39 +677,7 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
 
             if (provider != null) {
-                val apiKey = when (provider) {
-                    com.ai.data.AiService.OPENAI -> uiState.aiSettings.chatGptApiKey
-                    com.ai.data.AiService.ANTHROPIC -> uiState.aiSettings.claudeApiKey
-                    com.ai.data.AiService.GOOGLE -> uiState.aiSettings.geminiApiKey
-                    com.ai.data.AiService.XAI -> uiState.aiSettings.grokApiKey
-                    com.ai.data.AiService.GROQ -> uiState.aiSettings.groqApiKey
-                    com.ai.data.AiService.DEEPSEEK -> uiState.aiSettings.deepSeekApiKey
-                    com.ai.data.AiService.MISTRAL -> uiState.aiSettings.mistralApiKey
-                    com.ai.data.AiService.PERPLEXITY -> uiState.aiSettings.perplexityApiKey
-                    com.ai.data.AiService.TOGETHER -> uiState.aiSettings.togetherApiKey
-                    com.ai.data.AiService.OPENROUTER -> uiState.aiSettings.openRouterApiKey
-                    com.ai.data.AiService.SILICONFLOW -> uiState.aiSettings.siliconFlowApiKey
-                    com.ai.data.AiService.ZAI -> uiState.aiSettings.zaiApiKey
-                    com.ai.data.AiService.MOONSHOT -> uiState.aiSettings.moonshotApiKey
-                    com.ai.data.AiService.COHERE -> uiState.aiSettings.cohereApiKey
-                    com.ai.data.AiService.AI21 -> uiState.aiSettings.ai21ApiKey
-                    com.ai.data.AiService.DASHSCOPE -> uiState.aiSettings.dashScopeApiKey
-                    com.ai.data.AiService.FIREWORKS -> uiState.aiSettings.fireworksApiKey
-                    com.ai.data.AiService.CEREBRAS -> uiState.aiSettings.cerebrasApiKey
-                    com.ai.data.AiService.SAMBANOVA -> uiState.aiSettings.sambaNovaApiKey
-                    com.ai.data.AiService.BAICHUAN -> uiState.aiSettings.baichuanApiKey
-                    com.ai.data.AiService.STEPFUN -> uiState.aiSettings.stepFunApiKey
-                    com.ai.data.AiService.MINIMAX -> uiState.aiSettings.miniMaxApiKey
-                    com.ai.data.AiService.NVIDIA -> uiState.aiSettings.nvidiaApiKey
-                    com.ai.data.AiService.REPLICATE -> uiState.aiSettings.replicateApiKey
-                    com.ai.data.AiService.HUGGINGFACE -> uiState.aiSettings.huggingFaceInferenceApiKey
-                    com.ai.data.AiService.LAMBDA -> uiState.aiSettings.lambdaApiKey
-                    com.ai.data.AiService.LEPTON -> uiState.aiSettings.leptonApiKey
-                    com.ai.data.AiService.YI -> uiState.aiSettings.yiApiKey
-                    com.ai.data.AiService.DOUBAO -> uiState.aiSettings.doubaoApiKey
-                    com.ai.data.AiService.REKA -> uiState.aiSettings.rekaApiKey
-                    com.ai.data.AiService.WRITER -> uiState.aiSettings.writerApiKey
-                }
+                val apiKey = uiState.aiSettings.getApiKey(provider)
 
                 ChatSessionScreen(
                     provider = provider,
