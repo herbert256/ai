@@ -486,15 +486,15 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
 
             if (provider != null) {
-                ChatSelectModelScreen(
+                SelectModelScreen(
                     provider = provider,
                     aiSettings = uiState.aiSettings,
-                    isLoadingModels = provider in uiState.loadingModelsFor,
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateHome = navigateHome,
+                    currentModel = "",
                     onSelectModel = { model ->
                         navController.navigate(NavRoutes.aiChatParams(provider.name, model))
-                    }
+                    },
+                    onBack = { navController.popBackStack() },
+                    onNavigateHome = navigateHome
                 )
             }
         }
