@@ -672,6 +672,21 @@ object AiApiFactory {
         }
     }
 
+    /**
+     * Create a unified OpenAI-compatible API for any provider.
+     * Uses @Url for dynamic paths, so the caller must provide full path.
+     */
+    fun createOpenAiCompatibleApi(baseUrl: String): OpenAiCompatibleApi {
+        return getRetrofit(baseUrl).create(OpenAiCompatibleApi::class.java)
+    }
+
+    /**
+     * Create a unified OpenAI-compatible streaming API for any provider.
+     */
+    fun createOpenAiCompatibleStreamApi(baseUrl: String): OpenAiCompatibleStreamApi {
+        return getRetrofit(baseUrl).create(OpenAiCompatibleStreamApi::class.java)
+    }
+
     fun createOpenAiApi(): OpenAiApi {
         return getRetrofit(AiService.OPENAI.baseUrl).create(OpenAiApi::class.java)
     }
