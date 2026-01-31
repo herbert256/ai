@@ -17,6 +17,7 @@ import retrofit2.http.Header
 import retrofit2.http.Path
 import retrofit2.http.POST
 import retrofit2.http.Query
+import retrofit2.http.Url
 import java.lang.reflect.Type
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -414,6 +415,38 @@ data class OpenAiModel(
     val id: String?,
     val owned_by: String?
 )
+
+/**
+ * Unified Retrofit interface for all OpenAI-compatible providers.
+ * Uses @Url to support different chat and models paths per provider.
+ */
+interface OpenAiCompatibleApi {
+    @POST
+    suspend fun createChatCompletion(
+        @Url url: String,
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiRequest
+    ): Response<OpenAiResponse>
+
+    @GET
+    suspend fun listModels(
+        @Url url: String,
+        @Header("Authorization") authorization: String
+    ): Response<OpenAiModelsResponse>
+}
+
+/**
+ * Unified streaming interface for all OpenAI-compatible providers.
+ */
+interface OpenAiCompatibleStreamApi {
+    @retrofit2.http.Streaming
+    @POST
+    suspend fun createChatCompletionStream(
+        @Url url: String,
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiStreamRequest
+    ): Response<okhttp3.ResponseBody>
+}
 
 /**
  * Retrofit interface for xAI Grok API (OpenAI-compatible).
