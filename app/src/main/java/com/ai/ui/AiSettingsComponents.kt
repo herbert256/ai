@@ -65,6 +65,7 @@ fun AiServiceNavigationCard(
             when (providerState) {
                 "ok" -> Text(text = "\uD83D\uDD11", fontSize = 14.sp) // 🔑
                 "error" -> Text(text = "❌", fontSize = 14.sp)
+                "inactive" -> Text(text = "⏸", fontSize = 14.sp)
                 // "not-used" -> no icon
             }
         }

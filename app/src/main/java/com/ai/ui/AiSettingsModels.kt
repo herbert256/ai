@@ -492,17 +492,19 @@ data class AiSettings(
     val prompts: List<AiPrompt> = emptyList(),
     // API Endpoints per provider (multiple endpoints allowed, one can be default)
     val endpoints: Map<AiService, List<AiEndpoint>> = emptyMap(),
-    // Provider states: "ok" (key valid), "error" (key invalid), "not-used" (no key)
+    // Provider states: "ok" (key valid), "error" (key invalid), "not-used" (no key), "inactive" (user disabled)
     val providerStates: Map<String, String> = emptyMap()
 ) {
     /**
      * Get the provider state for a service.
-     * Returns "ok", "error", or "not-used" based on API key presence and stored state.
+     * Returns "ok", "error", "not-used", or "inactive" based on stored state and API key presence.
+     * Inactive state is checked first (user explicitly disabled the provider).
      * Untested providers (key present but no stored state) default to "ok" for cold-start.
      */
     fun getProviderState(service: AiService): String {
-        if (getApiKey(service).isBlank()) return "not-used"
         val stored = providerStates[service.name]
+        if (stored == "inactive") return "inactive"
+        if (getApiKey(service).isBlank()) return "not-used"
         return stored ?: "ok"
     }
 

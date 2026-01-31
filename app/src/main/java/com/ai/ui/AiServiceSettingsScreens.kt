@@ -1,7 +1,14 @@
 package com.ai.ui
 
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.ai.data.AiService
+import kotlinx.coroutines.launch
 
 /**
  * Returns the default endpoints for a provider, or an empty list if no defaults.
@@ -172,6 +179,7 @@ fun ProviderSettingsScreen(
     aiSettings: AiSettings,
     availableModels: List<String> = emptyList(),
     isLoadingModels: Boolean = false,
+    providerState: String = aiSettings.getProviderState(service),
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -244,6 +252,83 @@ fun ProviderSettingsScreen(
         onCreateAgent = onCreateAgent,
         onProviderStateChange = onProviderStateChange
     ) {
+        // Provider state with inactive toggle
+        val scope = rememberCoroutineScope()
+        var isTesting by remember { mutableStateOf(false) }
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Provider State",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (isTesting) "testing..." else providerState,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFAAAAAA)
+                    )
+                }
+                if (isTesting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Switch(
+                        checked = providerState == "inactive",
+                        onCheckedChange = { makeInactive ->
+                            if (makeInactive) {
+                                onProviderStateChange("inactive")
+                                onSave(aiSettings.withProvider(service, ProviderConfig(
+                                    apiKey = apiKey,
+                                    model = defaultModel,
+                                    modelSource = modelSource,
+                                    manualModels = manualModels,
+                                    adminUrl = adminUrl,
+                                    modelListUrl = modelListUrl,
+                                    parametersIds = selectedParametersIds
+                                )).withEndpoints(service, endpoints))
+                                onBackToAiSettings()
+                            } else {
+                                scope.launch {
+                                    isTesting = true
+                                    if (apiKey.isBlank()) {
+                                        onProviderStateChange("not-used")
+                                    } else {
+                                        val error = onTestApiKey(service, apiKey, defaultModel)
+                                        onProviderStateChange(if (error == null) "ok" else "error")
+                                    }
+                                    isTesting = false
+                                    onSave(aiSettings.withProvider(service, ProviderConfig(
+                                        apiKey = apiKey,
+                                        model = defaultModel,
+                                        modelSource = modelSource,
+                                        manualModels = manualModels,
+                                        adminUrl = adminUrl,
+                                        modelListUrl = modelListUrl,
+                                        parametersIds = selectedParametersIds
+                                    )).withEndpoints(service, endpoints))
+                                    onBackToAiSettings()
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
         ApiKeyInputSection(
             apiKey = apiKey,
             onApiKeyChange = { apiKey = it },

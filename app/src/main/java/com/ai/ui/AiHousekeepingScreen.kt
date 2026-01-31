@@ -361,6 +361,10 @@ fun HousekeepingScreen(
                                 progressText = "Provider state..."
                                 val stateResults = mutableMapOf<String, String>()
                                 for (service in com.ai.data.AiService.values()) {
+                                    if (aiSettings.getProviderState(service) == "inactive") {
+                                        stateResults[service.displayName] = "inactive"
+                                        continue
+                                    }
                                     progressText = "State: ${service.displayName}"
                                     val apiKey = aiSettings.getApiKey(service)
                                     if (apiKey.isBlank()) {
@@ -475,6 +479,10 @@ fun HousekeepingScreen(
                                 progressTitle = "Refresh Provider State"
                                 val results = mutableMapOf<String, String>()
                                 for (service in com.ai.data.AiService.values()) {
+                                    if (aiSettings.getProviderState(service) == "inactive") {
+                                        results[service.displayName] = "inactive"
+                                        continue
+                                    }
                                     progressText = service.displayName
                                     val apiKey = aiSettings.getApiKey(service)
                                     if (apiKey.isBlank()) {
@@ -840,6 +848,10 @@ fun HousekeepingScreen(
                                 progressText = "Provider state..."
                                 val stateResults = mutableMapOf<String, String>()
                                 for (service in com.ai.data.AiService.values()) {
+                                    if (aiSettings.getProviderState(service) == "inactive") {
+                                        stateResults[service.displayName] = "inactive"
+                                        continue
+                                    }
                                     progressText = "State: ${service.displayName}"
                                     val apiKey = aiSettings.getApiKey(service)
                                     if (apiKey.isBlank()) {
