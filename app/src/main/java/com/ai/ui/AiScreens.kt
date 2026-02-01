@@ -509,6 +509,10 @@ fun AiReportsScreen(
     // Share dialog state
     var showShareDialog by remember { mutableStateOf(false) }
 
+    // Email dialog state
+    var showEmailDialog by remember { mutableStateOf(false) }
+    var emailSent by remember { mutableStateOf(false) }
+
     // Advanced parameters screen state
     var showAdvancedParameters by remember { mutableStateOf(false) }
 
@@ -567,6 +571,49 @@ fun AiReportsScreen(
                     Text("Cancel", color = Color(0xFF888888))
                 }
             },
+            containerColor = Color(0xFF2A2A2A),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
+
+    // Email sending dialog
+    if (showEmailDialog && currentReportId != null) {
+        val emailAddress = uiState.generalSettings.defaultEmail
+        LaunchedEffect(currentReportId) {
+            emailSent = false
+            emailAiReportAsHtml(context, currentReportId, emailAddress, uiState.generalSettings.developerMode)
+            emailSent = true
+            kotlinx.coroutines.delay(2000)
+            showEmailDialog = false
+            emailSent = false
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { },
+            title = {
+                Text(
+                    if (emailSent) "Email sent" else "Sending email",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                if (!emailSent) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color(0xFF6B9BFF),
+                            strokeWidth = 2.dp
+                        )
+                        Text("Sending to $emailAddress", color = Color(0xFFAAAAAA))
+                    }
+                } else {
+                    Text("Report emailed to $emailAddress", color = Color(0xFF4CAF50))
+                }
+            },
+            confirmButton = { },
             containerColor = Color(0xFF2A2A2A),
             titleContentColor = Color.White,
             textContentColor = Color.White
@@ -1201,6 +1248,18 @@ fun AiReportsScreen(
                         )
                     ) {
                         Text("Browser")
+                    }
+                    // Email button - only shown when default email is configured
+                    if (uiState.generalSettings.defaultEmail.isNotBlank()) {
+                        Button(
+                            onClick = { showEmailDialog = true },
+                            contentPadding = compactButtonPadding,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFE91E63)
+                            )
+                        ) {
+                            Text("Email")
+                        }
                     }
                     // Trace button - only shown in developer mode
                     if (developerMode && currentReportId != null) {

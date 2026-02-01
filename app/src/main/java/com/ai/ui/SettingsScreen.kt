@@ -509,6 +509,7 @@ private fun SettingsMainScreen(
     var huggingFaceApiKey by remember { mutableStateOf(generalSettings.huggingFaceApiKey) }
     var openRouterApiKey by remember { mutableStateOf(generalSettings.openRouterApiKey) }
     var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
+    var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
 
     fun saveSettings() {
         onSave(generalSettings.copy(
@@ -517,7 +518,8 @@ private fun SettingsMainScreen(
             trackApiCalls = trackApiCalls,
             huggingFaceApiKey = huggingFaceApiKey,
             openRouterApiKey = openRouterApiKey,
-            fullScreenMode = fullScreenMode
+            fullScreenMode = fullScreenMode,
+            defaultEmail = defaultEmail
         ))
     }
 
@@ -564,6 +566,22 @@ private fun SettingsMainScreen(
                     },
                     label = { Text("Your name") },
                     placeholder = { Text("user") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+
+                OutlinedTextField(
+                    value = defaultEmail,
+                    onValueChange = {
+                        defaultEmail = it
+                        saveSettings()
+                    },
+                    label = { Text("Default email") },
+                    placeholder = { Text("name@example.com") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(

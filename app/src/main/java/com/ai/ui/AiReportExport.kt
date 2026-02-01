@@ -1,6 +1,7 @@
 package com.ai.ui
 
 import android.content.Intent
+import android.net.Uri
 
 /**
  * Process <think>...</think> sections in AI response for HTML output.
@@ -116,7 +117,8 @@ private data class HtmlReportData(
     val timestamp: String,
     val rapportText: String?,
     val developerMode: Boolean,
-    val agents: List<HtmlAgentData>
+    val agents: List<HtmlAgentData>,
+    val reportType: com.ai.data.ReportType = com.ai.data.ReportType.CLASSIC
 )
 
 private data class HtmlAgentData(
@@ -318,6 +320,52 @@ internal fun shareAiReportAsHtml(context: android.content.Context, reportId: Str
     }
 }
 
+/**
+ * Emails the AI Report as HTML to the specified email address.
+ * Uses ACTION_SEND with the email pre-filled so it goes directly to the email client.
+ * Returns true if the intent was launched successfully.
+ */
+internal fun emailAiReportAsHtml(context: android.content.Context, reportId: String, emailAddress: String, developerMode: Boolean = false): Boolean {
+    try {
+        val report = com.ai.data.AiReportStorage.getReport(context, reportId) ?: return false
+
+        val appVersion = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+        } catch (e: Exception) { "unknown" }
+
+        val html = convertAiReportToHtml(context, report, appVersion, developerMode)
+
+        val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+        }
+
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+        val htmlFile = java.io.File(cacheDir, "ai_report_$timestamp.html")
+        htmlFile.writeText(html)
+
+        val contentUri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            htmlFile
+        )
+
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "message/rfc822"
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(emailAddress))
+            putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
+            putExtra(Intent.EXTRA_TEXT, "AI analysis report: ${report.title}.\n\nOpen the attached HTML file in a browser to view the report.")
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(Intent.createChooser(intent, "Email AI Report"))
+        return true
+    } catch (e: Exception) {
+        return false
+    }
+}
+
 internal fun openGenericAiReportsInChrome(context: android.content.Context, uiState: AiUiState) {
     try {
         val appVersion = try {
@@ -413,6 +461,7 @@ internal fun convertAiReportToHtml(context: android.content.Context, report: com
             .format(java.util.Date(report.timestamp)),
         rapportText = report.rapportText,
         developerMode = developerMode,
+        reportType = report.reportType,
         agents = report.agents.map { agent ->
             val providerEnum = com.ai.data.AiService.findById(agent.provider)
             val providerDisplay = providerEnum?.displayName ?: agent.provider
@@ -458,6 +507,9 @@ internal fun convertAiReportToHtml(context: android.content.Context, report: com
  * Single source of truth for the HTML/CSS/JS template.
  */
 private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
+    if (data.reportType == com.ai.data.ReportType.TABLE) {
+        return renderTableHtmlReport(data, appVersion)
+    }
     val title = data.title
     val prompt = data.prompt
     val timestamp = data.timestamp
@@ -837,6 +889,262 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     event.target.classList.add('active');
                 }
             </script>
+        </body>
+        </html>
+    """.trimIndent())
+
+    return htmlBuilder.toString()
+}
+
+/**
+ * Renders a Table-style HTML report with horizontal scrolling cards.
+ * Each card shows provider, model, conclusion, motivation (or full response as fallback).
+ */
+private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): String {
+    val title = data.title
+    val prompt = data.prompt
+    val timestamp = data.timestamp
+    val agentList = data.agents
+
+    val htmlBuilder = StringBuilder()
+    htmlBuilder.append("""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>AI Report - $title</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: #1a1a1a;
+                    color: #e0e0e0;
+                    margin: 0;
+                    padding: 20px;
+                    line-height: 1.6;
+                }
+                h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; margin: 0 0 10px 0; }
+                .cards-row {
+                    display: flex;
+                    flex-direction: row;
+                    gap: 12px;
+                    overflow-x: auto;
+                    padding: 12px 0;
+                    align-items: stretch;
+                }
+                .card {
+                    min-width: 220px;
+                    max-width: 280px;
+                    flex: 0 0 auto;
+                    background: #2a2a2a;
+                    border-radius: 8px;
+                    padding: 12px;
+                    display: flex;
+                    flex-direction: column;
+                }
+                .card-provider { font-size: 11px; color: #888; }
+                .card-model { font-size: 14px; color: #6B9BFF; font-weight: 600; margin-bottom: 8px; }
+                .card-label-conclusion { font-size: 11px; color: #4CAF50; font-weight: bold; }
+                .card-label-motivation { font-size: 11px; color: #FF9800; font-weight: bold; margin-top: 8px; }
+                .card-text { font-size: 13px; color: #fff; line-height: 1.5; margin-top: 4px; }
+                .card-text-dim { font-size: 13px; color: #ccc; line-height: 1.5; margin-top: 4px; }
+                .card-fallback { font-size: 13px; color: #fff; line-height: 1.5; }
+                .card-fallback p { margin: 0 0 0.8em 0; }
+                .card-fallback h2, .card-fallback h3, .card-fallback h4 { color: #6B9BFF; margin: 0.8em 0 0.3em 0; }
+                .card-fallback ul { margin: 0.3em 0; padding-left: 1.2em; }
+                .card-fallback code { background: #333; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+                .card-fallback pre { background: #222; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
+                .card-fallback pre code { background: none; padding: 0; }
+                .error { color: #ff6b6b; font-size: 13px; }
+                .prompt-section { margin: 20px 0; }
+                .prompt-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
+                .prompt-text {
+                    white-space: pre-wrap;
+                    margin: 0;
+                    font-family: monospace;
+                    font-size: 0.9em;
+                    color: #ccc;
+                }
+                .cost-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.85em; }
+                .cost-table th { color: #6B9BFF; text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; font-weight: bold; }
+                .cost-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; }
+                .cost-table td.num { text-align: right; font-family: monospace; }
+                .cost-table tr:last-child td { border-bottom: 2px solid #333; }
+                .cost-table .total-row td { border-top: 2px solid #333; font-weight: bold; color: #6B9BFF; }
+                .footer {
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #333;
+                    color: #666;
+                    font-size: 0.9em;
+                    text-align: center;
+                }
+                .think-btn {
+                    padding: 4px 12px;
+                    border: 1px solid #666;
+                    background: #2a2a2a;
+                    color: #aaa;
+                    cursor: pointer;
+                    font-size: 13px;
+                    margin: 8px 0;
+                    border-radius: 4px;
+                }
+                .think-btn:hover { border-color: #888; color: #ccc; }
+                .think-content {
+                    display: none;
+                    background: #252525;
+                    border-left: 3px solid #555;
+                    padding: 12px;
+                    margin: 8px 0;
+                    color: #999;
+                    font-size: 0.9em;
+                    white-space: pre-wrap;
+                }
+                .think-content.visible { display: block; }
+            </style>
+            <script>
+                function toggleThink(id) {
+                    var content = document.getElementById('think-' + id);
+                    var btn = document.getElementById('think-btn-' + id);
+                    if (content.classList.contains('visible')) {
+                        content.classList.remove('visible');
+                        btn.textContent = 'Think';
+                    } else {
+                        content.classList.add('visible');
+                        btn.textContent = 'Hide Think';
+                    }
+                }
+            </script>
+        </head>
+        <body>
+            <h1>$title</h1>
+    """.trimIndent())
+
+    // Rapport text
+    data.rapportText?.takeIf { it.isNotBlank() }?.let { rapportText ->
+        htmlBuilder.append(rapportText)
+        htmlBuilder.append("""<hr style="border:none;border-top:2px solid #333;margin:10px 0 0 0">""")
+    }
+
+    // Horizontal cards row
+    val successfulAgents = agentList.filter { it.errorMessage == null }
+    if (successfulAgents.isNotEmpty()) {
+        htmlBuilder.append("""<div class="cards-row">""")
+        successfulAgents.forEach { agent ->
+            val rawResponse = agent.responseText ?: ""
+            val conclusion = extractTagContent(rawResponse, "conclusion")
+            val motivation = extractTagContent(rawResponse, "motivation")
+
+            htmlBuilder.append("""<div class="card">""")
+            htmlBuilder.append("""<div class="card-provider">${agent.providerDisplay}</div>""")
+            htmlBuilder.append("""<div class="card-model">${agent.model}</div>""")
+
+            if (conclusion != null || motivation != null) {
+                if (conclusion != null) {
+                    val escapedConclusion = conclusion.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    htmlBuilder.append("""<div class="card-label-conclusion">Conclusion</div>""")
+                    htmlBuilder.append("""<div class="card-text">${escapedConclusion.replace("\n", "<br>")}</div>""")
+                }
+                if (motivation != null) {
+                    val escapedMotivation = motivation.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                    htmlBuilder.append("""<div class="card-label-motivation">Motivation</div>""")
+                    htmlBuilder.append("""<div class="card-text-dim">${escapedMotivation.replace("\n", "<br>")}</div>""")
+                }
+            } else {
+                // Fallback: render full response with markdown conversion
+                val processed = processThinkSectionsForHtml(rawResponse, agent.agentId)
+                htmlBuilder.append("""<div class="card-fallback">$processed</div>""")
+            }
+
+            htmlBuilder.append("""</div>""") // close card
+        }
+        htmlBuilder.append("""</div>""") // close cards-row
+    }
+
+    // Error agents
+    val failedAgents = agentList.filter { it.errorMessage != null }
+    if (failedAgents.isNotEmpty()) {
+        failedAgents.forEach { agent ->
+            htmlBuilder.append("""<div class="error">${agent.agentName}: ${agent.errorMessage}</div>""")
+        }
+    }
+
+    // Prompt section
+    htmlBuilder.append("""
+                <div class="prompt-section">
+                    <div class="prompt-label">Prompt:</div>
+                    <pre class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</pre>
+                </div>
+    """)
+
+    // Cost summary table
+    val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
+    if (agentsWithCosts.isNotEmpty()) {
+        val sorted = agentsWithCosts.sortedByDescending { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        htmlBuilder.append("""
+                <div class="prompt-section">
+                    <div class="prompt-label">Costs</div>
+                    <table class="cost-table">
+                        <tr>
+                            <th>Provider</th>
+                            <th>Model</th>
+                            <th style="text-align:right">Secs</th>
+                            <th style="text-align:right">In tokens</th>
+                            <th style="text-align:right">Out tokens</th>
+                            <th style="text-align:right">In ¢</th>
+                            <th style="text-align:right">Out ¢</th>
+                            <th style="text-align:right">Total ¢</th>
+                        </tr>
+        """)
+        fun fmtCents(v: Double): String = "%.2f".format(v)
+        fun fmtSecs(ms: Long?): String = if (ms != null) "%.2f".format(ms / 1000.0) else ""
+        var totalIn = 0
+        var totalOut = 0
+        var totalInCost = 0.0
+        var totalOutCost = 0.0
+        sorted.forEach { agent ->
+            val inTok = agent.inputTokens ?: 0
+            val outTok = agent.outputTokens ?: 0
+            val inCost = (agent.inputCost ?: 0.0) * 100
+            val outCost = (agent.outputCost ?: 0.0) * 100
+            totalIn += inTok
+            totalOut += outTok
+            totalInCost += inCost
+            totalOutCost += outCost
+            htmlBuilder.append("""
+                        <tr>
+                            <td>${agent.providerDisplay}</td>
+                            <td>${agent.model}</td>
+                            <td class="num">${fmtSecs(agent.durationMs)}</td>
+                            <td class="num">${"%,d".format(inTok)}</td>
+                            <td class="num">${"%,d".format(outTok)}</td>
+                            <td class="num">${fmtCents(inCost)}</td>
+                            <td class="num">${fmtCents(outCost)}</td>
+                            <td class="num">${fmtCents(inCost + outCost)}</td>
+                        </tr>
+            """)
+        }
+        htmlBuilder.append("""
+                        <tr class="total-row">
+                            <td colspan="3">Total</td>
+                            <td class="num">${"%,d".format(totalIn)}</td>
+                            <td class="num">${"%,d".format(totalOut)}</td>
+                            <td class="num">${fmtCents(totalInCost)}</td>
+                            <td class="num">${fmtCents(totalOutCost)}</td>
+                            <td class="num">${fmtCents(totalInCost + totalOutCost)}</td>
+                        </tr>
+                    </table>
+                </div>
+        """)
+    }
+
+    htmlBuilder.append("""
+                <div class="footer">
+                    Generated by AI v$appVersion on $timestamp
+                </div>
+                <div style="text-align: center; font-size: 11px; color: #888; margin-top: 16px; padding: 8px;">
+                    This app, named AI, is AI Slop, vibe coded with Claude Code by a boomer. 20.000+ java source lines I do not understand at all, give me Cobol and I can understand it, but OOP Java? No way !
+                </div>
         </body>
         </html>
     """.trimIndent())

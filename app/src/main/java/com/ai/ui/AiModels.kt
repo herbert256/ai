@@ -9,7 +9,8 @@ data class GeneralSettings(
     val trackApiCalls: Boolean = false,
     val huggingFaceApiKey: String = "",
     val openRouterApiKey: String = "",
-    val fullScreenMode: Boolean = false
+    val fullScreenMode: Boolean = false,
+    val defaultEmail: String = ""
 )
 
 // Prompt history entry
