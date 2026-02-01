@@ -41,6 +41,17 @@ private fun formatPrice(pricePerToken: Double): String {
 }
 
 /**
+ * Format a pre-computed per-million price as display string.
+ */
+private fun formatPricePerMillion(perMillion: Double): String {
+    return when {
+        perMillion == 0.0 -> "0.00"
+        perMillion < 0.01 -> "<0.01"
+        else -> "%.2f".format(perMillion)
+    }
+}
+
+/**
  * Full-screen model selection screen with pricing columns.
  */
 @Composable
@@ -207,6 +218,575 @@ fun SelectModelScreen(
                     )
                     Text(
                         text = formatPrice(pricing.completionPrice),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                }
+                HorizontalDivider(color = Color(0xFF333333))
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen provider selection screen.
+ */
+@Composable
+fun SelectProviderScreen(
+    aiSettings: AiSettings,
+    onSelectProvider: (AiService) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allProviders = AiService.entries
+    val filteredProviders = if (searchQuery.isBlank()) allProviders
+    else allProviders.filter { it.displayName.lowercase().contains(searchQuery.lowercase()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Select Provider",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Text(
+            text = "${allProviders.size} providers",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF888888),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search providers...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text("✕", color = Color(0xFF888888))
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Table header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Provider",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        HorizontalDivider(color = Color(0xFF444444))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            items(filteredProviders, key = { it.id }) { provider ->
+                val state = aiSettings.getProviderState(provider)
+                val stateEmoji = when (state) {
+                    "ok" -> "\uD83D\uDD11"       // 🔑
+                    "error" -> "❌"
+                    "inactive" -> "\uD83D\uDCA4"  // 💤
+                    else -> "\u2B55"              // ⭕
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectProvider(provider) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = provider.displayName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = stateEmoji,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+                HorizontalDivider(color = Color(0xFF333333))
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen agent selection screen with pricing columns.
+ */
+@Composable
+fun SelectAgentScreen(
+    aiSettings: AiSettings,
+    onSelectAgent: (AiAgent) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allAgents = aiSettings.agents
+    val filteredAgents = if (searchQuery.isBlank()) allAgents
+    else allAgents.filter { agent ->
+        val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
+        agent.name.lowercase().contains(searchQuery.lowercase()) ||
+            agent.provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
+            effectiveModel.lowercase().contains(searchQuery.lowercase())
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Select Agent",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Text(
+            text = "${allAgents.size} agents",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF888888),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search agents...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text("✕", color = Color(0xFF888888))
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Table header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Agent",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "In $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+            Text(
+                text = "Out $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+        }
+
+        HorizontalDivider(color = Color(0xFF444444))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            items(filteredAgents, key = { it.id }) { agent ->
+                val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
+                val pricing = PricingCache.getPricing(context, agent.provider, effectiveModel)
+                val isDefaultSource = pricing.source == "default"
+                val priceColor = if (isDefaultSource) Color(0xFF666666) else Color(0xFFFF6B6B)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectAgent(agent) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = agent.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${agent.provider.displayName} · $effectiveModel",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = formatPrice(pricing.promptPrice),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                    Text(
+                        text = formatPrice(pricing.completionPrice),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                }
+                HorizontalDivider(color = Color(0xFF333333))
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen swarm selection screen with total pricing columns.
+ */
+@Composable
+fun SelectSwarmScreen(
+    aiSettings: AiSettings,
+    onSelectSwarm: (AiSwarm) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allSwarms = aiSettings.swarms
+    val filteredSwarms = if (searchQuery.isBlank()) allSwarms
+    else allSwarms.filter { it.name.lowercase().contains(searchQuery.lowercase()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Select Swarm",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Text(
+            text = "${allSwarms.size} swarms",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF888888),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search swarms...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text("✕", color = Color(0xFF888888))
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Table header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Swarm",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "In $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+            Text(
+                text = "Out $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+        }
+
+        HorizontalDivider(color = Color(0xFF444444))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            items(filteredSwarms, key = { it.id }) { swarm ->
+                var totalInPerMillion = 0.0
+                var totalOutPerMillion = 0.0
+                var hasRealPricing = false
+                swarm.members.forEach { member ->
+                    val pricing = PricingCache.getPricing(context, member.provider, member.model)
+                    totalInPerMillion += pricing.promptPrice * 1_000_000
+                    totalOutPerMillion += pricing.completionPrice * 1_000_000
+                    if (pricing.source != "default") hasRealPricing = true
+                }
+                val priceColor = if (hasRealPricing) Color(0xFFFF6B6B) else Color(0xFF666666)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectSwarm(swarm) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = swarm.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${swarm.members.size} members",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888)
+                        )
+                    }
+                    Text(
+                        text = formatPricePerMillion(totalInPerMillion),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                    Text(
+                        text = formatPricePerMillion(totalOutPerMillion),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                }
+                HorizontalDivider(color = Color(0xFF333333))
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen flock selection screen with total pricing columns.
+ */
+@Composable
+fun SelectFlockScreen(
+    aiSettings: AiSettings,
+    onSelectFlock: (AiFlock) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allFlocks = aiSettings.flocks
+    val filteredFlocks = if (searchQuery.isBlank()) allFlocks
+    else allFlocks.filter { it.name.lowercase().contains(searchQuery.lowercase()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "Select Flock",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Text(
+            text = "${allFlocks.size} flocks",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF888888),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search flocks...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text("✕", color = Color(0xFF888888))
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Table header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Flock",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "In $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+            Text(
+                text = "Out $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+        }
+
+        HorizontalDivider(color = Color(0xFF444444))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            items(filteredFlocks, key = { it.id }) { flock ->
+                val agents = aiSettings.getAgentsForFlock(flock)
+                var totalInPerMillion = 0.0
+                var totalOutPerMillion = 0.0
+                var hasRealPricing = false
+                agents.forEach { agent ->
+                    val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
+                    val pricing = PricingCache.getPricing(context, agent.provider, effectiveModel)
+                    totalInPerMillion += pricing.promptPrice * 1_000_000
+                    totalOutPerMillion += pricing.completionPrice * 1_000_000
+                    if (pricing.source != "default") hasRealPricing = true
+                }
+                val priceColor = if (hasRealPricing) Color(0xFFFF6B6B) else Color(0xFF666666)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectFlock(flock) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = flock.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${agents.size} agents",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888)
+                        )
+                    }
+                    Text(
+                        text = formatPricePerMillion(totalInPerMillion),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                    Text(
+                        text = formatPricePerMillion(totalOutPerMillion),
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                         color = priceColor,
