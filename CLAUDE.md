@@ -733,9 +733,9 @@ AI responses containing `<think>...</think>` tags:
 }
 ```
 
-**Version history:** v11 (endpoints), v13 (swarm members), v14 (params presets + flock/swarm rename), v15 (multi-select params), v16 (agent parametersIds), v17 (renamed manualModels to models).
+**Version history:** v11 (endpoints), v13 (swarm members), v14 (params presets + flock/swarm rename), v15 (multi-select params), v16 (agent parametersIds), v17 (renamed manualModels to models), v18 (provider parametersIds + enum snapshot fields).
 
-**Import acceptance range:** Versions 11 through 17. Legacy formats are auto-migrated (inline agent parameters converted to standalone presets, flock/swarm name swap handled).
+**Import acceptance range:** Versions 11 through 18. Legacy formats are auto-migrated (inline agent parameters converted to standalone presets, flock/swarm name swap handled).
 
 ## External App Integration
 

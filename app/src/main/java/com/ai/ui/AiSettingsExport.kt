@@ -22,6 +22,7 @@ import java.io.InputStreamReader
 /**
  * Data class for provider settings in JSON export/import.
  * Version 17: Renamed manualModels → models (unified model list).
+ * Version 18: Added parametersIds, displayName, baseUrl, apiFormat, chatPath, modelsPath, openRouterName.
  */
 data class ProviderConfigExport(
     val modelSource: String,  // "API" or "MANUAL"
@@ -29,7 +30,15 @@ data class ProviderConfigExport(
     val apiKey: String = "",
     val defaultModel: String? = null,
     val adminUrl: String? = null,
-    val modelListUrl: String? = null
+    val modelListUrl: String? = null,
+    // New in v18:
+    val parametersIds: List<String>? = null,   // Bug fix: was missing from export
+    val displayName: String? = null,
+    val baseUrl: String? = null,
+    val apiFormat: String? = null,             // "OPENAI_COMPATIBLE", "ANTHROPIC", "GOOGLE"
+    val chatPath: String? = null,
+    val modelsPath: String? = null,
+    val openRouterName: String? = null
 )
 
 /**
@@ -225,7 +234,7 @@ data class ProviderEndpointsExport(
  * Version 14: Added params (reusable parameter presets).
  */
 data class AiConfigExport(
-    val version: Int = 17,
+    val version: Int = 18,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,  // Version 6+
@@ -281,7 +290,14 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             apiKey = config.apiKey,
             defaultModel = config.model,
             adminUrl = config.adminUrl,
-            modelListUrl = config.modelListUrl.ifBlank { null }
+            modelListUrl = config.modelListUrl.ifBlank { null },
+            parametersIds = config.parametersIds.ifEmpty { null },
+            displayName = service.displayName,
+            baseUrl = service.baseUrl,
+            apiFormat = service.apiFormat.name,
+            chatPath = service.chatPath,
+            modelsPath = service.modelsPath,
+            openRouterName = service.openRouterName
         )
     }
 
@@ -706,7 +722,8 @@ private fun processImportedConfig(
             apiKey = p.apiKey,
             model = p.defaultModel ?: currentConfig.model,
             adminUrl = p.adminUrl ?: currentConfig.adminUrl,
-            modelListUrl = p.modelListUrl ?: ""
+            modelListUrl = p.modelListUrl ?: "",
+            parametersIds = p.parametersIds ?: currentConfig.parametersIds
         )
         settings = settings.withProvider(service, importedConfig)
     }
@@ -865,8 +882,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..17) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-17.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..18) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-18.", Toast.LENGTH_LONG).show()
             return null
         }
 
