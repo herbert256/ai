@@ -32,6 +32,14 @@ data class AiReportAgent(
 )
 
 /**
+ * Type of report display
+ */
+enum class ReportType {
+    CLASSIC,    // Traditional per-agent viewer with tabs
+    TABLE       // Horizontal scrolling cards with conclusion/motivation
+}
+
+/**
  * Status of an agent's report generation
  */
 enum class ReportStatus {
@@ -53,7 +61,8 @@ data class AiReport(
     val agents: MutableList<AiReportAgent>,
     var totalCost: Double = 0.0,
     var completedAt: Long? = null,
-    val rapportText: String? = null  // Content from <user>...</user> tags, shown in HTML export
+    val rapportText: String? = null,  // Content from <user>...</user> tags, shown in HTML export
+    val reportType: ReportType = ReportType.CLASSIC
 )
 
 /**
@@ -96,7 +105,8 @@ object AiReportStorage {
         title: String,
         prompt: String,
         agents: List<AiReportAgent>,
-        rapportText: String? = null
+        rapportText: String? = null,
+        reportType: ReportType = ReportType.CLASSIC
     ): AiReport {
         init(context)
 
@@ -106,7 +116,8 @@ object AiReportStorage {
             title = title,
             prompt = prompt,
             agents = agents.toMutableList(),
-            rapportText = rapportText
+            rapportText = rapportText,
+            reportType = reportType
         )
 
         lock.withLock {

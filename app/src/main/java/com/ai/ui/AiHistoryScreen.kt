@@ -42,14 +42,25 @@ fun AiHistoryScreenNav(
     // Selected report for viewing
     var selectedReportId by remember { mutableStateOf<String?>(null) }
 
-    // Show viewer screen when a report is selected
+    // Show viewer screen when a report is selected - dispatch based on report type
     val reportId = selectedReportId
     if (reportId != null) {
-        AiReportsViewerScreen(
-            reportId = reportId,
-            onDismiss = { selectedReportId = null },
-            onNavigateHome = onNavigateHome
-        )
+        val viewerReport = remember(reportId) {
+            com.ai.data.AiReportStorage.getReport(context, reportId)
+        }
+        if (viewerReport?.reportType == com.ai.data.ReportType.TABLE) {
+            AiReportsTableViewerScreen(
+                reportId = reportId,
+                onDismiss = { selectedReportId = null },
+                onNavigateHome = onNavigateHome
+            )
+        } else {
+            AiReportsViewerScreen(
+                reportId = reportId,
+                onDismiss = { selectedReportId = null },
+                onNavigateHome = onNavigateHome
+            )
+        }
         return
     }
 

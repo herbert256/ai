@@ -160,7 +160,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedSwarmIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), parametersIds: List<String> = emptyList()) {
+    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedSwarmIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), parametersIds: List<String> = emptyList(), reportType: com.ai.data.ReportType = com.ai.data.ReportType.CLASSIC) {
         viewModelScope.launch {
             val context = getApplication<Application>()
             val aiSettings = _uiState.value.aiSettings
@@ -254,7 +254,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 title = title.ifBlank { "AI Report" },
                 prompt = aiPrompt,
                 agents = allReportAgents,
-                rapportText = rapportText
+                rapportText = rapportText,
+                reportType = reportType
             )
             val reportId = report.id
 

@@ -8,7 +8,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -650,6 +653,235 @@ private fun RelatedQuestionsSection(relatedQuestions: List<String>) {
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Extract content between XML-like tags from text.
+ * Returns the content between <tagName>...</tagName>, or null if not found.
+ */
+internal fun extractTagContent(text: String, tagName: String): String? {
+    val pattern = Regex("<$tagName>(.*?)</$tagName>", RegexOption.DOT_MATCHES_ALL)
+    return pattern.find(text)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+/**
+ * Table viewer for AI reports - shows horizontal scrolling cards, one per successful worker.
+ * Each card displays: provider name, model name, conclusion, and motivation.
+ */
+@Composable
+fun AiReportsTableViewerScreen(
+    reportId: String,
+    onDismiss: () -> Unit,
+    onNavigateHome: () -> Unit = onDismiss
+) {
+    val context = LocalContext.current
+
+    val report = remember(reportId) {
+        com.ai.data.AiReportStorage.getReport(context, reportId)
+    }
+
+    if (report == null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            AiTitleBar(
+                title = "Table View",
+                onBackClick = onDismiss,
+                onAiClick = onNavigateHome
+            )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Report not found",
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 16.sp
+                )
+            }
+        }
+        return
+    }
+
+    val successfulAgents = report.agents
+        .filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS }
+        .sortedBy { it.agentName.lowercase() }
+
+    // Calculate total cost
+    val totalCost = report.agents.mapNotNull { it.cost }.sum()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        AiTitleBar(
+            title = report.title,
+            onBackClick = onDismiss,
+            onAiClick = onNavigateHome
+        )
+
+        // Rapport text section (from <user> tags)
+        if (!report.rapportText.isNullOrBlank()) {
+            Text(
+                text = report.rapportText,
+                fontSize = 14.sp,
+                color = Color(0xFFCCCCCC),
+                lineHeight = 20.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        if (successfulAgents.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No successful reports to display",
+                    color = Color(0xFFAAAAAA),
+                    fontSize = 16.sp
+                )
+            }
+        } else {
+            // Horizontal scrolling cards
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                successfulAgents.forEach { agent ->
+                    val responseBody = agent.responseBody ?: ""
+                    val conclusion = extractTagContent(responseBody, "conclusion")
+                    val motivation = extractTagContent(responseBody, "motivation")
+
+                    val providerDisplayName = com.ai.data.AiService.findById(agent.provider)?.displayName
+                        ?: agent.provider
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF2A2A2A)
+                        ),
+                        modifier = Modifier
+                            .width(220.dp)
+                            .fillMaxHeight()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            // Row 1: Provider name (small gray) + Model name (blue)
+                            Text(
+                                text = providerDisplayName,
+                                fontSize = 11.sp,
+                                color = Color(0xFF888888),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = agent.model,
+                                fontSize = 14.sp,
+                                color = Color(0xFF6B9BFF),
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Row 2: Conclusion
+                            if (conclusion != null) {
+                                Text(
+                                    text = "Conclusion",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF4CAF50),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = conclusion,
+                                    fontSize = 13.sp,
+                                    color = Color.White,
+                                    lineHeight = 18.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+
+                            // Row 3: Motivation
+                            if (motivation != null) {
+                                Text(
+                                    text = "Motivation",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFFF9800),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = motivation,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFCCCCCC),
+                                    lineHeight = 18.sp
+                                )
+                            }
+
+                            // Fallback: if no tags found, show full response
+                            if (conclusion == null && motivation == null) {
+                                Text(
+                                    text = responseBody,
+                                    fontSize = 13.sp,
+                                    color = Color.White,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Footer: Prompt + Cost
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF1A1A2E))
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            if (report.prompt.isNotBlank()) {
+                Text(
+                    text = "Prompt",
+                    fontSize = 12.sp,
+                    color = Color(0xFF6B9BFF),
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = report.prompt,
+                    fontSize = 12.sp,
+                    color = Color(0xFFAAAAAA),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+            Text(
+                text = "Total cost: ${String.format("%.4f", totalCost * 100)} cents  |  ${successfulAgents.size} workers",
+                fontSize = 12.sp,
+                color = Color(0xFF4CAF50),
+                fontFamily = FontFamily.Monospace
+            )
         }
     }
 }

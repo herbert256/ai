@@ -411,12 +411,12 @@ fun AiReportsScreenNav(
         savedFlockIds = viewModel.loadAiReportFlocks(),
         savedSwarmIds = viewModel.loadAiReportSwarms(),
         savedModelIds = viewModel.loadAiReportModels(),
-        onGenerate = { combinedAgentIds, directAgentIds, selectedFlockIds, selectedSwarmIds, directModelIds, paramsIds ->
+        onGenerate = { combinedAgentIds, directAgentIds, selectedFlockIds, selectedSwarmIds, directModelIds, paramsIds, reportType ->
             viewModel.saveAiReportAgents(directAgentIds)
             viewModel.saveAiReportFlocks(selectedFlockIds)
             viewModel.saveAiReportSwarms(selectedSwarmIds)
             viewModel.saveAiReportModels(directModelIds)
-            viewModel.generateGenericAiReports(combinedAgentIds, selectedSwarmIds, directModelIds, paramsIds)
+            viewModel.generateGenericAiReports(combinedAgentIds, selectedSwarmIds, directModelIds, paramsIds, reportType)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -469,7 +469,7 @@ fun AiReportsScreen(
     savedFlockIds: Set<String>,
     savedSwarmIds: Set<String> = emptySet(),
     savedModelIds: Set<String> = emptySet(),
-    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, List<String>) -> Unit,  // combinedAgentIds, directAgentIds, flockIds, swarmIds, directModelIds, paramsIds
+    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, List<String>, com.ai.data.ReportType) -> Unit,  // combinedAgentIds, directAgentIds, flockIds, swarmIds, directModelIds, paramsIds, reportType
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -575,12 +575,23 @@ fun AiReportsScreen(
 
     // Show viewer screen when activated (uses stored AI-REPORT from persistent storage)
     if (showViewer && currentReportId != null) {
-        AiReportsViewerScreen(
-            reportId = currentReportId,
-            initialSelectedAgentId = selectedAgentForViewer,
-            onDismiss = { showViewer = false },
-            onNavigateHome = onNavigateHome
-        )
+        val viewerReport = remember(currentReportId) {
+            com.ai.data.AiReportStorage.getReport(context, currentReportId)
+        }
+        if (viewerReport?.reportType == com.ai.data.ReportType.TABLE) {
+            AiReportsTableViewerScreen(
+                reportId = currentReportId,
+                onDismiss = { showViewer = false },
+                onNavigateHome = onNavigateHome
+            )
+        } else {
+            AiReportsViewerScreen(
+                reportId = currentReportId,
+                initialSelectedAgentId = selectedAgentForViewer,
+                onDismiss = { showViewer = false },
+                onNavigateHome = onNavigateHome
+            )
+        }
         return
     }
 
@@ -718,9 +729,12 @@ fun AiReportsScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Generate button (right-aligned)
+                // Report type selection popup state
+                var showReportTypeDialog by remember { mutableStateOf(false) }
+
+                // Generate button (right-aligned) - opens report type popup
                 Button(
-                    onClick = { onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds) },
+                    onClick = { showReportTypeDialog = true },
                     enabled = totalWorkers > 0,
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -728,6 +742,55 @@ fun AiReportsScreen(
                     )
                 ) {
                     Text("Generate ($totalWorkers)", fontSize = 13.sp, maxLines = 1)
+                }
+
+                // Report type selection dialog
+                if (showReportTypeDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showReportTypeDialog = false },
+                        title = {
+                            Text("Select report type", fontWeight = FontWeight.Bold)
+                        },
+                        text = {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        showReportTypeDialog = false
+                                        onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds, com.ai.data.ReportType.CLASSIC)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF2196F3)
+                                    )
+                                ) {
+                                    Text("Classic")
+                                }
+                                Button(
+                                    onClick = {
+                                        showReportTypeDialog = false
+                                        onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds, com.ai.data.ReportType.TABLE)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF8B5CF6)
+                                    )
+                                ) {
+                                    Text("Table")
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = {
+                            TextButton(onClick = { showReportTypeDialog = false }) {
+                                Text("Cancel", color = Color(0xFF888888))
+                            }
+                        },
+                        containerColor = Color(0xFF2A2A2A),
+                        titleContentColor = Color.White,
+                        textContentColor = Color.White
+                    )
                 }
             }
 
