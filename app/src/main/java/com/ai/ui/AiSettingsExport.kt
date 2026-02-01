@@ -835,51 +835,6 @@ private fun convertLegacyExport(legacyExport: LegacyAiConfigExport): AiConfigExp
 }
 
 /**
- * Import AI configuration from clipboard JSON.
- * Supports versions 11-14, with backward compatibility for pre-rename exports.
- */
-fun importAiConfigFromClipboard(context: Context, currentSettings: AiSettings): AiConfigImportResult? {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clipData = clipboard.primaryClip
-
-    if (clipData == null || clipData.itemCount == 0) {
-        Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show()
-        return null
-    }
-
-    val json = clipData.getItemAt(0).text?.toString()
-    if (json.isNullOrBlank()) {
-        Toast.makeText(context, "No text in clipboard", Toast.LENGTH_SHORT).show()
-        return null
-    }
-
-    return try {
-        val gson = Gson()
-
-        // Check if this is old format (pre-rename)
-        val export = if (isOldFormat(json)) {
-            val legacyExport = gson.fromJson(json, LegacyAiConfigExport::class.java)
-            convertLegacyExport(legacyExport)
-        } else {
-            gson.fromJson(json, AiConfigExport::class.java)
-        }
-
-        if (export.version !in 11..17) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-17.", Toast.LENGTH_LONG).show()
-            return null
-        }
-
-        processImportedConfig(context, export, currentSettings)
-    } catch (e: JsonSyntaxException) {
-        Toast.makeText(context, "Invalid AI configuration format", Toast.LENGTH_SHORT).show()
-        null
-    } catch (e: Exception) {
-        Toast.makeText(context, "Error importing configuration: ${e.message}", Toast.LENGTH_SHORT).show()
-        null
-    }
-}
-
-/**
  * Import AI configuration from a file URI.
  * Supports versions 11-14, with backward compatibility for pre-rename exports.
  */
@@ -923,70 +878,6 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         Toast.makeText(context, "Error importing configuration: ${e.message}", Toast.LENGTH_SHORT).show()
         null
     }
-}
-
-/**
- * Dialog for importing AI configuration from clipboard.
- * @deprecated Use file picker with importAiConfigFromFile instead.
- */
-@Composable
-fun ImportAiConfigDialog(
-    currentSettings: AiSettings,
-    onImport: (AiSettings) -> Unit,
-    onImportHuggingFaceApiKey: (String) -> Unit = {},
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Import AI Configuration",
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "This will import AI configuration from the clipboard.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                Text(
-                    text = "The clipboard should contain a JSON configuration exported from this app (version 11-17).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-
-                Text(
-                    text = "Warning: This will replace your agents, API keys, and provider settings.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFFF9800)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val result = importAiConfigFromClipboard(context, currentSettings)
-                    if (result != null) {
-                        onImport(result.aiSettings)
-                        result.huggingFaceApiKey?.let { onImportHuggingFaceApiKey(it) }
-                    }
-                }
-            ) {
-                Text("Import")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
 
 /**

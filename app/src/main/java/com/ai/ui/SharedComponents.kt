@@ -9,7 +9,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -91,31 +90,5 @@ fun AiTitleBar(
                 Text("AI", color = Color.White, fontSize = 16.sp)
             }
         }
-    }
-}
-
-/**
- * Title bar icon button used in the Game screen.
- */
-@Composable
-fun TitleBarIcon(
-    icon: String,
-    onClick: () -> Unit,
-    fontSize: Int = 30,
-    size: Int = 44,
-    offsetY: Int = -3
-) {
-    Box(
-        modifier = Modifier
-            .size(size.dp)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = icon,
-            fontSize = fontSize.sp,
-            color = Color.White,
-            modifier = Modifier.offset(y = offsetY.dp)
-        )
     }
 }

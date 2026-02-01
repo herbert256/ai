@@ -2,7 +2,6 @@ package com.ai.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,8 +19,6 @@ import com.ai.data.AiService
  */
 enum class SettingsSubScreen {
     MAIN,
-    // AI settings structure
-    AI_SETTINGS,
     AI_OPENAI,
     AI_ANTHROPIC,
     AI_GOOGLE,
@@ -55,7 +52,6 @@ enum class SettingsSubScreen {
     AI_WRITER,
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
-    AI_AI_SETTINGS, // AI Settings hub (Prompts, Costs)
     AI_PROVIDERS,   // Provider model configuration
     AI_AGENTS,      // Agents CRUD
     AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
@@ -192,10 +188,6 @@ fun SettingsScreen(
                     currentSubScreen = SettingsSubScreen.MAIN
                 }
             }
-            // AI_AI_SETTINGS is deprecated - redirect to AI_SETUP
-            SettingsSubScreen.AI_AI_SETTINGS -> {
-                currentSubScreen = SettingsSubScreen.AI_SETUP
-            }
             // Add agent goes back to AI_PROVIDERS
             SettingsSubScreen.AI_ADD_AGENT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // Flock screens go back to AI_SWARMS
@@ -218,21 +210,6 @@ fun SettingsScreen(
             onNavigateHome = onNavigateHome,
             onSave = onSaveGeneral,
             onTrackApiCallsChanged = onTrackApiCallsChanged
-        )
-        SettingsSubScreen.AI_SETTINGS -> AiSettingsScreen(
-            aiSettings = aiSettings,
-            developerMode = generalSettings.developerMode,
-            huggingFaceApiKey = generalSettings.huggingFaceApiKey,
-            openRouterApiKey = generalSettings.openRouterApiKey,
-            onBackToSettings = { currentSubScreen = SettingsSubScreen.MAIN },
-            onBackToHome = onNavigateHome,
-            onNavigate = { currentSubScreen = it },
-            onSave = onSaveAi,
-            onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
-            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
-            onRefreshAllModels = onRefreshAllModels,
-            onTestApiKey = onTestAiModel,
-            onProviderStateChange = onProviderStateChange
         )
         SettingsSubScreen.AI_OPENAI -> ProviderSettingsScreen(
             service = AiService.OPENAI,
@@ -630,10 +607,6 @@ fun SettingsScreen(
             onProviderStateChange = onProviderStateChange,
             onNavigateToCostConfig = onNavigateToCostConfig
         )
-        // AI_AI_SETTINGS is deprecated - redirect to AI_SETUP
-        SettingsSubScreen.AI_AI_SETTINGS -> {
-            LaunchedEffect(Unit) { currentSubScreen = SettingsSubScreen.AI_SETUP }
-        }
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
@@ -657,7 +630,7 @@ fun SettingsScreen(
             } ?: ""
 
             var addAgentModelSelectProvider by remember { mutableStateOf<AiService?>(null) }
-            var addAgentModelSelectCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
+            var addAgentPendingModel by remember { mutableStateOf<String?>(null) }
 
             val agentModelProvider = addAgentModelSelectProvider
             if (agentModelProvider != null) {
@@ -667,7 +640,7 @@ fun SettingsScreen(
                     currentModel = "",
                     showDefaultOption = true,
                     onSelectModel = { model ->
-                        addAgentModelSelectCallback?.invoke(model)
+                        addAgentPendingModel = model
                         addAgentModelSelectProvider = null
                     },
                     onBack = { addAgentModelSelectProvider = null },
@@ -703,8 +676,9 @@ fun SettingsScreen(
                         currentSubScreen = SettingsSubScreen.AI_PROVIDERS
                     },
                     onNavigateHome = onNavigateHome,
-                    onNavigateToSelectModel = { provider, callback ->
-                        addAgentModelSelectCallback = callback
+                    pendingModelSelection = addAgentPendingModel,
+                    onPendingModelConsumed = { addAgentPendingModel = null },
+                    onNavigateToSelectModel = { provider ->
                         addAgentModelSelectProvider = provider
                     }
                 )
@@ -849,7 +823,7 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_PARAMETERS -> AiParametersListScreen(
             aiSettings = aiSettings,
-            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_AI_SETTINGS },
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,
             onAddParameters = { currentSubScreen = SettingsSubScreen.AI_ADD_PARAMETERS },
@@ -1152,47 +1126,3 @@ private fun SettingsMainScreen(
     }
 }
 
-/**
- * Reusable navigation card for settings menu.
- */
-@Composable
-private fun SettingsNavigationCard(
-    title: String,
-    description: String,
-    onClick: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFAAAAAA)
-                )
-            }
-            Text(
-                text = ">",
-                style = MaterialTheme.typography.headlineMedium,
-                color = Color(0xFF888888)
-            )
-        }
-    }
-}

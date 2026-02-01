@@ -32,7 +32,6 @@ object NavRoutes {
     const val AI_COSTS = "ai_costs"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"
-    const val AI_AI_SETTINGS = "ai_ai_settings"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
     const val AI_CHATS_HUB = "ai_chats_hub"
     const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
@@ -141,15 +140,6 @@ fun AiNavHost(
 
         composable(NavRoutes.AI_SETUP) {
             AiSetupScreenNav(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome,
-                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
-            )
-        }
-
-        composable(NavRoutes.AI_AI_SETTINGS) {
-            AiAiSettingsScreenNav(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
@@ -656,25 +646,6 @@ fun AiSetupScreenNav(
         onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig,
         initialSubScreen = SettingsSubScreen.AI_SETUP
-    )
-}
-
-/**
- * Wrapper for SettingsScreen that starts at AI Settings (Prompts, Costs).
- */
-@Composable
-fun AiAiSettingsScreenNav(
-    viewModel: AiViewModel,
-    onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onNavigateToCostConfig: () -> Unit = {}
-) {
-    SettingsScreenNav(
-        viewModel = viewModel,
-        onNavigateBack = onNavigateBack,
-        onNavigateHome = onNavigateHome,
-        onNavigateToCostConfig = onNavigateToCostConfig,
-        initialSubScreen = SettingsSubScreen.AI_AI_SETTINGS
     )
 }
 
