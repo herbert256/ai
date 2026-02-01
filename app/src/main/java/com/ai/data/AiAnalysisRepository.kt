@@ -29,16 +29,24 @@ data class TokenUsage(
 fun extractApiCost(usage: OpenAiUsage?, provider: AiService? = null): Double? {
     if (usage == null) return null
 
-    // OpenRouter: use cost from API response
-    if (provider == AiService.OPENROUTER) {
+    // Provider with extractApiCost flag (e.g., OpenRouter): use cost from API response
+    if (provider?.extractApiCost == true) {
         usage.cost?.let { return it }
     }
     // Note: Perplexity's 'cost' field is intentionally ignored because their API
     // returns costs ~6x higher than published pricing ($6/M vs $1/M).
 
-    // Check xAI cost_in_usd_ticks
-    usage.cost_in_usd_ticks?.let { ticks ->
-        return ticks / AiAnalysisRepository.XAI_COST_TICKS_DIVISOR
+    // Check provider-specific cost ticks (e.g., xAI: cost in billionths of a dollar)
+    provider?.costTicksDivisor?.let { divisor ->
+        usage.cost_in_usd_ticks?.let { ticks ->
+            return ticks / divisor
+        }
+    }
+    // Fallback: check cost_in_usd_ticks with default divisor
+    if (provider?.costTicksDivisor == null) {
+        usage.cost_in_usd_ticks?.let { ticks ->
+            return ticks / AiAnalysisRepository.XAI_COST_TICKS_DIVISOR
+        }
     }
     return null
 }
@@ -110,7 +118,7 @@ class AiAnalysisRepository {
 
 
     // Gson instance for pretty printing usage JSON
-    internal val gson = GsonBuilder().setPrettyPrinting().create()
+    internal val gson = createAiGson(prettyPrint = true)
 
     // Helper to convert usage object to pretty JSON
     internal fun formatUsageJson(usage: Any?): String? {

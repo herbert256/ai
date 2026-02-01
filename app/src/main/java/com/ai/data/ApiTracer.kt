@@ -1,7 +1,6 @@
 package com.ai.data
 
 import android.content.Context
-import com.google.gson.GsonBuilder
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -61,7 +60,7 @@ data class TraceFileInfo(
 object ApiTracer {
     private const val TRACE_DIR = "trace"
     private var traceDir: File? = null
-    private val gson = GsonBuilder().setPrettyPrinting().create()
+    private val gson = createAiGson(prettyPrint = true)
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US)
         .withZone(ZoneId.systemDefault())
     private val tracingLock = Any()

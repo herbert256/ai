@@ -750,11 +750,7 @@ fun CostConfigurationScreen(
                     if (parts.size == 2) {
                         val providerName = parts[0]
                         val modelName = parts[1]
-                        val provider = try {
-                            com.ai.data.AiService.valueOf(providerName)
-                        } catch (e: Exception) {
-                            null
-                        }
+                        val provider = com.ai.data.AiService.findById(providerName)
 
                         if (provider != null) {
                             val isEditing = editingKey == manualKey

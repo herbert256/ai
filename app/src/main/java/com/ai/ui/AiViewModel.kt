@@ -177,7 +177,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
             // Generate synthetic IDs for swarm members
             val swarmMemberIds = swarmMembers.map { member ->
-                "swarm:${member.provider.name}:${member.model}"
+                "swarm:${member.provider.id}:${member.model}"
             }.toSet()
 
             // Filter direct model IDs to exclude those already in swarms
@@ -189,7 +189,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 val parts = modelId.removePrefix("swarm:").split(":", limit = 2)
                 val providerName = parts.getOrNull(0) ?: return@mapNotNull null
                 val modelName = parts.getOrNull(1) ?: return@mapNotNull null
-                val provider = com.ai.data.AiService.entries.find { it.name == providerName } ?: return@mapNotNull null
+                val provider = com.ai.data.AiService.findById(providerName) ?: return@mapNotNull null
                 AiSwarmMember(provider, modelName)
             }
 
@@ -215,7 +215,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 AiReportAgent(
                     agentId = agent.id,
                     agentName = agent.name,
-                    provider = agent.provider.name,
+                    provider = agent.provider.id,
                     model = agent.model,
                     reportStatus = ReportStatus.PENDING
                 )
@@ -223,11 +223,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
             // Create AI Report objects for all model members (from swarms and direct selection)
             val reportModelMembers = allModelMembers.map { member ->
-                val syntheticId = "swarm:${member.provider.name}:${member.model}"
+                val syntheticId = "swarm:${member.provider.id}:${member.model}"
                 AiReportAgent(
                     agentId = syntheticId,
                     agentName = "${member.provider.displayName} / ${member.model}",
-                    provider = member.provider.name,
+                    provider = member.provider.id,
                     model = member.model,
                     reportStatus = ReportStatus.PENDING
                 )
@@ -365,7 +365,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             // Process all model members in parallel (from swarms and direct selection)
             val swarmJobs = allModelMembers.map { member ->
                 async {
-                    val syntheticId = "swarm:${member.provider.name}:${member.model}"
+                    val syntheticId = "swarm:${member.provider.id}:${member.model}"
 
                     // Mark as running
                     AiReportStorage.markAgentRunning(

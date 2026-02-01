@@ -683,7 +683,7 @@ fun AiReportsScreen(
         .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
 
     // Get synthetic IDs for swarm members (to check which models are already selected via swarm)
-    val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.name}:${it.model}" }.toSet()
+    val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
 
     // Combined unique agent IDs (from flocks + directly selected)
     val combinedAgentIds = flockAgentIds + directlySelectedAgentIds
@@ -1077,7 +1077,7 @@ fun AiReportsScreen(
                             // Sort selected/swarm items to top
                             val sortedModels = filteredModels
                                 .sortedWith(compareByDescending<Pair<com.ai.data.AiService, String>> {
-                                    val synId = "swarm:${it.first.name}:${it.second}"
+                                    val synId = "swarm:${it.first.id}:${it.second}"
                                     synId in swarmMemberIds || synId in directlySelectedModelIds
                                 }.thenBy { it.first.displayName.lowercase() }.thenBy { it.second.lowercase() })
 
@@ -1093,7 +1093,7 @@ fun AiReportsScreen(
                                 )
                             } else {
                                 sortedModels.forEach { (provider, model) ->
-                                    val syntheticId = "swarm:${provider.name}:$model"
+                                    val syntheticId = "swarm:${provider.id}:$model"
                                     val isFromSwarm = syntheticId in swarmMemberIds
                                     val isChecked = isFromSwarm || syntheticId in directlySelectedModelIds
 
@@ -1229,7 +1229,7 @@ fun AiReportsScreen(
                         val parts = agentId.removePrefix("swarm:").split(":", limit = 2)
                         val providerName = parts.getOrNull(0) ?: return@mapNotNull null
                         val modelName = parts.getOrNull(1) ?: return@mapNotNull null
-                        val provider = com.ai.data.AiService.entries.find { it.name == providerName } ?: return@mapNotNull null
+                        val provider = com.ai.data.AiService.findById(providerName) ?: return@mapNotNull null
 
                         val cost = tokenUsage.apiCost ?: run {
                             val pricing = com.ai.data.PricingCache.getPricing(context, provider, modelName)
@@ -1388,7 +1388,7 @@ fun AiReportsScreen(
                             val parts = swarmId.removePrefix("swarm:").split(":", limit = 2)
                             val providerName = parts.getOrNull(0) ?: ""
                             val modelName = parts.getOrNull(1) ?: ""
-                            val provider = com.ai.data.AiService.entries.find { it.name == providerName }
+                            val provider = com.ai.data.AiService.findById(providerName)
 
                             val result = reportsAgentResults[swarmId]
                             val cost = agentCosts[swarmId]

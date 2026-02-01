@@ -331,7 +331,7 @@ fun HousekeepingScreen(
 
                                 progressText = "Provider state..."
                                 val stateResults = mutableMapOf<String, String>()
-                                for (service in com.ai.data.AiService.values()) {
+                                for (service in com.ai.data.AiService.entries) {
                                     if (aiSettings.getProviderState(service) == "inactive") {
                                         stateResults[service.displayName] = "inactive"
                                         continue
@@ -449,7 +449,7 @@ fun HousekeepingScreen(
                             scope.launch {
                                 progressTitle = "Refresh Provider State"
                                 val results = mutableMapOf<String, String>()
-                                for (service in com.ai.data.AiService.values()) {
+                                for (service in com.ai.data.AiService.entries) {
                                     if (aiSettings.getProviderState(service) == "inactive") {
                                         results[service.displayName] = "inactive"
                                         continue
@@ -788,7 +788,7 @@ fun HousekeepingScreen(
                                 // 4. Refresh provider state
                                 progressText = "Provider state..."
                                 val stateResults = mutableMapOf<String, String>()
-                                for (service in com.ai.data.AiService.values()) {
+                                for (service in com.ai.data.AiService.entries) {
                                     if (aiSettings.getProviderState(service) == "inactive") {
                                         stateResults[service.displayName] = "inactive"
                                         continue
@@ -1015,7 +1015,7 @@ private fun exportModelCostsToCsv(
 
     for (service in AiService.entries) {
         val models = aiSettings.getModels(service)
-        models.forEach { allModels.add(ProviderModel(service.name, it)) }
+        models.forEach { allModels.add(ProviderModel(service.id, it)) }
     }
 
     // Sort by provider then model
@@ -1156,9 +1156,8 @@ private fun importModelCostsFromCsv(context: android.content.Context, uri: andro
             val completionPricePerToken = overrideOutputDollarsPerM / 1_000_000.0
 
             // Map provider name to AiService
-            val provider = try {
-                com.ai.data.AiService.valueOf(providerName)
-            } catch (e: IllegalArgumentException) {
+            val provider = com.ai.data.AiService.findById(providerName)
+            if (provider == null) {
                 skipped++
                 continue
             }

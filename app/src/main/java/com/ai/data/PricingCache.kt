@@ -94,7 +94,7 @@ object PricingCache {
     fun setManualPricing(context: Context, provider: AiService, model: String, promptPrice: Double, completionPrice: Double) {
         synchronized(lock) {
             ensureLoaded(context)
-            val key = "${provider.name}:$model"
+            val key = "${provider.id}:$model"
             val pricing = ModelPricing(model, promptPrice, completionPrice, "OVERRIDE")
 
             val map = manualPricing ?: mutableMapOf<String, ModelPricing>().also { manualPricing = it }
@@ -109,7 +109,7 @@ object PricingCache {
      */
     fun removeManualPricing(context: Context, provider: AiService, model: String) {
         ensureLoaded(context)
-        val key = "${provider.name}:$model"
+        val key = "${provider.id}:$model"
         manualPricing?.remove(key)
         saveManualPricing(context)
         android.util.Log.d("PricingCache", "Removed manual pricing for $key")
@@ -120,7 +120,7 @@ object PricingCache {
      */
     fun getManualPricing(context: Context, provider: AiService, model: String): ModelPricing? {
         ensureLoaded(context)
-        val key = "${provider.name}:$model"
+        val key = "${provider.id}:$model"
         return manualPricing?.get(key)
     }
 
@@ -161,7 +161,7 @@ object PricingCache {
         ensureLoaded(context)
 
         // Build the key for override pricing lookup
-        val overrideKey = "${provider.name}:$model"
+        val overrideKey = "${provider.id}:$model"
 
         // 1. Try user overrides first (highest priority after API cost)
         manualPricing?.get(overrideKey)?.let { return it }
@@ -403,14 +403,7 @@ object PricingCache {
     }
 
     private fun getLiteLLMPrefix(provider: AiService): String? {
-        return when (provider) {
-            AiService.GOOGLE -> "gemini"
-            AiService.XAI -> "xai"
-            AiService.GROQ -> "groq"
-            AiService.DEEPSEEK -> "deepseek"
-            AiService.TOGETHER -> "together_ai"
-            else -> null
-        }
+        return provider.litellmPrefix
     }
 
     /**
@@ -576,7 +569,7 @@ object PricingCache {
                 val aiService = getAiServiceFromOpenRouterPrefix(openRouterPrefix)
                 if (aiService == null) continue  // Skip models from providers we don't support
 
-                val providerName = aiService.name  // Our enum name (e.g., "OPENAI", "ANTHROPIC")
+                val providerName = aiService.id  // Our provider ID (e.g., "OPENAI", "ANTHROPIC")
 
                 // Add pricing entry
                 if (model.pricing != null) {
@@ -638,7 +631,7 @@ object PricingCache {
         }
 
         // Lookup by "PROVIDER:model" key
-        val key = "${provider.name}:$model"
+        val key = "${provider.id}:$model"
         return supportedParametersCache?.get(key)
     }
 

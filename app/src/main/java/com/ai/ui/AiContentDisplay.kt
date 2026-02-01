@@ -123,11 +123,8 @@ fun AiReportsViewerScreen(
             // Provider - Model subtitle below buttons
             if (selectedReportAgent != null) {
                 // Get display name for provider
-                val providerDisplayName = try {
-                    com.ai.data.AiService.valueOf(selectedReportAgent.provider).displayName
-                } catch (e: Exception) {
-                    selectedReportAgent.provider
-                }
+                val providerDisplayName = com.ai.data.AiService.findById(selectedReportAgent.provider)?.displayName
+                    ?: selectedReportAgent.provider
                 Text(
                     text = "$providerDisplayName - ${selectedReportAgent.model}",
                     fontSize = 18.sp,

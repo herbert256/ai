@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.data.AiService
+import com.ai.data.createAiGson
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import java.io.BufferedReader
@@ -234,7 +235,7 @@ data class ProviderEndpointsExport(
  * Version 14: Added params (reusable parameter presets).
  */
 data class AiConfigExport(
-    val version: Int = 18,
+    val version: Int = 19,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,  // Version 6+
@@ -284,7 +285,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
     // Build providers map
     val providers = AiService.entries.associate { service ->
         val config = aiSettings.getProvider(service)
-        service.name to ProviderConfigExport(
+        service.id to ProviderConfigExport(
             modelSource = config.modelSource.name,
             models = config.models,
             apiKey = config.apiKey,
@@ -306,7 +307,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         AgentExport(
             id = agent.id,
             name = agent.name,
-            provider = agent.provider.name,
+            provider = agent.provider.id,
             model = agent.model,
             apiKey = agent.apiKey,
             parametersIds = agent.paramsIds.ifEmpty { null },
@@ -331,7 +332,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             name = swarm.name,
             members = swarm.members.map { member ->
                 SwarmMemberExport(
-                    provider = member.provider.name,
+                    provider = member.provider.id,
                     model = member.model
                 )
             },
@@ -384,7 +385,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
     val providerEndpoints = aiSettings.endpoints.mapNotNull { (provider, endpoints) ->
         if (endpoints.isNotEmpty()) {
             ProviderEndpointsExport(
-                provider = provider.name,
+                provider = provider.id,
                 endpoints = endpoints.map { endpoint ->
                     EndpointExport(
                         id = endpoint.id,
@@ -410,7 +411,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         openRouterApiKey = openRouterApiKey.ifBlank { null }
     )
 
-    val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+    val gson = createAiGson(prettyPrint = true)
     val json = gson.toJson(export)
 
     try {
@@ -451,7 +452,7 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
         if (apiKey.isNotBlank()) ApiKeyEntry(service.displayName, apiKey) else null
     }
 
-    val gson = Gson()
+    val gson = createAiGson()
     val json = gson.toJson(keys)
 
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -468,7 +469,7 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
 fun exportApiKeysToFile(context: Context, aiSettings: AiSettings, huggingFaceApiKey: String = "", openRouterApiKey: String = "") {
     val keys = AiService.entries.mapNotNull { service ->
         val apiKey = aiSettings.getApiKey(service)
-        if (apiKey.isNotBlank()) ApiKeyEntry(service.name, apiKey) else null
+        if (apiKey.isNotBlank()) ApiKeyEntry(service.id, apiKey) else null
     }
 
     val export = ApiKeysExport(
@@ -477,7 +478,7 @@ fun exportApiKeysToFile(context: Context, aiSettings: AiSettings, huggingFaceApi
         openRouterApiKey = openRouterApiKey.ifBlank { null }
     )
 
-    val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+    val gson = createAiGson(prettyPrint = true)
     val json = gson.toJson(export)
 
     try {
@@ -527,7 +528,7 @@ fun importApiKeysFromFile(context: Context, uri: Uri, currentSettings: AiSetting
             return null
         }
 
-        val gson = Gson()
+        val gson = createAiGson()
         val export = gson.fromJson(json, ApiKeysExport::class.java)
 
         if (export.type != "api_keys" || export.keys == null) {
@@ -540,12 +541,9 @@ fun importApiKeysFromFile(context: Context, uri: Uri, currentSettings: AiSetting
 
         for (entry in export.keys) {
             if (entry.apiKey.isBlank()) continue
-            val service = try {
-                AiService.valueOf(entry.service)
-            } catch (e: IllegalArgumentException) {
+            val service = AiService.findById(entry.service)
                 // Try matching by display name for backward compatibility
-                AiService.entries.firstOrNull { it.displayName == entry.service }
-            }
+                ?: AiService.entries.firstOrNull { it.displayName == entry.service }
             if (service != null) {
                 settings = settings.withApiKey(service, entry.apiKey)
                 importedCount++
@@ -578,11 +576,7 @@ private fun processImportedConfig(
 
     // Import agents with parameter preset IDs
     val agents = export.agents.mapNotNull { agentExport ->
-        val provider = try {
-            AiService.valueOf(agentExport.provider)
-        } catch (e: IllegalArgumentException) {
-            null  // Skip agents with unknown providers
-        }
+        val provider = AiService.findById(agentExport.provider)
         provider?.let {
             // Determine paramsIds: use new format if present, otherwise migrate old inline parameters
             val paramsIds = if (agentExport.parametersIds != null) {
@@ -653,14 +647,11 @@ private fun processImportedConfig(
                 id = swarmExport.id,
                 name = swarmExport.name,
                 members = swarmExport.members.mapNotNull { memberExport ->
-                    try {
-                        AiSwarmMember(
-                            provider = AiService.valueOf(memberExport.provider),
-                            model = memberExport.model
-                        )
-                    } catch (e: Exception) {
-                        null  // Skip invalid provider
-                    }
+                    val provider = AiService.findById(memberExport.provider) ?: return@mapNotNull null
+                    AiSwarmMember(
+                        provider = provider,
+                        model = memberExport.model
+                    )
                 },
                 paramsIds = swarmExport.parametersIds
                     ?: swarmExport.parametersId?.let { listOf(it) }
@@ -713,7 +704,7 @@ private fun processImportedConfig(
 
     // Update all provider settings from export
     for ((providerKey, p) in export.providers) {
-        val service = try { AiService.valueOf(providerKey) } catch (e: IllegalArgumentException) { continue }
+        val service = AiService.findById(providerKey) ?: continue
         val currentConfig = settings.getProvider(service)
         val defaultModelSource = defaultProviderConfig(service).modelSource
         val importedConfig = currentConfig.copy(
@@ -745,8 +736,8 @@ private fun processImportedConfig(
     var settingsWithEndpoints = settings
     export.providerEndpoints?.forEach { providerEndpoints ->
         val provider = try {
-            AiService.valueOf(providerEndpoints.provider)
-        } catch (e: IllegalArgumentException) {
+            AiService.findById(providerEndpoints.provider)
+        } catch (e: Exception) {
             null  // Skip unknown providers
         }
         provider?.let {
@@ -778,7 +769,7 @@ private fun processImportedConfig(
  * Returns true if old format is detected.
  */
 private fun isOldFormat(json: String): Boolean {
-    val gson = Gson()
+    val gson = createAiGson()
     try {
         val jsonElement = gson.fromJson(json, com.google.gson.JsonElement::class.java)
         if (!jsonElement.isJsonObject) return false
@@ -872,7 +863,7 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             return null
         }
 
-        val gson = Gson()
+        val gson = createAiGson()
 
         // Check if this is old format (pre-rename)
         val export = if (isOldFormat(json)) {
@@ -882,8 +873,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..18) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-18.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..19) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-19.", Toast.LENGTH_LONG).show()
             return null
         }
 

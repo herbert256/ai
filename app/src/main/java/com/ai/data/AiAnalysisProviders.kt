@@ -277,11 +277,11 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
         frequency_penalty = params?.frequencyPenalty,
         presence_penalty = params?.presencePenalty,
         stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-        seed = if (service == AiService.MISTRAL) null else params?.seed,
-        random_seed = if (service == AiService.MISTRAL) params?.seed else null,
+        seed = if (service.seedFieldName == "seed") params?.seed else null,
+        random_seed = if (service.seedFieldName == "random_seed") params?.seed else null,
         response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat(type = "json_object") else null,
-        return_citations = if (service == AiService.PERPLEXITY) params?.returnCitations else null,
-        search_recency_filter = if (service == AiService.PERPLEXITY) params?.searchRecency else null,
+        return_citations = if (service.supportsCitations) params?.returnCitations else null,
+        search_recency_filter = if (service.supportsSearchRecency) params?.searchRecency else null,
         search = if (params?.searchEnabled == true) true else null
     )
 
@@ -310,7 +310,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
             TokenUsage(
                 inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
                 outputTokens = it.completion_tokens ?: it.output_tokens ?: 0,
-                apiCost = extractApiCost(it, if (service == AiService.OPENROUTER) AiService.OPENROUTER else null)
+                apiCost = extractApiCost(it, if (service.extractApiCost) service else null)
             )
         }
         if (!content.isNullOrBlank()) {

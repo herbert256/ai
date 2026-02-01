@@ -307,10 +307,10 @@ fun AiNavHost(
                 onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
                 onFetchModels = viewModel::fetchModels,
                 onNavigateToChatParams = { provider, model ->
-                    navController.navigate(NavRoutes.aiChatParams(provider.name, model))
+                    navController.navigate(NavRoutes.aiChatParams(provider.id, model))
                 },
                 onNavigateToModelInfo = { provider, model ->
-                    navController.navigate(NavRoutes.aiModelInfo(provider.name, model))
+                    navController.navigate(NavRoutes.aiModelInfo(provider.id, model))
                 }
             )
         }
@@ -344,7 +344,7 @@ fun AiNavHost(
                 backStackEntry.arguments?.getString("model") ?: "",
                 "UTF-8"
             )
-            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+            val provider = com.ai.data.AiService.findById(providerName)
             val uiState by viewModel.uiState.collectAsState()
 
             if (provider != null) {
@@ -465,14 +465,14 @@ fun AiNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectProvider = { provider ->
-                    navController.navigate(NavRoutes.aiChatModel(provider.name))
+                    navController.navigate(NavRoutes.aiChatModel(provider.id))
                 }
             )
         }
 
         composable(NavRoutes.AI_CHAT_MODEL) { backStackEntry ->
             val providerName = backStackEntry.arguments?.getString("provider") ?: ""
-            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+            val provider = com.ai.data.AiService.findById(providerName)
             val uiState by viewModel.uiState.collectAsState()
 
             if (provider != null) {
@@ -481,7 +481,7 @@ fun AiNavHost(
                     aiSettings = uiState.aiSettings,
                     currentModel = "",
                     onSelectModel = { model ->
-                        navController.navigate(NavRoutes.aiChatParams(provider.name, model))
+                        navController.navigate(NavRoutes.aiChatParams(provider.id, model))
                     },
                     onBack = { navController.popBackStack() },
                     onNavigateHome = navigateHome
@@ -493,7 +493,7 @@ fun AiNavHost(
             val providerName = backStackEntry.arguments?.getString("provider") ?: ""
             val encodedModel = backStackEntry.arguments?.getString("model") ?: ""
             val model = try { java.net.URLDecoder.decode(encodedModel, "UTF-8") } catch (e: Exception) { encodedModel }
-            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+            val provider = com.ai.data.AiService.findById(providerName)
 
             if (provider != null) {
                 ChatParametersScreen(
@@ -504,7 +504,7 @@ fun AiNavHost(
                     onStartChat = { params ->
                         // Store params in ViewModel and navigate to session
                         viewModel.setChatParameters(params)
-                        navController.navigate(NavRoutes.aiChatSession(provider.name, model))
+                        navController.navigate(NavRoutes.aiChatSession(provider.id, model))
                     }
                 )
             }
@@ -514,7 +514,7 @@ fun AiNavHost(
             val providerName = backStackEntry.arguments?.getString("provider") ?: ""
             val encodedModel = backStackEntry.arguments?.getString("model") ?: ""
             val model = try { java.net.URLDecoder.decode(encodedModel, "UTF-8") } catch (e: Exception) { encodedModel }
-            val provider = try { com.ai.data.AiService.valueOf(providerName) } catch (e: Exception) { null }
+            val provider = com.ai.data.AiService.findById(providerName)
             val uiState by viewModel.uiState.collectAsState()
 
             if (provider != null) {

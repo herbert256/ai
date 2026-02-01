@@ -232,7 +232,7 @@ internal fun shareAiReportAsJson(context: android.content.Context, reportId: Str
             return
         }
 
-        val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+        val gson = com.ai.data.createAiGson(prettyPrint = true)
         val json = gson.toJson(report)
 
         val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
@@ -414,9 +414,7 @@ internal fun convertAiReportToHtml(context: android.content.Context, report: com
         rapportText = report.rapportText,
         developerMode = developerMode,
         agents = report.agents.map { agent ->
-            val providerEnum = try {
-                com.ai.data.AiService.valueOf(agent.provider)
-            } catch (e: Exception) { null }
+            val providerEnum = com.ai.data.AiService.findById(agent.provider)
             val providerDisplay = providerEnum?.displayName ?: agent.provider
             val errorMsg = if (agent.reportStatus == com.ai.data.ReportStatus.ERROR || agent.errorMessage != null) {
                 agent.errorMessage ?: "Unknown error"

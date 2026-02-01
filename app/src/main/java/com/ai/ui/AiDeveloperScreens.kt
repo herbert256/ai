@@ -133,7 +133,7 @@ fun ApiTestScreen(
     var selectedProvider by remember {
         val lastProvider = prefs.getString("last_test_provider", null)
         val provider = lastProvider?.let {
-            try { com.ai.data.AiService.valueOf(it) } catch (e: Exception) { null }
+            com.ai.data.AiService.findById(it)
         } ?: com.ai.data.AiService.OPENAI
         mutableStateOf(provider)
     }
@@ -285,39 +285,7 @@ fun ApiTestScreen(
                         scope.launch {
                             try {
                                 val repository = com.ai.data.AiAnalysisRepository()
-                                availableModels = when (selectedProvider) {
-                                    com.ai.data.AiService.OPENAI -> repository.fetchChatGptModels(apiKey)
-                                    com.ai.data.AiService.ANTHROPIC -> repository.fetchClaudeModels(apiKey)
-                                    com.ai.data.AiService.GOOGLE -> repository.fetchGeminiModels(apiKey)
-                                    com.ai.data.AiService.XAI -> repository.fetchGrokModels(apiKey)
-                                    com.ai.data.AiService.GROQ -> repository.fetchGroqModels(apiKey)
-                                    com.ai.data.AiService.DEEPSEEK -> repository.fetchDeepSeekModels(apiKey)
-                                    com.ai.data.AiService.MISTRAL -> repository.fetchMistralModels(apiKey)
-                                    com.ai.data.AiService.PERPLEXITY -> repository.fetchPerplexityModels(apiKey)
-                                    com.ai.data.AiService.TOGETHER -> repository.fetchTogetherModels(apiKey)
-                                    com.ai.data.AiService.OPENROUTER -> repository.fetchOpenRouterModels(apiKey)
-                                    com.ai.data.AiService.SILICONFLOW -> repository.fetchSiliconFlowModels(apiKey)
-                                    com.ai.data.AiService.ZAI -> repository.fetchZaiModels(apiKey)
-                                    com.ai.data.AiService.MOONSHOT -> repository.fetchMoonshotModels(apiKey)
-                                    com.ai.data.AiService.COHERE -> repository.fetchCohereModels(apiKey)
-                                    com.ai.data.AiService.AI21 -> repository.fetchAi21Models(apiKey)
-                                    com.ai.data.AiService.DASHSCOPE -> repository.fetchDashScopeModels(apiKey)
-                                    com.ai.data.AiService.FIREWORKS -> repository.fetchFireworksModels(apiKey)
-                                    com.ai.data.AiService.CEREBRAS -> repository.fetchCerebrasModels(apiKey)
-                                    com.ai.data.AiService.SAMBANOVA -> repository.fetchSambaNovaModels(apiKey)
-                                    com.ai.data.AiService.BAICHUAN -> repository.fetchBaichuanModels(apiKey)
-                                    com.ai.data.AiService.STEPFUN -> repository.fetchStepFunModels(apiKey)
-                                    com.ai.data.AiService.MINIMAX -> repository.fetchMiniMaxModels(apiKey)
-                                    com.ai.data.AiService.NVIDIA -> repository.fetchNvidiaModels(apiKey)
-                                    com.ai.data.AiService.REPLICATE -> repository.fetchReplicateModels(apiKey)
-                                    com.ai.data.AiService.HUGGINGFACE -> repository.fetchHuggingFaceInferenceModels(apiKey)
-                                    com.ai.data.AiService.LAMBDA -> repository.fetchLambdaModels(apiKey)
-                                    com.ai.data.AiService.LEPTON -> repository.fetchLeptonModels(apiKey)
-                                    com.ai.data.AiService.YI -> repository.fetchYiModels(apiKey)
-                                    com.ai.data.AiService.DOUBAO -> repository.fetchDoubaoModels(apiKey)
-                                    com.ai.data.AiService.REKA -> repository.fetchRekaModels(apiKey)
-                                    com.ai.data.AiService.WRITER -> repository.fetchWriterModels(apiKey)
-                                }
+                                availableModels = repository.fetchModels(selectedProvider, apiKey)
                                 isLoadingModels = false
                                 if (availableModels.isNotEmpty()) {
                                     showModelDialog = true
@@ -584,7 +552,7 @@ fun ApiTestScreen(
                 if (prompt.isNotBlank()) {
                     // Save all test configuration to persistent storage
                     prefs.edit()
-                        .putString("last_test_provider", selectedProvider.name)
+                        .putString("last_test_provider", selectedProvider.id)
                         .putString("last_test_api_url", apiUrl)
                         .putString("last_test_api_key", apiKey)
                         .putString("last_test_model", model)
@@ -734,7 +702,7 @@ fun EditApiRequestScreen(
     val provider = remember {
         val providerName = prefs.getString("last_test_provider", null)
         providerName?.let {
-            try { com.ai.data.AiService.valueOf(it) } catch (e: Exception) { null }
+            com.ai.data.AiService.findById(it)
         } ?: com.ai.data.AiService.OPENAI
     }
     val apiUrl = remember { prefs.getString("last_test_api_url", "") ?: "" }
@@ -757,7 +725,7 @@ fun EditApiRequestScreen(
 
     // Generate the JSON request body
     val generatedJson = remember {
-        val gson = com.google.gson.GsonBuilder().setPrettyPrinting().create()
+        val gson = com.ai.data.createAiGson(prettyPrint = true)
         val messages = buildList {
             if (systemPrompt.isNotBlank()) {
                 add(mapOf("role" to "system", "content" to systemPrompt))

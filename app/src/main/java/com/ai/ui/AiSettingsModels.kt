@@ -28,38 +28,9 @@ data class ProviderConfig(
  * for model source and manual model lists.
  */
 fun defaultProviderConfig(service: AiService): ProviderConfig {
-    val defaultModels: List<String> = when (service) {
-        AiService.ANTHROPIC -> CLAUDE_MODELS
-        AiService.PERPLEXITY -> PERPLEXITY_MODELS
-        AiService.SILICONFLOW -> SILICONFLOW_MODELS
-        AiService.ZAI -> ZAI_MODELS
-        AiService.MOONSHOT -> MOONSHOT_MODELS
-        AiService.COHERE -> COHERE_MODELS
-        AiService.AI21 -> AI21_MODELS
-        AiService.DASHSCOPE -> DASHSCOPE_MODELS
-        AiService.FIREWORKS -> FIREWORKS_MODELS
-        AiService.CEREBRAS -> CEREBRAS_MODELS
-        AiService.SAMBANOVA -> SAMBANOVA_MODELS
-        AiService.BAICHUAN -> BAICHUAN_MODELS
-        AiService.STEPFUN -> STEPFUN_MODELS
-        AiService.MINIMAX -> MINIMAX_MODELS
-        AiService.REPLICATE -> REPLICATE_MODELS
-        AiService.HUGGINGFACE -> HUGGINGFACE_INFERENCE_MODELS
-        AiService.LEPTON -> LEPTON_MODELS
-        AiService.YI -> YI_MODELS
-        AiService.DOUBAO -> DOUBAO_MODELS
-        AiService.REKA -> REKA_MODELS
-        AiService.WRITER -> WRITER_MODELS
-        else -> emptyList()
-    }
-    val defaultModelSource = when (service) {
-        AiService.OPENAI, AiService.GOOGLE, AiService.XAI, AiService.GROQ,
-        AiService.DEEPSEEK, AiService.MISTRAL, AiService.TOGETHER,
-        AiService.OPENROUTER, AiService.SILICONFLOW, AiService.ZAI,
-        AiService.MOONSHOT, AiService.NVIDIA, AiService.LAMBDA,
-        AiService.YI -> ModelSource.API
-        else -> if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
-    }
+    val defaultModels: List<String> = service.hardcodedModels ?: emptyList()
+    val defaultModelSource = service.defaultModelSource?.let { ModelSource.valueOf(it) }
+        ?: if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
     return ProviderConfig(
         model = service.defaultModel,
         modelSource = defaultModelSource,
@@ -120,228 +91,26 @@ data class AiAgentParameters(
 )
 
 /**
- * Available Claude models (hardcoded as Anthropic doesn't provide a list models API).
+ * Built-in default endpoints for providers with multiple or custom endpoints.
+ * Providers not in this map use a single auto-generated endpoint from baseUrl + chatPath.
  */
-val CLAUDE_MODELS = listOf(
-    "claude-sonnet-4-20250514",
-    "claude-opus-4-20250514",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-5-haiku-20241022",
-    "claude-3-opus-20240229",
-    "claude-3-sonnet-20240229",
-    "claude-3-haiku-20240307"
-)
-
-/**
- * Available Perplexity models (hardcoded).
- */
-val PERPLEXITY_MODELS = listOf(
-    "sonar",
-    "sonar-pro",
-    "sonar-reasoning-pro",
-    "sonar-deep-research"
-)
-
-/**
- * Available SiliconFlow models (hardcoded - popular models).
- */
-val SILICONFLOW_MODELS = listOf(
-    "Qwen/Qwen2.5-7B-Instruct",
-    "Qwen/Qwen2.5-14B-Instruct",
-    "Qwen/Qwen2.5-32B-Instruct",
-    "Qwen/Qwen2.5-72B-Instruct",
-    "Qwen/QwQ-32B",
-    "deepseek-ai/DeepSeek-V3",
-    "deepseek-ai/DeepSeek-R1",
-    "THUDM/glm-4-9b-chat",
-    "meta-llama/Llama-3.3-70B-Instruct"
-)
-
-/**
- * Available Moonshot models (hardcoded - Kimi models).
- */
-val MOONSHOT_MODELS = listOf(
-    "kimi-latest",
-    "moonshot-v1-8k",
-    "moonshot-v1-32k",
-    "moonshot-v1-128k"
-)
-
-/**
- * Available Z.AI models (hardcoded - uses ZhipuAI GLM models).
- */
-val ZAI_MODELS = listOf(
-    "glm-4.7-flash",
-    "glm-4.7",
-    "glm-4.5-flash",
-    "glm-4.5",
-    "glm-4-plus",
-    "glm-4-long",
-    "glm-4-flash"
-)
-
-/**
- * Available Cohere models (hardcoded).
- */
-val COHERE_MODELS = listOf(
-    "command-a-03-2025",
-    "command-r-plus-08-2024",
-    "command-r-08-2024",
-    "command-r7b-12-2024"
-)
-
-/**
- * Available AI21 models (hardcoded).
- */
-val AI21_MODELS = listOf(
-    "jamba-mini",
-    "jamba-large",
-    "jamba-mini-1.7",
-    "jamba-large-1.7"
-)
-
-/**
- * Available DashScope models (hardcoded - Alibaba Cloud Qwen models).
- */
-val DASHSCOPE_MODELS = listOf(
-    "qwen-plus",
-    "qwen-max",
-    "qwen-turbo",
-    "qwen-long",
-    "qwen3-max",
-    "qwen3-235b-a22b"
-)
-
-/**
- * Available Fireworks models (hardcoded).
- */
-val FIREWORKS_MODELS = listOf(
-    "accounts/fireworks/models/llama-v3p3-70b-instruct",
-    "accounts/fireworks/models/deepseek-r1-0528",
-    "accounts/fireworks/models/qwen3-235b-a22b",
-    "accounts/fireworks/models/llama-v3p1-8b-instruct"
-)
-
-/**
- * Available Cerebras models (hardcoded).
- */
-val CEREBRAS_MODELS = listOf(
-    "llama-3.3-70b",
-    "llama-4-scout-17b-16e-instruct",
-    "llama3.1-8b",
-    "qwen-3-32b",
-    "deepseek-r1-distill-llama-70b"
-)
-
-/**
- * Available SambaNova models (hardcoded).
- */
-val SAMBANOVA_MODELS = listOf(
-    "Meta-Llama-3.3-70B-Instruct",
-    "DeepSeek-R1",
-    "DeepSeek-V3-0324",
-    "Qwen3-32B",
-    "Meta-Llama-3.1-8B-Instruct"
-)
-
-/**
- * Available Baichuan models (hardcoded).
- */
-val BAICHUAN_MODELS = listOf(
-    "Baichuan4-Turbo",
-    "Baichuan4",
-    "Baichuan4-Air",
-    "Baichuan3-Turbo",
-    "Baichuan3-Turbo-128k"
-)
-
-/**
- * Available StepFun models (hardcoded).
- */
-val STEPFUN_MODELS = listOf(
-    "step-3",
-    "step-2-16k",
-    "step-2-mini",
-    "step-1-8k",
-    "step-1-32k",
-    "step-1-128k"
-)
-
-/**
- * Available MiniMax models (hardcoded).
- */
-val MINIMAX_MODELS = listOf(
-    "MiniMax-M2.1",
-    "MiniMax-M2",
-    "MiniMax-M1",
-    "MiniMax-Text-01"
-)
-
-/**
- * Available Replicate models (hardcoded).
- */
-val REPLICATE_MODELS = listOf(
-    "meta/meta-llama-3-70b-instruct",
-    "meta/meta-llama-3-8b-instruct",
-    "mistralai/mistral-7b-instruct-v0.2"
-)
-
-/**
- * Available Hugging Face Inference models (hardcoded).
- */
-val HUGGINGFACE_INFERENCE_MODELS = listOf(
-    "meta-llama/Llama-3.1-70B-Instruct",
-    "meta-llama/Llama-3.1-8B-Instruct",
-    "mistralai/Mistral-7B-Instruct-v0.3",
-    "Qwen/Qwen2.5-72B-Instruct"
-)
-
-/**
- * Available Lepton models (hardcoded).
- */
-val LEPTON_MODELS = listOf(
-    "llama3-1-70b",
-    "llama3-1-8b",
-    "mistral-7b",
-    "gemma2-9b"
-)
-
-/**
- * Available 01.AI Yi models (hardcoded).
- */
-val YI_MODELS = listOf(
-    "yi-lightning",
-    "yi-large",
-    "yi-medium",
-    "yi-spark"
-)
-
-/**
- * Available Doubao models (hardcoded).
- */
-val DOUBAO_MODELS = listOf(
-    "doubao-pro-32k",
-    "doubao-pro-128k",
-    "doubao-lite-32k",
-    "doubao-lite-128k"
-)
-
-/**
- * Available Reka models (hardcoded).
- */
-val REKA_MODELS = listOf(
-    "reka-core",
-    "reka-flash",
-    "reka-edge"
-)
-
-/**
- * Available Writer models (hardcoded).
- */
-val WRITER_MODELS = listOf(
-    "palmyra-x-004",
-    "palmyra-x-003-instruct"
+private val BUILT_IN_ENDPOINTS: Map<String, List<AiEndpoint>> = mapOf(
+    "OPENAI" to listOf(
+        AiEndpoint("openai-chat", "Chat Completions", "https://api.openai.com/v1/chat/completions", true),
+        AiEndpoint("openai-responses", "Responses API", "https://api.openai.com/v1/responses", false)
+    ),
+    "MISTRAL" to listOf(
+        AiEndpoint("mistral-chat", "Chat Completions", "https://api.mistral.ai/v1/chat/completions", true),
+        AiEndpoint("mistral-codestral", "Codestral", "https://codestral.mistral.ai/v1/chat/completions", false)
+    ),
+    "DEEPSEEK" to listOf(
+        AiEndpoint("deepseek-chat", "Chat Completions", "https://api.deepseek.com/chat/completions", true),
+        AiEndpoint("deepseek-beta", "Beta (FIM)", "https://api.deepseek.com/beta/completions", false)
+    ),
+    "ZAI" to listOf(
+        AiEndpoint("zai-chat", "Chat Completions", "https://api.z.ai/api/paas/v4/chat/completions", true),
+        AiEndpoint("zai-coding", "Coding", "https://api.z.ai/api/coding/paas/v4/chat/completions", false)
+    )
 )
 
 /**
@@ -502,7 +271,7 @@ data class AiSettings(
      * Untested providers (key present but no stored state) default to "ok" for cold-start.
      */
     fun getProviderState(service: AiService): String {
-        val stored = providerStates[service.name]
+        val stored = providerStates[service.id]
         if (stored == "inactive") return "inactive"
         if (getApiKey(service).isBlank()) return "not-used"
         return stored ?: "ok"
@@ -526,7 +295,7 @@ data class AiSettings(
      * Return a copy with an updated provider state.
      */
     fun withProviderState(service: AiService, state: String): AiSettings {
-        return copy(providerStates = providerStates + (service.name to state))
+        return copy(providerStates = providerStates + (service.id to state))
     }
 
     fun getProvider(service: AiService): ProviderConfig =
@@ -603,7 +372,7 @@ data class AiSettings(
     fun getMembersForSwarms(swarmIds: Set<String>): List<AiSwarmMember> =
         swarmIds.flatMap { swarmId ->
             getSwarmById(swarmId)?.members ?: emptyList()
-        }.distinctBy { "${it.provider.name}:${it.model}" }
+        }.distinctBy { "${it.provider.id}:${it.model}" }
 
     // Helper methods for prompts
     fun getPromptByName(name: String): AiPrompt? = prompts.find { it.name.equals(name, ignoreCase = true) }
@@ -625,104 +394,15 @@ data class AiSettings(
      * Get built-in default endpoints for providers.
      * These are used when no custom endpoints are configured.
      */
-    private fun getBuiltInEndpoints(provider: AiService): List<AiEndpoint> = when (provider) {
-        AiService.OPENAI -> listOf(
-            AiEndpoint("openai-chat", "Chat Completions", "https://api.openai.com/v1/chat/completions", true),
-            AiEndpoint("openai-responses", "Responses API", "https://api.openai.com/v1/responses", false)
-        )
-        AiService.MISTRAL -> listOf(
-            AiEndpoint("mistral-chat", "Chat Completions", "https://api.mistral.ai/v1/chat/completions", true),
-            AiEndpoint("mistral-codestral", "Codestral", "https://codestral.mistral.ai/v1/chat/completions", false)
-        )
-        AiService.DEEPSEEK -> listOf(
-            AiEndpoint("deepseek-chat", "Chat Completions", "https://api.deepseek.com/chat/completions", true),
-            AiEndpoint("deepseek-beta", "Beta (FIM)", "https://api.deepseek.com/beta/completions", false)
-        )
-        AiService.ZAI -> listOf(
-            AiEndpoint("zai-chat", "Chat Completions", "https://api.z.ai/api/paas/v4/chat/completions", true),
-            AiEndpoint("zai-coding", "Coding", "https://api.z.ai/api/coding/paas/v4/chat/completions", false)
-        )
-        AiService.SILICONFLOW -> listOf(
-            AiEndpoint("siliconflow-chat", "Chat Completions", "https://api.siliconflow.com/v1/chat/completions", true)
-        )
-        AiService.GROQ -> listOf(
-            AiEndpoint("groq-chat", "Chat Completions", "https://api.groq.com/openai/v1/chat/completions", true)
-        )
-        AiService.XAI -> listOf(
-            AiEndpoint("xai-chat", "Chat Completions", "https://api.x.ai/v1/chat/completions", true)
-        )
-        AiService.TOGETHER -> listOf(
-            AiEndpoint("together-chat", "Chat Completions", "https://api.together.xyz/v1/chat/completions", true)
-        )
-        AiService.OPENROUTER -> listOf(
-            AiEndpoint("openrouter-chat", "Chat Completions", "https://openrouter.ai/api/v1/chat/completions", true)
-        )
-        AiService.PERPLEXITY -> listOf(
-            AiEndpoint("perplexity-chat", "Chat Completions", "https://api.perplexity.ai/chat/completions", true)
-        )
-        AiService.ANTHROPIC -> listOf(
-            AiEndpoint("anthropic-messages", "Messages API", "https://api.anthropic.com/v1/messages", true)
-        )
-        AiService.GOOGLE -> listOf(
-            AiEndpoint("google-generate", "Generate Content", "https://generativelanguage.googleapis.com/v1beta/models", true)
-        )
-        AiService.MOONSHOT -> listOf(
-            AiEndpoint("moonshot-chat", "Chat Completions", "https://api.moonshot.cn/v1/chat/completions", true)
-        )
-        AiService.COHERE -> listOf(
-            AiEndpoint("cohere-chat", "Chat Completions", "https://api.cohere.ai/compatibility/v1/chat/completions", true)
-        )
-        AiService.AI21 -> listOf(
-            AiEndpoint("ai21-chat", "Chat Completions", "https://api.ai21.com/v1/chat/completions", true)
-        )
-        AiService.DASHSCOPE -> listOf(
-            AiEndpoint("dashscope-chat", "Chat Completions", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions", true)
-        )
-        AiService.FIREWORKS -> listOf(
-            AiEndpoint("fireworks-chat", "Chat Completions", "https://api.fireworks.ai/inference/v1/chat/completions", true)
-        )
-        AiService.CEREBRAS -> listOf(
-            AiEndpoint("cerebras-chat", "Chat Completions", "https://api.cerebras.ai/v1/chat/completions", true)
-        )
-        AiService.SAMBANOVA -> listOf(
-            AiEndpoint("sambanova-chat", "Chat Completions", "https://api.sambanova.ai/v1/chat/completions", true)
-        )
-        AiService.BAICHUAN -> listOf(
-            AiEndpoint("baichuan-chat", "Chat Completions", "https://api.baichuan-ai.com/v1/chat/completions", true)
-        )
-        AiService.STEPFUN -> listOf(
-            AiEndpoint("stepfun-chat", "Chat Completions", "https://api.stepfun.com/v1/chat/completions", true)
-        )
-        AiService.MINIMAX -> listOf(
-            AiEndpoint("minimax-chat", "Chat Completions", "https://api.minimax.io/v1/chat/completions", true)
-        )
-        AiService.NVIDIA -> listOf(
-            AiEndpoint("nvidia-chat", "Chat Completions", "https://integrate.api.nvidia.com/v1/chat/completions", true)
-        )
-        AiService.REPLICATE -> listOf(
-            AiEndpoint("replicate-chat", "Chat Completions", "https://api.replicate.com/v1/chat/completions", true)
-        )
-        AiService.HUGGINGFACE -> listOf(
-            AiEndpoint("huggingface-chat", "Chat Completions", "https://api-inference.huggingface.co/v1/chat/completions", true)
-        )
-        AiService.LAMBDA -> listOf(
-            AiEndpoint("lambda-chat", "Chat Completions", "https://api.lambdalabs.com/v1/chat/completions", true)
-        )
-        AiService.LEPTON -> listOf(
-            AiEndpoint("lepton-chat", "Chat Completions", "https://api.lepton.ai/v1/chat/completions", true)
-        )
-        AiService.YI -> listOf(
-            AiEndpoint("yi-chat", "Chat Completions", "https://api.01.ai/v1/chat/completions", true)
-        )
-        AiService.DOUBAO -> listOf(
-            AiEndpoint("doubao-chat", "Chat Completions", "https://ark.cn-beijing.volces.com/api/v3/chat/completions", true)
-        )
-        AiService.REKA -> listOf(
-            AiEndpoint("reka-chat", "Chat Completions", "https://api.reka.ai/v1/chat/completions", true)
-        )
-        AiService.WRITER -> listOf(
-            AiEndpoint("writer-chat", "Chat Completions", "https://api.writer.com/v1/chat/completions", true)
-        )
+    private fun getBuiltInEndpoints(provider: AiService): List<AiEndpoint> =
+        BUILT_IN_ENDPOINTS[provider.id] ?: defaultEndpointForProvider(provider)
+
+    /** Generate a single default endpoint from a provider's baseUrl and chatPath. */
+    private fun defaultEndpointForProvider(provider: AiService): List<AiEndpoint> {
+        val base = if (provider.baseUrl.endsWith("/")) provider.baseUrl else "${provider.baseUrl}/"
+        val url = base + provider.chatPath
+        val idPrefix = provider.id.lowercase()
+        return listOf(AiEndpoint("$idPrefix-chat", "Chat Completions", url, true))
     }
 
     fun getEndpointById(provider: AiService, endpointId: String): AiEndpoint? =
@@ -842,7 +522,7 @@ data class AiUsageStats(
     val totalTokens: Long = 0
 ) {
     /** Unique key for this provider+model combination */
-    val key: String get() = "${provider.name}::$model"
+    val key: String get() = "${provider.id}::$model"
 }
 
 /**

@@ -65,7 +65,7 @@ object AiReportStorage {
     private const val OLD_PREFS_NAME = "ai_reports_storage"
     private const val OLD_KEY_REPORTS = "reports"
 
-    private val gson = Gson()
+    private val gson = createAiGson()
     private val lock = ReentrantLock()
 
     @Volatile

@@ -269,22 +269,17 @@ suspend fun AiAnalysisRepository.fetchClaudeModels(apiKey: String): List<String>
 suspend fun AiAnalysisRepository.fetchModelsOpenAiCompatible(service: AiService, apiKey: String): List<String> = withContext(Dispatchers.IO) {
     val tag = "${service.displayName}API"
     try {
-        // Providers with hardcoded model lists (no API endpoint)
-        when (service) {
-            AiService.REPLICATE -> return@withContext com.ai.ui.REPLICATE_MODELS
-            AiService.HUGGINGFACE -> return@withContext com.ai.ui.HUGGINGFACE_INFERENCE_MODELS
-            AiService.LEPTON -> return@withContext com.ai.ui.LEPTON_MODELS
-            AiService.DOUBAO -> return@withContext com.ai.ui.DOUBAO_MODELS
-            AiService.REKA -> return@withContext com.ai.ui.REKA_MODELS
-            else -> { /* fetch from API */ }
+        // Providers with hardcoded model lists and no model list API endpoint
+        if (service.hardcodedModels != null && service.modelsPath == null) {
+            return@withContext service.hardcodedModels
         }
 
         val api = AiApiFactory.createOpenAiCompatibleApi(service.baseUrl)
         val normalizedBase = if (service.baseUrl.endsWith("/")) service.baseUrl else "${service.baseUrl}/"
-        val modelsUrl = normalizedBase + service.modelsPath
+        val modelsUrl = normalizedBase + (service.modelsPath ?: "v1/models")
 
-        // Together returns a raw array, not {data: [...]}
-        val modelIds = if (service == AiService.TOGETHER) {
+        // Some providers return a raw array, not {data: [...]}
+        val modelIds = if (service.modelListFormat == "array") {
             val response = api.listModelsArray(modelsUrl, "Bearer $apiKey")
             if (response.isSuccessful) {
                 response.body()?.mapNotNull { it.id } ?: emptyList()
@@ -302,16 +297,11 @@ suspend fun AiAnalysisRepository.fetchModelsOpenAiCompatible(service: AiService,
             }
         }
 
-        // Apply provider-specific model filter
-        val filtered = when (service) {
-            AiService.XAI -> modelIds.filter { it.startsWith("grok") }
-            AiService.DEEPSEEK -> modelIds.filter { it.startsWith("deepseek") }
-            AiService.MISTRAL -> modelIds.filter { it.startsWith("mistral") || it.startsWith("open-mistral") || it.startsWith("codestral") || it.startsWith("pixtral") }
-            AiService.PERPLEXITY -> modelIds.filter { it.contains("sonar") || it.contains("llama") }
-            AiService.TOGETHER -> modelIds.filter { it.contains("chat") || it.contains("instruct", ignoreCase = true) || it.contains("llama", ignoreCase = true) }
-            AiService.ZAI -> modelIds.filter { it.startsWith("glm") || it.startsWith("codegeex") || it.startsWith("charglm") }
-            else -> modelIds  // No filter for most providers
-        }
+        // Apply provider-specific model filter from modelFilter regex
+        val filtered = service.modelFilter?.let { filter ->
+            val regex = filter.toRegex(RegexOption.IGNORE_CASE)
+            modelIds.filter { id -> regex.containsMatchIn(id) }
+        } ?: modelIds
 
         filtered.sorted()
     } catch (e: Exception) {
@@ -320,32 +310,3 @@ suspend fun AiAnalysisRepository.fetchModelsOpenAiCompatible(service: AiService,
     }
 }
 
-// Backward-compatible wrappers (used by ViewModel per-provider methods, will be consolidated in later steps)
-suspend fun AiAnalysisRepository.fetchGrokModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.XAI, apiKey)
-suspend fun AiAnalysisRepository.fetchGroqModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.GROQ, apiKey)
-suspend fun AiAnalysisRepository.fetchDeepSeekModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.DEEPSEEK, apiKey)
-suspend fun AiAnalysisRepository.fetchMistralModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.MISTRAL, apiKey)
-suspend fun AiAnalysisRepository.fetchPerplexityModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.PERPLEXITY, apiKey)
-suspend fun AiAnalysisRepository.fetchTogetherModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.TOGETHER, apiKey)
-suspend fun AiAnalysisRepository.fetchOpenRouterModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.OPENROUTER, apiKey)
-suspend fun AiAnalysisRepository.fetchSiliconFlowModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.SILICONFLOW, apiKey)
-suspend fun AiAnalysisRepository.fetchZaiModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.ZAI, apiKey)
-suspend fun AiAnalysisRepository.fetchMoonshotModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.MOONSHOT, apiKey)
-suspend fun AiAnalysisRepository.fetchCohereModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.COHERE, apiKey)
-suspend fun AiAnalysisRepository.fetchAi21Models(apiKey: String) = fetchModelsOpenAiCompatible(AiService.AI21, apiKey)
-suspend fun AiAnalysisRepository.fetchDashScopeModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.DASHSCOPE, apiKey)
-suspend fun AiAnalysisRepository.fetchFireworksModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.FIREWORKS, apiKey)
-suspend fun AiAnalysisRepository.fetchCerebrasModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.CEREBRAS, apiKey)
-suspend fun AiAnalysisRepository.fetchSambaNovaModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.SAMBANOVA, apiKey)
-suspend fun AiAnalysisRepository.fetchBaichuanModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.BAICHUAN, apiKey)
-suspend fun AiAnalysisRepository.fetchStepFunModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.STEPFUN, apiKey)
-suspend fun AiAnalysisRepository.fetchMiniMaxModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.MINIMAX, apiKey)
-suspend fun AiAnalysisRepository.fetchNvidiaModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.NVIDIA, apiKey)
-suspend fun AiAnalysisRepository.fetchReplicateModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.REPLICATE, apiKey)
-suspend fun AiAnalysisRepository.fetchHuggingFaceInferenceModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.HUGGINGFACE, apiKey)
-suspend fun AiAnalysisRepository.fetchLambdaModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.LAMBDA, apiKey)
-suspend fun AiAnalysisRepository.fetchLeptonModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.LEPTON, apiKey)
-suspend fun AiAnalysisRepository.fetchYiModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.YI, apiKey)
-suspend fun AiAnalysisRepository.fetchDoubaoModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.DOUBAO, apiKey)
-suspend fun AiAnalysisRepository.fetchRekaModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.REKA, apiKey)
-suspend fun AiAnalysisRepository.fetchWriterModels(apiKey: String) = fetchModelsOpenAiCompatible(AiService.WRITER, apiKey)

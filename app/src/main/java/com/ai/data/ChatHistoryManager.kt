@@ -5,7 +5,6 @@ import com.ai.ui.ChatMessage
 import com.ai.ui.ChatParameters
 import com.ai.ui.ChatSession
 import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import java.io.File
 
@@ -16,7 +15,7 @@ import java.io.File
 object ChatHistoryManager {
     private const val HISTORY_DIR = "chat-history"
     private var historyDir: File? = null
-    private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
+    private val gson: Gson = createAiGson(prettyPrint = true)
 
     /**
      * Initialize the manager with the app context.

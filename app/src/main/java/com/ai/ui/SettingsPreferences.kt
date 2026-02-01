@@ -2,6 +2,7 @@ package com.ai.ui
 
 import android.content.SharedPreferences
 import com.ai.data.AiService
+import com.ai.data.createAiGson
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -12,7 +13,7 @@ import java.io.File
  */
 class SettingsPreferences(private val prefs: SharedPreferences, private val filesDir: File? = null) {
 
-    private val gson = Gson()
+    private val gson = createAiGson()
 
     // ============================================================================
     // General Settings
@@ -198,7 +199,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             .putString(KEY_AI_FLOCKS, gson.toJson(settings.swarms))
             .putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
-            .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.name }))
+            .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
             .putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
             .apply()
     }
@@ -206,39 +207,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     /**
      * Map AiService to its legacy api_models SharedPreferences key for backward compatibility.
      */
-    private fun apiModelsKey(service: AiService): String = when (service) {
-        AiService.OPENAI -> "api_models_openai"
-        AiService.GOOGLE -> "api_models_google"
-        AiService.XAI -> "api_models_xai"
-        AiService.GROQ -> "api_models_groq"
-        AiService.DEEPSEEK -> "api_models_deepseek"
-        AiService.MISTRAL -> "api_models_mistral"
-        AiService.TOGETHER -> "api_models_together"
-        AiService.OPENROUTER -> "api_models_openrouter"
-        AiService.ANTHROPIC -> "api_models_claude"
-        AiService.SILICONFLOW -> "api_models_siliconflow"
-        AiService.ZAI -> "api_models_zai"
-        AiService.MOONSHOT -> "api_models_moonshot"
-        AiService.COHERE -> "api_models_cohere"
-        AiService.AI21 -> "api_models_ai21"
-        AiService.DASHSCOPE -> "api_models_dashscope"
-        AiService.FIREWORKS -> "api_models_fireworks"
-        AiService.CEREBRAS -> "api_models_cerebras"
-        AiService.SAMBANOVA -> "api_models_sambanova"
-        AiService.BAICHUAN -> "api_models_baichuan"
-        AiService.STEPFUN -> "api_models_stepfun"
-        AiService.MINIMAX -> "api_models_minimax"
-        AiService.NVIDIA -> "api_models_nvidia"
-        AiService.REPLICATE -> "api_models_replicate"
-        AiService.HUGGINGFACE -> "api_models_huggingface_inference"
-        AiService.LAMBDA -> "api_models_lambda"
-        AiService.LEPTON -> "api_models_lepton"
-        AiService.YI -> "api_models_yi"
-        AiService.DOUBAO -> "api_models_doubao"
-        AiService.REKA -> "api_models_reka"
-        AiService.WRITER -> "api_models_writer"
-        AiService.PERPLEXITY -> "api_models_perplexity"
-    }
+    private fun apiModelsKey(service: AiService): String =
+        service.apiModelsLegacyKey ?: "api_models_${service.id.lowercase()}"
 
     /**
      * Save models for a single provider (used during API fetch to avoid saving entire AiSettings).
@@ -264,7 +234,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 val obj = element.asJsonObject
                 // Skip agents with null/unknown provider
                 val providerName = obj.get("provider")?.asString ?: return@mapNotNull null
-                try { AiService.valueOf(providerName) } catch (e: Exception) { return@mapNotNull null }
+                AiService.findById(providerName) ?: return@mapNotNull null
                 // Migrate old "paramsId" (String?) to new "paramsIds" (List<String>) format if needed
                 migrateParamsIdToParamsIds(obj)
                 // Ensure paramsIds exists (Gson may deserialize as null)
@@ -356,13 +326,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             // Stored as Map<String, List<AiEndpoint>> where key is provider name
             val type = object : TypeToken<Map<String, List<AiEndpoint>>>() {}.type
             val rawMap: Map<String, List<AiEndpoint>>? = gson.fromJson(json, type)
-            rawMap?.mapKeys { entry ->
-                try {
-                    AiService.valueOf(entry.key)
-                } catch (e: IllegalArgumentException) {
-                    null
-                }
-            }?.entries?.mapNotNull { (k, v) -> k?.let { it to v } }?.toMap() ?: emptyMap()
+            rawMap?.mapKeys { entry -> AiService.findById(entry.key) }
+                ?.entries?.mapNotNull { (k, v) -> k?.let { it to v } }?.toMap() ?: emptyMap()
         } catch (e: Exception) {
             android.util.Log.w("SettingsPreferences", "Failed to load endpoints: ${e.message}")
             emptyMap()
@@ -386,7 +351,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     private fun saveEndpoints(endpoints: Map<AiService, List<AiEndpoint>>) {
         // Convert to Map<String, List<AiEndpoint>> for storage
-        val rawMap = endpoints.mapKeys { it.key.name }
+        val rawMap = endpoints.mapKeys { it.key.id }
         prefs.edit().putString(KEY_AI_ENDPOINTS, gson.toJson(rawMap)).apply()
     }
 
@@ -613,7 +578,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         totalTokens: Int
     ) {
         val stats = loadUsageStats().toMutableMap()
-        val key = "${provider.name}::$model"
+        val key = "${provider.id}::$model"
         val existing = stats[key] ?: AiUsageStats(provider, model)
         stats[key] = existing.copy(
             callCount = existing.callCount + 1,
@@ -675,20 +640,20 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ============================================================================
 
     fun isModelListCacheValid(provider: com.ai.data.AiService): Boolean {
-        val key = KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.name
+        val key = KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.id
         val timestamp = prefs.getLong(key, 0L)
         return System.currentTimeMillis() - timestamp < MODEL_LISTS_CACHE_DURATION_MS
     }
 
     fun updateModelListTimestamp(provider: com.ai.data.AiService) {
-        val key = KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.name
+        val key = KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.id
         prefs.edit().putLong(key, System.currentTimeMillis()).apply()
     }
 
     fun clearModelListsCache() {
         val editor = prefs.edit()
         com.ai.data.AiService.entries.forEach { provider ->
-            editor.remove(KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.name)
+            editor.remove(KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.id)
         }
         editor.apply()
         android.util.Log.d("SettingsPreferences", "All model list caches cleared")
