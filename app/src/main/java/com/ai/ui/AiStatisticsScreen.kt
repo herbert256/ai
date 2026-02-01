@@ -834,6 +834,21 @@ private fun AddManualOverrideScreen(
     var inputPrice by remember { mutableStateOf("") }
     var outputPrice by remember { mutableStateOf("") }
     var showModelSelect by remember { mutableStateOf(false) }
+    var showProviderSelect by remember { mutableStateOf(false) }
+
+    if (showProviderSelect) {
+        SelectProviderScreen(
+            aiSettings = aiSettings,
+            onSelectProvider = { provider ->
+                selectedProvider = provider
+                model = ""
+                showProviderSelect = false
+            },
+            onBack = { showProviderSelect = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
 
     if (showModelSelect) {
         SelectModelScreen(
@@ -888,33 +903,30 @@ private fun AddManualOverrideScreen(
                 }
             }
 
-            // Provider dropdown
+            // Provider selection
             Text("Provider", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
-            var providerExpanded by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(
-                    onClick = { providerExpanded = true },
-                    modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = selectedProvider.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                Button(
+                    onClick = { showProviderSelect = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    Text(selectedProvider.displayName, modifier = Modifier.weight(1f))
-                    Text(if (providerExpanded) "▲" else "▼")
-                }
-                DropdownMenu(
-                    expanded = providerExpanded,
-                    onDismissRequest = { providerExpanded = false }
-                ) {
-                    aiSettings.getActiveServices()
-                        .sortedBy { it.displayName.lowercase() }
-                        .forEach { provider ->
-                            DropdownMenuItem(
-                                text = { Text(provider.displayName) },
-                                onClick = {
-                                    selectedProvider = provider
-                                    model = ""
-                                    providerExpanded = false
-                                }
-                            )
-                        }
+                    Text("Select", fontSize = 12.sp)
                 }
             }
 

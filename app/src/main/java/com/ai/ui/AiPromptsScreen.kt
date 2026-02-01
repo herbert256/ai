@@ -197,7 +197,6 @@ private fun PromptListItem(
 /**
  * Prompt edit screen for creating or editing a prompt.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PromptEditScreen(
     prompt: AiPrompt?,
@@ -214,15 +213,24 @@ fun PromptEditScreen(
     var selectedAgentId by remember { mutableStateOf(prompt?.agentId ?: "") }
     var promptText by remember { mutableStateOf(prompt?.promptText ?: "") }
     var nameError by remember { mutableStateOf<String?>(null) }
-    var agentDropdownExpanded by remember { mutableStateOf(false) }
-
-    // Get all configured agents with active providers
-    val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
-        aiSettings.isProviderActive(agent.provider)
-    }.sortedBy { it.name.lowercase() }
+    var showSelectAgent by remember { mutableStateOf(false) }
 
     // Find selected agent
-    val selectedAgent = configuredAgents.find { it.id == selectedAgentId }
+    val selectedAgent = aiSettings.agents.find { it.id == selectedAgentId }
+
+    // Full-screen overlay for agent selection
+    if (showSelectAgent) {
+        SelectAgentScreen(
+            aiSettings = aiSettings,
+            onSelectAgent = { agent ->
+                selectedAgentId = agent.id
+                showSelectAgent = false
+            },
+            onBack = { showSelectAgent = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -266,62 +274,41 @@ fun PromptEditScreen(
                 )
             )
 
-            // Agent selection dropdown
+            // Agent selection
             Text(
-                text = "Select Agent",
+                text = "Agent",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
                 color = Color(0xFF8B5CF6)
             )
 
-            if (configuredAgents.isEmpty()) {
-                Text(
-                    text = "No agents configured. Create agents first.",
-                    color = Color(0xFF888888),
-                    fontSize = 14.sp
-                )
-            } else {
-                ExposedDropdownMenuBox(
-                    expanded = agentDropdownExpanded,
-                    onExpandedChange = { agentDropdownExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = selectedAgent?.name ?: "Select an agent",
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = agentDropdownExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF8B5CF6),
-                            unfocusedBorderColor = Color(0xFF444444)
-                        )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = selectedAgent?.name ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    placeholder = { Text("No agent selected") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF8B5CF6),
+                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
                     )
-
-                    ExposedDropdownMenu(
-                        expanded = agentDropdownExpanded,
-                        onDismissRequest = { agentDropdownExpanded = false }
-                    ) {
-                        configuredAgents.forEach { agent ->
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(agent.name, color = Color.White)
-                                        Text(
-                                            "${agent.provider.displayName} - ${agent.model.ifBlank { agent.provider.defaultModel }}",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF888888)
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    selectedAgentId = agent.id
-                                    agentDropdownExpanded = false
-                                }
-                            )
-                        }
-                    }
+                )
+                Button(
+                    onClick = { showSelectAgent = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF6366F1)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
                 }
             }
 

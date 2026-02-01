@@ -377,13 +377,13 @@ fun AiNavHost(
         // Chat agent select screen
         composable(NavRoutes.AI_CHAT_AGENT_SELECT) {
             val uiState by viewModel.uiState.collectAsState()
-            ChatAgentSelectScreen(
+            SelectAgentScreen(
                 aiSettings = uiState.aiSettings,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome,
-                onSelectAgent = { agentId ->
-                    navController.navigate(NavRoutes.aiChatWithAgent(agentId))
-                }
+                onSelectAgent = { agent ->
+                    navController.navigate(NavRoutes.aiChatWithAgent(agent.id))
+                },
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
 
