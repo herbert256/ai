@@ -351,6 +351,7 @@ internal fun emailAiReportAsHtml(context: android.content.Context, reportId: Str
         )
 
         val intent = Intent(Intent.ACTION_SEND).apply {
+            setPackage("com.google.android.gm")
             type = "message/rfc822"
             putExtra(Intent.EXTRA_EMAIL, arrayOf(emailAddress))
             putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
@@ -359,7 +360,7 @@ internal fun emailAiReportAsHtml(context: android.content.Context, reportId: Str
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
-        context.startActivity(Intent.createChooser(intent, "Email AI Report"))
+        context.startActivity(intent)
         return true
     } catch (e: Exception) {
         return false
@@ -462,7 +463,7 @@ internal fun convertAiReportToHtml(context: android.content.Context, report: com
         rapportText = report.rapportText,
         developerMode = developerMode,
         reportType = report.reportType,
-        agents = report.agents.map { agent ->
+        agents = report.agents.filter { it.reportStatus != com.ai.data.ReportStatus.STOPPED && it.reportStatus != com.ai.data.ReportStatus.PENDING }.map { agent ->
             val providerEnum = com.ai.data.AiService.findById(agent.provider)
             val providerDisplay = providerEnum?.displayName ?: agent.provider
             val errorMsg = if (agent.reportStatus == com.ai.data.ReportStatus.ERROR || agent.errorMessage != null) {
@@ -533,9 +534,9 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     line-height: 1.6;
                 }
                 .container { max-width: 800px; margin: 0 auto; }
-                h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; text-align: center; }
                 h2 { color: #6B9BFF; font-size: 1.1em; margin-top: 30px; margin-bottom: 10px; }
-                .prompt-section { margin: 30px 0; }
+                .prompt-section { margin: 30px 0; text-align: center; }
                 .prompt-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
                 .prompt-text {
                     white-space: pre-wrap;
@@ -543,6 +544,8 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     font-family: monospace;
                     font-size: 0.9em;
                     color: #ccc;
+                    text-align: left;
+                    display: inline-block;
                 }
                 .agent-buttons {
                     display: flex;
@@ -623,9 +626,9 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     font-size: 0.9em;
                     text-align: center;
                 }
-                .cost-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.85em; }
-                .cost-table th { color: #6B9BFF; text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; font-weight: bold; }
-                .cost-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; }
+                .cost-table { width: auto; border-collapse: collapse; margin: 20px auto; font-size: 0.85em; }
+                .cost-table th { color: #6B9BFF; text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; font-weight: bold; white-space: nowrap; }
+                .cost-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; white-space: nowrap; text-align: left; }
                 .cost-table td.num { text-align: right; font-family: monospace; }
                 .cost-table tr:last-child td { border-bottom: 2px solid #333; }
                 .cost-table .total-row td { border-top: 2px solid #333; font-weight: bold; color: #6B9BFF; }
@@ -671,14 +674,21 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     border-color: #6B9BFF;
                     background: #2a2a2a;
                 }
+                .section-btn.active {
+                    background: #6B9BFF;
+                    color: #1a1a1a;
+                    border-color: #6B9BFF;
+                }
                 .section-content {
                     display: none;
+                    text-align: center;
                 }
                 .section-content.visible {
                     display: block;
                 }
                 .section-buttons {
                     display: flex;
+                    justify-content: center;
                     gap: 8px;
                     margin: 20px 0 10px 0;
                 }
@@ -696,8 +706,20 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     }
                 }
                 function toggleSection(id) {
-                    var content = document.getElementById('section-' + id);
-                    content.classList.toggle('visible');
+                    var sections = ['prompt', 'costs'];
+                    sections.forEach(function(s) {
+                        var el = document.getElementById('section-' + s);
+                        var btn = document.getElementById('btn-' + s);
+                        if (el) {
+                            if (s === id) {
+                                el.classList.toggle('visible');
+                                if (btn) btn.classList.toggle('active');
+                            } else {
+                                el.classList.remove('visible');
+                                if (btn) btn.classList.remove('active');
+                            }
+                        }
+                    });
                 }
             </script>
         </head>
@@ -828,10 +850,10 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
 
     // Section toggle buttons
     htmlBuilder.append("""<div class="section-buttons">""")
-    htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('prompt')">Prompt</button>""")
+    htmlBuilder.append("""<button id="btn-prompt" class="section-btn" onclick="toggleSection('prompt')">Prompt</button>""")
     val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
     if (agentsWithCosts.isNotEmpty()) {
-        htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('costs')">Costs</button>""")
+        htmlBuilder.append("""<button id="btn-costs" class="section-btn" onclick="toggleSection('costs')">Costs</button>""")
     }
     htmlBuilder.append("""</div>""")
 
@@ -855,12 +877,12 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                         <tr>
                             <th>Provider</th>
                             <th>Model</th>
-                            <th style="text-align:right">Secs</th>
-                            <th style="text-align:right">In tokens</th>
-                            <th style="text-align:right">Out tokens</th>
-                            <th style="text-align:right">In ¢</th>
-                            <th style="text-align:right">Out ¢</th>
-                            <th style="text-align:right">Total ¢</th>
+                            <th style="text-align:right">Seconds</th>
+                            <th style="text-align:right">Input<br>tokens</th>
+                            <th style="text-align:right">Output<br>tokens</th>
+                            <th style="text-align:right">Input<br>cents</th>
+                            <th style="text-align:right">Output<br>cents</th>
+                            <th style="text-align:right">Total<br>cents</th>
                         </tr>
         """)
         fun fmtCents(v: Double): String = "%.2f".format(v)
@@ -965,7 +987,7 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                     padding: 20px;
                     line-height: 1.6;
                 }
-                h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; margin: 0 0 10px 0; }
+                h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; margin: 0 0 10px 0; text-align: center; }
                 .cards-grid {
                     display: grid;
                     grid-template-columns: repeat(4, 1fr);
@@ -993,7 +1015,7 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                 .card-fallback pre { background: #222; padding: 8px; border-radius: 4px; overflow-x: auto; font-size: 0.85em; }
                 .card-fallback pre code { background: none; padding: 0; }
                 .error { color: #ff6b6b; font-size: 13px; }
-                .prompt-section { margin: 20px 0; }
+                .prompt-section { margin: 20px 0; text-align: center; }
                 .prompt-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
                 .prompt-text {
                     white-space: pre-wrap;
@@ -1001,10 +1023,12 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                     font-family: monospace;
                     font-size: 0.9em;
                     color: #ccc;
+                    text-align: left;
+                    display: inline-block;
                 }
-                .cost-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.85em; }
-                .cost-table th { color: #6B9BFF; text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; font-weight: bold; }
-                .cost-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; }
+                .cost-table { width: auto; border-collapse: collapse; margin: 20px auto; font-size: 0.85em; }
+                .cost-table th { color: #6B9BFF; text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; font-weight: bold; white-space: nowrap; }
+                .cost-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; white-space: nowrap; text-align: left; }
                 .cost-table td.num { text-align: right; font-family: monospace; }
                 .cost-table tr:last-child td { border-bottom: 2px solid #333; }
                 .cost-table .total-row td { border-top: 2px solid #333; font-weight: bold; color: #6B9BFF; }
@@ -1052,14 +1076,21 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                     border-color: #6B9BFF;
                     background: #2a2a2a;
                 }
+                .section-btn.active {
+                    background: #6B9BFF;
+                    color: #1a1a1a;
+                    border-color: #6B9BFF;
+                }
                 .section-content {
                     display: none;
+                    text-align: center;
                 }
                 .section-content.visible {
                     display: block;
                 }
                 .section-buttons {
                     display: flex;
+                    justify-content: center;
                     gap: 8px;
                     margin: 20px 0 10px 0;
                 }
@@ -1077,8 +1108,20 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                     }
                 }
                 function toggleSection(id) {
-                    var content = document.getElementById('section-' + id);
-                    content.classList.toggle('visible');
+                    var sections = ['prompt', 'costs'];
+                    sections.forEach(function(s) {
+                        var el = document.getElementById('section-' + s);
+                        var btn = document.getElementById('btn-' + s);
+                        if (el) {
+                            if (s === id) {
+                                el.classList.toggle('visible');
+                                if (btn) btn.classList.toggle('active');
+                            } else {
+                                el.classList.remove('visible');
+                                if (btn) btn.classList.remove('active');
+                            }
+                        }
+                    });
                 }
             </script>
         </head>
@@ -1137,10 +1180,10 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
 
     // Section toggle buttons
     htmlBuilder.append("""<div class="section-buttons">""")
-    htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('prompt')">Prompt</button>""")
+    htmlBuilder.append("""<button id="btn-prompt" class="section-btn" onclick="toggleSection('prompt')">Prompt</button>""")
     val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
     if (agentsWithCosts.isNotEmpty()) {
-        htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('costs')">Costs</button>""")
+        htmlBuilder.append("""<button id="btn-costs" class="section-btn" onclick="toggleSection('costs')">Costs</button>""")
     }
     htmlBuilder.append("""</div>""")
 
@@ -1165,12 +1208,12 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                         <tr>
                             <th>Provider</th>
                             <th>Model</th>
-                            <th style="text-align:right">Secs</th>
-                            <th style="text-align:right">In tokens</th>
-                            <th style="text-align:right">Out tokens</th>
-                            <th style="text-align:right">In ¢</th>
-                            <th style="text-align:right">Out ¢</th>
-                            <th style="text-align:right">Total ¢</th>
+                            <th style="text-align:right">Seconds</th>
+                            <th style="text-align:right">Input<br>tokens</th>
+                            <th style="text-align:right">Output<br>tokens</th>
+                            <th style="text-align:right">Input<br>cents</th>
+                            <th style="text-align:right">Output<br>cents</th>
+                            <th style="text-align:right">Total<br>cents</th>
                         </tr>
         """)
         fun fmtCents(v: Double): String = "%.2f".format(v)
