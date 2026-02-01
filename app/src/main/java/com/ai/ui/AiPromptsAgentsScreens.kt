@@ -39,7 +39,7 @@ fun AiAgentsScreen(
 
     // Model selection overlay state
     var showModelSelectForProvider by remember { mutableStateOf<AiService?>(null) }
-    var modelSelectCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
+    var pendingModelSelection by remember { mutableStateOf<String?>(null) }
 
     val modelSelectProvider = showModelSelectForProvider
     if (modelSelectProvider != null) {
@@ -49,7 +49,7 @@ fun AiAgentsScreen(
             currentModel = "",
             showDefaultOption = true,
             onSelectModel = { model ->
-                modelSelectCallback?.invoke(model)
+                pendingModelSelection = model
                 showModelSelectForProvider = null
             },
             onBack = { showModelSelectForProvider = null },
@@ -90,8 +90,9 @@ fun AiAgentsScreen(
                 copyingAgent = null
             },
             onNavigateHome = onBackToHome,
-            onNavigateToSelectModel = { provider, callback ->
-                modelSelectCallback = callback
+            pendingModelSelection = pendingModelSelection,
+            onPendingModelConsumed = { pendingModelSelection = null },
+            onNavigateToSelectModel = { provider ->
                 showModelSelectForProvider = provider
             }
         )
@@ -351,7 +352,9 @@ internal fun AgentEditScreen(
     prefillApiKey: String = "",
     prefillModel: String = "",
     prefillName: String = "",
-    onNavigateToSelectModel: ((AiService, (String) -> Unit) -> Unit)? = null
+    pendingModelSelection: String? = null,
+    onPendingModelConsumed: () -> Unit = {},
+    onNavigateToSelectModel: ((AiService) -> Unit)? = null
 ) {
     val isEditing = agent != null && !forceAddMode
     // Filter providers: must be active (status "ok"), always include current agent's provider when editing
@@ -381,6 +384,15 @@ internal fun AgentEditScreen(
     // Endpoint state - tracks the selected endpoint ID and URL for the agent
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
     var showEndpointDialog by remember { mutableStateOf(false) }
+
+    // Consume pending model selection from overlay
+    LaunchedEffect(pendingModelSelection) {
+        if (pendingModelSelection != null) {
+            model = pendingModelSelection
+            testResult = null
+            onPendingModelConsumed()
+        }
+    }
 
     // Fetch models on initial load (for edit mode) and when provider changes
     LaunchedEffect(selectedProvider) {
@@ -553,10 +565,7 @@ internal fun AgentEditScreen(
                 )
                 Button(
                     onClick = {
-                        onNavigateToSelectModel?.invoke(selectedProvider) { selectedModel ->
-                            model = selectedModel
-                            testResult = null
-                        }
+                        onNavigateToSelectModel?.invoke(selectedProvider)
                     },
                     enabled = onNavigateToSelectModel != null,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
