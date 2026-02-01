@@ -15,6 +15,10 @@ adb devices | grep -E "emulator|device$"
 adb wait-for-device
 ```
 
+## Commit Rules
+
+When I say "commit", always commit **all** current changes (all modified and untracked files), not just changes from the most recent prompt. After a successful commit, always build and deploy to both targets (device and cloud).
+
 ## Build & Deploy Commands
 
 ```bash
