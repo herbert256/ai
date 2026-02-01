@@ -42,58 +42,21 @@ data class ProviderConfigExport(
     val openRouterName: String? = null
 )
 
-/**
- * Data class for agent parameters in JSON export/import (version 5+).
- */
-data class AgentParametersExport(
-    val temperature: Float? = null,
-    val maxTokens: Int? = null,
-    val topP: Float? = null,
-    val topK: Int? = null,
-    val frequencyPenalty: Float? = null,
-    val presencePenalty: Float? = null,
-    val systemPrompt: String? = null,
-    val stopSequences: List<String>? = null,
-    val seed: Int? = null,
-    val responseFormatJson: Boolean = false,
-    val searchEnabled: Boolean = false,
-    val returnCitations: Boolean = true,
-    val searchRecency: String? = null
-)
-
-/**
- * Data class for agent in JSON export/import.
- * Version 4: Basic agent info only.
- * Version 5: Added parameters field.
- */
 data class AgentExport(
     val id: String,
     val name: String,
-    val provider: String,  // Provider enum name (OPENAI, ANTHROPIC, GOOGLE, XAI, etc.)
+    val provider: String,
     val model: String,
     val apiKey: String,
-    // Parameters (version 5-15, legacy inline parameters)
-    val parameters: AgentParametersExport? = null,
-    // Parameter preset IDs (version 16+) - references to AiParameters IDs
     val parametersIds: List<String>? = null,
-    // Endpoint ID (version 9+) - references a custom endpoint for this provider
-    val endpointId: String? = null,
-    // Legacy fields from version 3 (ignored on import, included for compatibility)
-    val gamePromptId: String? = null,
-    val serverPlayerPromptId: String? = null,
-    val otherPlayerPromptId: String? = null
+    val endpointId: String? = null
 )
 
-/**
- * Data class for flock in JSON export/import (version 6+).
- * Version 14+: Added parametersId.
- */
 data class FlockExport(
     val id: String,
     val name: String,
     val agentIds: List<String>,
-    val parametersId: String? = null,  // Version 14 (legacy, single ID)
-    val parametersIds: List<String>? = null  // Version 15+ (multi-select)
+    val parametersIds: List<String>? = null
 )
 
 /**
@@ -104,69 +67,11 @@ data class SwarmMemberExport(
     val model: String
 )
 
-/**
- * Data class for swarm in JSON export/import (version 13+).
- * Version 14+: Added parametersId.
- */
 data class SwarmExport(
     val id: String,
     val name: String,
     val members: List<SwarmMemberExport>,
-    val parametersId: String? = null,  // Version 14 (legacy, single ID)
-    val parametersIds: List<String>? = null  // Version 15+ (multi-select)
-)
-
-// ============================================================================
-// Legacy data classes for backward compatibility with pre-rename exports
-// Before version 14, the names were swapped:
-// - Old "swarms" had agentIds (groups of agents) → now called "flocks"
-// - Old "flocks" had members (provider/model pairs) → now called "swarms"
-// ============================================================================
-
-/**
- * Legacy swarm format (pre-version 14) - had agentIds, now called "flock".
- */
-data class LegacySwarmExport(
-    val id: String,
-    val name: String,
-    val agentIds: List<String>,
-    val parametersId: String? = null
-)
-
-/**
- * Legacy flock member format (pre-version 14).
- */
-data class LegacyFlockMemberExport(
-    val provider: String,
-    val model: String
-)
-
-/**
- * Legacy flock format (pre-version 14) - had members, now called "swarm".
- */
-data class LegacyFlockExport(
-    val id: String,
-    val name: String,
-    val members: List<LegacyFlockMemberExport>,
-    val parametersId: String? = null
-)
-
-/**
- * Legacy config export class for detecting pre-rename format.
- */
-data class LegacyAiConfigExport(
-    val version: Int = 0,
-    val providers: Map<String, ProviderConfigExport>? = null,
-    val agents: List<AgentExport>? = null,
-    // Legacy fields - before the Swarms/Flocks rename
-    val swarms: List<LegacySwarmExport>? = null,  // Old swarms had agentIds
-    val flocks: List<LegacyFlockExport>? = null,  // Old flocks had members
-    val parameters: List<ParametersExport>? = null,
-    val huggingFaceApiKey: String? = null,
-    val aiPrompts: List<PromptExport>? = null,
-    val manualPricing: List<ManualPricingExport>? = null,
-    val providerEndpoints: List<ProviderEndpointsExport>? = null,
-    val openRouterApiKey: String? = null
+    val parametersIds: List<String>? = null
 )
 
 /**
@@ -228,27 +133,19 @@ data class ProviderEndpointsExport(
     val endpoints: List<EndpointExport>
 )
 
-/**
- * Data class for the complete AI configuration export.
- * Version 11: Complete provider settings including defaultModel, adminUrl, modelListUrl,
- *             endpoints, agents with parameters, flocks, AI prompts, manual pricing.
- * Version 14: Added params (reusable parameter presets).
- */
 data class AiConfigExport(
     val version: Int = 20,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
-    val flocks: List<FlockExport>? = null,  // Version 6+
-    val swarms: List<SwarmExport>? = null,  // Version 13+
-    val parameters: List<ParametersExport>? = null,  // Version 14+
-    val huggingFaceApiKey: String? = null,  // Version 7+
-    val aiPrompts: List<PromptExport>? = null,  // Version 8+
-    val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
-    val providerEndpoints: List<ProviderEndpointsExport>? = null,  // Version 10+
-    val openRouterApiKey: String? = null,  // Version 12+
-    val providerDefinitions: List<com.ai.data.ProviderDefinition>? = null,  // Version 20+
-    // Legacy field from version 3 (ignored on import)
-    val prompts: List<Any>? = null
+    val flocks: List<FlockExport>? = null,
+    val swarms: List<SwarmExport>? = null,
+    val parameters: List<ParametersExport>? = null,
+    val huggingFaceApiKey: String? = null,
+    val aiPrompts: List<PromptExport>? = null,
+    val manualPricing: List<ManualPricingExport>? = null,
+    val providerEndpoints: List<ProviderEndpointsExport>? = null,
+    val openRouterApiKey: String? = null,
+    val providerDefinitions: List<com.ai.data.ProviderDefinition>? = null
 )
 
 /**
@@ -547,8 +444,6 @@ fun importApiKeysFromFile(context: Context, uri: Uri, currentSettings: AiSetting
         for (entry in export.keys) {
             if (entry.apiKey.isBlank()) continue
             val service = AiService.findById(entry.service)
-                // Try matching by display name for backward compatibility
-                ?: AiService.entries.firstOrNull { it.displayName == entry.service }
             if (service != null) {
                 settings = settings.withApiKey(service, entry.apiKey)
                 importedCount++
@@ -576,7 +471,7 @@ private fun processImportedConfig(
     export: AiConfigExport,
     currentSettings: AiSettings
 ): AiConfigImportResult {
-    // Register provider definitions from v20 exports (creates missing providers in registry)
+    // Register provider definitions from import (creates missing providers in registry)
     export.providerDefinitions?.let { defs ->
         val newProviders = defs.mapNotNull { def ->
             if (com.ai.data.ProviderRegistry.findById(def.id) == null) {
@@ -585,81 +480,13 @@ private fun processImportedConfig(
         }
         if (newProviders.isNotEmpty()) {
             com.ai.data.ProviderRegistry.ensureProviders(newProviders)
-            android.util.Log.d("AiSettingsExport", "Registered ${newProviders.size} new providers from import")
         }
     }
 
-    // For v18-19 imports without providerDefinitions, try to create providers from ProviderConfigExport metadata
-    if (export.providerDefinitions == null) {
-        val newProviders = export.providers.mapNotNull { (providerKey, p) ->
-            if (com.ai.data.ProviderRegistry.findById(providerKey) == null && p.baseUrl != null && p.apiFormat != null) {
-                try {
-                    AiService(
-                        id = providerKey,
-                        displayName = p.displayName ?: providerKey,
-                        baseUrl = p.baseUrl,
-                        adminUrl = "",
-                        defaultModel = p.defaultModel ?: "",
-                        openRouterName = p.openRouterName,
-                        apiFormat = com.ai.data.ApiFormat.valueOf(p.apiFormat),
-                        chatPath = p.chatPath ?: "v1/chat/completions",
-                        modelsPath = p.modelsPath,
-                        prefsKey = providerKey.lowercase()
-                    )
-                } catch (e: Exception) { null }
-            } else null
-        }
-        if (newProviders.isNotEmpty()) {
-            com.ai.data.ProviderRegistry.ensureProviders(newProviders)
-            android.util.Log.d("AiSettingsExport", "Registered ${newProviders.size} new providers from v18-19 import metadata")
-        }
-    }
-
-    // Track any auto-created parameter presets from legacy inline agent parameters
-    val autoCreatedPresets = mutableListOf<AiParameters>()
-
-    // Import agents with parameter preset IDs
+    // Import agents
     val agents = export.agents.mapNotNull { agentExport ->
         val provider = AiService.findById(agentExport.provider)
         provider?.let {
-            // Determine paramsIds: use new format if present, otherwise migrate old inline parameters
-            val paramsIds = if (agentExport.parametersIds != null) {
-                agentExport.parametersIds
-            } else if (agentExport.parameters != null) {
-                // Old format: auto-create a parameter preset from inline values
-                val p = agentExport.parameters
-                val hasAnyParam = p.temperature != null || p.maxTokens != null || p.topP != null ||
-                    p.topK != null || p.frequencyPenalty != null || p.presencePenalty != null ||
-                    p.systemPrompt != null || p.stopSequences != null || p.seed != null ||
-                    p.responseFormatJson || p.searchEnabled || p.returnCitations || p.searchRecency != null
-                if (hasAnyParam) {
-                    val presetId = java.util.UUID.randomUUID().toString()
-                    val preset = AiParameters(
-                        id = presetId,
-                        name = "Imported: ${agentExport.name}",
-                        temperature = p.temperature,
-                        maxTokens = p.maxTokens,
-                        topP = p.topP,
-                        topK = p.topK,
-                        frequencyPenalty = p.frequencyPenalty,
-                        presencePenalty = p.presencePenalty,
-                        systemPrompt = p.systemPrompt,
-                        stopSequences = p.stopSequences,
-                        seed = p.seed,
-                        responseFormatJson = p.responseFormatJson,
-                        searchEnabled = p.searchEnabled,
-                        returnCitations = p.returnCitations,
-                        searchRecency = p.searchRecency
-                    )
-                    autoCreatedPresets.add(preset)
-                    listOf(presetId)
-                } else {
-                    emptyList()
-                }
-            } else {
-                emptyList()
-            }
-
             AiAgent(
                 id = agentExport.id,
                 name = agentExport.name,
@@ -667,7 +494,7 @@ private fun processImportedConfig(
                 model = agentExport.model,
                 apiKey = agentExport.apiKey,
                 endpointId = agentExport.endpointId,
-                paramsIds = paramsIds
+                paramsIds = agentExport.parametersIds ?: emptyList()
             )
         }
     }
@@ -678,9 +505,7 @@ private fun processImportedConfig(
             id = flockExport.id,
             name = flockExport.name,
             agentIds = flockExport.agentIds,
-            paramsIds = flockExport.parametersIds
-                ?: flockExport.parametersId?.let { listOf(it) }
-                ?: emptyList()
+            paramsIds = flockExport.parametersIds ?: emptyList()
         )
     } ?: emptyList()
 
@@ -692,18 +517,11 @@ private fun processImportedConfig(
                 name = swarmExport.name,
                 members = swarmExport.members.mapNotNull { memberExport ->
                     val provider = AiService.findById(memberExport.provider) ?: return@mapNotNull null
-                    AiSwarmMember(
-                        provider = provider,
-                        model = memberExport.model
-                    )
+                    AiSwarmMember(provider = provider, model = memberExport.model)
                 },
-                paramsIds = swarmExport.parametersIds
-                    ?: swarmExport.parametersId?.let { listOf(it) }
-                    ?: emptyList()
+                paramsIds = swarmExport.parametersIds ?: emptyList()
             )
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     } ?: emptyList()
 
     // Import AI prompts
@@ -716,7 +534,7 @@ private fun processImportedConfig(
         )
     } ?: emptyList()
 
-    // Import params (parameter presets) + any auto-created presets from legacy inline agent parameters
+    // Import parameter presets
     val parameters = (export.parameters?.map { parametersExport ->
         AiParameters(
             id = parametersExport.id,
@@ -735,7 +553,7 @@ private fun processImportedConfig(
             returnCitations = parametersExport.returnCitations,
             searchRecency = parametersExport.searchRecency
         )
-    } ?: emptyList()) + autoCreatedPresets
+    } ?: emptyList())
 
     // Import provider settings
     var settings = currentSettings.copy(
@@ -809,86 +627,7 @@ private fun processImportedConfig(
 }
 
 /**
- * Detect if the JSON uses the old format (pre-rename where swarms had agentIds).
- * Returns true if old format is detected.
- */
-private fun isOldFormat(json: String): Boolean {
-    val gson = createAiGson()
-    try {
-        val jsonElement = gson.fromJson(json, com.google.gson.JsonElement::class.java)
-        if (!jsonElement.isJsonObject) return false
-        val obj = jsonElement.asJsonObject
-
-        // Check if "swarms" array has entries with "agentIds" (old format)
-        val swarmsArray = obj.getAsJsonArray("swarms")
-        if (swarmsArray != null && swarmsArray.size() > 0) {
-            val firstSwarm = swarmsArray.get(0).asJsonObject
-            if (firstSwarm.has("agentIds")) {
-                return true  // Old format: swarms had agentIds
-            }
-        }
-
-        // Check if "flocks" array has entries with "members" (old format)
-        val flocksArray = obj.getAsJsonArray("flocks")
-        if (flocksArray != null && flocksArray.size() > 0) {
-            val firstFlock = flocksArray.get(0).asJsonObject
-            if (firstFlock.has("members")) {
-                return true  // Old format: flocks had members
-            }
-        }
-    } catch (e: Exception) {
-        // Ignore parsing errors, assume new format
-    }
-    return false
-}
-
-/**
- * Convert legacy export to new format by swapping swarms and flocks.
- */
-private fun convertLegacyExport(legacyExport: LegacyAiConfigExport): AiConfigExport {
-    // Old swarms (with agentIds) become new flocks
-    val newFlocks = legacyExport.swarms?.map { oldSwarm ->
-        FlockExport(
-            id = oldSwarm.id,
-            name = oldSwarm.name,
-            agentIds = oldSwarm.agentIds,
-            parametersIds = oldSwarm.parametersId?.let { listOf(it) }
-        )
-    }
-
-    // Old flocks (with members) become new swarms
-    val newSwarms = legacyExport.flocks?.map { oldFlock ->
-        SwarmExport(
-            id = oldFlock.id,
-            name = oldFlock.name,
-            members = oldFlock.members.map { member ->
-                SwarmMemberExport(
-                    provider = member.provider,
-                    model = member.model
-                )
-            },
-            parametersIds = oldFlock.parametersId?.let { listOf(it) }
-        )
-    }
-
-    return AiConfigExport(
-        version = 14,  // Upgrade to current version
-        providers = legacyExport.providers ?: emptyMap(),
-        agents = legacyExport.agents ?: emptyList(),
-        flocks = newFlocks,
-        swarms = newSwarms,
-        parameters = legacyExport.parameters,
-        huggingFaceApiKey = legacyExport.huggingFaceApiKey,
-        aiPrompts = legacyExport.aiPrompts,
-        manualPricing = legacyExport.manualPricing,
-        providerEndpoints = legacyExport.providerEndpoints,
-        openRouterApiKey = legacyExport.openRouterApiKey
-    )
-}
-
-/**
- * Import AI configuration from a file URI.
- * Supports versions 11-14, with backward compatibility for pre-rename exports.
+ * Import AI configuration from a file URI. Accepts version 20.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
     return try {
@@ -908,17 +647,10 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         }
 
         val gson = createAiGson()
+        val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        // Check if this is old format (pre-rename)
-        val export = if (isOldFormat(json)) {
-            val legacyExport = gson.fromJson(json, LegacyAiConfigExport::class.java)
-            convertLegacyExport(legacyExport)
-        } else {
-            gson.fromJson(json, AiConfigExport::class.java)
-        }
-
-        if (export.version !in 11..20) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-20.", Toast.LENGTH_LONG).show()
+        if (export.version != 20) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 20.", Toast.LENGTH_LONG).show()
             return null
         }
 

@@ -78,7 +78,6 @@ class AiService(
     val modelListFormat: String = "object",
     val modelFilter: String? = null,
     val litellmPrefix: String? = null,
-    val apiModelsLegacyKey: String? = null,
     val hardcodedModels: List<String>? = null,
     val defaultModelSource: String? = null
 ) {

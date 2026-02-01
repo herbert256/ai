@@ -50,18 +50,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
      * Also runs migrations for settings changes.
      */
     fun loadAiSettingsWithMigration(): AiSettings {
-        // Migration: Update Claude, SiliconFlow, Z.AI to use API model source
-        val migrationVersion = prefs.getInt("settings_migration_version", 0)
-        if (migrationVersion < 1) {
-            prefs.edit()
-                .putString("ai_anthropic_model_source", ModelSource.API.name)
-                .putString("ai_siliconflow_model_source", ModelSource.API.name)
-                .putString("ai_zai_model_source", ModelSource.API.name)
-                .putInt("settings_migration_version", 1)
-                .apply()
-            android.util.Log.d("SettingsPreferences", "Migrated Claude, SiliconFlow, Z.AI to API model source")
-        }
-
         val baseSettings = loadAiSettings()
         val agents = loadAgents()
         val flocks = loadFlocks()
@@ -78,17 +66,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val key = service.prefsKey
             val defaults = defaultProviderConfig(service)
             val modelSource = loadModelSource("${key}_model_source", defaults.modelSource)
-            val manualModelsLoaded = if (defaults.models.isNotEmpty())
+            val models = if (defaults.models.isNotEmpty())
                 loadManualModelsWithDefault("${key}_manual_models", defaults.models)
             else
                 loadManualModels("${key}_manual_models")
-            // Migration: merge API-fetched models into unified models field
-            val models = if (modelSource == ModelSource.API) {
-                val apiModels = loadApiModels(apiModelsKey(service))
-                if (apiModels.isNotEmpty()) apiModels else manualModelsLoaded
-            } else {
-                manualModelsLoaded
-            }
             ProviderConfig(
                 apiKey = prefs.getString("${key}_api_key", "") ?: "",
                 model = prefs.getString("${key}_model", service.defaultModel) ?: service.defaultModel,
@@ -133,24 +114,14 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    /**
-     * Load parameter IDs list from SharedPreferences.
-     * Handles backward compatibility: if the stored value is a plain string (old format),
-     * converts it to a single-element list.
-     */
     private fun loadParametersIds(key: String): List<String> {
         val raw = prefs.getString(key, null) ?: return emptyList()
-        // Try to parse as JSON list first (new format)
-        if (raw.startsWith("[")) {
-            return try {
-                val type = object : TypeToken<List<String>>() {}.type
-                gson.fromJson<List<String>>(raw, type) ?: emptyList()
-            } catch (e: Exception) {
-                emptyList()
-            }
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            gson.fromJson<List<String>>(raw, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
         }
-        // Old format: single ID string - convert to single-element list
-        return listOf(raw)
     }
 
     /**
@@ -160,23 +131,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun saveParametersIds(ids: List<String>): String? {
         if (ids.isEmpty()) return null
         return gson.toJson(ids)
-    }
-
-    /**
-     * Migrate old "paramsId" (String?) JSON field to new "paramsIds" (List<String>) format.
-     * If the JSON object has "paramsId" but not "paramsIds", converts the single string
-     * to a single-element JSON array under "paramsIds".
-     */
-    private fun migrateParamsIdToParamsIds(obj: com.google.gson.JsonObject) {
-        if (obj.has("paramsId") && !obj.has("paramsIds")) {
-            val oldValue = obj.get("paramsId")
-            if (oldValue != null && !oldValue.isJsonNull) {
-                val array = com.google.gson.JsonArray()
-                array.add(oldValue.asString)
-                obj.add("paramsIds", array)
-            }
-            obj.remove("paramsId")
-        }
     }
 
     fun saveAiSettings(settings: AiSettings) {
@@ -195,8 +149,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
         // Save collections
         editor.putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
-            .putString(KEY_AI_SWARMS, gson.toJson(settings.flocks))
-            .putString(KEY_AI_FLOCKS, gson.toJson(settings.swarms))
+            .putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
+            .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             .putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
@@ -205,19 +159,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     /**
-     * Map AiService to its legacy api_models SharedPreferences key for backward compatibility.
-     */
-    private fun apiModelsKey(service: AiService): String =
-        service.apiModelsLegacyKey ?: "api_models_${service.id.lowercase()}"
-
-    /**
      * Save models for a single provider (used during API fetch to avoid saving entire AiSettings).
      */
     fun saveModelsForProvider(service: AiService, models: List<String>) {
         val key = service.prefsKey
         prefs.edit()
             .putString("${key}_manual_models", gson.toJson(models))
-            .putString(apiModelsKey(service), gson.toJson(models))
             .apply()
     }
 
@@ -228,23 +175,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadAgents(): List<AiAgent> {
         val json = prefs.getString(KEY_AI_AGENTS, null) ?: return emptyList()
         return try {
-            // Parse as JsonArray to handle migration from old format with inline parameters
-            val jsonArray = com.google.gson.JsonParser().parse(json).asJsonArray
-            jsonArray.mapNotNull { element ->
-                val obj = element.asJsonObject
-                // Skip agents with null/unknown provider
-                val providerName = obj.get("provider")?.asString ?: return@mapNotNull null
-                AiService.findById(providerName) ?: return@mapNotNull null
-                // Migrate old "paramsId" (String?) to new "paramsIds" (List<String>) format if needed
-                migrateParamsIdToParamsIds(obj)
-                // Ensure paramsIds exists (Gson may deserialize as null)
-                if (!obj.has("paramsIds") || obj.get("paramsIds").isJsonNull) {
-                    obj.add("paramsIds", com.google.gson.JsonArray())
-                }
-                // Remove old "parameters" field if present (no longer in data class)
-                obj.remove("parameters")
-                gson.fromJson<AiAgent>(obj, AiAgent::class.java)
-            }
+            val type = object : TypeToken<List<AiAgent>>() {}.type
+            val list: List<AiAgent>? = gson.fromJson(json, type)
+            // Filter out agents with unknown providers
+            list?.filter { AiService.findById(it.provider.id) != null } ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -255,15 +189,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ============================================================================
 
     private fun loadFlocks(): List<AiFlock> {
-        val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
+        val json = prefs.getString(KEY_AI_FLOCKS, null) ?: return emptyList()
         return try {
-            // Migrate old "paramsId" (String?) to new "paramsIds" (List<String>) format
-            val jsonArray = com.google.gson.JsonParser().parse(json).asJsonArray
-            jsonArray.map { element ->
-                val obj = element.asJsonObject
-                migrateParamsIdToParamsIds(obj)
-                gson.fromJson<AiFlock>(obj, AiFlock::class.java)
-            }
+            val type = object : TypeToken<List<AiFlock>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -274,15 +203,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ============================================================================
 
     private fun loadSwarms(): List<AiSwarm> {
-        val json = prefs.getString(KEY_AI_FLOCKS, null) ?: return emptyList()
+        val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
         return try {
-            // Migrate old "paramsId" (String?) to new "paramsIds" (List<String>) format
-            val jsonArray = com.google.gson.JsonParser().parse(json).asJsonArray
-            jsonArray.map { element ->
-                val obj = element.asJsonObject
-                migrateParamsIdToParamsIds(obj)
-                gson.fromJson<AiSwarm>(obj, AiSwarm::class.java)
-            }
+            val type = object : TypeToken<List<AiSwarm>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -360,7 +284,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ============================================================================
 
     fun loadPromptHistory(): List<PromptHistoryEntry> {
-        migratePromptHistoryFromPrefs()
         val file = promptHistoryFile() ?: return emptyList()
         if (!file.exists()) return emptyList()
         return try {
@@ -407,25 +330,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun clearPromptHistory() {
         val file = promptHistoryFile()
         if (file != null && file.exists()) file.delete()
-        // Also clear old prefs if still present
-        prefs.edit().remove(KEY_PROMPT_HISTORY).apply()
     }
 
     private fun promptHistoryFile(): File? {
         return filesDir?.let { File(it, FILE_PROMPT_HISTORY) }
-    }
-
-    private fun migratePromptHistoryFromPrefs() {
-        val file = promptHistoryFile() ?: return
-        if (file.exists()) return
-        val json = prefs.getString(KEY_PROMPT_HISTORY, null) ?: return
-        try {
-            file.writeText(json)
-            prefs.edit().remove(KEY_PROMPT_HISTORY).apply()
-            android.util.Log.d("SettingsPreferences", "Migrated prompt history to file")
-        } catch (e: Exception) {
-            android.util.Log.e("SettingsPreferences", "Failed to migrate prompt history: ${e.message}")
-        }
     }
 
     fun clearLastAiReportPrompt() {
@@ -459,10 +367,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_AGENTS = "ai_agents"
 
         // AI flocks
-        private const val KEY_AI_SWARMS = "ai_flocks"
+        private const val KEY_AI_FLOCKS = "ai_flocks_v2"
 
         // AI swarms
-        private const val KEY_AI_FLOCKS = "ai_swarms"
+        private const val KEY_AI_SWARMS = "ai_swarms_v2"
 
         // AI parameters (reusable parameter presets)
         private const val KEY_AI_PARAMETERS = "ai_parameters"
@@ -476,8 +384,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // Provider states (ok/error/not-used)
         private const val KEY_PROVIDER_STATES = "provider_states"
 
-        // Prompt history for New AI Report
-        private const val KEY_PROMPT_HISTORY = "prompt_history"
         const val MAX_PROMPT_HISTORY = 100
 
         // Last AI report title and prompt (for New AI Report screen)
@@ -489,9 +395,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
         // Selected swarm IDs for report generation
         private const val KEY_SELECTED_FLOCK_IDS = "selected_swarm_ids"
-
-        // AI usage statistics (legacy SharedPreferences key, used for migration)
-        private const val KEY_AI_USAGE_STATS = "ai_usage_stats"
 
         // File-based storage filenames
         private const val FILE_USAGE_STATS = "usage-stats.json"
@@ -547,7 +450,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ============================================================================
 
     fun loadUsageStats(): Map<String, AiUsageStats> {
-        migrateUsageStatsFromPrefs()
         val file = usageStatsFile() ?: return emptyMap()
         if (!file.exists()) return emptyMap()
         return try {
@@ -592,48 +494,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun clearUsageStats() {
         val file = usageStatsFile()
         if (file != null && file.exists()) file.delete()
-        // Also clear old prefs if still present
-        prefs.edit().remove(KEY_AI_USAGE_STATS).apply()
     }
 
     private fun usageStatsFile(): File? {
         return filesDir?.let { File(it, FILE_USAGE_STATS) }
     }
-
-    private fun migrateUsageStatsFromPrefs() {
-        val file = usageStatsFile() ?: return
-        if (file.exists()) return
-        val json = prefs.getString(KEY_AI_USAGE_STATS, null) ?: return
-        try {
-            file.writeText(json)
-            prefs.edit().remove(KEY_AI_USAGE_STATS).apply()
-            android.util.Log.d("SettingsPreferences", "Migrated usage stats to file")
-        } catch (e: Exception) {
-            android.util.Log.e("SettingsPreferences", "Failed to migrate usage stats: ${e.message}")
-        }
-    }
-
-    // ============================================================================
-    // API-Fetched Model Lists (Cached)
-    // ============================================================================
-
-    private fun loadApiModels(key: String): List<String> {
-        val json = prefs.getString(key, null) ?: return emptyList()
-        return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
-        } catch (e: Exception) {
-            android.util.Log.w("SettingsPreferences", "Failed to load API models for $key: ${e.message}")
-            emptyList()
-        }
-    }
-
-    private fun saveApiModels(key: String, models: List<String>) {
-        if (models.isNotEmpty()) {
-            prefs.edit().putString(key, gson.toJson(models)).apply()
-        }
-    }
-
 
     // ============================================================================
     // Model Lists Cache (24-hour validity per provider)

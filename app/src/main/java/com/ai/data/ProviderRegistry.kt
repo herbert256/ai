@@ -48,6 +48,12 @@ object ProviderRegistry {
         } else {
             loadFromAssets(context)
         }
+        // Safety net: if providers list is empty (e.g. upgrade from pre-registry version),
+        // reload from bundled assets
+        if (providers.isEmpty()) {
+            android.util.Log.w("ProviderRegistry", "No providers loaded, falling back to assets")
+            loadFromAssets(context)
+        }
         initialized = true
     }
 
@@ -141,22 +147,21 @@ data class ProviderDefinition(
     val id: String,
     val displayName: String,
     val baseUrl: String,
-    val adminUrl: String,
+    val adminUrl: String? = "",
     val defaultModel: String,
     val openRouterName: String? = null,
-    val apiFormat: String = "OPENAI_COMPATIBLE",
-    val chatPath: String = "v1/chat/completions",
+    val apiFormat: String? = "OPENAI_COMPATIBLE",
+    val chatPath: String? = "v1/chat/completions",
     val modelsPath: String? = "v1/models",
-    val prefsKey: String = "",
-    val seedFieldName: String = "seed",
-    val supportsCitations: Boolean = false,
-    val supportsSearchRecency: Boolean = false,
-    val extractApiCost: Boolean = false,
+    val prefsKey: String? = "",
+    val seedFieldName: String? = "seed",
+    val supportsCitations: Boolean? = false,
+    val supportsSearchRecency: Boolean? = false,
+    val extractApiCost: Boolean? = false,
     val costTicksDivisor: Double? = null,
-    val modelListFormat: String = "object",
+    val modelListFormat: String? = "object",
     val modelFilter: String? = null,
     val litellmPrefix: String? = null,
-    val apiModelsLegacyKey: String? = null,
     val hardcodedModels: List<String>? = null,
     val defaultModelSource: String? = null
 ) {
@@ -164,22 +169,21 @@ data class ProviderDefinition(
         id = id,
         displayName = displayName,
         baseUrl = baseUrl,
-        adminUrl = adminUrl,
+        adminUrl = adminUrl ?: "",
         defaultModel = defaultModel,
         openRouterName = openRouterName,
-        apiFormat = try { ApiFormat.valueOf(apiFormat) } catch (e: Exception) { ApiFormat.OPENAI_COMPATIBLE },
-        chatPath = chatPath,
+        apiFormat = try { ApiFormat.valueOf(apiFormat ?: "OPENAI_COMPATIBLE") } catch (e: Exception) { ApiFormat.OPENAI_COMPATIBLE },
+        chatPath = chatPath ?: "v1/chat/completions",
         modelsPath = modelsPath,
-        prefsKey = prefsKey,
-        seedFieldName = seedFieldName,
-        supportsCitations = supportsCitations,
-        supportsSearchRecency = supportsSearchRecency,
-        extractApiCost = extractApiCost,
+        prefsKey = prefsKey ?: id.lowercase(),
+        seedFieldName = seedFieldName ?: "seed",
+        supportsCitations = supportsCitations ?: false,
+        supportsSearchRecency = supportsSearchRecency ?: false,
+        extractApiCost = extractApiCost ?: false,
         costTicksDivisor = costTicksDivisor,
-        modelListFormat = modelListFormat,
+        modelListFormat = modelListFormat ?: "object",
         modelFilter = modelFilter,
         litellmPrefix = litellmPrefix,
-        apiModelsLegacyKey = apiModelsLegacyKey,
         hardcodedModels = hardcodedModels,
         defaultModelSource = defaultModelSource
     )
@@ -204,7 +208,6 @@ data class ProviderDefinition(
             modelListFormat = s.modelListFormat,
             modelFilter = s.modelFilter,
             litellmPrefix = s.litellmPrefix,
-            apiModelsLegacyKey = s.apiModelsLegacyKey,
             hardcodedModels = s.hardcodedModels,
             defaultModelSource = s.defaultModelSource
         )

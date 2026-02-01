@@ -144,11 +144,7 @@ data class AiFlock(
     val name: String,                  // User-defined name
     val agentIds: List<String> = emptyList(),  // List of agent IDs in this flock
     val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
-) {
-    // Backward compatibility: read old single paramsId
-    @Deprecated("Use paramsIds instead", ReplaceWith("paramsIds"))
-    val parametersId: String? get() = paramsIds.firstOrNull()
-}
+)
 
 /**
  * AI Swarm Member - a provider/model combination within a swarm.
@@ -168,11 +164,7 @@ data class AiSwarm(
     val name: String,                  // User-defined name
     val members: List<AiSwarmMember> = emptyList(),  // List of provider/model combinations
     val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
-) {
-    // Backward compatibility: read old single paramsId
-    @Deprecated("Use paramsIds instead", ReplaceWith("paramsIds"))
-    val parametersId: String? get() = paramsIds.firstOrNull()
-}
+)
 
 /**
  * AI Parameters - a named parameter preset that can be reused across agents or reports.
