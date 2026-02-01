@@ -366,7 +366,7 @@ internal fun AgentEditScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // State - default to first available provider when creating new agent, or prefill values
-    val defaultProvider = agent?.provider ?: prefillProvider ?: availableProviders.firstOrNull() ?: AiService.OPENAI
+    val defaultProvider = agent?.provider ?: prefillProvider ?: availableProviders.firstOrNull() ?: AiService.entries.first()
     var name by remember { mutableStateOf(agent?.name ?: prefillName) }
     var selectedProvider by remember { mutableStateOf(defaultProvider) }
     var model by remember { mutableStateOf(agent?.model ?: prefillModel) }

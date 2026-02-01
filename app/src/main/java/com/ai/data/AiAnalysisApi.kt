@@ -87,52 +87,11 @@ class AiService(
     override fun toString(): String = id
 
     companion object {
-        val OPENAI = AiService(id = "OPENAI", displayName = "OpenAI", baseUrl = "https://api.openai.com/", adminUrl = "https://platform.openai.com/settings/organization/api-keys", defaultModel = "gpt-4o-mini", openRouterName = "openai", prefsKey = "ai_openai", apiModelsLegacyKey = "api_models_openai", defaultModelSource = "API")
-        val ANTHROPIC = AiService(id = "ANTHROPIC", displayName = "Anthropic", baseUrl = "https://api.anthropic.com/", adminUrl = "https://console.anthropic.com/settings/keys", defaultModel = "claude-sonnet-4-20250514", openRouterName = "anthropic", apiFormat = ApiFormat.ANTHROPIC, chatPath = "v1/messages", modelsPath = "v1/models", prefsKey = "ai_anthropic", apiModelsLegacyKey = "api_models_claude", hardcodedModels = listOf("claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"))
-        val GOOGLE = AiService(id = "GOOGLE", displayName = "Google", baseUrl = "https://generativelanguage.googleapis.com/", adminUrl = "https://aistudio.google.com/app/apikey", defaultModel = "gemini-2.0-flash", openRouterName = "google", apiFormat = ApiFormat.GOOGLE, chatPath = "v1beta/models/{model}:generateContent", modelsPath = "v1beta/models", prefsKey = "ai_google", litellmPrefix = "gemini", apiModelsLegacyKey = "api_models_google", defaultModelSource = "API")
-        val XAI = AiService(id = "XAI", displayName = "xAI", baseUrl = "https://api.x.ai/", adminUrl = "https://console.x.ai/", defaultModel = "grok-3-mini", openRouterName = "x-ai", prefsKey = "ai_xai", costTicksDivisor = 10_000_000_000.0, modelFilter = "grok", litellmPrefix = "xai", apiModelsLegacyKey = "api_models_xai", defaultModelSource = "API")
-        val GROQ = AiService(id = "GROQ", displayName = "Groq", baseUrl = "https://api.groq.com/openai/", adminUrl = "https://console.groq.com/keys", defaultModel = "llama-3.3-70b-versatile", prefsKey = "ai_groq", litellmPrefix = "groq", apiModelsLegacyKey = "api_models_groq", defaultModelSource = "API")
-        val DEEPSEEK = AiService(id = "DEEPSEEK", displayName = "DeepSeek", baseUrl = "https://api.deepseek.com/", adminUrl = "https://platform.deepseek.com/api_keys", defaultModel = "deepseek-chat", openRouterName = "deepseek", chatPath = "chat/completions", modelsPath = "models", prefsKey = "ai_deepseek", modelFilter = "deepseek", litellmPrefix = "deepseek", apiModelsLegacyKey = "api_models_deepseek", defaultModelSource = "API")
-        val MISTRAL = AiService(id = "MISTRAL", displayName = "Mistral", baseUrl = "https://api.mistral.ai/", adminUrl = "https://console.mistral.ai/api-keys/", defaultModel = "mistral-small-latest", openRouterName = "mistralai", prefsKey = "ai_mistral", seedFieldName = "random_seed", modelFilter = "mistral|open-mistral|codestral|pixtral", apiModelsLegacyKey = "api_models_mistral", defaultModelSource = "API")
-        val PERPLEXITY = AiService(id = "PERPLEXITY", displayName = "Perplexity", baseUrl = "https://api.perplexity.ai/", adminUrl = "https://www.perplexity.ai/settings/api", defaultModel = "sonar", openRouterName = "perplexity", chatPath = "chat/completions", modelsPath = "models", prefsKey = "ai_perplexity", supportsCitations = true, supportsSearchRecency = true, modelFilter = "sonar|llama", apiModelsLegacyKey = "api_models_perplexity", hardcodedModels = listOf("sonar", "sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"))
-        val TOGETHER = AiService(id = "TOGETHER", displayName = "Together", baseUrl = "https://api.together.xyz/", adminUrl = "https://api.together.xyz/settings/api-keys", defaultModel = "meta-llama/Llama-3.3-70B-Instruct-Turbo", prefsKey = "ai_together", modelListFormat = "array", modelFilter = "chat|instruct|llama", litellmPrefix = "together_ai", apiModelsLegacyKey = "api_models_together", defaultModelSource = "API")
-        val OPENROUTER = AiService(id = "OPENROUTER", displayName = "OpenRouter", baseUrl = "https://openrouter.ai/api/", adminUrl = "https://openrouter.ai/keys", defaultModel = "anthropic/claude-3.5-sonnet", prefsKey = "ai_openrouter", extractApiCost = true, apiModelsLegacyKey = "api_models_openrouter", defaultModelSource = "API")
-        val SILICONFLOW = AiService(id = "SILICONFLOW", displayName = "SiliconFlow", baseUrl = "https://api.siliconflow.cn/", adminUrl = "https://cloud.siliconflow.cn/account/ak", defaultModel = "Qwen/Qwen2.5-7B-Instruct", prefsKey = "ai_siliconflow", apiModelsLegacyKey = "api_models_siliconflow", defaultModelSource = "API", hardcodedModels = listOf("Qwen/Qwen2.5-7B-Instruct", "Qwen/Qwen2.5-14B-Instruct", "Qwen/Qwen2.5-32B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "Qwen/QwQ-32B", "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1", "THUDM/glm-4-9b-chat", "meta-llama/Llama-3.3-70B-Instruct"))
-        val ZAI = AiService(id = "ZAI", displayName = "Z.AI", baseUrl = "https://api.z.ai/api/paas/v4/", adminUrl = "https://open.bigmodel.cn/usercenter/apikeys", defaultModel = "glm-4.7-flash", openRouterName = "z-ai", chatPath = "chat/completions", modelsPath = "models", prefsKey = "ai_zai", modelFilter = "glm|codegeex|charglm", apiModelsLegacyKey = "api_models_zai", defaultModelSource = "API", hardcodedModels = listOf("glm-4.7-flash", "glm-4.7", "glm-4.5-flash", "glm-4.5", "glm-4-plus", "glm-4-long", "glm-4-flash"))
-        val MOONSHOT = AiService(id = "MOONSHOT", displayName = "Moonshot", baseUrl = "https://api.moonshot.ai/", adminUrl = "https://platform.moonshot.ai/console/api-keys", defaultModel = "kimi-latest", openRouterName = "moonshot", prefsKey = "ai_moonshot", apiModelsLegacyKey = "api_models_moonshot", defaultModelSource = "API", hardcodedModels = listOf("kimi-latest", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"))
-        val COHERE = AiService(id = "COHERE", displayName = "Cohere", baseUrl = "https://api.cohere.ai/compatibility/", adminUrl = "https://dashboard.cohere.com/", defaultModel = "command-a-03-2025", openRouterName = "cohere", prefsKey = "ai_cohere", apiModelsLegacyKey = "api_models_cohere", hardcodedModels = listOf("command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024", "command-r7b-12-2024"))
-        val AI21 = AiService(id = "AI21", displayName = "AI21", baseUrl = "https://api.ai21.com/", adminUrl = "https://studio.ai21.com/", defaultModel = "jamba-mini", openRouterName = "ai21", prefsKey = "ai_ai21", apiModelsLegacyKey = "api_models_ai21", hardcodedModels = listOf("jamba-mini", "jamba-large", "jamba-mini-1.7", "jamba-large-1.7"))
-        val DASHSCOPE = AiService(id = "DASHSCOPE", displayName = "DashScope", baseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/", adminUrl = "https://dashscope.console.aliyun.com/", defaultModel = "qwen-plus", prefsKey = "ai_dashscope", apiModelsLegacyKey = "api_models_dashscope", hardcodedModels = listOf("qwen-plus", "qwen-max", "qwen-turbo", "qwen-long", "qwen3-max", "qwen3-235b-a22b"))
-        val FIREWORKS = AiService(id = "FIREWORKS", displayName = "Fireworks", baseUrl = "https://api.fireworks.ai/inference/", adminUrl = "https://app.fireworks.ai/", defaultModel = "accounts/fireworks/models/llama-v3p3-70b-instruct", prefsKey = "ai_fireworks", apiModelsLegacyKey = "api_models_fireworks", hardcodedModels = listOf("accounts/fireworks/models/llama-v3p3-70b-instruct", "accounts/fireworks/models/deepseek-r1-0528", "accounts/fireworks/models/qwen3-235b-a22b", "accounts/fireworks/models/llama-v3p1-8b-instruct"))
-        val CEREBRAS = AiService(id = "CEREBRAS", displayName = "Cerebras", baseUrl = "https://api.cerebras.ai/", adminUrl = "https://cloud.cerebras.ai/", defaultModel = "llama-3.3-70b", prefsKey = "ai_cerebras", apiModelsLegacyKey = "api_models_cerebras", hardcodedModels = listOf("llama-3.3-70b", "llama-4-scout-17b-16e-instruct", "llama3.1-8b", "qwen-3-32b", "deepseek-r1-distill-llama-70b"))
-        val SAMBANOVA = AiService(id = "SAMBANOVA", displayName = "SambaNova", baseUrl = "https://api.sambanova.ai/", adminUrl = "https://cloud.sambanova.ai/", defaultModel = "Meta-Llama-3.3-70B-Instruct", prefsKey = "ai_sambanova", apiModelsLegacyKey = "api_models_sambanova", hardcodedModels = listOf("Meta-Llama-3.3-70B-Instruct", "DeepSeek-R1", "DeepSeek-V3-0324", "Qwen3-32B", "Meta-Llama-3.1-8B-Instruct"))
-        val BAICHUAN = AiService(id = "BAICHUAN", displayName = "Baichuan", baseUrl = "https://api.baichuan-ai.com/", adminUrl = "https://platform.baichuan-ai.com/", defaultModel = "Baichuan4-Turbo", prefsKey = "ai_baichuan", apiModelsLegacyKey = "api_models_baichuan", hardcodedModels = listOf("Baichuan4-Turbo", "Baichuan4", "Baichuan4-Air", "Baichuan3-Turbo", "Baichuan3-Turbo-128k"))
-        val STEPFUN = AiService(id = "STEPFUN", displayName = "StepFun", baseUrl = "https://api.stepfun.com/", adminUrl = "https://platform.stepfun.com/", defaultModel = "step-2-16k", prefsKey = "ai_stepfun", apiModelsLegacyKey = "api_models_stepfun", hardcodedModels = listOf("step-3", "step-2-16k", "step-2-mini", "step-1-8k", "step-1-32k", "step-1-128k"))
-        val MINIMAX = AiService(id = "MINIMAX", displayName = "MiniMax", baseUrl = "https://api.minimax.io/", adminUrl = "https://platform.minimax.io/", defaultModel = "MiniMax-M2.1", openRouterName = "minimax", prefsKey = "ai_minimax", apiModelsLegacyKey = "api_models_minimax", hardcodedModels = listOf("MiniMax-M2.1", "MiniMax-M2", "MiniMax-M1", "MiniMax-Text-01"))
-        val NVIDIA = AiService(id = "NVIDIA", displayName = "NVIDIA", baseUrl = "https://integrate.api.nvidia.com/", adminUrl = "https://build.nvidia.com/", defaultModel = "nvidia/llama-3.1-nemotron-70b-instruct", prefsKey = "ai_nvidia", apiModelsLegacyKey = "api_models_nvidia", defaultModelSource = "API")
-        val REPLICATE = AiService(id = "REPLICATE", displayName = "Replicate", baseUrl = "https://api.replicate.com/v1/", adminUrl = "https://replicate.com/account/api-tokens", defaultModel = "meta/meta-llama-3-70b-instruct", chatPath = "chat/completions", modelsPath = null, prefsKey = "ai_replicate", apiModelsLegacyKey = "api_models_replicate", hardcodedModels = listOf("meta/meta-llama-3-70b-instruct", "meta/meta-llama-3-8b-instruct", "mistralai/mistral-7b-instruct-v0.2"))
-        val HUGGINGFACE = AiService(id = "HUGGINGFACE", displayName = "Hugging Face", baseUrl = "https://api-inference.huggingface.co/", adminUrl = "https://huggingface.co/settings/tokens", defaultModel = "meta-llama/Llama-3.1-70B-Instruct", modelsPath = null, prefsKey = "ai_huggingface_inference", apiModelsLegacyKey = "api_models_huggingface_inference", hardcodedModels = listOf("meta-llama/Llama-3.1-70B-Instruct", "meta-llama/Llama-3.1-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3", "Qwen/Qwen2.5-72B-Instruct"))
-        val LAMBDA = AiService(id = "LAMBDA", displayName = "Lambda", baseUrl = "https://api.lambdalabs.com/", adminUrl = "https://cloud.lambdalabs.com/api-keys", defaultModel = "hermes-3-llama-3.1-405b-fp8", prefsKey = "ai_lambda", apiModelsLegacyKey = "api_models_lambda", defaultModelSource = "API")
-        val LEPTON = AiService(id = "LEPTON", displayName = "Lepton", baseUrl = "https://api.lepton.ai/", adminUrl = "https://dashboard.lepton.ai/", defaultModel = "llama3-1-70b", modelsPath = null, prefsKey = "ai_lepton", apiModelsLegacyKey = "api_models_lepton", hardcodedModels = listOf("llama3-1-70b", "llama3-1-8b", "mistral-7b", "gemma2-9b"))
-        val YI = AiService(id = "YI", displayName = "01.AI", baseUrl = "https://api.01.ai/", adminUrl = "https://platform.01.ai/", defaultModel = "yi-lightning", prefsKey = "ai_yi", apiModelsLegacyKey = "api_models_yi", defaultModelSource = "API", hardcodedModels = listOf("yi-lightning", "yi-large", "yi-medium", "yi-spark"))
-        val DOUBAO = AiService(id = "DOUBAO", displayName = "Doubao", baseUrl = "https://ark.cn-beijing.volces.com/api/", adminUrl = "https://console.volcengine.com/", defaultModel = "doubao-pro-32k", chatPath = "v3/chat/completions", modelsPath = null, prefsKey = "ai_doubao", apiModelsLegacyKey = "api_models_doubao", hardcodedModels = listOf("doubao-pro-32k", "doubao-pro-128k", "doubao-lite-32k", "doubao-lite-128k"))
-        val REKA = AiService(id = "REKA", displayName = "Reka", baseUrl = "https://api.reka.ai/", adminUrl = "https://platform.reka.ai/", defaultModel = "reka-flash", modelsPath = null, prefsKey = "ai_reka", apiModelsLegacyKey = "api_models_reka", hardcodedModels = listOf("reka-core", "reka-flash", "reka-edge"))
-        val WRITER = AiService(id = "WRITER", displayName = "Writer", baseUrl = "https://api.writer.com/", adminUrl = "https://app.writer.com/", defaultModel = "palmyra-x-004", prefsKey = "ai_writer", apiModelsLegacyKey = "api_models_writer", hardcodedModels = listOf("palmyra-x-004", "palmyra-x-003-instruct"))
-
-        /** All built-in providers, in display order. */
-        val builtIn: List<AiService> = listOf(
-            OPENAI, ANTHROPIC, GOOGLE, XAI, GROQ, DEEPSEEK, MISTRAL, PERPLEXITY,
-            TOGETHER, OPENROUTER, SILICONFLOW, ZAI, MOONSHOT, COHERE, AI21,
-            DASHSCOPE, FIREWORKS, CEREBRAS, SAMBANOVA, BAICHUAN, STEPFUN,
-            MINIMAX, NVIDIA, REPLICATE, HUGGINGFACE, LAMBDA, LEPTON, YI,
-            DOUBAO, REKA, WRITER
-        )
-
-        /** Replaces enum's entries property — returns all built-in providers. */
-        val entries: List<AiService> get() = builtIn
+        /** All registered providers — delegates to ProviderRegistry. */
+        val entries: List<AiService> get() = ProviderRegistry.getAll()
 
         /** Find a provider by its ID string, or null if not found. */
-        fun findById(id: String): AiService? = builtIn.find { it.id == id }
+        fun findById(id: String): AiService? = ProviderRegistry.findById(id)
 
         /** Find a provider by its ID string, throwing if not found (like enum valueOf). */
         fun valueOf(id: String): AiService = findById(id)
@@ -147,7 +106,7 @@ class AiService(
 class AiServiceAdapter : JsonDeserializer<AiService>, JsonSerializer<AiService> {
     override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): AiService {
         val id = json?.asString ?: throw JsonParseException("Null AiService")
-        return AiService.findById(id) ?: throw JsonParseException("Unknown AiService: $id")
+        return ProviderRegistry.findById(id) ?: throw JsonParseException("Unknown AiService: $id")
     }
     override fun serialize(src: AiService?, typeOfSrc: Type?, context: JsonSerializationContext?): JsonElement {
         return JsonPrimitive(src?.id ?: "")
@@ -172,7 +131,7 @@ data class OpenAiMessage(
 )
 
 data class OpenAiRequest(
-    val model: String = AiService.OPENAI.defaultModel,
+    val model: String,
     val messages: List<OpenAiMessage>,
     val max_tokens: Int? = null,
     val temperature: Float? = null,
@@ -296,7 +255,7 @@ data class ClaudeMessage(
 )
 
 data class ClaudeRequest(
-    val model: String = AiService.ANTHROPIC.defaultModel,
+    val model: String,
     val max_tokens: Int? = null,
     val messages: List<ClaudeMessage>,
     val temperature: Float? = null,
@@ -562,10 +521,6 @@ object AiApiFactory {
         return getRetrofit(baseUrl).create(OpenAiCompatibleStreamApi::class.java)
     }
 
-    fun createOpenAiApi(): OpenAiApi {
-        return getRetrofit(AiService.OPENAI.baseUrl).create(OpenAiApi::class.java)
-    }
-
     fun createOpenAiApiWithBaseUrl(baseUrl: String): OpenAiApi {
         return getRetrofit(baseUrl).create(OpenAiApi::class.java)
     }
@@ -605,34 +560,12 @@ object AiApiFactory {
         return getRetrofit(baseUrl).create(GeminiStreamApi::class.java)
     }
 
-    fun createClaudeApi(): ClaudeApi {
-        return getRetrofit(AiService.ANTHROPIC.baseUrl).create(ClaudeApi::class.java)
-    }
-
-    fun createGeminiApi(): GeminiApi {
-        return getRetrofit(AiService.GOOGLE.baseUrl).create(GeminiApi::class.java)
-    }
-
     fun createHuggingFaceApi(): HuggingFaceApi {
         return getRetrofit("https://huggingface.co/api/").create(HuggingFaceApi::class.java)
     }
 
-    fun createOpenRouterModelsApi(): OpenRouterModelsApi {
-        return getRetrofit(AiService.OPENROUTER.baseUrl).create(OpenRouterModelsApi::class.java)
-    }
-
-    // ========== Streaming API Factories ==========
-
-    fun createOpenAiStreamApi(): OpenAiStreamApi {
-        return getRetrofit(AiService.OPENAI.baseUrl).create(OpenAiStreamApi::class.java)
-    }
-
-    fun createClaudeStreamApi(): ClaudeStreamApi {
-        return getRetrofit(AiService.ANTHROPIC.baseUrl).create(ClaudeStreamApi::class.java)
-    }
-
-    fun createGeminiStreamApi(): GeminiStreamApi {
-        return getRetrofit(AiService.GOOGLE.baseUrl).create(GeminiStreamApi::class.java)
+    fun createOpenRouterModelsApi(baseUrl: String): OpenRouterModelsApi {
+        return getRetrofit(baseUrl).create(OpenRouterModelsApi::class.java)
     }
 
 }

@@ -831,7 +831,7 @@ private fun AddManualOverrideScreen(
 ) {
     BackHandler { onBack() }
 
-    var selectedProvider by remember { mutableStateOf(AiService.OPENAI) }
+    var selectedProvider by remember { mutableStateOf(AiService.entries.first()) }
     var model by remember { mutableStateOf("") }
     var inputPrice by remember { mutableStateOf("") }
     var outputPrice by remember { mutableStateOf("") }

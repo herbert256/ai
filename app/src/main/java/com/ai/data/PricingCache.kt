@@ -283,7 +283,7 @@ object PricingCache {
         if (apiKey.isBlank()) return emptyMap()
 
         return try {
-            val api = AiApiFactory.createOpenRouterModelsApi()
+            val api = AiApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
             val response = api.listModelsDetailed("Bearer $apiKey")
             if (response.isSuccessful) {
                 val models = response.body()?.data ?: emptyList()
@@ -544,7 +544,7 @@ object PricingCache {
         if (apiKey.isBlank()) return null
 
         return try {
-            val api = AiApiFactory.createOpenRouterModelsApi()
+            val api = AiApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
             val response = api.listModelsDetailed("Bearer $apiKey")
 
             if (!response.isSuccessful) {

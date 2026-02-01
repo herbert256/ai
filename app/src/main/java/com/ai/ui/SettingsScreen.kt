@@ -19,37 +19,9 @@ import com.ai.data.AiService
  */
 enum class SettingsSubScreen {
     MAIN,
-    AI_OPENAI,
-    AI_ANTHROPIC,
-    AI_GOOGLE,
-    AI_XAI,
-    AI_GROQ,
-    AI_DEEPSEEK,
-    AI_MISTRAL,
-    AI_PERPLEXITY,
-    AI_TOGETHER,
-    AI_OPENROUTER,
-    AI_SILICONFLOW,
-    AI_ZAI,
-    AI_MOONSHOT,
-    AI_COHERE,
-    AI_AI21,
-    AI_DASHSCOPE,
-    AI_FIREWORKS,
-    AI_CEREBRAS,
-    AI_SAMBANOVA,
-    AI_BAICHUAN,
-    AI_STEPFUN,
-    AI_MINIMAX,
-    AI_NVIDIA,
-    AI_REPLICATE,
-    AI_HUGGINGFACE,
-    AI_LAMBDA,
-    AI_LEPTON,
-    AI_YI,
-    AI_DOUBAO,
-    AI_REKA,
-    AI_WRITER,
+    AI_PROVIDER_EDIT,  // Dynamic provider editing (uses selectedProvider state)
+    AI_ADD_PROVIDER,   // Add new custom provider definition
+    AI_EDIT_PROVIDER_DEF,  // Edit provider definition (displayName, baseUrl, etc.)
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
     AI_PROVIDERS,   // Provider model configuration
@@ -94,6 +66,9 @@ fun SettingsScreen(
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
 
+    // State for dynamic provider editing
+    var selectedProvider by remember { mutableStateOf<AiService?>(null) }
+
     // State for pre-filling agent creation from provider screen
     var prefillAgentProvider by remember { mutableStateOf<AiService?>(null) }
     var prefillAgentApiKey by remember { mutableStateOf("") }
@@ -134,37 +109,9 @@ fun SettingsScreen(
     BackHandler {
         when (currentSubScreen) {
             SettingsSubScreen.MAIN -> onBack()
-            SettingsSubScreen.AI_OPENAI,
-            SettingsSubScreen.AI_ANTHROPIC,
-            SettingsSubScreen.AI_GOOGLE,
-            SettingsSubScreen.AI_XAI,
-            SettingsSubScreen.AI_GROQ,
-            SettingsSubScreen.AI_DEEPSEEK,
-            SettingsSubScreen.AI_MISTRAL,
-            SettingsSubScreen.AI_PERPLEXITY,
-            SettingsSubScreen.AI_TOGETHER,
-            SettingsSubScreen.AI_OPENROUTER,
-            SettingsSubScreen.AI_SILICONFLOW,
-            SettingsSubScreen.AI_ZAI,
-            SettingsSubScreen.AI_MOONSHOT,
-            SettingsSubScreen.AI_COHERE,
-            SettingsSubScreen.AI_AI21,
-            SettingsSubScreen.AI_DASHSCOPE,
-            SettingsSubScreen.AI_FIREWORKS,
-            SettingsSubScreen.AI_CEREBRAS,
-            SettingsSubScreen.AI_SAMBANOVA,
-            SettingsSubScreen.AI_BAICHUAN,
-            SettingsSubScreen.AI_STEPFUN,
-            SettingsSubScreen.AI_MINIMAX,
-            SettingsSubScreen.AI_NVIDIA,
-            SettingsSubScreen.AI_REPLICATE,
-            SettingsSubScreen.AI_HUGGINGFACE,
-            SettingsSubScreen.AI_LAMBDA,
-            SettingsSubScreen.AI_LEPTON,
-            SettingsSubScreen.AI_YI,
-            SettingsSubScreen.AI_DOUBAO,
-            SettingsSubScreen.AI_REKA,
-            SettingsSubScreen.AI_WRITER -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            SettingsSubScreen.AI_ADD_PROVIDER,
+            SettingsSubScreen.AI_EDIT_PROVIDER_DEF -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
@@ -211,378 +158,48 @@ fun SettingsScreen(
             onSave = onSaveGeneral,
             onTrackApiCallsChanged = onTrackApiCallsChanged
         )
-        SettingsSubScreen.AI_OPENAI -> ProviderSettingsScreen(
-            service = AiService.OPENAI,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.OPENAI in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.OPENAI, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.OPENAI, aiSettings.getApiKey(AiService.OPENAI), aiSettings.getModel(AiService.OPENAI)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.OPENAI, state) }
+        SettingsSubScreen.AI_PROVIDER_EDIT -> {
+            val provider = selectedProvider
+            if (provider != null) {
+                ProviderSettingsScreen(
+                    service = provider,
+                    aiSettings = aiSettings,
+                    isLoadingModels = provider in loadingModelsFor,
+                    onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+                    onBackToHome = onNavigateHome,
+                    onSave = onSaveAi,
+                    onFetchModels = { key -> onFetchModels(provider, key) },
+                    onTestApiKey = onTestAiModel,
+                    onCreateAgent = { navigateToAddAgent(provider, aiSettings.getApiKey(provider), aiSettings.getModel(provider)) },
+                    onProviderStateChange = { state -> onProviderStateChange(provider, state) }
+                )
+            }
+        }
+        SettingsSubScreen.AI_ADD_PROVIDER -> ProviderDefinitionEditorScreen(
+            provider = null,
+            onSave = { newService ->
+                com.ai.data.ProviderRegistry.add(newService)
+                // Initialize provider config in settings
+                onSaveAi(aiSettings.withProvider(newService, defaultProviderConfig(newService)))
+                currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+            onNavigateHome = onNavigateHome
         )
-        SettingsSubScreen.AI_ANTHROPIC -> ProviderSettingsScreen(
-            service = AiService.ANTHROPIC,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.ANTHROPIC in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.ANTHROPIC, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.ANTHROPIC, aiSettings.getApiKey(AiService.ANTHROPIC), aiSettings.getModel(AiService.ANTHROPIC)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.ANTHROPIC, state) }
-        )
-        SettingsSubScreen.AI_GOOGLE -> ProviderSettingsScreen(
-            service = AiService.GOOGLE,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.GOOGLE in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.GOOGLE, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.GOOGLE, aiSettings.getApiKey(AiService.GOOGLE), aiSettings.getModel(AiService.GOOGLE)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.GOOGLE, state) }
-        )
-        SettingsSubScreen.AI_XAI -> ProviderSettingsScreen(
-            service = AiService.XAI,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.XAI in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.XAI, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.XAI, aiSettings.getApiKey(AiService.XAI), aiSettings.getModel(AiService.XAI)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.XAI, state) }
-        )
-        SettingsSubScreen.AI_GROQ -> ProviderSettingsScreen(
-            service = AiService.GROQ,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.GROQ in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.GROQ, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.GROQ, aiSettings.getApiKey(AiService.GROQ), aiSettings.getModel(AiService.GROQ)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.GROQ, state) }
-        )
-        SettingsSubScreen.AI_DEEPSEEK -> ProviderSettingsScreen(
-            service = AiService.DEEPSEEK,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.DEEPSEEK in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.DEEPSEEK, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.DEEPSEEK, aiSettings.getApiKey(AiService.DEEPSEEK), aiSettings.getModel(AiService.DEEPSEEK)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.DEEPSEEK, state) }
-        )
-        SettingsSubScreen.AI_MISTRAL -> ProviderSettingsScreen(
-            service = AiService.MISTRAL,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.MISTRAL in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.MISTRAL, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.MISTRAL, aiSettings.getApiKey(AiService.MISTRAL), aiSettings.getModel(AiService.MISTRAL)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.MISTRAL, state) }
-        )
-        SettingsSubScreen.AI_PERPLEXITY -> ProviderSettingsScreen(
-            service = AiService.PERPLEXITY,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.PERPLEXITY in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.PERPLEXITY, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.PERPLEXITY, aiSettings.getApiKey(AiService.PERPLEXITY), aiSettings.getModel(AiService.PERPLEXITY)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.PERPLEXITY, state) }
-        )
-        SettingsSubScreen.AI_TOGETHER -> ProviderSettingsScreen(
-            service = AiService.TOGETHER,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.TOGETHER in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.TOGETHER, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.TOGETHER, aiSettings.getApiKey(AiService.TOGETHER), aiSettings.getModel(AiService.TOGETHER)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.TOGETHER, state) }
-        )
-        SettingsSubScreen.AI_OPENROUTER -> ProviderSettingsScreen(
-            service = AiService.OPENROUTER,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.OPENROUTER in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.OPENROUTER, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.OPENROUTER, aiSettings.getApiKey(AiService.OPENROUTER), aiSettings.getModel(AiService.OPENROUTER)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.OPENROUTER, state) }
-        )
-        SettingsSubScreen.AI_SILICONFLOW -> ProviderSettingsScreen(
-            service = AiService.SILICONFLOW,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.SILICONFLOW in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.SILICONFLOW, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.SILICONFLOW, aiSettings.getApiKey(AiService.SILICONFLOW), aiSettings.getModel(AiService.SILICONFLOW)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.SILICONFLOW, state) }
-        )
-        SettingsSubScreen.AI_ZAI -> ProviderSettingsScreen(
-            service = AiService.ZAI,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.ZAI in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.ZAI, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.ZAI, aiSettings.getApiKey(AiService.ZAI), aiSettings.getModel(AiService.ZAI)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.ZAI, state) }
-        )
-        SettingsSubScreen.AI_MOONSHOT -> ProviderSettingsScreen(
-            service = AiService.MOONSHOT,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.MOONSHOT in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.MOONSHOT, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.MOONSHOT, aiSettings.getApiKey(AiService.MOONSHOT), aiSettings.getModel(AiService.MOONSHOT)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.MOONSHOT, state) }
-        )
-        SettingsSubScreen.AI_COHERE -> ProviderSettingsScreen(
-            service = AiService.COHERE,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.COHERE in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.COHERE, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.COHERE, aiSettings.getApiKey(AiService.COHERE), aiSettings.getModel(AiService.COHERE)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.COHERE, state) }
-        )
-        SettingsSubScreen.AI_AI21 -> ProviderSettingsScreen(
-            service = AiService.AI21,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.AI21 in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.AI21, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.AI21, aiSettings.getApiKey(AiService.AI21), aiSettings.getModel(AiService.AI21)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.AI21, state) }
-        )
-        SettingsSubScreen.AI_DASHSCOPE -> ProviderSettingsScreen(
-            service = AiService.DASHSCOPE,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.DASHSCOPE in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.DASHSCOPE, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.DASHSCOPE, aiSettings.getApiKey(AiService.DASHSCOPE), aiSettings.getModel(AiService.DASHSCOPE)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.DASHSCOPE, state) }
-        )
-        SettingsSubScreen.AI_FIREWORKS -> ProviderSettingsScreen(
-            service = AiService.FIREWORKS,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.FIREWORKS in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.FIREWORKS, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.FIREWORKS, aiSettings.getApiKey(AiService.FIREWORKS), aiSettings.getModel(AiService.FIREWORKS)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.FIREWORKS, state) }
-        )
-        SettingsSubScreen.AI_CEREBRAS -> ProviderSettingsScreen(
-            service = AiService.CEREBRAS,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.CEREBRAS in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.CEREBRAS, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.CEREBRAS, aiSettings.getApiKey(AiService.CEREBRAS), aiSettings.getModel(AiService.CEREBRAS)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.CEREBRAS, state) }
-        )
-        SettingsSubScreen.AI_SAMBANOVA -> ProviderSettingsScreen(
-            service = AiService.SAMBANOVA,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.SAMBANOVA in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.SAMBANOVA, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.SAMBANOVA, aiSettings.getApiKey(AiService.SAMBANOVA), aiSettings.getModel(AiService.SAMBANOVA)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.SAMBANOVA, state) }
-        )
-        SettingsSubScreen.AI_BAICHUAN -> ProviderSettingsScreen(
-            service = AiService.BAICHUAN,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.BAICHUAN in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.BAICHUAN, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.BAICHUAN, aiSettings.getApiKey(AiService.BAICHUAN), aiSettings.getModel(AiService.BAICHUAN)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.BAICHUAN, state) }
-        )
-        SettingsSubScreen.AI_STEPFUN -> ProviderSettingsScreen(
-            service = AiService.STEPFUN,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.STEPFUN in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.STEPFUN, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.STEPFUN, aiSettings.getApiKey(AiService.STEPFUN), aiSettings.getModel(AiService.STEPFUN)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.STEPFUN, state) }
-        )
-        SettingsSubScreen.AI_MINIMAX -> ProviderSettingsScreen(
-            service = AiService.MINIMAX,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.MINIMAX in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.MINIMAX, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.MINIMAX, aiSettings.getApiKey(AiService.MINIMAX), aiSettings.getModel(AiService.MINIMAX)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.MINIMAX, state) }
-        )
-        SettingsSubScreen.AI_NVIDIA -> ProviderSettingsScreen(
-            service = AiService.NVIDIA,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.NVIDIA in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.NVIDIA, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.NVIDIA, aiSettings.getApiKey(AiService.NVIDIA), aiSettings.getModel(AiService.NVIDIA)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.NVIDIA, state) }
-        )
-        SettingsSubScreen.AI_REPLICATE -> ProviderSettingsScreen(
-            service = AiService.REPLICATE,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.REPLICATE in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.REPLICATE, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.REPLICATE, aiSettings.getApiKey(AiService.REPLICATE), aiSettings.getModel(AiService.REPLICATE)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.REPLICATE, state) }
-        )
-        SettingsSubScreen.AI_HUGGINGFACE -> ProviderSettingsScreen(
-            service = AiService.HUGGINGFACE,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.HUGGINGFACE in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.HUGGINGFACE, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.HUGGINGFACE, aiSettings.getApiKey(AiService.HUGGINGFACE), aiSettings.getModel(AiService.HUGGINGFACE)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.HUGGINGFACE, state) }
-        )
-        SettingsSubScreen.AI_LAMBDA -> ProviderSettingsScreen(
-            service = AiService.LAMBDA,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.LAMBDA in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.LAMBDA, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.LAMBDA, aiSettings.getApiKey(AiService.LAMBDA), aiSettings.getModel(AiService.LAMBDA)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.LAMBDA, state) }
-        )
-        SettingsSubScreen.AI_LEPTON -> ProviderSettingsScreen(
-            service = AiService.LEPTON,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.LEPTON in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.LEPTON, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.LEPTON, aiSettings.getApiKey(AiService.LEPTON), aiSettings.getModel(AiService.LEPTON)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.LEPTON, state) }
-        )
-        SettingsSubScreen.AI_YI -> ProviderSettingsScreen(
-            service = AiService.YI,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.YI in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.YI, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.YI, aiSettings.getApiKey(AiService.YI), aiSettings.getModel(AiService.YI)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.YI, state) }
-        )
-        SettingsSubScreen.AI_DOUBAO -> ProviderSettingsScreen(
-            service = AiService.DOUBAO,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.DOUBAO in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.DOUBAO, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.DOUBAO, aiSettings.getApiKey(AiService.DOUBAO), aiSettings.getModel(AiService.DOUBAO)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.DOUBAO, state) }
-        )
-        SettingsSubScreen.AI_REKA -> ProviderSettingsScreen(
-            service = AiService.REKA,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.REKA in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.REKA, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.REKA, aiSettings.getApiKey(AiService.REKA), aiSettings.getModel(AiService.REKA)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.REKA, state) }
-        )
-        SettingsSubScreen.AI_WRITER -> ProviderSettingsScreen(
-            service = AiService.WRITER,
-            aiSettings = aiSettings,
-            isLoadingModels = AiService.WRITER in loadingModelsFor,
-            onBackToAiSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onBackToHome = onNavigateHome,
-            onSave = onSaveAi,
-            onFetchModels = { key -> onFetchModels(AiService.WRITER, key) },
-            onTestApiKey = onTestAiModel,
-            onCreateAgent = { navigateToAddAgent(AiService.WRITER, aiSettings.getApiKey(AiService.WRITER), aiSettings.getModel(AiService.WRITER)) },
-            onProviderStateChange = { state -> onProviderStateChange(AiService.WRITER, state) }
-        )
+        SettingsSubScreen.AI_EDIT_PROVIDER_DEF -> {
+            val provider = selectedProvider
+            if (provider != null) {
+                ProviderDefinitionEditorScreen(
+                    provider = provider,
+                    onSave = { updatedService ->
+                        com.ai.data.ProviderRegistry.update(updatedService)
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                    },
+                    onBack = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+                    onNavigateHome = onNavigateHome
+                )
+            }
+        }
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
@@ -612,7 +229,20 @@ fun SettingsScreen(
             developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
-            onNavigate = { currentSubScreen = it }
+            onProviderSelected = { service ->
+                selectedProvider = service
+                currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+            },
+            onAddProvider = { currentSubScreen = SettingsSubScreen.AI_ADD_PROVIDER },
+            onEditProviderDef = { service ->
+                selectedProvider = service
+                currentSubScreen = SettingsSubScreen.AI_EDIT_PROVIDER_DEF
+            },
+            onDeleteProvider = { service ->
+                com.ai.data.ProviderRegistry.remove(service.id)
+                // Remove provider config from settings
+                onSaveAi(aiSettings.removeProvider(service))
+            }
         )
         SettingsSubScreen.AI_AGENTS -> AiAgentsScreen(
             aiSettings = aiSettings,

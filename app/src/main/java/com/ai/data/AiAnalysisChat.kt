@@ -14,11 +14,10 @@ suspend fun AiAnalysisRepository.sendChatMessage(
     messages: List<com.ai.ui.ChatMessage>,
     params: com.ai.ui.ChatParameters
 ): String = withContext(Dispatchers.IO) {
-    when (service) {
-        AiService.OPENAI -> sendChatMessageChatGpt(apiKey, model, messages, params)
-        AiService.ANTHROPIC -> sendChatMessageClaude(apiKey, model, messages, params)
-        AiService.GOOGLE -> sendChatMessageGemini(apiKey, model, messages, params)
-        else -> sendChatMessageOpenAiCompatible(service, apiKey, model, messages, params)
+    when (service.apiFormat) {
+        ApiFormat.ANTHROPIC -> sendChatMessageClaude(service, apiKey, model, messages, params)
+        ApiFormat.GOOGLE -> sendChatMessageGemini(service, apiKey, model, messages, params)
+        ApiFormat.OPENAI_COMPATIBLE -> sendChatMessageOpenAiCompatible(service, apiKey, model, messages, params)
     }
 }
 
@@ -26,37 +25,8 @@ internal fun AiAnalysisRepository.convertToOpenAiMessages(messages: List<com.ai.
     return messages.map { msg -> OpenAiMessage(role = msg.role, content = msg.content) }
 }
 
-internal suspend fun AiAnalysisRepository.sendChatMessageChatGpt(
-    apiKey: String,
-    model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters
-): String {
-    val openAiMessages = convertToOpenAiMessages(messages)
-    val request = OpenAiRequest(
-        model = model,
-        messages = openAiMessages,
-        max_tokens = params.maxTokens,
-        temperature = params.temperature,
-        top_p = params.topP,
-        frequency_penalty = params.frequencyPenalty,
-        presence_penalty = params.presencePenalty,
-        search = if (params.searchEnabled) true else null
-    )
-    val response = openAiApi.createChatCompletion(
-        authorization = "Bearer $apiKey",
-        request = request
-    )
-    if (response.isSuccessful) {
-        val content = response.body()?.choices?.firstOrNull()?.message?.content
-        return content ?: throw Exception("No response content")
-    } else {
-        throw Exception("API error: ${response.code()} ${response.message()}")
-    }
-}
-
 /**
- * Unified chat method for all 28 OpenAI-compatible providers.
+ * Unified chat method for all OpenAI-compatible providers.
  * Uses OpenAiCompatibleApi with @Url for dynamic chat paths.
  */
 internal suspend fun AiAnalysisRepository.sendChatMessageOpenAiCompatible(
@@ -96,12 +66,13 @@ internal suspend fun AiAnalysisRepository.sendChatMessageOpenAiCompatible(
 }
 
 internal suspend fun AiAnalysisRepository.sendChatMessageClaude(
+    service: AiService,
     apiKey: String,
     model: String,
     messages: List<com.ai.ui.ChatMessage>,
     params: com.ai.ui.ChatParameters
 ): String {
-    // Filter out system message (passed separately) and convert to Claude format
+    val claudeApi = AiApiFactory.createClaudeApiWithBaseUrl(service.baseUrl)
     val claudeMessages = messages
         .filter { it.role != "system" }
         .map { msg -> ClaudeMessage(role = msg.role, content = msg.content) }
@@ -127,12 +98,13 @@ internal suspend fun AiAnalysisRepository.sendChatMessageClaude(
 }
 
 internal suspend fun AiAnalysisRepository.sendChatMessageGemini(
+    service: AiService,
     apiKey: String,
     model: String,
     messages: List<com.ai.ui.ChatMessage>,
     params: com.ai.ui.ChatParameters
 ): String {
-    // Convert messages to Gemini format (alternating user/model roles)
+    val geminiApi = AiApiFactory.createGeminiApiWithBaseUrl(service.baseUrl)
     val contents = messages
         .filter { it.role != "system" }
         .map { msg ->

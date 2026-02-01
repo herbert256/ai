@@ -18,11 +18,10 @@ suspend fun AiAnalysisRepository.testModel(
     model: String
 ): String? = withContext(Dispatchers.IO) {
     try {
-        val response = when (service) {
-            AiService.OPENAI -> analyzeWithChatGpt(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
-            AiService.ANTHROPIC -> analyzeWithClaude(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
-            AiService.GOOGLE -> analyzeWithGemini(apiKey, AiAnalysisRepository.TEST_PROMPT, model)
-            else -> analyzeWithOpenAiCompatible(service, apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+        val response = when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> analyzeWithClaude(service, apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            ApiFormat.GOOGLE -> analyzeWithGemini(service, apiKey, AiAnalysisRepository.TEST_PROMPT, model)
+            ApiFormat.OPENAI_COMPATIBLE -> analyzeWithOpenAiCompatible(service, apiKey, AiAnalysisRepository.TEST_PROMPT, model)
         }
 
         if (response.isSuccess) {
@@ -76,8 +75,8 @@ suspend fun AiAnalysisRepository.testApiConnection(
         )
 
         // Use appropriate auth header based on service
-        val authHeader = when (service) {
-            AiService.ANTHROPIC -> apiKey  // Anthropic uses x-api-key
+        val authHeader = when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> apiKey  // Anthropic uses x-api-key
             else -> "Bearer $apiKey"
         }
 
@@ -133,8 +132,8 @@ suspend fun AiAnalysisRepository.testApiConnectionWithJson(
         val body = jsonBody.toRequestBody(mediaType)
 
         // Use appropriate auth header based on service
-        val authHeader = when (service) {
-            AiService.ANTHROPIC -> apiKey  // Anthropic uses x-api-key
+        val authHeader = when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> apiKey  // Anthropic uses x-api-key
             else -> "Bearer $apiKey"
         }
 
@@ -183,8 +182,9 @@ suspend fun AiAnalysisRepository.testApiConnectionWithJson(
 /**
  * Fetch available Gemini models that support generateContent.
  */
-suspend fun AiAnalysisRepository.fetchGeminiModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+suspend fun AiAnalysisRepository.fetchGeminiModels(service: AiService, apiKey: String): List<String> = withContext(Dispatchers.IO) {
     try {
+        val geminiApi = AiApiFactory.createGeminiApiWithBaseUrl(service.baseUrl)
         val response = geminiApi.listModels(apiKey)
         if (response.isSuccessful) {
             val models = response.body()?.models ?: emptyList()
@@ -213,19 +213,19 @@ suspend fun AiAnalysisRepository.fetchGeminiModels(apiKey: String): List<String>
  * uses OpenAiCompatibleApi for the 28 OpenAI-compatible providers.
  */
 suspend fun AiAnalysisRepository.fetchModels(service: AiService, apiKey: String): List<String> = withContext(Dispatchers.IO) {
-    when (service) {
-        AiService.OPENAI -> fetchChatGptModels(apiKey)
-        AiService.ANTHROPIC -> fetchClaudeModels(apiKey)
-        AiService.GOOGLE -> fetchGeminiModels(apiKey)
-        else -> fetchModelsOpenAiCompatible(service, apiKey)
+    when (service.apiFormat) {
+        ApiFormat.ANTHROPIC -> fetchClaudeModels(service, apiKey)
+        ApiFormat.GOOGLE -> fetchGeminiModels(service, apiKey)
+        ApiFormat.OPENAI_COMPATIBLE -> fetchModelsOpenAiCompatible(service, apiKey)
     }
 }
 
 /**
  * Fetch available ChatGPT/OpenAI models.
  */
-suspend fun AiAnalysisRepository.fetchChatGptModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+suspend fun AiAnalysisRepository.fetchChatGptModels(service: AiService, apiKey: String): List<String> = withContext(Dispatchers.IO) {
     try {
+        val openAiApi = AiApiFactory.createOpenAiApiWithBaseUrl(service.baseUrl)
         val response = openAiApi.listModels("Bearer $apiKey")
         if (response.isSuccessful) {
             val models = response.body()?.data ?: emptyList()
@@ -243,8 +243,9 @@ suspend fun AiAnalysisRepository.fetchChatGptModels(apiKey: String): List<String
     }
 }
 
-suspend fun AiAnalysisRepository.fetchClaudeModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+suspend fun AiAnalysisRepository.fetchClaudeModels(service: AiService, apiKey: String): List<String> = withContext(Dispatchers.IO) {
     try {
+        val claudeApi = AiApiFactory.createClaudeApiWithBaseUrl(service.baseUrl)
         val response = claudeApi.listModels(apiKey)
         if (response.isSuccessful) {
             val models = response.body()?.data ?: emptyList()

@@ -54,9 +54,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val migrationVersion = prefs.getInt("settings_migration_version", 0)
         if (migrationVersion < 1) {
             prefs.edit()
-                .putString("${AiService.ANTHROPIC.prefsKey}_model_source", ModelSource.API.name)
-                .putString("${AiService.SILICONFLOW.prefsKey}_model_source", ModelSource.API.name)
-                .putString("${AiService.ZAI.prefsKey}_model_source", ModelSource.API.name)
+                .putString("ai_anthropic_model_source", ModelSource.API.name)
+                .putString("ai_siliconflow_model_source", ModelSource.API.name)
+                .putString("ai_zai_model_source", ModelSource.API.name)
                 .putInt("settings_migration_version", 1)
                 .apply()
             android.util.Log.d("SettingsPreferences", "Migrated Claude, SiliconFlow, Z.AI to API model source")

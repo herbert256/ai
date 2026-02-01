@@ -42,6 +42,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize AiReportStorage for tracking report generation
         AiReportStorage.init(application)
 
+        // Initialize ProviderRegistry (loads providers from SharedPreferences or assets/providers.json)
+        com.ai.data.ProviderRegistry.init(application)
+
         // Load settings (models are now part of aiSettings via ProviderConfig.models)
         val generalSettings = loadGeneralSettings()
         val aiSettings = loadAiSettings()
@@ -497,7 +500,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 agentId to AiAnalysisResponse(
-                    service = agent?.provider ?: com.ai.data.AiService.OPENAI,
+                    service = agent?.provider ?: com.ai.data.AiService.entries.first(),
                     analysis = "Not ready",
                     error = null
                 )

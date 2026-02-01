@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.data.AiService
+import com.ai.data.ApiFormat
 
 
 /**
@@ -240,56 +241,50 @@ fun AiProvidersScreen(
     developerMode: Boolean,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
-    onNavigate: (SettingsSubScreen) -> Unit
+    onProviderSelected: (AiService) -> Unit,
+    onAddProvider: () -> Unit = {},
+    onEditProviderDef: (AiService) -> Unit = {},
+    onDeleteProvider: (AiService) -> Unit = {}
 ) {
     // Toggle between showing only active ("ok") providers and all providers
     var showAll by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf<AiService?>(null) }
 
-    // Provider definitions: service, title, accent color, settings screen
+    // Provider definitions: service and title, built dynamically from registry
     data class ProviderEntry(
         val service: AiService,
-        val title: String,
-        val screen: SettingsSubScreen
+        val title: String
     )
 
-    val allProviders = listOf(
-        ProviderEntry(AiService.AI21, "AI21", SettingsSubScreen.AI_AI21),
-        ProviderEntry(AiService.ANTHROPIC, "Anthropic", SettingsSubScreen.AI_ANTHROPIC),
-        ProviderEntry(AiService.BAICHUAN, "Baichuan", SettingsSubScreen.AI_BAICHUAN),
-        ProviderEntry(AiService.CEREBRAS, "Cerebras", SettingsSubScreen.AI_CEREBRAS),
-        ProviderEntry(AiService.COHERE, "Cohere", SettingsSubScreen.AI_COHERE),
-        ProviderEntry(AiService.DASHSCOPE, "DashScope", SettingsSubScreen.AI_DASHSCOPE),
-        ProviderEntry(AiService.DEEPSEEK, "DeepSeek", SettingsSubScreen.AI_DEEPSEEK),
-        ProviderEntry(AiService.DOUBAO, "Doubao", SettingsSubScreen.AI_DOUBAO),
-        ProviderEntry(AiService.FIREWORKS, "Fireworks", SettingsSubScreen.AI_FIREWORKS),
-        ProviderEntry(AiService.GOOGLE, "Google", SettingsSubScreen.AI_GOOGLE),
-        ProviderEntry(AiService.GROQ, "Groq", SettingsSubScreen.AI_GROQ),
-        ProviderEntry(AiService.HUGGINGFACE, "Hugging Face", SettingsSubScreen.AI_HUGGINGFACE),
-        ProviderEntry(AiService.LAMBDA, "Lambda", SettingsSubScreen.AI_LAMBDA),
-        ProviderEntry(AiService.LEPTON, "Lepton", SettingsSubScreen.AI_LEPTON),
-        ProviderEntry(AiService.MINIMAX, "MiniMax", SettingsSubScreen.AI_MINIMAX),
-        ProviderEntry(AiService.MISTRAL, "Mistral", SettingsSubScreen.AI_MISTRAL),
-        ProviderEntry(AiService.MOONSHOT, "Moonshot", SettingsSubScreen.AI_MOONSHOT),
-        ProviderEntry(AiService.NVIDIA, "NVIDIA", SettingsSubScreen.AI_NVIDIA),
-        ProviderEntry(AiService.OPENAI, "OpenAI", SettingsSubScreen.AI_OPENAI),
-        ProviderEntry(AiService.OPENROUTER, "OpenRouter", SettingsSubScreen.AI_OPENROUTER),
-        ProviderEntry(AiService.PERPLEXITY, "Perplexity", SettingsSubScreen.AI_PERPLEXITY),
-        ProviderEntry(AiService.REKA, "Reka", SettingsSubScreen.AI_REKA),
-        ProviderEntry(AiService.REPLICATE, "Replicate", SettingsSubScreen.AI_REPLICATE),
-        ProviderEntry(AiService.SAMBANOVA, "SambaNova", SettingsSubScreen.AI_SAMBANOVA),
-        ProviderEntry(AiService.SILICONFLOW, "SiliconFlow", SettingsSubScreen.AI_SILICONFLOW),
-        ProviderEntry(AiService.STEPFUN, "StepFun", SettingsSubScreen.AI_STEPFUN),
-        ProviderEntry(AiService.TOGETHER, "Together", SettingsSubScreen.AI_TOGETHER),
-        ProviderEntry(AiService.WRITER, "Writer", SettingsSubScreen.AI_WRITER),
-        ProviderEntry(AiService.XAI, "xAI", SettingsSubScreen.AI_XAI),
-        ProviderEntry(AiService.YI, "01.AI", SettingsSubScreen.AI_YI),
-        ProviderEntry(AiService.ZAI, "Z.AI", SettingsSubScreen.AI_ZAI)
-    )
+    val allProviders = AiService.entries.map { service ->
+        ProviderEntry(service, service.displayName)
+    }.sortedBy { it.title.lowercase() }
 
     val visibleProviders = if (showAll) {
         allProviders
     } else {
         allProviders.filter { aiSettings.getProviderState(it.service) == "ok" }
+    }
+
+    // Delete confirmation dialog
+    showDeleteConfirm?.let { service ->
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            title = { Text("Delete Provider") },
+            text = { Text("Delete \"${service.displayName}\"? This will also remove all agents and swarm members using this provider.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteProvider(service)
+                        showDeleteConfirm = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF5252))
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
+            }
+        )
     }
 
     Column(
@@ -306,6 +301,15 @@ fun AiProvidersScreen(
             onAiClick = onBackToHome
         )
 
+        // Add Provider button
+        OutlinedButton(
+            onClick = onAddProvider,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4CAF50))
+        ) {
+            Text("+ Add Custom Provider")
+        }
+
         // Provider cards
         visibleProviders.forEach { entry ->
             AiServiceNavigationCard(
@@ -313,7 +317,9 @@ fun AiProvidersScreen(
                 providerState = aiSettings.getProviderState(entry.service),
                 showStateDetails = showAll,
                 adminUrl = entry.service.adminUrl,
-                onEdit = { onNavigate(entry.screen) }
+                onEdit = { onProviderSelected(entry.service) },
+                onEditDefinition = { onEditProviderDef(entry.service) },
+                onDelete = { showDeleteConfirm = entry.service }
             )
         }
 
@@ -328,5 +334,405 @@ fun AiProvidersScreen(
                 else "Show all providers (${allProviders.size})"
             )
         }
+    }
+}
+
+/**
+ * Editor screen for creating or editing a provider definition (AiService properties).
+ * When provider is null, creates a new provider. When non-null, edits existing.
+ */
+@Composable
+fun ProviderDefinitionEditorScreen(
+    provider: AiService?,
+    onSave: (AiService) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val isNew = provider == null
+
+    var id by remember { mutableStateOf(provider?.id ?: "") }
+    var displayName by remember { mutableStateOf(provider?.displayName ?: "") }
+    var baseUrl by remember { mutableStateOf(provider?.baseUrl ?: "https://") }
+    var adminUrl by remember { mutableStateOf(provider?.adminUrl ?: "") }
+    var defaultModel by remember { mutableStateOf(provider?.defaultModel ?: "") }
+    var apiFormat by remember { mutableStateOf(provider?.apiFormat ?: ApiFormat.OPENAI_COMPATIBLE) }
+    var chatPath by remember { mutableStateOf(provider?.chatPath ?: "v1/chat/completions") }
+    var modelsPath by remember { mutableStateOf(provider?.modelsPath ?: "v1/models") }
+    var modelsPathNull by remember { mutableStateOf(provider?.modelsPath == null) }
+    var prefsKey by remember { mutableStateOf(provider?.prefsKey ?: "") }
+    var openRouterName by remember { mutableStateOf(provider?.openRouterName ?: "") }
+
+    // Advanced fields
+    var showAdvanced by remember { mutableStateOf(false) }
+    var seedFieldName by remember { mutableStateOf(provider?.seedFieldName ?: "seed") }
+    var supportsCitations by remember { mutableStateOf(provider?.supportsCitations ?: false) }
+    var supportsSearchRecency by remember { mutableStateOf(provider?.supportsSearchRecency ?: false) }
+    var extractApiCost by remember { mutableStateOf(provider?.extractApiCost ?: false) }
+    var modelListFormat by remember { mutableStateOf(provider?.modelListFormat ?: "object") }
+    var modelFilter by remember { mutableStateOf(provider?.modelFilter ?: "") }
+    var litellmPrefix by remember { mutableStateOf(provider?.litellmPrefix ?: "") }
+
+    // Validation
+    val idValid = id.isNotBlank() && (!isNew || AiService.findById(id) == null)
+    val nameValid = displayName.isNotBlank()
+    val urlValid = baseUrl.startsWith("http")
+    val canSave = idValid && nameValid && urlValid && defaultModel.isNotBlank()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AiTitleBar(
+            title = if (isNew) "Add Provider" else "Edit Provider",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        // ID field (only editable for new providers)
+        OutlinedTextField(
+            value = id,
+            onValueChange = {
+                id = it.uppercase().replace(Regex("[^A-Z0-9_]"), "")
+                if (prefsKey.isBlank() || prefsKey == id.lowercase().dropLast(1)) {
+                    prefsKey = id.lowercase()
+                }
+            },
+            label = { Text("Provider ID") },
+            placeholder = { Text("MY_PROVIDER") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = isNew,
+            isError = id.isNotBlank() && !idValid,
+            supportingText = if (id.isNotBlank() && !idValid) {
+                { Text("ID already exists") }
+            } else {
+                { Text("Uppercase letters, numbers, underscores only") }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        OutlinedTextField(
+            value = displayName,
+            onValueChange = { displayName = it },
+            label = { Text("Display Name") },
+            placeholder = { Text("My Provider") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = { baseUrl = it },
+            label = { Text("Base URL") },
+            placeholder = { Text("https://api.example.com/") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            isError = baseUrl.isNotBlank() && !urlValid,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        OutlinedTextField(
+            value = defaultModel,
+            onValueChange = { defaultModel = it },
+            label = { Text("Default Model") },
+            placeholder = { Text("model-name") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        // API Format dropdown
+        var formatExpanded by remember { mutableStateOf(false) }
+        Box {
+            OutlinedTextField(
+                value = apiFormat.name,
+                onValueChange = {},
+                label = { Text("API Format") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { formatExpanded = true },
+                readOnly = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+            DropdownMenu(
+                expanded = formatExpanded,
+                onDismissRequest = { formatExpanded = false }
+            ) {
+                ApiFormat.entries.forEach { format ->
+                    DropdownMenuItem(
+                        text = { Text(format.name) },
+                        onClick = {
+                            apiFormat = format
+                            when (format) {
+                                ApiFormat.ANTHROPIC -> {
+                                    chatPath = "v1/messages"
+                                    modelsPath = ""
+                                    modelsPathNull = true
+                                }
+                                ApiFormat.GOOGLE -> {
+                                    chatPath = "v1beta/models"
+                                    modelsPath = "v1beta/models"
+                                }
+                                ApiFormat.OPENAI_COMPATIBLE -> {
+                                    chatPath = "v1/chat/completions"
+                                    modelsPath = "v1/models"
+                                    modelsPathNull = false
+                                }
+                            }
+                            formatExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        OutlinedTextField(
+            value = chatPath,
+            onValueChange = { chatPath = it },
+            label = { Text("Chat Path") },
+            placeholder = { Text("v1/chat/completions") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = if (modelsPathNull) "" else modelsPath,
+                onValueChange = { modelsPath = it; modelsPathNull = false },
+                label = { Text("Models Path") },
+                placeholder = { Text("v1/models") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                enabled = !modelsPathNull,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("None", style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888))
+                Switch(
+                    checked = modelsPathNull,
+                    onCheckedChange = { modelsPathNull = it }
+                )
+            }
+        }
+
+        OutlinedTextField(
+            value = adminUrl,
+            onValueChange = { adminUrl = it },
+            label = { Text("Admin URL (optional)") },
+            placeholder = { Text("https://platform.example.com/usage") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        OutlinedTextField(
+            value = prefsKey,
+            onValueChange = { prefsKey = it.lowercase().replace(Regex("[^a-z0-9_]"), "") },
+            label = { Text("Preferences Key") },
+            placeholder = { Text("my_provider") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            supportingText = { Text("Used for SharedPreferences storage") },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        // Advanced section
+        OutlinedButton(
+            onClick = { showAdvanced = !showAdvanced },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (showAdvanced) "Hide Advanced" else "Show Advanced")
+        }
+
+        if (showAdvanced) {
+            OutlinedTextField(
+                value = openRouterName,
+                onValueChange = { openRouterName = it },
+                label = { Text("OpenRouter Name (optional)") },
+                placeholder = { Text("provider-prefix") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+
+            OutlinedTextField(
+                value = seedFieldName,
+                onValueChange = { seedFieldName = it },
+                label = { Text("Seed Field Name") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+
+            OutlinedTextField(
+                value = modelFilter,
+                onValueChange = { modelFilter = it },
+                label = { Text("Model Filter Regex (optional)") },
+                placeholder = { Text("gpt|o1|o3") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+
+            OutlinedTextField(
+                value = litellmPrefix,
+                onValueChange = { litellmPrefix = it },
+                label = { Text("LiteLLM Prefix (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+
+            // Model list format
+            var listFormatExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedTextField(
+                    value = modelListFormat,
+                    onValueChange = {},
+                    label = { Text("Model List Format") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { listFormatExpanded = true },
+                    readOnly = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+                DropdownMenu(
+                    expanded = listFormatExpanded,
+                    onDismissRequest = { listFormatExpanded = false }
+                ) {
+                    listOf("object", "array", "google").forEach { fmt ->
+                        DropdownMenuItem(
+                            text = { Text(fmt) },
+                            onClick = { modelListFormat = fmt; listFormatExpanded = false }
+                        )
+                    }
+                }
+            }
+
+            // Boolean toggles
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Supports Citations", color = Color.White)
+                Switch(checked = supportsCitations, onCheckedChange = { supportsCitations = it })
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Supports Search Recency", color = Color.White)
+                Switch(checked = supportsSearchRecency, onCheckedChange = { supportsSearchRecency = it })
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Extract API Cost", color = Color.White)
+                Switch(checked = extractApiCost, onCheckedChange = { extractApiCost = it })
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Save button
+        Button(
+            onClick = {
+                val effectivePrefsKey = prefsKey.ifBlank { id.lowercase() }
+                val service = AiService(
+                    id = id,
+                    displayName = displayName,
+                    baseUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/",
+                    adminUrl = adminUrl,
+                    defaultModel = defaultModel,
+                    openRouterName = openRouterName.ifBlank { null },
+                    apiFormat = apiFormat,
+                    chatPath = chatPath,
+                    modelsPath = if (modelsPathNull) null else modelsPath.ifBlank { null },
+                    prefsKey = effectivePrefsKey,
+                    seedFieldName = seedFieldName,
+                    supportsCitations = supportsCitations,
+                    supportsSearchRecency = supportsSearchRecency,
+                    extractApiCost = extractApiCost,
+                    modelListFormat = modelListFormat,
+                    modelFilter = modelFilter.ifBlank { null },
+                    litellmPrefix = litellmPrefix.ifBlank { null }
+                )
+                onSave(service)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = canSave,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF4CAF50),
+                disabledContainerColor = Color(0xFF333333)
+            )
+        ) {
+            Text(if (isNew) "Add Provider" else "Save Changes")
+        }
+
+        // Back button
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Cancel")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }

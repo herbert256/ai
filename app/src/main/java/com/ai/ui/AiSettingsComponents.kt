@@ -230,8 +230,11 @@ fun AiServiceNavigationCard(
     providerState: String = if (hasApiKey) "ok" else "not-used",
     showStateDetails: Boolean = false,
     @Suppress("UNUSED_PARAMETER") adminUrl: String = "",
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    onEditDefinition: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -272,6 +275,37 @@ fun AiServiceNavigationCard(
                     "error" -> Text(text = "❌", fontSize = 14.sp)
                     "inactive" -> Text(text = "\uD83D\uDCA4", fontSize = 14.sp) // 💤
                     "not-used" -> Text(text = "\u2B55", fontSize = 14.sp) // ⭕
+                }
+            }
+
+            // Overflow menu for edit definition / delete
+            if (onEditDefinition != null || onDelete != null) {
+                Box {
+                    Text(
+                        text = "\u22EE",  // vertical ellipsis
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color(0xFF888888),
+                        modifier = Modifier
+                            .clickable { showMenu = true }
+                            .padding(horizontal = 4.dp)
+                    )
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        if (onEditDefinition != null) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Definition") },
+                                onClick = { showMenu = false; onEditDefinition() }
+                            )
+                        }
+                        if (onDelete != null) {
+                            DropdownMenuItem(
+                                text = { Text("Delete", color = Color(0xFFFF5252)) },
+                                onClick = { showMenu = false; onDelete() }
+                            )
+                        }
+                    }
                 }
             }
         }

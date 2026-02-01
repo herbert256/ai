@@ -23,11 +23,10 @@ fun AiAnalysisRepository.sendChatMessageStream(
 ): Flow<String> = flow {
     // Use custom URL or fall back to provider default
     val effectiveUrl = baseUrl ?: service.baseUrl
-    when (service) {
-        AiService.OPENAI -> streamChatOpenAi(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-        AiService.ANTHROPIC -> streamChatClaude(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-        AiService.GOOGLE -> streamChatGemini(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-        else -> streamChatOpenAiCompatible(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+    when (service.apiFormat) {
+        ApiFormat.ANTHROPIC -> streamChatClaude(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        ApiFormat.GOOGLE -> streamChatGemini(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        ApiFormat.OPENAI_COMPATIBLE -> streamChatOpenAiCompatible(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
     }
 }
 
@@ -213,12 +212,7 @@ internal fun AiAnalysisRepository.streamChatOpenAi(
     params: com.ai.ui.ChatParameters,
     baseUrl: String
 ): Flow<String> = flow {
-    // Use custom URL if different from default
-    val api = if (baseUrl != AiService.OPENAI.baseUrl) {
-        AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
-    } else {
-        openAiStreamApi
-    }
+    val api = AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
 
     // Check if model requires Responses API (gpt-5.x, o3, o4)
     if (usesResponsesApi(model)) {
@@ -297,12 +291,7 @@ internal fun AiAnalysisRepository.streamChatClaude(
         system = systemPrompt
     )
 
-    // Use custom URL if different from default
-    val api = if (baseUrl != AiService.ANTHROPIC.baseUrl) {
-        AiApiFactory.createClaudeStreamApiWithBaseUrl(baseUrl)
-    } else {
-        claudeStreamApi
-    }
+    val api = AiApiFactory.createClaudeStreamApiWithBaseUrl(baseUrl)
 
     val response = withContext(Dispatchers.IO) {
         api.createMessageStream(apiKey, request = request)
@@ -348,12 +337,7 @@ internal fun AiAnalysisRepository.streamChatGemini(
         systemInstruction = systemInstruction
     )
 
-    // Use custom URL if different from default
-    val api = if (baseUrl != AiService.GOOGLE.baseUrl) {
-        AiApiFactory.createGeminiStreamApiWithBaseUrl(baseUrl)
-    } else {
-        geminiStreamApi
-    }
+    val api = AiApiFactory.createGeminiStreamApiWithBaseUrl(baseUrl)
 
     val response = withContext(Dispatchers.IO) {
         api.streamGenerateContent(model, apiKey, request = request)

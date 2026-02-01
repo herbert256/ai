@@ -2,90 +2,19 @@ package com.ai.data
 
 import com.ai.ui.AiAgentParameters
 
-internal suspend fun AiAnalysisRepository.analyzeWithChatGpt(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
-    return if (usesResponsesApi(model)) {
-        analyzeWithChatGptResponsesApi(apiKey, prompt, model, params)
-    } else {
-        analyzeWithChatGptChatCompletions(apiKey, prompt, model, params)
-    }
-}
-
 /**
- * Use the Chat Completions API for older models (gpt-4o, gpt-4, gpt-3.5, etc.)
+ * Unified analysis method for OpenAI-format providers that support the Responses API.
+ * For providers with apiFormat == OPENAI_COMPATIBLE, the analyzeWithOpenAiCompatible method
+ * handles most cases. This handles the OpenAI-specific Responses API for newer models.
  */
-internal suspend fun AiAnalysisRepository.analyzeWithChatGptChatCompletions(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
-    // Build messages with optional system prompt
-    val messages = buildList {
-        params?.systemPrompt?.let { systemPrompt ->
-            if (systemPrompt.isNotBlank()) {
-                add(OpenAiMessage(role = "system", content = systemPrompt))
-            }
-        }
-        add(OpenAiMessage(role = "user", content = prompt))
-    }
-
-    val request = OpenAiRequest(
-        model = model,
-        messages = messages,
-        max_tokens = params?.maxTokens,
-        temperature = params?.temperature,
-        top_p = params?.topP,
-        frequency_penalty = params?.frequencyPenalty,
-        presence_penalty = params?.presencePenalty,
-        stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
-        seed = params?.seed,
-        response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat(type = "json_object") else null,
-        search = if (params?.searchEnabled == true) true else null
-    )
-    val response = openAiApi.createChatCompletion(
-        authorization = "Bearer $apiKey",
-        request = request
-    )
-
-    val headers = formatHeaders(response.headers())
-    val statusCode = response.code()
-    return if (response.isSuccessful) {
-        val body = response.body()
-        // Try multiple parsing strategies for content extraction
-        val content = body?.choices?.let { choices ->
-            // Strategy 1: Get content from first choice's message
-            choices.firstOrNull()?.message?.content
-            // Strategy 2: Get reasoning_content from first choice (DeepSeek)
-                ?: choices.firstOrNull()?.message?.reasoning_content
-            // Strategy 3: Try any choice with non-null content
-                ?: choices.firstNotNullOfOrNull { it.message.content }
-            // Strategy 4: Try any choice with reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
-        }
-        val rawUsageJson = formatUsageJson(body?.usage)
-        val usage = body?.usage?.let {
-            TokenUsage(
-                inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
-                outputTokens = it.completion_tokens ?: it.output_tokens ?: 0,
-                apiCost = extractApiCost(it)
-            )
-        }
-        if (content != null) {
-            AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
-        } else {
-            val errorMsg = body?.error?.message ?: "No response content (choices: ${body?.choices?.size ?: 0})"
-            AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
-        }
-    } else {
-        AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
-    }
-}
-
-/**
- * Use the Responses API for newer models (gpt-5.x, o3, o4, etc.)
- */
-internal suspend fun AiAnalysisRepository.analyzeWithChatGptResponsesApi(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+internal suspend fun AiAnalysisRepository.analyzeWithChatGptResponsesApi(service: AiService, apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val api = AiApiFactory.createOpenAiApiWithBaseUrl(service.baseUrl)
     val request = OpenAiResponsesRequest(
         model = model,
         input = prompt,
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() }
     )
-    val response = openAiApi.createResponse(
+    val response = api.createResponse(
         authorization = "Bearer $apiKey",
         request = request
     )
@@ -94,21 +23,14 @@ internal suspend fun AiAnalysisRepository.analyzeWithChatGptResponsesApi(apiKey:
     val statusCode = response.code()
     return if (response.isSuccessful) {
         val body = response.body()
-        // Try multiple parsing strategies for content extraction
         val content = body?.output?.let { outputs ->
-            // Strategy 1: Look for output_text type in first output's content
             outputs.firstOrNull()?.content?.firstOrNull { it.type == "output_text" }?.text
-            // Strategy 2: Look for text type in first output's content
                 ?: outputs.firstOrNull()?.content?.firstOrNull { it.type == "text" }?.text
-            // Strategy 3: Get first non-null text from first output's content
                 ?: outputs.firstOrNull()?.content?.firstNotNullOfOrNull { it.text }
-            // Strategy 4: Look for message type output with content
                 ?: outputs.firstOrNull { it.type == "message" }?.content?.firstNotNullOfOrNull { it.text }
-            // Strategy 5: Try any output's content
                 ?: outputs.flatMap { it.content ?: emptyList() }.firstNotNullOfOrNull { it.text }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
-        // Responses API uses input_tokens/output_tokens (not prompt_tokens/completion_tokens)
         val usage = body?.usage?.let {
             TokenUsage(
                 inputTokens = it.input_tokens ?: it.prompt_tokens ?: 0,
@@ -117,17 +39,18 @@ internal suspend fun AiAnalysisRepository.analyzeWithChatGptResponsesApi(apiKey:
             )
         }
         if (content != null) {
-            AiAnalysisResponse(AiService.OPENAI, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            AiAnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         } else {
             val errorMsg = body?.error?.message ?: "No response content (output: ${body?.output})"
-            AiAnalysisResponse(AiService.OPENAI, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        AiAnalysisResponse(AiService.OPENAI, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
-internal suspend fun AiAnalysisRepository.analyzeWithClaude(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+internal suspend fun AiAnalysisRepository.analyzeWithClaude(service: AiService, apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+    val claudeApi = AiApiFactory.createClaudeApiWithBaseUrl(service.baseUrl)
     val request = ClaudeRequest(
         model = model,
         messages = listOf(ClaudeMessage(role = "user", content = prompt)),
@@ -148,11 +71,8 @@ internal suspend fun AiAnalysisRepository.analyzeWithClaude(apiKey: String, prom
     val statusCode = response.code()
     return if (response.isSuccessful) {
         val body = response.body()
-        // Try multiple parsing strategies for content extraction
         val content = body?.content?.let { contentBlocks ->
-            // Strategy 1: Get text from first "text" type block
             contentBlocks.firstOrNull { it.type == "text" }?.text
-            // Strategy 2: Get any non-null text from content blocks
                 ?: contentBlocks.firstNotNullOfOrNull { it.text }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
@@ -164,17 +84,17 @@ internal suspend fun AiAnalysisRepository.analyzeWithClaude(apiKey: String, prom
             )
         }
         if (content != null) {
-            AiAnalysisResponse(AiService.ANTHROPIC, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            AiAnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         } else {
             val errorMsg = body?.error?.message ?: "No response content (blocks: ${body?.content?.size ?: 0})"
-            AiAnalysisResponse(AiService.ANTHROPIC, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        AiAnalysisResponse(AiService.ANTHROPIC, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
-internal suspend fun AiAnalysisRepository.analyzeWithGemini(apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
+internal suspend fun AiAnalysisRepository.analyzeWithGemini(service: AiService, apiKey: String, prompt: String, model: String, params: AiAgentParameters? = null): AiAnalysisResponse {
     // Build generation config with all parameters
     val generationConfig = if (params != null) {
         GeminiGenerationConfig(
@@ -203,6 +123,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithGemini(apiKey: String, prom
         systemInstruction = systemInstruction
     )
 
+    val geminiApi = AiApiFactory.createGeminiApiWithBaseUrl(service.baseUrl)
     val response = geminiApi.generateContent(model = model, apiKey = apiKey, request = request)
 
     android.util.Log.d("GeminiAPI", "Response code: ${response.code()}, message: ${response.message()}")
@@ -229,21 +150,22 @@ internal suspend fun AiAnalysisRepository.analyzeWithGemini(apiKey: String, prom
             )
         }
         if (content != null) {
-            AiAnalysisResponse(AiService.GOOGLE, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+            AiAnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         } else {
             val errorMsg = body?.error?.message ?: "No response content (candidates: ${body?.candidates?.size ?: 0})"
-            AiAnalysisResponse(AiService.GOOGLE, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
+            AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
         val errorBody = response.errorBody()?.string()
         android.util.Log.e("GeminiAPI", "Error body: $errorBody")
-        AiAnalysisResponse(AiService.GOOGLE, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
+        AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
 /**
- * Unified analysis method for all 28 OpenAI-compatible providers.
+ * Unified analysis method for all OpenAI-compatible providers.
  * Handles provider-specific request fields and response extraction.
+ * Also handles the Responses API for OpenAI newer models (gpt-5.x, o3, o4).
  */
 internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
     service: AiService,
@@ -253,6 +175,11 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
     params: AiAgentParameters? = null,
     baseUrl: String = service.baseUrl
 ): AiAnalysisResponse {
+    // Check if this model uses the Responses API (OpenAI gpt-5.x, o3, o4)
+    if (usesResponsesApi(model)) {
+        return analyzeWithChatGptResponsesApi(service, apiKey, prompt, model, params)
+    }
+
     val api = AiApiFactory.createOpenAiCompatibleApi(baseUrl)
     val normalizedBase = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
     val chatUrl = normalizedBase + service.chatPath

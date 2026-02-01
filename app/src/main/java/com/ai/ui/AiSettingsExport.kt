@@ -235,7 +235,7 @@ data class ProviderEndpointsExport(
  * Version 14: Added params (reusable parameter presets).
  */
 data class AiConfigExport(
-    val version: Int = 19,
+    val version: Int = 20,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,  // Version 6+
@@ -246,6 +246,7 @@ data class AiConfigExport(
     val manualPricing: List<ManualPricingExport>? = null,  // Version 9+
     val providerEndpoints: List<ProviderEndpointsExport>? = null,  // Version 10+
     val openRouterApiKey: String? = null,  // Version 12+
+    val providerDefinitions: List<com.ai.data.ProviderDefinition>? = null,  // Version 20+
     // Legacy field from version 3 (ignored on import)
     val prompts: List<Any>? = null
 )
@@ -398,6 +399,9 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         } else null
     }
 
+    // Export full provider definitions for v20
+    val providerDefinitions = AiService.entries.map { com.ai.data.ProviderDefinition.fromAiService(it) }
+
     val export = AiConfigExport(
         providers = providers,
         agents = agents,
@@ -408,7 +412,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         aiPrompts = aiPrompts.ifEmpty { null },
         manualPricing = manualPricing.ifEmpty { null },
         providerEndpoints = providerEndpoints.ifEmpty { null },
-        openRouterApiKey = openRouterApiKey.ifBlank { null }
+        openRouterApiKey = openRouterApiKey.ifBlank { null },
+        providerDefinitions = providerDefinitions
     )
 
     val gson = createAiGson(prettyPrint = true)
@@ -571,6 +576,45 @@ private fun processImportedConfig(
     export: AiConfigExport,
     currentSettings: AiSettings
 ): AiConfigImportResult {
+    // Register provider definitions from v20 exports (creates missing providers in registry)
+    export.providerDefinitions?.let { defs ->
+        val newProviders = defs.mapNotNull { def ->
+            if (com.ai.data.ProviderRegistry.findById(def.id) == null) {
+                try { def.toAiService() } catch (e: Exception) { null }
+            } else null
+        }
+        if (newProviders.isNotEmpty()) {
+            com.ai.data.ProviderRegistry.ensureProviders(newProviders)
+            android.util.Log.d("AiSettingsExport", "Registered ${newProviders.size} new providers from import")
+        }
+    }
+
+    // For v18-19 imports without providerDefinitions, try to create providers from ProviderConfigExport metadata
+    if (export.providerDefinitions == null) {
+        val newProviders = export.providers.mapNotNull { (providerKey, p) ->
+            if (com.ai.data.ProviderRegistry.findById(providerKey) == null && p.baseUrl != null && p.apiFormat != null) {
+                try {
+                    AiService(
+                        id = providerKey,
+                        displayName = p.displayName ?: providerKey,
+                        baseUrl = p.baseUrl,
+                        adminUrl = "",
+                        defaultModel = p.defaultModel ?: "",
+                        openRouterName = p.openRouterName,
+                        apiFormat = com.ai.data.ApiFormat.valueOf(p.apiFormat),
+                        chatPath = p.chatPath ?: "v1/chat/completions",
+                        modelsPath = p.modelsPath,
+                        prefsKey = providerKey.lowercase()
+                    )
+                } catch (e: Exception) { null }
+            } else null
+        }
+        if (newProviders.isNotEmpty()) {
+            com.ai.data.ProviderRegistry.ensureProviders(newProviders)
+            android.util.Log.d("AiSettingsExport", "Registered ${newProviders.size} new providers from v18-19 import metadata")
+        }
+    }
+
     // Track any auto-created parameter presets from legacy inline agent parameters
     val autoCreatedPresets = mutableListOf<AiParameters>()
 
@@ -873,8 +917,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             gson.fromJson(json, AiConfigExport::class.java)
         }
 
-        if (export.version !in 11..19) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-19.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..20) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-20.", Toast.LENGTH_LONG).show()
             return null
         }
 

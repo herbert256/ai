@@ -13,9 +13,9 @@ import kotlinx.coroutines.launch
 /**
  * Returns the default endpoints for a provider, or an empty list if no defaults.
  */
-fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (service) {
+fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (service.id) {
     // Providers with 2 endpoints
-    AiService.OPENAI -> listOf(
+    "OPENAI" -> listOf(
         AiEndpoint(
             id = "openai-chat-completions",
             name = "Chat Completions (gpt-4o, gpt-4, gpt-3.5)",
@@ -29,7 +29,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = false
         )
     )
-    AiService.DEEPSEEK -> listOf(
+    "DEEPSEEK" -> listOf(
         AiEndpoint(
             id = "deepseek-chat-completions",
             name = "Chat Completions (Standard)",
@@ -43,7 +43,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = false
         )
     )
-    AiService.MISTRAL -> listOf(
+    "MISTRAL" -> listOf(
         AiEndpoint(
             id = "mistral-chat-completions",
             name = "Chat Completions (Standard)",
@@ -57,7 +57,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = false
         )
     )
-    AiService.SILICONFLOW -> listOf(
+    "SILICONFLOW" -> listOf(
         AiEndpoint(
             id = "siliconflow-chat-completions",
             name = "Chat Completions (OpenAI compatible)",
@@ -71,7 +71,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = false
         )
     )
-    AiService.ZAI -> listOf(
+    "ZAI" -> listOf(
         AiEndpoint(
             id = "zai-chat-completions",
             name = "Chat Completions (General)",
@@ -86,7 +86,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
         )
     )
     // Providers with 1 endpoint
-    AiService.MOONSHOT -> listOf(
+    "MOONSHOT" -> listOf(
         AiEndpoint(
             id = "moonshot-chat-completions",
             name = "Chat Completions",
@@ -94,7 +94,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.COHERE -> listOf(
+    "COHERE" -> listOf(
         AiEndpoint(
             id = "cohere-chat-completions",
             name = "Chat Completions",
@@ -102,7 +102,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.AI21 -> listOf(
+    "AI21" -> listOf(
         AiEndpoint(
             id = "ai21-chat-completions",
             name = "Chat Completions",
@@ -110,7 +110,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.DASHSCOPE -> listOf(
+    "DASHSCOPE" -> listOf(
         AiEndpoint(
             id = "dashscope-chat-completions",
             name = "Chat Completions",
@@ -118,7 +118,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.FIREWORKS -> listOf(
+    "FIREWORKS" -> listOf(
         AiEndpoint(
             id = "fireworks-chat-completions",
             name = "Chat Completions",
@@ -126,7 +126,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.CEREBRAS -> listOf(
+    "CEREBRAS" -> listOf(
         AiEndpoint(
             id = "cerebras-chat-completions",
             name = "Chat Completions",
@@ -134,7 +134,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.SAMBANOVA -> listOf(
+    "SAMBANOVA" -> listOf(
         AiEndpoint(
             id = "sambanova-chat-completions",
             name = "Chat Completions",
@@ -142,7 +142,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.BAICHUAN -> listOf(
+    "BAICHUAN" -> listOf(
         AiEndpoint(
             id = "baichuan-chat-completions",
             name = "Chat Completions",
@@ -150,7 +150,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.STEPFUN -> listOf(
+    "STEPFUN" -> listOf(
         AiEndpoint(
             id = "stepfun-chat-completions",
             name = "Chat Completions",
@@ -158,7 +158,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
             isDefault = true
         )
     )
-    AiService.MINIMAX -> listOf(
+    "MINIMAX" -> listOf(
         AiEndpoint(
             id = "minimax-chat-completions",
             name = "Chat Completions",

@@ -442,6 +442,23 @@ data class AiSettings(
     }
 
     /**
+     * Remove a provider and all its associated data from settings.
+     */
+    fun removeProvider(service: AiService): AiSettings {
+        return copy(
+            providers = providers - service,
+            endpoints = endpoints - service,
+            providerStates = providerStates - service.id,
+            // Remove agents that reference this provider
+            agents = agents.filter { it.provider.id != service.id },
+            // Remove swarm members that reference this provider
+            swarms = swarms.map { swarm ->
+                swarm.copy(members = swarm.members.filter { it.provider.id != service.id })
+            }
+        )
+    }
+
+    /**
      * Get the custom model list URL for a provider.
      * Returns empty string if using default (hardcoded) URL.
      */

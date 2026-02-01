@@ -134,7 +134,7 @@ fun ApiTestScreen(
         val lastProvider = prefs.getString("last_test_provider", null)
         val provider = lastProvider?.let {
             com.ai.data.AiService.findById(it)
-        } ?: com.ai.data.AiService.OPENAI
+        } ?: com.ai.data.AiService.entries.first()
         mutableStateOf(provider)
     }
     var apiUrl by remember {
@@ -703,7 +703,7 @@ fun EditApiRequestScreen(
         val providerName = prefs.getString("last_test_provider", null)
         providerName?.let {
             com.ai.data.AiService.findById(it)
-        } ?: com.ai.data.AiService.OPENAI
+        } ?: com.ai.data.AiService.entries.first()
     }
     val apiUrl = remember { prefs.getString("last_test_api_url", "") ?: "" }
     val apiKey = remember { prefs.getString("last_test_api_key", "") ?: "" }

@@ -279,7 +279,7 @@ fun AiNavHost(
         composable(NavRoutes.AI_COSTS) {
             val uiState by viewModel.uiState.collectAsState()
             AiCostsScreen(
-                openRouterApiKey = uiState.aiSettings.getApiKey(com.ai.data.AiService.OPENROUTER),
+                openRouterApiKey = com.ai.data.AiService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -351,7 +351,7 @@ fun AiNavHost(
                 ModelInfoScreen(
                     provider = provider,
                     modelName = model,
-                    openRouterApiKey = uiState.aiSettings.getApiKey(com.ai.data.AiService.OPENROUTER),
+                    openRouterApiKey = com.ai.data.AiService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
                     huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
                     aiSettings = uiState.aiSettings,
                     onNavigateBack = { navController.popBackStack() },

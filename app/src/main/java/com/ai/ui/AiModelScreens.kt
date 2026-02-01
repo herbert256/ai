@@ -268,7 +268,7 @@ fun ModelSearchScreen(
  * Helper to convert provider name to AiService.
  */
 internal fun providerFromName(name: String): AiService {
-    return AiService.entries.find { it.displayName == name } ?: AiService.OPENAI
+    return AiService.entries.find { it.displayName == name } ?: AiService.entries.first()
 }
 
 /**
@@ -396,7 +396,7 @@ fun ModelInfoScreen(
             // Try OpenRouter API if we have an API key
             if (openRouterApiKey.isNotBlank()) {
                 try {
-                    val api = com.ai.data.AiApiFactory.createOpenRouterModelsApi()
+                    val api = com.ai.data.AiApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
                     val response = api.listModelsDetailed("Bearer $openRouterApiKey")
                     if (response.isSuccessful) {
                         val models = response.body()?.data ?: emptyList()

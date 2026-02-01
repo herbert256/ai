@@ -106,15 +106,7 @@ class AiAnalysisRepository {
         internal const val XAI_COST_TICKS_DIVISOR = 10_000_000_000.0
     }
 
-    // Unique API instances (non-OpenAI-compatible formats)
-    internal val openAiApi = AiApiFactory.createOpenAiApi()
-    internal val claudeApi = AiApiFactory.createClaudeApi()
-    internal val geminiApi = AiApiFactory.createGeminiApi()
-
-    // Unique streaming API instances
-    internal val openAiStreamApi = AiApiFactory.createOpenAiStreamApi()
-    internal val claudeStreamApi = AiApiFactory.createClaudeStreamApi()
-    internal val geminiStreamApi = AiApiFactory.createGeminiStreamApi()
+    // API instances created dynamically from provider base URLs
 
 
     // Gson instance for pretty printing usage JSON
@@ -252,11 +244,10 @@ class AiAnalysisRepository {
                 val supportedParams = PricingCache.getSupportedParameters(context, agent.provider, agent.model)
                 params = filterParametersBySupported(params, supportedParams)
             }
-            val result = when (agent.provider) {
-                AiService.OPENAI -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.ANTHROPIC -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.GOOGLE -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
-                else -> analyzeWithOpenAiCompatible(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
+            val result = when (agent.provider.apiFormat) {
+                ApiFormat.ANTHROPIC -> analyzeWithClaude(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
+                ApiFormat.GOOGLE -> analyzeWithGemini(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
+                ApiFormat.OPENAI_COMPATIBLE -> analyzeWithOpenAiCompatible(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
             }
             // Add agent name and prompt used to result
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
@@ -309,11 +300,10 @@ class AiAnalysisRepository {
 
         suspend fun makeApiCall(): AiAnalysisResponse {
             val params = agentResolvedParams
-            val result = when (agent.provider) {
-                AiService.OPENAI -> analyzeWithChatGpt(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.ANTHROPIC -> analyzeWithClaude(agent.apiKey, finalPrompt, agent.model, params)
-                AiService.GOOGLE -> analyzeWithGemini(agent.apiKey, finalPrompt, agent.model, params)
-                else -> analyzeWithOpenAiCompatible(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
+            val result = when (agent.provider.apiFormat) {
+                ApiFormat.ANTHROPIC -> analyzeWithClaude(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
+                ApiFormat.GOOGLE -> analyzeWithGemini(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
+                ApiFormat.OPENAI_COMPATIBLE -> analyzeWithOpenAiCompatible(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
             }
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
