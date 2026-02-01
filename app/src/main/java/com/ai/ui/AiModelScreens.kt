@@ -382,8 +382,10 @@ fun ModelInfoScreen(
     var modelInfo by remember { mutableStateOf<ModelInfoData?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var aiDescription by remember { mutableStateOf<String?>(null) }
+    var isAiLoading by remember { mutableStateOf(false) }
 
-    // Fetch model info from available sources
+    // Fetch model info from OpenRouter and HuggingFace
     LaunchedEffect(modelName) {
         isLoading = true
         errorMessage = null
@@ -391,7 +393,6 @@ fun ModelInfoScreen(
         try {
             var openRouterData: com.ai.data.OpenRouterModelInfo? = null
             var huggingFaceData: com.ai.data.HuggingFaceModelInfo? = null
-            var aiDescription: String? = null
 
             // Try OpenRouter API if we have an API key
             if (openRouterApiKey.isNotBlank()) {
@@ -400,7 +401,6 @@ fun ModelInfoScreen(
                     val response = api.listModelsDetailed("Bearer $openRouterApiKey")
                     if (response.isSuccessful) {
                         val models = response.body()?.data ?: emptyList()
-                        // Try to find the model by exact match or partial match
                         openRouterData = models.find { it.id.equals(modelName, ignoreCase = true) }
                             ?: models.find { it.id.contains(modelName, ignoreCase = true) }
                             ?: models.find { modelName.contains(it.id, ignoreCase = true) }
@@ -414,7 +414,6 @@ fun ModelInfoScreen(
             if (huggingFaceApiKey.isNotBlank()) {
                 try {
                     val api = com.ai.data.AiApiFactory.createHuggingFaceApi()
-                    // Try different model ID formats
                     val modelIds = listOf(
                         modelName,
                         modelName.replace(":", "/"),
@@ -437,39 +436,9 @@ fun ModelInfoScreen(
                 }
             }
 
-            // Try AI prompt named "model_info" if it exists
-            val modelInfoPrompt = aiSettings.getPromptByName("model_info")
-            if (modelInfoPrompt != null) {
-                val modelInfoAgent = aiSettings.getAgentForPrompt(modelInfoPrompt)
-                if (modelInfoAgent != null) {
-                    try {
-                        // Resolve prompt with variables
-                        val resolvedPrompt = modelInfoPrompt.resolvePrompt(
-                            model = modelName,
-                            provider = provider.displayName,
-                            agent = modelInfoAgent.name
-                        )
-                        // Use effective API key and model (agent's or provider's)
-                        val effectiveAgent = modelInfoAgent.copy(
-                            apiKey = aiSettings.getEffectiveApiKeyForAgent(modelInfoAgent),
-                            model = aiSettings.getEffectiveModelForAgent(modelInfoAgent)
-                        )
-                        val repository = com.ai.data.AiAnalysisRepository()
-                        val result = repository.analyzePlayerWithAgent(effectiveAgent, resolvedPrompt)
-                        if (result.error == null && !result.analysis.isNullOrBlank()) {
-                            aiDescription = result.analysis
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.w("ModelInfo", "AI prompt error: ${e.message}")
-                    }
-                }
-            }
-
-            // Combine data from all sources
             modelInfo = ModelInfoData(
                 modelName = modelName,
                 provider = provider,
-                // OpenRouter
                 openRouterName = openRouterData?.name,
                 openRouterDescription = openRouterData?.description,
                 contextLength = openRouterData?.context_length ?: openRouterData?.top_provider?.context_length,
@@ -480,7 +449,6 @@ fun ModelInfoScreen(
                 tokenizer = openRouterData?.architecture?.tokenizer,
                 instructType = openRouterData?.architecture?.instruct_type,
                 isModerated = openRouterData?.top_provider?.is_moderated,
-                // Hugging Face
                 huggingFaceAuthor = huggingFaceData?.author,
                 huggingFaceDownloads = huggingFaceData?.downloads,
                 huggingFaceLikes = huggingFaceData?.likes,
@@ -489,15 +457,40 @@ fun ModelInfoScreen(
                 huggingFaceLibrary = huggingFaceData?.library_name,
                 huggingFaceLicense = huggingFaceData?.cardData?.license,
                 huggingFaceLastModified = huggingFaceData?.lastModified,
-                huggingFaceGated = huggingFaceData?.gated,
-                // AI-generated
-                aiDescription = aiDescription
+                huggingFaceGated = huggingFaceData?.gated
             )
 
         } catch (e: Exception) {
             errorMessage = "Error fetching model info: ${e.message}"
         } finally {
             isLoading = false
+        }
+    }
+
+    // Fetch AI introduction independently
+    LaunchedEffect(modelName) {
+        val modelInfoPrompt = aiSettings.getPromptByName("model_info") ?: return@LaunchedEffect
+        val modelInfoAgent = aiSettings.getAgentForPrompt(modelInfoPrompt) ?: return@LaunchedEffect
+        isAiLoading = true
+        try {
+            val resolvedPrompt = modelInfoPrompt.resolvePrompt(
+                model = modelName,
+                provider = provider.displayName,
+                agent = modelInfoAgent.name
+            )
+            val effectiveAgent = modelInfoAgent.copy(
+                apiKey = aiSettings.getEffectiveApiKeyForAgent(modelInfoAgent),
+                model = aiSettings.getEffectiveModelForAgent(modelInfoAgent)
+            )
+            val repository = com.ai.data.AiAnalysisRepository()
+            val result = repository.analyzePlayerWithAgent(effectiveAgent, resolvedPrompt)
+            if (result.error == null && !result.analysis.isNullOrBlank()) {
+                aiDescription = result.analysis
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ModelInfo", "AI prompt error: ${e.message}")
+        } finally {
+            isAiLoading = false
         }
     }
 
@@ -568,18 +561,11 @@ fun ModelInfoScreen(
                                     color = Color(0xFFAAAAAA)
                                 )
                             }
-                        }
-                    }
-                }
-
-                // AI-generated introduction (from model_info agent)
-                if (info.aiDescription != null) {
-                    item {
-                        ModelInfoSection(title = "AI Introduction") {
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = info.aiDescription,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White
+                                text = "Source: ${info.provider.displayName}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF666666)
                             )
                         }
                     }
@@ -588,7 +574,7 @@ fun ModelInfoScreen(
                 // Description from OpenRouter
                 if (info.openRouterDescription != null) {
                     item {
-                        ModelInfoSection(title = "Description") {
+                        ModelInfoSection(title = "Description", source = "Source: OpenRouter") {
                             Text(
                                 text = info.openRouterDescription,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -600,7 +586,7 @@ fun ModelInfoScreen(
 
                 // Technical specs
                 item {
-                    ModelInfoSection(title = "Technical Specifications") {
+                    ModelInfoSection(title = "Technical Specifications", source = "Source: OpenRouter") {
                         if (info.contextLength != null) {
                             ModelInfoRow("Context Length", formatNumber(info.contextLength) + " tokens")
                         }
@@ -625,7 +611,7 @@ fun ModelInfoScreen(
                 // Pricing
                 if (info.promptPricing != null || info.completionPricing != null) {
                     item {
-                        ModelInfoSection(title = "Pricing (per token)") {
+                        ModelInfoSection(title = "Pricing", source = "Source: OpenRouter") {
                             if (info.promptPricing != null) {
                                 val price = info.promptPricing.toDoubleOrNull()
                                 if (price != null) {
@@ -649,7 +635,7 @@ fun ModelInfoScreen(
 
                 if (hasHuggingFaceInfo) {
                     item {
-                        ModelInfoSection(title = "Hugging Face") {
+                        ModelInfoSection(title = "Hugging Face", source = "Source: Hugging Face API") {
                             if (info.huggingFaceAuthor != null) {
                                 ModelInfoRow("Author", info.huggingFaceAuthor)
                             }
@@ -681,12 +667,49 @@ fun ModelInfoScreen(
                 // Tags
                 if (!info.huggingFaceTags.isNullOrEmpty()) {
                     item {
-                        ModelInfoSection(title = "Tags") {
+                        ModelInfoSection(title = "Tags", source = "Source: Hugging Face API") {
                             Text(
                                 text = info.huggingFaceTags.take(20).joinToString(", "),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Color(0xFFCCCCCC)
                             )
+                        }
+                    }
+                }
+
+                // AI-generated introduction (loaded independently, shown last)
+                val aiAgentName = aiSettings.getPromptByName("model_info")?.let { prompt ->
+                    aiSettings.getAgentForPrompt(prompt)?.name
+                }
+                val aiSource = aiAgentName?.let { "Source: AI agent \"$it\"" } ?: "Source: AI agent"
+                if (aiDescription != null) {
+                    item {
+                        ModelInfoSection(title = "AI Introduction", source = aiSource) {
+                            Text(
+                                text = aiDescription ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White
+                            )
+                        }
+                    }
+                } else if (isAiLoading) {
+                    item {
+                        ModelInfoSection(title = "AI Introduction", source = aiSource) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFFFF9800),
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Generating...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFFAAAAAA)
+                                )
+                            }
                         }
                     }
                 }
@@ -721,6 +744,7 @@ fun ModelInfoScreen(
 @Composable
 private fun ModelInfoSection(
     title: String,
+    source: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
@@ -739,6 +763,14 @@ private fun ModelInfoSection(
             )
             Spacer(modifier = Modifier.height(8.dp))
             content()
+            if (source != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = source,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF666666)
+                )
+            }
         }
     }
 }
