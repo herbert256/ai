@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code when working with this repository.
 
+## Session Start
+
+At the start of each session, check if an emulator is running and start one if needed:
+
+```bash
+# Check for connected devices/emulators
+adb devices | grep -E "emulator|device$"
+
+# If none connected, start the emulator
+~/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_36.1 -no-snapshot-load &
+adb wait-for-device
+```
+
 ## Build & Deploy Commands
 
 ```bash
