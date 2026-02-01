@@ -656,6 +656,32 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                 .think-content.visible {
                     display: block;
                 }
+                .section-btn {
+                    padding: 8px 16px;
+                    border: 1px solid #444;
+                    background: transparent;
+                    color: #6B9BFF;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                    margin-right: 8px;
+                }
+                .section-btn:hover {
+                    border-color: #6B9BFF;
+                    background: #2a2a2a;
+                }
+                .section-content {
+                    display: none;
+                }
+                .section-content.visible {
+                    display: block;
+                }
+                .section-buttons {
+                    display: flex;
+                    gap: 8px;
+                    margin: 20px 0 10px 0;
+                }
             </style>
             <script>
                 function toggleThink(id) {
@@ -668,6 +694,10 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                         content.classList.add('visible');
                         btn.textContent = 'Hide Think';
                     }
+                }
+                function toggleSection(id) {
+                    var content = document.getElementById('section-' + id);
+                    content.classList.toggle('visible');
                 }
             </script>
         </head>
@@ -796,17 +826,28 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
         htmlBuilder.append("</div></div>")  // Close report-content and agent-result divs
     }
 
+    // Section toggle buttons
+    htmlBuilder.append("""<div class="section-buttons">""")
+    htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('prompt')">Prompt</button>""")
+    val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
+    if (agentsWithCosts.isNotEmpty()) {
+        htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('costs')">Costs</button>""")
+    }
+    htmlBuilder.append("""</div>""")
+
     htmlBuilder.append("""
+                <div id="section-prompt" class="section-content">
                 <div id="Prompt" class="prompt-section">
                     <div class="prompt-label">Prompt:</div>
                     <pre class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</pre>
                 </div>
+                </div>
     """)
 
     // Cost summary table sorted by total cost descending
-    val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
     if (agentsWithCosts.isNotEmpty()) {
         val sorted = agentsWithCosts.sortedByDescending { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        htmlBuilder.append("""<div id="section-costs" class="section-content">""")
         htmlBuilder.append("""
                 <div class="prompt-section">
                     <div class="prompt-label">Costs</div>
@@ -862,6 +903,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
                     </table>
                 </div>
         """)
+        htmlBuilder.append("""</div>""") // close section-costs
     }
 
     htmlBuilder.append("""
@@ -924,18 +966,13 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                     line-height: 1.6;
                 }
                 h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; margin: 0 0 10px 0; }
-                .cards-row {
-                    display: flex;
-                    flex-direction: row;
+                .cards-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
                     gap: 12px;
-                    overflow-x: auto;
                     padding: 12px 0;
-                    align-items: stretch;
                 }
                 .card {
-                    min-width: 220px;
-                    max-width: 280px;
-                    flex: 0 0 auto;
                     background: #2a2a2a;
                     border-radius: 8px;
                     padding: 12px;
@@ -944,8 +981,8 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                 }
                 .card-provider { font-size: 11px; color: #888; }
                 .card-model { font-size: 14px; color: #6B9BFF; font-weight: 600; margin-bottom: 8px; }
-                .card-label-conclusion { font-size: 11px; color: #4CAF50; font-weight: bold; }
-                .card-label-motivation { font-size: 11px; color: #FF9800; font-weight: bold; margin-top: 8px; }
+                .card-label-conclusion { font-size: 15px; color: #4CAF50; font-weight: bold; }
+                .card-label-motivation { font-size: 15px; color: #FF9800; font-weight: bold; margin-top: 8px; }
                 .card-text { font-size: 13px; color: #fff; line-height: 1.5; margin-top: 4px; }
                 .card-text-dim { font-size: 13px; color: #ccc; line-height: 1.5; margin-top: 4px; }
                 .card-fallback { font-size: 13px; color: #fff; line-height: 1.5; }
@@ -1001,6 +1038,31 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                     white-space: pre-wrap;
                 }
                 .think-content.visible { display: block; }
+                .section-btn {
+                    padding: 8px 16px;
+                    border: 1px solid #444;
+                    background: transparent;
+                    color: #6B9BFF;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+                .section-btn:hover {
+                    border-color: #6B9BFF;
+                    background: #2a2a2a;
+                }
+                .section-content {
+                    display: none;
+                }
+                .section-content.visible {
+                    display: block;
+                }
+                .section-buttons {
+                    display: flex;
+                    gap: 8px;
+                    margin: 20px 0 10px 0;
+                }
             </style>
             <script>
                 function toggleThink(id) {
@@ -1013,6 +1075,10 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                         content.classList.add('visible');
                         btn.textContent = 'Hide Think';
                     }
+                }
+                function toggleSection(id) {
+                    var content = document.getElementById('section-' + id);
+                    content.classList.toggle('visible');
                 }
             </script>
         </head>
@@ -1029,7 +1095,7 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
     // Horizontal cards row
     val successfulAgents = agentList.filter { it.errorMessage == null }
     if (successfulAgents.isNotEmpty()) {
-        htmlBuilder.append("""<div class="cards-row">""")
+        htmlBuilder.append("""<div class="cards-grid">""")
         successfulAgents.forEach { agent ->
             val rawResponse = agent.responseText ?: ""
             val conclusion = extractTagContent(rawResponse, "conclusion")
@@ -1058,7 +1124,7 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
 
             htmlBuilder.append("""</div>""") // close card
         }
-        htmlBuilder.append("""</div>""") // close cards-row
+        htmlBuilder.append("""</div>""") // close cards-grid
     }
 
     // Error agents
@@ -1069,18 +1135,29 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
         }
     }
 
-    // Prompt section
+    // Section toggle buttons
+    htmlBuilder.append("""<div class="section-buttons">""")
+    htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('prompt')">Prompt</button>""")
+    val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
+    if (agentsWithCosts.isNotEmpty()) {
+        htmlBuilder.append("""<button class="section-btn" onclick="toggleSection('costs')">Costs</button>""")
+    }
+    htmlBuilder.append("""</div>""")
+
+    // Prompt section (hidden by default)
     htmlBuilder.append("""
+                <div id="section-prompt" class="section-content">
                 <div class="prompt-section">
                     <div class="prompt-label">Prompt:</div>
                     <pre class="prompt-text">${prompt.replace("<", "&lt;").replace(">", "&gt;")}</pre>
                 </div>
+                </div>
     """)
 
-    // Cost summary table
-    val agentsWithCosts = agentList.filter { it.inputTokens != null || it.outputTokens != null }
+    // Cost summary table (hidden by default)
     if (agentsWithCosts.isNotEmpty()) {
         val sorted = agentsWithCosts.sortedByDescending { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        htmlBuilder.append("""<div id="section-costs" class="section-content">""")
         htmlBuilder.append("""
                 <div class="prompt-section">
                     <div class="prompt-label">Costs</div>
@@ -1136,6 +1213,7 @@ private fun renderTableHtmlReport(data: HtmlReportData, appVersion: String): Str
                     </table>
                 </div>
         """)
+        htmlBuilder.append("""</div>""") // close section-costs
     }
 
     htmlBuilder.append("""
