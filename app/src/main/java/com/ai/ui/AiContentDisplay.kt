@@ -83,7 +83,7 @@ fun AiReportsViewerScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Header - show agent name in title bar
+        // Header - show agent name and model in title bar
         val titleText = selectedReportAgent?.agentName ?: "View Reports"
         AiTitleBar(
             title = titleText,

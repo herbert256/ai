@@ -221,6 +221,7 @@ fun SettingsScreen(
             onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
             onRefreshAllModels = onRefreshAllModels,
             onTestApiKey = onTestAiModel,
+            onProviderStateChange = onProviderStateChange,
             onNavigateToCostConfig = onNavigateToCostConfig
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(

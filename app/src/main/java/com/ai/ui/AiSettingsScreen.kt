@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.ai.data.AiService
 import com.ai.data.ApiFormat
 
@@ -35,9 +37,84 @@ fun AiSetupScreen(
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
+    onProviderStateChange: (AiService, String) -> Unit = { _, _ -> },
     onNavigateToCostConfig: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Refresh All progress state
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshProgressText by remember { mutableStateOf("") }
+
+    // Runs the same Refresh All logic as Housekeeping
+    fun runRefreshAll(settings: AiSettings) {
+        scope.launch {
+            isRefreshing = true
+            refreshProgressText = "Refreshing model lists..."
+            onRefreshAllModels(settings, true) { provider ->
+                refreshProgressText = "Models: $provider"
+            }
+
+            if (openRouterApiKey.isNotBlank()) {
+                refreshProgressText = "OpenRouter data..."
+                val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                if (pricing.isNotEmpty()) {
+                    com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
+                }
+                com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+            }
+
+            refreshProgressText = "Provider state..."
+            for (service in com.ai.data.AiService.entries) {
+                if (settings.getProviderState(service) == "inactive") continue
+                refreshProgressText = "State: ${service.displayName}"
+                val apiKey = settings.getApiKey(service)
+                if (apiKey.isBlank()) {
+                    onProviderStateChange(service, "not-used")
+                } else {
+                    val model = settings.getModel(service)
+                    val error = onTestApiKey(service, apiKey, model)
+                    onProviderStateChange(service, if (error == null) "ok" else "error")
+                }
+            }
+
+            refreshProgressText = "Default agents..."
+            val providersToTest = com.ai.data.AiService.entries.filter { settings.getApiKey(it).isNotBlank() }
+            var updatedAgents = settings.agents.toMutableList()
+            for (provider in providersToTest) {
+                refreshProgressText = "Agents: ${provider.displayName}"
+                val testResult = onTestApiKey(provider, settings.getApiKey(provider), provider.defaultModel)
+                if (testResult == null) {
+                    val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
+                    if (idx >= 0) {
+                        updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
+                    } else {
+                        updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                    }
+                }
+            }
+            val workingCount = providersToTest.count { provider ->
+                updatedAgents.any { it.name == provider.displayName }
+            }
+            if (workingCount > 0) {
+                val defaultAgentIds = updatedAgents.filter { agent -> com.ai.data.AiService.entries.any { it.displayName == agent.name } }.map { it.id }
+                val updatedFlocks = settings.flocks.toMutableList()
+                val flockIdx = updatedFlocks.indexOfFirst { it.name == "default agents" }
+                if (flockIdx >= 0) {
+                    updatedFlocks[flockIdx] = updatedFlocks[flockIdx].copy(agentIds = defaultAgentIds)
+                } else {
+                    updatedFlocks.add(AiFlock(id = java.util.UUID.randomUUID().toString(), name = "default agents", agentIds = defaultAgentIds))
+                }
+                onSave(settings.copy(agents = updatedAgents, flocks = updatedFlocks))
+            }
+
+            isRefreshing = false
+            refreshProgressText = ""
+            android.widget.Toast.makeText(context, "All refreshed", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // File picker launcher for importing AI configuration
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -48,8 +125,45 @@ fun AiSetupScreen(
                 onSave(result.aiSettings)
                 result.huggingFaceApiKey?.let { key -> onSaveHuggingFaceApiKey(key) }
                 result.openRouterApiKey?.let { key -> onSaveOpenRouterApiKey(key) }
+                runRefreshAll(result.aiSettings)
             }
         }
+    }
+
+    // File picker launcher for importing API keys
+    val apiKeysPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            val result = importApiKeysFromFile(context, it, aiSettings)
+            if (result != null) {
+                val (updatedSettings, hfKey, orKey) = result
+                onSave(updatedSettings)
+                hfKey?.let { key -> onSaveHuggingFaceApiKey(key) }
+                orKey?.let { key -> onSaveOpenRouterApiKey(key) }
+                runRefreshAll(updatedSettings)
+            }
+        }
+    }
+
+    // Refresh All progress dialog
+    if (isRefreshing) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Refresh All", fontWeight = FontWeight.Bold) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color(0xFF4CAF50),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(refreshProgressText, color = Color.White)
+                }
+            },
+            confirmButton = { }
+        )
     }
 
     Column(
@@ -66,19 +180,38 @@ fun AiSetupScreen(
             onAiClick = onBackToHome
         )
 
-        // Import AI configuration button - only show if no flock named "default agents"
-        val hasDefaultAgentsFlock = aiSettings.flocks.any { it.name.equals("default agents", ignoreCase = true) }
-        if (!hasDefaultAgentsFlock) {
-            Button(
-                onClick = {
-                    filePickerLauncher.launch(arrayOf("application/json", "*/*"))
-                },
+        // Import buttons - only show when no provider has an API key
+        val hasAnyKey = aiSettings.hasAnyApiKey()
+        val showImportConfig = !hasAnyKey
+        val showImportKeys = !hasAnyKey
+        if (showImportConfig || showImportKeys) {
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Import AI configuration")
+                if (showImportConfig) {
+                    Button(
+                        onClick = {
+                            filePickerLauncher.launch(arrayOf("application/json", "*/*"))
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("Import AI Configuration", fontSize = 12.sp)
+                    }
+                }
+                if (showImportKeys) {
+                    Button(
+                        onClick = {
+                            apiKeysPickerLauncher.launch(arrayOf("application/json", "*/*"))
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) {
+                        Text("Import API Keys", fontSize = 12.sp)
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
         }
 
         // Summary info (count agents with active providers)

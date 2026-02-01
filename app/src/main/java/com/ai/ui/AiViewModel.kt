@@ -219,7 +219,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     agentId = agent.id,
                     agentName = agent.name,
                     provider = agent.provider.id,
-                    model = agent.model,
+                    model = aiSettings.getEffectiveModelForAgent(agent),
                     reportStatus = ReportStatus.PENDING
                 )
             }
