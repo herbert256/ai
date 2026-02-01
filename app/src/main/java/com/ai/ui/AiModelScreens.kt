@@ -170,7 +170,7 @@ fun ModelSearchScreen(
     val allModels = remember(aiSettings) {
         buildList {
             for (service in AiService.entries) {
-                if (!aiSettings.isProviderActive(service, developerMode)) continue
+                if (!aiSettings.isProviderActive(service)) continue
                 val models = aiSettings.getModels(service)
                 models.forEach { add(ModelSearchItem(service, service.displayName, it)) }
             }

@@ -391,10 +391,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         const val KEY_LAST_AI_REPORT_PROMPT = "last_ai_report_prompt"
 
         // Selected flock IDs for report generation
-        private const val KEY_SELECTED_SWARM_IDS = "selected_flockIds"
+        private const val KEY_SELECTED_FLOCK_IDS = "selected_flock_ids_v2"
 
         // Selected swarm IDs for report generation
-        private const val KEY_SELECTED_FLOCK_IDS = "selected_swarm_ids"
+        private const val KEY_SELECTED_SWARM_IDS = "selected_swarm_ids_v2"
 
         // File-based storage filenames
         private const val FILE_USAGE_STATS = "usage-stats.json"
@@ -410,7 +410,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ============================================================================
 
     fun loadSelectedFlockIds(): Set<String> {
-        val json = prefs.getString(KEY_SELECTED_SWARM_IDS, null) ?: return emptySet()
+        val json = prefs.getString(KEY_SELECTED_FLOCK_IDS, null) ?: return emptySet()
         return try {
             val type = object : TypeToken<List<String>>() {}.type
             val list: List<String>? = gson.fromJson(json, type)
@@ -422,7 +422,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun saveSelectedFlockIds(flockIds: Set<String>) {
         val json = gson.toJson(flockIds.toList())
-        prefs.edit().putString(KEY_SELECTED_SWARM_IDS, json).apply()
+        prefs.edit().putString(KEY_SELECTED_FLOCK_IDS, json).apply()
     }
 
     // ============================================================================
@@ -430,7 +430,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     // ============================================================================
 
     fun loadSelectedSwarmIds(): Set<String> {
-        val json = prefs.getString(KEY_SELECTED_FLOCK_IDS, null) ?: return emptySet()
+        val json = prefs.getString(KEY_SELECTED_SWARM_IDS, null) ?: return emptySet()
         return try {
             val type = object : TypeToken<List<String>>() {}.type
             val list: List<String>? = gson.fromJson(json, type)
@@ -442,7 +442,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun saveSelectedSwarmIds(swarmIds: Set<String>) {
         val json = gson.toJson(swarmIds.toList())
-        prefs.edit().putString(KEY_SELECTED_FLOCK_IDS, json).apply()
+        prefs.edit().putString(KEY_SELECTED_SWARM_IDS, json).apply()
     }
 
     // ============================================================================

@@ -143,11 +143,11 @@ class AiAnalysisRepository {
     }
 
     /**
-     * Builds the chess analysis prompt by replacing @FEN@ and @DATE@ placeholders.
+     * Builds the final prompt by replacing @FEN@ and @DATE@ placeholders.
      */
-    private fun buildChessPrompt(promptTemplate: String, fen: String): String {
+    private fun buildPrompt(promptTemplate: String, content: String): String {
         return promptTemplate
-            .replace("@FEN@", fen)
+            .replace("@FEN@", content)
             .replace("@DATE@", formatCurrentDate())
     }
 
@@ -172,7 +172,7 @@ class AiAnalysisRepository {
             seed = overrideParams.seed ?: agentParams.seed,
             responseFormatJson = overrideParams.responseFormatJson || agentParams.responseFormatJson,
             searchEnabled = overrideParams.searchEnabled || agentParams.searchEnabled,
-            returnCitations = overrideParams.returnCitations && agentParams.returnCitations,
+            returnCitations = overrideParams.returnCitations || agentParams.returnCitations,
             searchRecency = overrideParams.searchRecency ?: agentParams.searchRecency
         )
     }
@@ -217,9 +217,9 @@ class AiAnalysisRepository {
      * @param overrideParams Optional parameters to override agent parameters for this specific call
      * @param context Optional context for looking up supported parameters (only needed when overrideParams is set)
      */
-    suspend fun analyzePositionWithAgent(
+    suspend fun analyzeWithAgent(
         agent: com.ai.ui.AiAgent,
-        fen: String,
+        content: String,
         prompt: String,
         agentResolvedParams: com.ai.ui.AiAgentParameters = com.ai.ui.AiAgentParameters(),
         overrideParams: com.ai.ui.AiAgentParameters? = null,
@@ -234,7 +234,7 @@ class AiAnalysisRepository {
             )
         }
 
-        val finalPrompt = buildChessPrompt(prompt, fen)
+        val finalPrompt = buildPrompt(prompt, content)
 
         suspend fun makeApiCall(): AiAnalysisResponse {
             var params = mergeParameters(agentResolvedParams, overrideParams)

@@ -256,7 +256,6 @@ fun ProviderSettingsScreen(
         adminUrl = adminUrl,
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(service, apiKey, defaultModel) },
-        onClearApiKey = { apiKey = "" },
         onCreateAgent = onCreateAgent,
         onProviderStateChange = onProviderStateChange,
         onSelectDefaultModel = { showModelSelect = true }

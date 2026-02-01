@@ -172,7 +172,7 @@ fun AiAgentsScreen(
 
                 // Agent list - filter to agents with active providers and apply search
                 val baseAgents = aiSettings.agents.filter {
-                    aiSettings.isProviderActive(it.provider, developerMode)
+                    aiSettings.isProviderActive(it.provider)
                 }
                 val visibleAgents = if (searchQuery.isBlank()) {
                     baseAgents
@@ -361,7 +361,7 @@ internal fun AgentEditScreen(
     val availableProviders = AiService.entries.filter { provider ->
         // Always include current agent's provider when editing
         if (isEditing && provider == agent?.provider) return@filter true
-        aiSettings.isProviderActive(provider, developerMode)
+        aiSettings.isProviderActive(provider)
     }.sortedBy { it.displayName.lowercase() }
     val coroutineScope = rememberCoroutineScope()
 

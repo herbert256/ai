@@ -780,16 +780,9 @@ data class ClaudeStreamRequest(
 // ============================================================================
 
 /**
- * Streaming API interface for OpenAI-compatible providers.
+ * Streaming API interface for OpenAI Responses API (gpt-5.x, o3, o4).
  */
 interface OpenAiStreamApi {
-    @retrofit2.http.Streaming
-    @POST("v1/chat/completions")
-    suspend fun createChatCompletionStream(
-        @Header("Authorization") authorization: String,
-        @Body request: OpenAiStreamRequest
-    ): Response<okhttp3.ResponseBody>
-
     @retrofit2.http.Streaming
     @POST("v1/responses")
     suspend fun createResponseStream(

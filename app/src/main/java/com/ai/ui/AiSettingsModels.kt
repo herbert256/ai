@@ -184,7 +184,7 @@ data class AiParameters(
     val seed: Int? = null,
     val responseFormatJson: Boolean = false,
     val searchEnabled: Boolean = false,
-    val returnCitations: Boolean = false,
+    val returnCitations: Boolean = true,
     val searchRecency: String? = null  // "day", "week", "month", "year"
 ) {
     /**
@@ -272,15 +272,15 @@ data class AiSettings(
     /**
      * Check if a provider is active (status "ok").
      */
-    fun isProviderActive(service: AiService, developerMode: Boolean): Boolean {
+    fun isProviderActive(service: AiService): Boolean {
         return getProviderState(service) == "ok"
     }
 
     /**
      * Get all active providers (status "ok").
      */
-    fun getActiveServices(developerMode: Boolean): List<AiService> {
-        return AiService.entries.filter { isProviderActive(it, developerMode) }
+    fun getActiveServices(): List<AiService> {
+        return AiService.entries.filter { isProviderActive(it) }
     }
 
     /**

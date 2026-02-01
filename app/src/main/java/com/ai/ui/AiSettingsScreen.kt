@@ -35,7 +35,6 @@ fun AiSetupScreen(
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onTestApiKey: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
-    onProviderStateChange: (AiService, String) -> Unit = { _, _ -> },
     onNavigateToCostConfig: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -84,7 +83,7 @@ fun AiSetupScreen(
 
         // Summary info (count agents with active providers)
         val configuredAgents = aiSettings.agents.count { agent ->
-            aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
+            aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider)
         }
 
         // Providers card
@@ -238,7 +237,6 @@ internal fun AiSetupNavigationCard(
 @Composable
 fun AiProvidersScreen(
     aiSettings: AiSettings,
-    developerMode: Boolean,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onProviderSelected: (AiService) -> Unit,

@@ -329,7 +329,6 @@ fun AiServiceSettingsScreenTemplate(
     adminUrl: String = "",
     onAdminUrlChange: (String) -> Unit = {},
     onTestApiKey: (suspend () -> String?)? = null,
-    onClearApiKey: (() -> Unit)? = null,  // Reserved for future use
     onCreateAgent: (() -> Unit)? = null,
     onProviderStateChange: ((String) -> Unit)? = null,
     onSelectDefaultModel: (() -> Unit)? = null,

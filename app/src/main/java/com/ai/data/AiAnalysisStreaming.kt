@@ -205,69 +205,6 @@ internal fun AiAnalysisRepository.parseGeminiSseStream(responseBody: ResponseBod
 
 // ========== Provider-Specific Streaming Methods ==========
 
-internal fun AiAnalysisRepository.streamChatOpenAi(
-    apiKey: String,
-    model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters,
-    baseUrl: String
-): Flow<String> = flow {
-    val api = AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
-
-    // Check if model requires Responses API (gpt-5.x, o3, o4)
-    if (usesResponsesApi(model)) {
-        // Use Responses API for newer models
-        val inputMessages = messages.map { msg ->
-            OpenAiResponsesInputMessage(role = msg.role, content = msg.content)
-        }
-        val systemPrompt = messages.find { it.role == "system" }?.content
-
-        val request = OpenAiResponsesStreamRequest(
-            model = model,
-            input = inputMessages.filter { it.role != "system" },
-            instructions = systemPrompt,
-            stream = true
-        )
-
-        val response = withContext(Dispatchers.IO) {
-            api.createResponseStream("Bearer $apiKey", request)
-        }
-
-        if (response.isSuccessful) {
-            response.body()?.let { body ->
-                parseOpenAiResponsesSseStream(body).collect { emit(it) }
-            } ?: throw Exception("Empty response body")
-        } else {
-            throw Exception("API error: ${response.code()} ${response.message()}")
-        }
-    } else {
-        // Use Chat Completions API for older models
-        val openAiMessages = convertToOpenAiMessages(messages)
-        val request = OpenAiStreamRequest(
-            model = model,
-            messages = openAiMessages,
-            stream = true,
-            max_tokens = params.maxTokens,
-            temperature = params.temperature,
-            top_p = params.topP,
-            frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
-        )
-
-        val response = withContext(Dispatchers.IO) {
-            api.createChatCompletionStream("Bearer $apiKey", request)
-        }
-
-        if (response.isSuccessful) {
-            response.body()?.let { body ->
-                parseOpenAiSseStream(body).collect { emit(it) }
-            } ?: throw Exception("Empty response body")
-        } else {
-            throw Exception("API error: ${response.code()} ${response.message()}")
-        }
-    }
-}
-
 internal fun AiAnalysisRepository.streamChatClaude(
     apiKey: String,
     model: String,
@@ -353,8 +290,9 @@ internal fun AiAnalysisRepository.streamChatGemini(
 }
 
 /**
- * Unified streaming method for all 28 OpenAI-compatible providers.
+ * Unified streaming method for all OpenAI-compatible providers.
  * Uses OpenAiCompatibleStreamApi with @Url for dynamic chat paths.
+ * Also handles the Responses API for OpenAI newer models (gpt-5.x, o3, o4).
  */
 internal fun AiAnalysisRepository.streamChatOpenAiCompatible(
     service: AiService,
@@ -364,32 +302,59 @@ internal fun AiAnalysisRepository.streamChatOpenAiCompatible(
     params: com.ai.ui.ChatParameters,
     baseUrl: String
 ): Flow<String> = flow {
-    val api = AiApiFactory.createOpenAiCompatibleStreamApi(baseUrl)
-    val normalizedBase = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
-    val chatUrl = normalizedBase + service.chatPath
+    if (usesResponsesApi(model)) {
+        val api = AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
+        val inputMessages = messages.map { msg ->
+            OpenAiResponsesInputMessage(role = msg.role, content = msg.content)
+        }
+        val systemPrompt = messages.find { it.role == "system" }?.content
 
-    val openAiMessages = convertToOpenAiMessages(messages)
-    val request = OpenAiStreamRequest(
-        model = model,
-        messages = openAiMessages,
-        stream = true,
-        max_tokens = params.maxTokens,
-        temperature = params.temperature,
-        top_p = params.topP,
-        frequency_penalty = params.frequencyPenalty,
-        presence_penalty = params.presencePenalty
-    )
+        val request = OpenAiResponsesStreamRequest(
+            model = model,
+            input = inputMessages.filter { it.role != "system" },
+            instructions = systemPrompt,
+            stream = true
+        )
 
-    val response = withContext(Dispatchers.IO) {
-        api.createChatCompletionStream(chatUrl, "Bearer $apiKey", request)
-    }
+        val response = withContext(Dispatchers.IO) {
+            api.createResponseStream("Bearer $apiKey", request)
+        }
 
-    if (response.isSuccessful) {
-        response.body()?.let { body ->
-            parseOpenAiSseStream(body).collect { emit(it) }
-        } ?: throw Exception("Empty response body")
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiResponsesSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
     } else {
-        throw Exception("API error: ${response.code()} ${response.message()}")
+        val api = AiApiFactory.createOpenAiCompatibleStreamApi(baseUrl)
+        val normalizedBase = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        val chatUrl = normalizedBase + service.chatPath
+
+        val openAiMessages = convertToOpenAiMessages(messages)
+        val request = OpenAiStreamRequest(
+            model = model,
+            messages = openAiMessages,
+            stream = true,
+            max_tokens = params.maxTokens,
+            temperature = params.temperature,
+            top_p = params.topP,
+            frequency_penalty = params.frequencyPenalty,
+            presence_penalty = params.presencePenalty
+        )
+
+        val response = withContext(Dispatchers.IO) {
+            api.createChatCompletionStream(chatUrl, "Bearer $apiKey", request)
+        }
+
+        if (response.isSuccessful) {
+            response.body()?.let { body ->
+                parseOpenAiSseStream(body).collect { emit(it) }
+            } ?: throw Exception("Empty response body")
+        } else {
+            throw Exception("API error: ${response.code()} ${response.message()}")
+        }
     }
 }
 

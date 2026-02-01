@@ -221,12 +221,10 @@ fun SettingsScreen(
             onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
             onRefreshAllModels = onRefreshAllModels,
             onTestApiKey = onTestAiModel,
-            onProviderStateChange = onProviderStateChange,
             onNavigateToCostConfig = onNavigateToCostConfig
         )
         SettingsSubScreen.AI_PROVIDERS -> AiProvidersScreen(
             aiSettings = aiSettings,
-            developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onProviderSelected = { service ->
@@ -361,7 +359,6 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_FLOCKS -> AiSwarmsScreen(
             aiSettings = aiSettings,
-            developerMode = generalSettings.developerMode,
             onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
             onBackToHome = onNavigateHome,
             onSave = onSaveAi,

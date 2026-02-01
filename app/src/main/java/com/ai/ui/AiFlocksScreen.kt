@@ -79,7 +79,7 @@ fun AiFlocksScreen(
                 aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { flock ->
                     // Filter to agents with active providers
                     val flockAgents = aiSettings.getAgentsForFlock(flock).filter { agent ->
-                        aiSettings.isProviderActive(agent.provider, developerMode)
+                        aiSettings.isProviderActive(agent.provider)
                     }
                     FlockListItem(
                         flock = flock,
@@ -194,7 +194,7 @@ fun FlockEditScreen(
 
     // Get all configured agents with active providers
     val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
-        aiSettings.isProviderActive(agent.provider, developerMode)
+        aiSettings.isProviderActive(agent.provider)
     }
 
     // Filter agents based on search query

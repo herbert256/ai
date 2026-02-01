@@ -286,9 +286,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
                     val startTime = System.currentTimeMillis()
                     val response = try {
-                        aiAnalysisRepository.analyzePositionWithAgent(
+                        aiAnalysisRepository.analyzeWithAgent(
                             agent = effectiveAgent,
-                            fen = "",  // No FEN for generic prompts
+                            content = "",
                             prompt = aiPrompt,
                             agentResolvedParams = agentParams,
                             overrideParams = overrideParams,
@@ -392,9 +392,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
                     val startTime = System.currentTimeMillis()
                     val response = try {
-                        aiAnalysisRepository.analyzePositionWithAgent(
+                        aiAnalysisRepository.analyzeWithAgent(
                             agent = tempAgent,
-                            fen = "",  // No FEN for generic prompts
+                            content = "",
                             prompt = aiPrompt,
                             overrideParams = overrideParams,
                             context = context
@@ -708,9 +708,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        private const val AI_REPORT_AGENTS_KEY = "ai_report_agents"
-        private const val AI_REPORT_SWARMS_KEY = "ai_report_flocks"
-        private const val AI_REPORT_FLOCKS_KEY = "ai_report_swarms"
-        private const val AI_REPORT_MODELS_KEY = "ai_report_models"
+        private const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
+        private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms_v2"
+        private const val AI_REPORT_FLOCKS_KEY = "ai_report_flocks_v2"
+        private const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
     }
 }

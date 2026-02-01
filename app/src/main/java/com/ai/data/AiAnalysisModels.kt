@@ -220,29 +220,6 @@ suspend fun AiAnalysisRepository.fetchModels(service: AiService, apiKey: String)
     }
 }
 
-/**
- * Fetch available ChatGPT/OpenAI models.
- */
-suspend fun AiAnalysisRepository.fetchChatGptModels(service: AiService, apiKey: String): List<String> = withContext(Dispatchers.IO) {
-    try {
-        val openAiApi = AiApiFactory.createOpenAiApiWithBaseUrl(service.baseUrl)
-        val response = openAiApi.listModels("Bearer $apiKey")
-        if (response.isSuccessful) {
-            val models = response.body()?.data ?: emptyList()
-            models
-                .mapNotNull { it.id }
-                .filter { it.startsWith("gpt") }
-                .sorted()
-        } else {
-            android.util.Log.e("ChatGptAPI", "Failed to fetch models: ${response.code()}")
-            emptyList()
-        }
-    } catch (e: Exception) {
-        android.util.Log.e("ChatGptAPI", "Error fetching models: ${e.message}")
-        emptyList()
-    }
-}
-
 suspend fun AiAnalysisRepository.fetchClaudeModels(service: AiService, apiKey: String): List<String> = withContext(Dispatchers.IO) {
     try {
         val claudeApi = AiApiFactory.createClaudeApiWithBaseUrl(service.baseUrl)

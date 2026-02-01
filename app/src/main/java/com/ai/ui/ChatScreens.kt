@@ -42,7 +42,6 @@ import java.util.Locale
 @Composable
 fun ChatSelectProviderScreen(
     aiSettings: AiSettings,
-    developerMode: Boolean,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSelectProvider: (AiService) -> Unit
@@ -50,7 +49,7 @@ fun ChatSelectProviderScreen(
     BackHandler { onNavigateBack() }
 
     // Get active providers (status "ok"), sorted by display name
-    val configuredProviders = aiSettings.getActiveServices(developerMode)
+    val configuredProviders = aiSettings.getActiveServices()
         .sortedBy { it.displayName.lowercase() }
 
     Column(
@@ -369,7 +368,6 @@ fun ChatParametersScreen(
 fun ChatSessionScreen(
     provider: AiService,
     model: String,
-    apiKey: String,
     parameters: ChatParameters,
     userName: String = "user",
     initialMessages: List<ChatMessage> = emptyList(),
@@ -1009,7 +1007,6 @@ fun ChatHistoryScreen(
 @Composable
 fun AiChatsHubScreen(
     aiSettings: AiSettings,
-    developerMode: Boolean,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToAgentSelect: () -> Unit,
@@ -1019,7 +1016,7 @@ fun AiChatsHubScreen(
 ) {
     // Check if there are any agents with an active provider
     val hasAgents = aiSettings.agents.any { agent ->
-        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
+        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider)
     }
 
     // Check if there are any chat sessions
@@ -1146,7 +1143,6 @@ private fun ChatHubCard(
 @Composable
 fun ChatAgentSelectScreen(
     aiSettings: AiSettings,
-    developerMode: Boolean,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSelectAgent: (String) -> Unit
@@ -1155,7 +1151,7 @@ fun ChatAgentSelectScreen(
 
     // Filter agents - only show those with API keys and an active provider
     val availableAgents = aiSettings.agents.filter { agent ->
-        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider, developerMode)
+        aiSettings.getEffectiveApiKeyForAgent(agent).isNotBlank() && aiSettings.isProviderActive(agent.provider)
     }
 
     Column(

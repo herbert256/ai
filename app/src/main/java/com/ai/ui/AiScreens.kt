@@ -169,57 +169,6 @@ private fun HubCard(
 }
 
 /**
- * Search within an HTML file for content in specific sections.
- * Returns true if all non-empty search terms are found in their respective sections.
- */
-private fun searchInHtmlFile(
-    file: java.io.File,
-    titleSearch: String,
-    promptSearch: String,
-    reportSearch: String
-): Boolean {
-    if (titleSearch.isBlank() && promptSearch.isBlank() && reportSearch.isBlank()) {
-        return true  // No search criteria, match all
-    }
-
-    return try {
-        val content = file.readText()
-
-        // Search in Title section
-        if (titleSearch.isNotBlank()) {
-            val titlePattern = """<div id="Title">(.*?)</div>""".toRegex(RegexOption.DOT_MATCHES_ALL)
-            val titleMatch = titlePattern.find(content)
-            if (titleMatch == null || !titleMatch.groupValues[1].contains(titleSearch, ignoreCase = true)) {
-                return false
-            }
-        }
-
-        // Search in Prompt section
-        if (promptSearch.isNotBlank()) {
-            val promptPattern = """<div id="Prompt"[^>]*>(.*?)</div>\s*<div class="footer">""".toRegex(RegexOption.DOT_MATCHES_ALL)
-            val promptMatch = promptPattern.find(content)
-            if (promptMatch == null || !promptMatch.groupValues[1].contains(promptSearch, ignoreCase = true)) {
-                return false
-            }
-        }
-
-        // Search in Report sections (any agent's report)
-        if (reportSearch.isNotBlank()) {
-            val reportPattern = """<div id="Report-[^"]*"[^>]*>(.*?)</div></div>""".toRegex(RegexOption.DOT_MATCHES_ALL)
-            val reportMatches = reportPattern.findAll(content)
-            val foundInReport = reportMatches.any { it.groupValues[1].contains(reportSearch, ignoreCase = true) }
-            if (!foundInReport) {
-                return false
-            }
-        }
-
-        true
-    } catch (e: Exception) {
-        false
-    }
-}
-
-/**
  * AI Reports hub screen.
  * Shows links to New AI Report, Prompt History, and AI History.
  */
@@ -493,7 +442,7 @@ fun AiReportsScreenNav(
  * Shows agent selection first, then progress and results.
  */
 // Selection mode for report generation
-private enum class ReportSelectionMode { SWARMS, AGENTS, FLOCKS, MODELS }
+private enum class ReportSelectionMode { FLOCKS, AGENTS, SWARMS, MODELS }
 
 /**
  * Format model pricing as "input / output" per million tokens (e.g. "2.50 / 10.00").
@@ -636,7 +585,7 @@ fun AiReportsScreen(
     }
 
     // Selection mode: Flocks, Agents, or Swarms
-    var selectionMode by remember { mutableStateOf(ReportSelectionMode.SWARMS) }
+    var selectionMode by remember { mutableStateOf(ReportSelectionMode.FLOCKS) }
 
     // Search query
     var searchQuery by remember { mutableStateOf("") }
@@ -644,7 +593,7 @@ fun AiReportsScreen(
     // Filter agents to only those with an active provider
     val allConfiguredAgents = uiState.aiSettings.getConfiguredAgents()
     val configuredAgents = allConfiguredAgents.filter {
-        uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode)
+        uiState.aiSettings.isProviderActive(it.provider)
     }
 
     // Flock selection state
@@ -675,12 +624,12 @@ fun AiReportsScreen(
 
     // Get agents from selected flocks (only active providers)
     val flockAgentIds = uiState.aiSettings.getAgentsForFlocks(selectedFlockIds)
-        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
+        .filter { uiState.aiSettings.isProviderActive(it.provider) }
         .map { it.id }.toSet()
 
     // Get members from selected swarms (only active providers)
     val swarmMembers = uiState.aiSettings.getMembersForSwarms(selectedSwarmIds)
-        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
+        .filter { uiState.aiSettings.isProviderActive(it.provider) }
 
     // Get synthetic IDs for swarm members (to check which models are already selected via swarm)
     val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
@@ -707,9 +656,9 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Reports Ready"
                 isGenerating -> "Generating Reports"
-                selectionMode == ReportSelectionMode.SWARMS -> "Select Flock(s)"
+                selectionMode == ReportSelectionMode.FLOCKS -> "Select Flock(s)"
                 selectionMode == ReportSelectionMode.AGENTS -> "Select Agent(s)"
-                selectionMode == ReportSelectionMode.FLOCKS -> "Select Swarm(s)"
+                selectionMode == ReportSelectionMode.SWARMS -> "Select Swarm(s)"
                 else -> "Select Model(s)"
             },
             onBackClick = if (isComplete) onResetReports else onDismiss,
@@ -753,9 +702,9 @@ fun AiReportsScreen(
                 Button(
                     onClick = {
                         when (selectionMode) {
-                            ReportSelectionMode.SWARMS -> selectedFlockIds = emptySet()
+                            ReportSelectionMode.FLOCKS -> selectedFlockIds = emptySet()
                             ReportSelectionMode.AGENTS -> directlySelectedAgentIds = emptySet()
-                            ReportSelectionMode.FLOCKS -> selectedSwarmIds = emptySet()
+                            ReportSelectionMode.SWARMS -> selectedSwarmIds = emptySet()
                             ReportSelectionMode.MODELS -> directlySelectedModelIds = emptySet()
                         }
                     },
@@ -792,11 +741,11 @@ fun AiReportsScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Button(
-                    onClick = { selectionMode = ReportSelectionMode.SWARMS },
+                    onClick = { selectionMode = ReportSelectionMode.FLOCKS },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectionMode == ReportSelectionMode.SWARMS) Color(0xFF6B9BFF) else Color(0xFF444444)
+                        containerColor = if (selectionMode == ReportSelectionMode.FLOCKS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
                     Text("Flocks", fontSize = 13.sp)
@@ -812,11 +761,11 @@ fun AiReportsScreen(
                     Text("Agents", fontSize = 13.sp)
                 }
                 Button(
-                    onClick = { selectionMode = ReportSelectionMode.FLOCKS },
+                    onClick = { selectionMode = ReportSelectionMode.SWARMS },
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectionMode == ReportSelectionMode.FLOCKS) Color(0xFF6B9BFF) else Color(0xFF444444)
+                        containerColor = if (selectionMode == ReportSelectionMode.SWARMS) Color(0xFF6B9BFF) else Color(0xFF444444)
                     )
                 ) {
                     Text("Swarms", fontSize = 13.sp)
@@ -841,9 +790,9 @@ fun AiReportsScreen(
                     .fillMaxWidth()
                     .padding(bottom = 6.dp),
                 placeholder = { Text(when (selectionMode) {
-                    ReportSelectionMode.SWARMS -> "Search flocks..."
+                    ReportSelectionMode.FLOCKS -> "Search flocks..."
                     ReportSelectionMode.AGENTS -> "Search agents..."
-                    ReportSelectionMode.FLOCKS -> "Search swarms..."
+                    ReportSelectionMode.SWARMS -> "Search swarms..."
                     ReportSelectionMode.MODELS -> "Search models..."
                 }) },
                 singleLine = true,
@@ -875,7 +824,7 @@ fun AiReportsScreen(
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     when (selectionMode) {
-                        ReportSelectionMode.SWARMS -> {
+                        ReportSelectionMode.FLOCKS -> {
                             // Flock selection mode
                             val filteredFlocks = flocks
                                 .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
@@ -893,7 +842,7 @@ fun AiReportsScreen(
                             } else {
                                 filteredFlocks.forEach { flock ->
                                     val flockAgentsList = uiState.aiSettings.getAgentsForFlock(flock)
-                                        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
+                                        .filter { uiState.aiSettings.isProviderActive(it.provider) }
                                     val flockAgentIdsList = flockAgentsList.map { it.id }.toSet()
                                     Row(
                                         modifier = Modifier
@@ -1003,7 +952,7 @@ fun AiReportsScreen(
                                 }
                             }
                         }
-                        ReportSelectionMode.FLOCKS -> {
+                        ReportSelectionMode.SWARMS -> {
                             // Swarm selection mode
                             val filteredSwarms = swarms
                                 .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
@@ -1021,7 +970,7 @@ fun AiReportsScreen(
                             } else {
                                 filteredSwarms.forEach { swarm ->
                                     val swarmMembersList = swarm.members
-                                        .filter { uiState.aiSettings.isProviderActive(it.provider, uiState.generalSettings.developerMode) }
+                                        .filter { uiState.aiSettings.isProviderActive(it.provider) }
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1060,7 +1009,7 @@ fun AiReportsScreen(
                         ReportSelectionMode.MODELS -> {
                             // Models selection mode - select provider/model combinations directly
                             // Build list of all available provider/model combinations (active providers only)
-                            val allProviderModels = uiState.aiSettings.getActiveServices(uiState.generalSettings.developerMode)
+                            val allProviderModels = uiState.aiSettings.getActiveServices()
                                 .flatMap { provider ->
                                     val modelsForProvider = uiState.aiSettings.getModels(provider)
                                     modelsForProvider.map { model -> provider to model }

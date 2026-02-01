@@ -103,7 +103,7 @@ fun AiPromptsScreen(
                 aiSettings.prompts.sortedBy { it.name.lowercase() }.forEach { prompt ->
                     // Get the agent for this prompt (filter to active providers)
                     val agent = aiSettings.getAgentForPrompt(prompt)
-                    val agentVisible = agent != null && aiSettings.isProviderActive(agent.provider, developerMode)
+                    val agentVisible = agent != null && aiSettings.isProviderActive(agent.provider)
 
                     PromptListItem(
                         prompt = prompt,
@@ -218,7 +218,7 @@ fun PromptEditScreen(
 
     // Get all configured agents with active providers
     val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
-        aiSettings.isProviderActive(agent.provider, developerMode)
+        aiSettings.isProviderActive(agent.provider)
     }.sortedBy { it.name.lowercase() }
 
     // Find selected agent

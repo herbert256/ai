@@ -803,7 +803,6 @@ fun CostConfigurationScreen(
     if (showAddScreen) {
         AddManualOverrideScreen(
             aiSettings = aiSettings,
-            developerMode = developerMode,
             onSave = { provider, model, inputPerToken, outputPerToken ->
                 com.ai.data.PricingCache.setManualPricing(
                     context, provider, model,
@@ -824,7 +823,6 @@ fun CostConfigurationScreen(
 @Composable
 private fun AddManualOverrideScreen(
     aiSettings: AiSettings,
-    developerMode: Boolean,
     onSave: (AiService, String, Double, Double) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
@@ -905,7 +903,7 @@ private fun AddManualOverrideScreen(
                     expanded = providerExpanded,
                     onDismissRequest = { providerExpanded = false }
                 ) {
-                    aiSettings.getActiveServices(developerMode)
+                    aiSettings.getActiveServices()
                         .sortedBy { it.displayName.lowercase() }
                         .forEach { provider ->
                             DropdownMenuItem(

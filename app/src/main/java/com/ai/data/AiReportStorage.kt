@@ -62,8 +62,6 @@ data class AiReport(
  */
 object AiReportStorage {
     private const val REPORTS_DIR = "reports"
-    private const val OLD_PREFS_NAME = "ai_reports_storage"
-    private const val OLD_KEY_REPORTS = "reports"
 
     private val gson = createAiGson()
     private val lock = ReentrantLock()
@@ -84,44 +82,8 @@ object AiReportStorage {
                         dir.mkdirs()
                     }
                     reportsDir = dir
-                    migrateFromSharedPreferences(context)
                 }
             }
-        }
-    }
-
-    /**
-     * One-time migration from SharedPreferences to file-based storage.
-     * Reads old reports, writes each as individual file, then clears SharedPreferences.
-     */
-    private fun migrateFromSharedPreferences(context: Context) {
-        try {
-            val prefs = context.getSharedPreferences(OLD_PREFS_NAME, Context.MODE_PRIVATE)
-            val json = prefs.getString(OLD_KEY_REPORTS, null) ?: return
-            if (json.isBlank()) return
-
-            val type = object : TypeToken<Map<String, AiReport>>() {}.type
-            val reports: Map<String, AiReport> = gson.fromJson(json, type) ?: return
-
-            if (reports.isEmpty()) return
-
-            android.util.Log.d("AiReportStorage", "Migrating ${reports.size} reports from SharedPreferences to files")
-
-            var migrated = 0
-            for ((_, report) in reports) {
-                try {
-                    saveReport(report)
-                    migrated++
-                } catch (e: Exception) {
-                    android.util.Log.e("AiReportStorage", "Failed to migrate report ${report.id}: ${e.message}")
-                }
-            }
-
-            // Clear old SharedPreferences after successful migration
-            prefs.edit().clear().apply()
-            android.util.Log.d("AiReportStorage", "Migration complete: $migrated/${reports.size} reports migrated")
-        } catch (e: Exception) {
-            android.util.Log.e("AiReportStorage", "Migration failed: ${e.message}")
         }
     }
 

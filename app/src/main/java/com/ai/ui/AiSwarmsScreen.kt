@@ -24,7 +24,6 @@ import java.util.UUID
 @Composable
 fun AiSwarmsScreen(
     aiSettings: AiSettings,
-    developerMode: Boolean,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
@@ -79,7 +78,7 @@ fun AiSwarmsScreen(
                 aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
                     // Filter to members with active providers
                     val swarmMembers = swarm.members.filter { member ->
-                        aiSettings.isProviderActive(member.provider, developerMode)
+                        aiSettings.isProviderActive(member.provider)
                     }
                     SwarmListItem(
                         swarm = swarm,
@@ -196,7 +195,7 @@ fun SwarmEditScreen(
     // Get all available provider/model combinations, sorted by provider name
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
         val result = mutableListOf<AiSwarmMember>()
-        aiSettings.getActiveServices(developerMode).sortedBy { it.displayName.lowercase() }.forEach { provider ->
+        aiSettings.getActiveServices().sortedBy { it.displayName.lowercase() }.forEach { provider ->
             val models = aiSettings.getModels(provider).ifEmpty { listOf(aiSettings.getModel(provider)) }
             models.forEach { model ->
                 result.add(AiSwarmMember(provider, model))

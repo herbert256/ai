@@ -365,7 +365,6 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             AiChatsHubScreen(
                 aiSettings = uiState.aiSettings,
-                developerMode = uiState.generalSettings.developerMode,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onNavigateToAgentSelect = { navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT) },
@@ -380,7 +379,6 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             ChatAgentSelectScreen(
                 aiSettings = uiState.aiSettings,
-                developerMode = uiState.generalSettings.developerMode,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectAgent = { agentId ->
@@ -422,7 +420,6 @@ fun AiNavHost(
                 ChatSessionScreen(
                     provider = agent.provider,
                     model = effectiveModel,
-                    apiKey = effectiveApiKey,
                     parameters = chatParams,
                     userName = uiState.generalSettings.userName,
                     onNavigateBack = { navController.popBackStack() },
@@ -461,7 +458,6 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             ChatSelectProviderScreen(
                 aiSettings = uiState.aiSettings,
-                developerMode = uiState.generalSettings.developerMode,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onSelectProvider = { provider ->
@@ -523,7 +519,6 @@ fun AiNavHost(
                 ChatSessionScreen(
                     provider = provider,
                     model = model,
-                    apiKey = apiKey,
                     parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName,
                     onNavigateBack = { navController.popBackStack() },
@@ -566,7 +561,6 @@ fun AiNavHost(
                 ChatSessionScreen(
                     provider = session.provider,
                     model = session.model,
-                    apiKey = apiKey,
                     parameters = session.parameters,
                     userName = uiState.generalSettings.userName,
                     initialMessages = session.messages,
