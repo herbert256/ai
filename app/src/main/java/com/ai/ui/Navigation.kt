@@ -100,9 +100,39 @@ fun AiNavHost(
     // Handle external intent - navigate to new report when external prompt is provided
     LaunchedEffect(externalPrompt) {
         if (externalPrompt != null) {
-            navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)) {
-                // Clear back stack so back button goes to home
-                popUpTo(NavRoutes.AI) { inclusive = false }
+            val marker = "-- end prompt --"
+            if (externalPrompt.contains(marker)) {
+                // Parse marker: prompt above, instructions below
+                val parts = externalPrompt.split(marker, limit = 2)
+                val aiPrompt = parts[0].trim()
+                val instructions = parts.getOrElse(1) { "" }
+
+                // Extract instruction tags
+                fun extractTag(tag: String, text: String): String? {
+                    val regex = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
+                    return regex.find(text)?.groupValues?.get(1)?.trim()
+                }
+                val openHtml = extractTag("open", instructions)
+                val closeHtml = extractTag("close", instructions)
+                val reportType = extractTag("type", instructions)
+                val email = extractTag("email", instructions)
+
+                // Wrap openHtml as <user> tag so existing ViewModel parsing handles it
+                val fullPrompt = if (openHtml != null) "$aiPrompt\n<user>$openHtml</user>" else aiPrompt
+
+                // Store instructions in ViewModel and set up for report generation
+                viewModel.setExternalInstructions(closeHtml, reportType, email)
+                viewModel.showGenericAiAgentSelection(externalTitle ?: "", fullPrompt)
+
+                // Navigate directly to reports screen (skip New Report)
+                navController.navigate(NavRoutes.AI_REPORTS) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
+                }
+            } else {
+                // No marker - current behavior: navigate to New Report screen
+                navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
+                }
             }
             onExternalIntentHandled()
         }

@@ -62,7 +62,8 @@ data class AiReport(
     var totalCost: Double = 0.0,
     var completedAt: Long? = null,
     val rapportText: String? = null,  // Content from <user>...</user> tags, shown in HTML export
-    val reportType: ReportType = ReportType.CLASSIC
+    val reportType: ReportType = ReportType.CLASSIC,
+    val closeText: String? = null  // Content from <close>...</close> tags, shown at bottom of HTML export
 )
 
 /**
@@ -106,7 +107,8 @@ object AiReportStorage {
         prompt: String,
         agents: List<AiReportAgent>,
         rapportText: String? = null,
-        reportType: ReportType = ReportType.CLASSIC
+        reportType: ReportType = ReportType.CLASSIC,
+        closeText: String? = null
     ): AiReport {
         init(context)
 
@@ -117,7 +119,8 @@ object AiReportStorage {
             prompt = prompt,
             agents = agents.toMutableList(),
             rapportText = rapportText,
-            reportType = reportType
+            reportType = reportType,
+            closeText = closeText
         )
 
         lock.withLock {

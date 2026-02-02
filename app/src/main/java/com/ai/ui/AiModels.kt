@@ -42,6 +42,10 @@ data class AiUiState(
     val currentReportId: String? = null,  // ID of the current AI report being generated
     // Report advanced parameters (override agent parameters for a specific report)
     val reportAdvancedParameters: AiAgentParameters? = null,
+    // External intent instructions (from -- end prompt -- marker)
+    val externalCloseHtml: String? = null,
+    val externalReportType: String? = null,  // "Classic" or "Table"
+    val externalEmail: String? = null,
     // Chat
     val chatParameters: ChatParameters = ChatParameters()
 )

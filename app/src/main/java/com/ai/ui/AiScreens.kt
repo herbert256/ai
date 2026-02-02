@@ -620,6 +620,16 @@ fun AiReportsScreen(
         )
     }
 
+    // Auto-email + finish() when external email is set and report completes
+    LaunchedEffect(isComplete, currentReportId) {
+        if (isComplete && uiState.externalEmail != null && currentReportId != null) {
+            val emailAddress = uiState.externalEmail
+            emailAiReportAsHtml(context, currentReportId, emailAddress, uiState.generalSettings.developerMode)
+            kotlinx.coroutines.delay(1000)
+            activity?.finish()
+        }
+    }
+
     // Show viewer screen when activated (uses stored AI-REPORT from persistent storage)
     if (showViewer && currentReportId != null) {
         val viewerReport = remember(currentReportId) {
@@ -779,9 +789,18 @@ fun AiReportsScreen(
                 // Report type selection popup state
                 var showReportTypeDialog by remember { mutableStateOf(false) }
 
-                // Generate button (right-aligned) - opens report type popup
+                // Generate button (right-aligned) - opens report type popup (or auto-selects for external intent)
                 Button(
-                    onClick = { showReportTypeDialog = true },
+                    onClick = {
+                        val extType = uiState.externalReportType
+                        if (extType != null) {
+                            val reportType = if (extType.equals("Table", ignoreCase = true))
+                                com.ai.data.ReportType.TABLE else com.ai.data.ReportType.CLASSIC
+                            onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds, reportType)
+                        } else {
+                            showReportTypeDialog = true
+                        }
+                    },
                     enabled = totalWorkers > 0,
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(

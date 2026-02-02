@@ -255,7 +255,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 prompt = aiPrompt,
                 agents = allReportAgents,
                 rapportText = rapportText,
-                reportType = reportType
+                reportType = reportType,
+                closeText = _uiState.value.externalCloseHtml
             )
             val reportId = report.id
 
@@ -621,6 +622,24 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setChatParameters(params: ChatParameters) {
         _uiState.value = _uiState.value.copy(chatParameters = params)
+    }
+
+    // ========== External Intent Instructions ==========
+
+    fun setExternalInstructions(closeHtml: String?, reportType: String?, email: String?) {
+        _uiState.value = _uiState.value.copy(
+            externalCloseHtml = closeHtml,
+            externalReportType = reportType,
+            externalEmail = email
+        )
+    }
+
+    fun clearExternalInstructions() {
+        _uiState.value = _uiState.value.copy(
+            externalCloseHtml = null,
+            externalReportType = null,
+            externalEmail = null
+        )
     }
 
     // ========== Report Advanced Parameters ==========
