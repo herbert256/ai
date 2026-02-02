@@ -632,23 +632,12 @@ fun AiReportsScreen(
 
     // Show viewer screen when activated (uses stored AI-REPORT from persistent storage)
     if (showViewer && currentReportId != null) {
-        val viewerReport = remember(currentReportId) {
-            com.ai.data.AiReportStorage.getReport(context, currentReportId)
-        }
-        if (viewerReport?.reportType == com.ai.data.ReportType.TABLE) {
-            AiReportsTableViewerScreen(
-                reportId = currentReportId,
-                onDismiss = { showViewer = false },
-                onNavigateHome = onNavigateHome
-            )
-        } else {
-            AiReportsViewerScreen(
-                reportId = currentReportId,
-                initialSelectedAgentId = selectedAgentForViewer,
-                onDismiss = { showViewer = false },
-                onNavigateHome = onNavigateHome
-            )
-        }
+        AiReportsViewerScreen(
+            reportId = currentReportId,
+            initialSelectedAgentId = selectedAgentForViewer,
+            onDismiss = { showViewer = false },
+            onNavigateHome = onNavigateHome
+        )
         return
     }
 

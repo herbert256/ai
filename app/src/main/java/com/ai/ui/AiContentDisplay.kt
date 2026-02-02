@@ -164,8 +164,53 @@ fun AiReportsViewerScreen(
                         .fillMaxSize()
                         .verticalScroll(scrollState)
                 ) {
-                    // Content rendered with think sections as collapsible blocks
-                    ContentWithThinkSections(analysis = selectedReportAgent.responseBody ?: "")
+                    // Extract <conclusion> and <motivation> tags before rendering
+                    val rawBody = selectedReportAgent.responseBody ?: ""
+                    val conclusion = extractTagContent(rawBody, "conclusion")
+                    val motivation = extractTagContent(rawBody, "motivation")
+
+                    // Strip tags from the body for main content rendering
+                    val strippedBody = if (conclusion != null || motivation != null) {
+                        rawBody
+                            .replace(Regex("<conclusion>.*?</conclusion>", RegexOption.DOT_MATCHES_ALL), "")
+                            .replace(Regex("<motivation>.*?</motivation>", RegexOption.DOT_MATCHES_ALL), "")
+                            .trim()
+                    } else rawBody
+
+                    // Show conclusion with green header if present
+                    if (conclusion != null) {
+                        Text(
+                            text = "Conclusion",
+                            fontSize = 18.sp,
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ContentWithThinkSections(analysis = conclusion)
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // Show motivation with green header if present
+                    if (motivation != null) {
+                        Text(
+                            text = "Motivation",
+                            fontSize = 18.sp,
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ContentWithThinkSections(analysis = motivation)
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // Remaining content rendered with think sections as collapsible blocks
+                    if (strippedBody.isNotBlank()) {
+                        if (conclusion != null || motivation != null) {
+                            HorizontalDivider(color = Color(0xFF333333), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                        ContentWithThinkSections(analysis = strippedBody)
+                    }
 
                     // Citations section (if available)
                     selectedReportAgent.citations?.takeIf { it.isNotEmpty() }?.let { citations ->
@@ -203,6 +248,9 @@ fun AiReportsViewerScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
+
+                    // Cost table
+                    ReportCostTable(report = report)
                 }
             } else {
                 // No analysis for selected agent
@@ -218,6 +266,125 @@ fun AiReportsViewerScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Cost table for AI reports, matching the HTML report cost table layout.
+ * Shows per-agent breakdown: Provider, Model, Seconds, Input/Output tokens, Input/Output cents, Total cents.
+ */
+@Composable
+fun ReportCostTable(report: com.ai.data.AiReport) {
+    val context = LocalContext.current
+    val agentsWithCosts = report.agents
+        .filter { it.tokenUsage != null && (it.reportStatus == com.ai.data.ReportStatus.SUCCESS || it.reportStatus == com.ai.data.ReportStatus.ERROR) }
+
+    if (agentsWithCosts.isEmpty()) return
+
+    // Build cost data per agent
+    data class AgentCostRow(
+        val providerDisplay: String,
+        val model: String,
+        val durationMs: Long?,
+        val inputTokens: Int,
+        val outputTokens: Int,
+        val inputCents: Double,
+        val outputCents: Double
+    )
+
+    val rows = agentsWithCosts.map { agent ->
+        val providerEnum = com.ai.data.AiService.findById(agent.provider)
+        val providerDisplay = providerEnum?.displayName ?: agent.provider
+        val tu = agent.tokenUsage!!
+        val pricing = providerEnum?.let { com.ai.data.PricingCache.getPricing(context, it, agent.model) }
+        val inputCents = (pricing?.let { tu.inputTokens * it.promptPrice } ?: 0.0) * 100
+        val outputCents = (pricing?.let { tu.outputTokens * it.completionPrice } ?: 0.0) * 100
+        AgentCostRow(providerDisplay, agent.model, agent.durationMs, tu.inputTokens, tu.outputTokens, inputCents, outputCents)
+    }.sortedByDescending { it.inputCents + it.outputCents }
+
+    var totalIn = 0
+    var totalOut = 0
+    var totalInCents = 0.0
+    var totalOutCents = 0.0
+    rows.forEach { r ->
+        totalIn += r.inputTokens
+        totalOut += r.outputTokens
+        totalInCents += r.inputCents
+        totalOutCents += r.outputCents
+    }
+
+    fun fmtCents(v: Double): String = "%.2f".format(v)
+    fun fmtSecs(ms: Long?): String = if (ms != null) "%.1f".format(ms / 1000.0) else ""
+    fun fmtTokens(n: Int): String = "%,d".format(n)
+
+    val headerColor = Color(0xFF6B9BFF)
+    val valueColor = Color(0xFFAAAAAA)
+    val totalColor = Color(0xFF6B9BFF)
+    val headerSize = 11.sp
+    val valueSize = 11.sp
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = Color(0xFF333333), thickness = 2.dp)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Costs",
+            fontSize = 16.sp,
+            color = headerColor,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Horizontally scrollable table
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+                // Header row
+                Row {
+                    Text("Provider", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(90.dp))
+                    Text("Model", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(120.dp))
+                    Text("Sec", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
+                    Text("In tok", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End)
+                    Text("Out tok", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End)
+                    Text("In ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
+                    Text("Out ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
+                    Text("Total ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
+                }
+                HorizontalDivider(color = Color(0xFF333333), thickness = 1.dp, modifier = Modifier.width(554.dp))
+
+                // Data rows
+                rows.forEach { r ->
+                    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                        Text(r.providerDisplay, fontSize = valueSize, color = valueColor, modifier = Modifier.width(90.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(r.model, fontSize = valueSize, color = valueColor, modifier = Modifier.width(120.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
+                        Text(fmtSecs(r.durationMs), fontSize = valueSize, color = valueColor, modifier = Modifier.width(48.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                        Text(fmtTokens(r.inputTokens), fontSize = valueSize, color = valueColor, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                        Text(fmtTokens(r.outputTokens), fontSize = valueSize, color = valueColor, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                        Text(fmtCents(r.inputCents), fontSize = valueSize, color = valueColor, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                        Text(fmtCents(r.outputCents), fontSize = valueSize, color = valueColor, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                        Text(fmtCents(r.inputCents + r.outputCents), fontSize = valueSize, color = valueColor, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                    }
+                }
+
+                // Total row
+                HorizontalDivider(color = Color(0xFF333333), thickness = 2.dp, modifier = Modifier.width(554.dp))
+                Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                    Text("Total", fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(258.dp))
+                    Text(fmtTokens(totalIn), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                    Text(fmtTokens(totalOut), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                    Text(fmtCents(totalInCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                    Text(fmtCents(totalOutCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                    Text(fmtCents(totalInCents + totalOutCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -666,222 +833,3 @@ internal fun extractTagContent(text: String, tagName: String): String? {
     return pattern.find(text)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
 }
 
-/**
- * Table viewer for AI reports - shows horizontal scrolling cards, one per successful worker.
- * Each card displays: provider name, model name, conclusion, and motivation.
- */
-@Composable
-fun AiReportsTableViewerScreen(
-    reportId: String,
-    onDismiss: () -> Unit,
-    onNavigateHome: () -> Unit = onDismiss
-) {
-    val context = LocalContext.current
-
-    val report = remember(reportId) {
-        com.ai.data.AiReportStorage.getReport(context, reportId)
-    }
-
-    if (report == null) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            AiTitleBar(
-                title = "Table View",
-                onBackClick = onDismiss,
-                onAiClick = onNavigateHome
-            )
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Report not found",
-                    color = Color(0xFFAAAAAA),
-                    fontSize = 16.sp
-                )
-            }
-        }
-        return
-    }
-
-    val successfulAgents = report.agents
-        .filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS }
-        .sortedBy { it.agentName.lowercase() }
-
-    // Calculate total cost
-    val totalCost = report.agents.mapNotNull { it.cost }.sum()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        AiTitleBar(
-            title = report.title,
-            onBackClick = onDismiss,
-            onAiClick = onNavigateHome
-        )
-
-        // Rapport text section (from <user> tags)
-        if (!report.rapportText.isNullOrBlank()) {
-            Text(
-                text = report.rapportText,
-                fontSize = 14.sp,
-                color = Color(0xFFCCCCCC),
-                lineHeight = 20.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
-        if (successfulAgents.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No successful reports to display",
-                    color = Color(0xFFAAAAAA),
-                    fontSize = 16.sp
-                )
-            }
-        } else {
-            // Horizontal scrolling cards
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                successfulAgents.forEach { agent ->
-                    val responseBody = agent.responseBody ?: ""
-                    val conclusion = extractTagContent(responseBody, "conclusion")
-                    val motivation = extractTagContent(responseBody, "motivation")
-
-                    val providerDisplayName = com.ai.data.AiService.findById(agent.provider)?.displayName
-                        ?: agent.provider
-
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF2A2A2A)
-                        ),
-                        modifier = Modifier
-                            .width(220.dp)
-                            .fillMaxHeight()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            // Row 1: Provider name (small gray) + Model name (blue)
-                            Text(
-                                text = providerDisplayName,
-                                fontSize = 11.sp,
-                                color = Color(0xFF888888),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = agent.model,
-                                fontSize = 14.sp,
-                                color = Color(0xFF6B9BFF),
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Row 2: Conclusion
-                            if (conclusion != null) {
-                                Text(
-                                    text = "Conclusion",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF4CAF50),
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = conclusion,
-                                    fontSize = 13.sp,
-                                    color = Color.White,
-                                    lineHeight = 18.sp
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-
-                            // Row 3: Motivation
-                            if (motivation != null) {
-                                Text(
-                                    text = "Motivation",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFFFF9800),
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = motivation,
-                                    fontSize = 13.sp,
-                                    color = Color(0xFFCCCCCC),
-                                    lineHeight = 18.sp
-                                )
-                            }
-
-                            // Fallback: if no tags found, show full response
-                            if (conclusion == null && motivation == null) {
-                                Text(
-                                    text = responseBody,
-                                    fontSize = 13.sp,
-                                    color = Color.White,
-                                    lineHeight = 18.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Footer: Prompt + Cost
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF1A1A2E))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            if (report.prompt.isNotBlank()) {
-                Text(
-                    text = "Prompt",
-                    fontSize = 12.sp,
-                    color = Color(0xFF6B9BFF),
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = report.prompt,
-                    fontSize = 12.sp,
-                    color = Color(0xFFAAAAAA),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 16.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-            Text(
-                text = "Total cost: ${String.format("%.4f", totalCost * 100)} cents  |  ${successfulAgents.size} workers",
-                fontSize = 12.sp,
-                color = Color(0xFF4CAF50),
-                fontFamily = FontFamily.Monospace
-            )
-        }
-    }
-}
