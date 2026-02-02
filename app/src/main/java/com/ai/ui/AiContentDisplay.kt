@@ -86,10 +86,12 @@ fun AiReportsViewerScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Header - show agent name and model in title bar
-        val titleText = selectedReportAgent?.agentName ?: "View Reports"
+        // Header - show provider name in title bar
+        val providerName = selectedReportAgent?.let {
+            com.ai.data.AiService.findById(it.provider)?.displayName ?: it.provider
+        } ?: "View Reports"
         AiTitleBar(
-            title = titleText,
+            title = providerName,
             onBackClick = onDismiss,
             onAiClick = onNavigateHome
         )
@@ -125,11 +127,10 @@ fun AiReportsViewerScreen(
 
             // Provider - Model subtitle below buttons
             if (selectedReportAgent != null) {
-                // Get display name for provider
                 val providerDisplayName = com.ai.data.AiService.findById(selectedReportAgent.provider)?.displayName
                     ?: selectedReportAgent.provider
                 Text(
-                    text = "$providerDisplayName - ${selectedReportAgent.model}",
+                    text = "$providerDisplayName — ${selectedReportAgent.model}",
                     fontSize = 18.sp,
                     color = Color(0xFF6B9BFF),
                     fontWeight = FontWeight.SemiBold,
@@ -230,27 +231,58 @@ fun AiReportsViewerScreen(
                         RelatedQuestionsSection(relatedQuestions = relatedQuestions)
                     }
 
-                    // Prompt section (from stored report)
-                    if (report.prompt.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            text = "Prompt",
-                            fontSize = 18.sp,
-                            color = Color(0xFF6B9BFF),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = report.prompt,
-                            fontSize = 14.sp,
-                            color = Color.White,
-                            lineHeight = 20.sp
-                        )
+                    // Prompt & Costs toggle section
+                    var activeSection by remember { mutableStateOf<String?>(null) }
+                    val hasPrompt = report.prompt.isNotBlank()
+                    val hasCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == com.ai.data.ReportStatus.SUCCESS || it.reportStatus == com.ai.data.ReportStatus.ERROR) }
+
+                    if (hasPrompt || hasCosts) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (hasPrompt) {
+                                val isActive = activeSection == "prompt"
+                                Button(
+                                    onClick = { activeSection = if (isActive) null else "prompt" },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isActive) Color(0xFF6B9BFF) else Color.Transparent
+                                    ),
+                                    border = if (!isActive) BorderStroke(1.dp, Color(0xFF444444)) else null,
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else Color(0xFF6B9BFF))
+                                }
+                            }
+                            if (hasCosts) {
+                                val isActive = activeSection == "costs"
+                                Button(
+                                    onClick = { activeSection = if (isActive) null else "costs" },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isActive) Color(0xFF6B9BFF) else Color.Transparent
+                                    ),
+                                    border = if (!isActive) BorderStroke(1.dp, Color(0xFF444444)) else null,
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else Color(0xFF6B9BFF))
+                                }
+                            }
+                        }
+
+                        if (activeSection == "prompt") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = report.prompt,
+                                fontSize = 14.sp,
+                                color = Color.White,
+                                lineHeight = 20.sp
+                            )
+                        }
+
+                        if (activeSection == "costs") {
+                            ReportCostTable(report = report)
+                        }
+
                         Spacer(modifier = Modifier.height(16.dp))
                     }
-
-                    // Cost table
-                    ReportCostTable(report = report)
                 }
             } else {
                 // No analysis for selected agent
@@ -324,18 +356,6 @@ fun ReportCostTable(report: com.ai.data.AiReport) {
     val valueSize = 11.sp
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Spacer(modifier = Modifier.height(16.dp))
-        HorizontalDivider(color = Color(0xFF333333), thickness = 2.dp)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Costs",
-            fontSize = 16.sp,
-            color = headerColor,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
         Spacer(modifier = Modifier.height(8.dp))
 
         // Horizontally scrollable table
@@ -347,40 +367,41 @@ fun ReportCostTable(report: com.ai.data.AiReport) {
             Column(modifier = Modifier.padding(horizontal = 4.dp)) {
                 // Header row
                 Row {
-                    Text("Provider", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(90.dp))
+                    Text("Total ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
+                    Text("Provider", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(90.dp).padding(start = 8.dp))
                     Text("Model", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(120.dp))
                     Text("Sec", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
                     Text("In tok", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End)
                     Text("Out tok", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End)
                     Text("In ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
                     Text("Out ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
-                    Text("Total ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
                 }
                 HorizontalDivider(color = Color(0xFF333333), thickness = 1.dp, modifier = Modifier.width(554.dp))
 
                 // Data rows
                 rows.forEach { r ->
                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
-                        Text(r.providerDisplay, fontSize = valueSize, color = valueColor, modifier = Modifier.width(90.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(fmtCents(r.inputCents + r.outputCents), fontSize = valueSize, color = valueColor, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                        Text(r.providerDisplay, fontSize = valueSize, color = valueColor, modifier = Modifier.width(90.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(r.model, fontSize = valueSize, color = valueColor, modifier = Modifier.width(120.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
                         Text(fmtSecs(r.durationMs), fontSize = valueSize, color = valueColor, modifier = Modifier.width(48.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(fmtTokens(r.inputTokens), fontSize = valueSize, color = valueColor, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(fmtTokens(r.outputTokens), fontSize = valueSize, color = valueColor, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(fmtCents(r.inputCents), fontSize = valueSize, color = valueColor, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(fmtCents(r.outputCents), fontSize = valueSize, color = valueColor, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
-                        Text(fmtCents(r.inputCents + r.outputCents), fontSize = valueSize, color = valueColor, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                     }
                 }
 
                 // Total row
                 HorizontalDivider(color = Color(0xFF333333), thickness = 2.dp, modifier = Modifier.width(554.dp))
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
-                    Text("Total", fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(258.dp))
+                    Text(fmtCents(totalInCents + totalOutCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
+                    Text("Total", fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(210.dp).padding(start = 8.dp))
+                    Text("", fontSize = valueSize, modifier = Modifier.width(48.dp))
                     Text(fmtTokens(totalIn), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                     Text(fmtTokens(totalOut), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                     Text(fmtCents(totalInCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                     Text(fmtCents(totalOutCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
-                    Text(fmtCents(totalInCents + totalOutCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                 }
             }
         }

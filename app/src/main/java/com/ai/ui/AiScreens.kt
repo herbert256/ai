@@ -620,13 +620,45 @@ fun AiReportsScreen(
         )
     }
 
-    // Auto-email + finish() when external email is set and report completes
+    // Auto-execute <next> action when report completes (or is stopped)
+    // Also handles <email> tag (auto-email + finish)
     LaunchedEffect(isComplete, currentReportId) {
-        if (isComplete && uiState.externalEmail != null && currentReportId != null) {
-            val emailAddress = uiState.externalEmail
-            emailAiReportAsHtml(context, currentReportId, emailAddress, uiState.generalSettings.developerMode)
-            kotlinx.coroutines.delay(1000)
-            activity?.finish()
+        if (isComplete && currentReportId != null) {
+            // Handle <email> tag: auto-email + finish
+            if (uiState.externalEmail != null) {
+                emailAiReportAsHtml(context, currentReportId, uiState.externalEmail, uiState.generalSettings.developerMode)
+                kotlinx.coroutines.delay(1000)
+                activity?.finish()
+                return@LaunchedEffect
+            }
+            // Handle <next> tag: auto-trigger the matching button action
+            val shouldReturn = uiState.externalReturn
+            when (uiState.externalNextAction?.lowercase()) {
+                "view" -> showViewer = true  // <return> handled in viewer onDismiss
+                "share" -> {
+                    showShareDialog = true
+                    if (shouldReturn) {
+                        kotlinx.coroutines.delay(1000)
+                        activity?.finish()
+                    }
+                }
+                "browser" -> {
+                    onOpenInBrowser()
+                    if (shouldReturn) {
+                        kotlinx.coroutines.delay(1000)
+                        activity?.finish()
+                    }
+                }
+                "email" -> {
+                    if (uiState.generalSettings.defaultEmail.isNotBlank()) {
+                        showEmailDialog = true
+                        if (shouldReturn) {
+                            kotlinx.coroutines.delay(2000)
+                            activity?.finish()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -635,7 +667,13 @@ fun AiReportsScreen(
         AiReportsViewerScreen(
             reportId = currentReportId,
             initialSelectedAgentId = selectedAgentForViewer,
-            onDismiss = { showViewer = false },
+            onDismiss = {
+                showViewer = false
+                // <return> tag: finish() when coming back from View
+                if (uiState.externalReturn && uiState.externalNextAction != null) {
+                    activity?.finish()
+                }
+            },
             onNavigateHome = onNavigateHome
         )
         return
@@ -653,31 +691,77 @@ fun AiReportsScreen(
         uiState.aiSettings.isProviderActive(it.provider)
     }
 
-    // Flock selection state
+    // Pre-resolve external selections for pre-selecting in the UI
+    val externalResolvedAgentIds = remember(uiState.externalAgentNames) {
+        if (uiState.externalAgentNames.isEmpty()) emptySet()
+        else uiState.externalAgentNames.mapNotNull { name ->
+            configuredAgents.find { it.name.equals(name, ignoreCase = true) }?.id
+        }.toSet()
+    }
+    val externalResolvedFlockIds = remember(uiState.externalFlockNames) {
+        if (uiState.externalFlockNames.isEmpty()) emptySet()
+        else uiState.externalFlockNames.mapNotNull { name ->
+            uiState.aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }?.id
+        }.toSet()
+    }
+    val externalResolvedSwarmIds = remember(uiState.externalSwarmNames) {
+        if (uiState.externalSwarmNames.isEmpty()) emptySet()
+        else uiState.externalSwarmNames.mapNotNull { name ->
+            uiState.aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }?.id
+        }.toSet()
+    }
+    val externalResolvedModelIds = remember(uiState.externalModelSpecs) {
+        if (uiState.externalModelSpecs.isEmpty()) emptySet()
+        else uiState.externalModelSpecs.mapNotNull { spec ->
+            val parts = spec.split("/", limit = 2)
+            if (parts.size != 2) return@mapNotNull null
+            val provider = com.ai.data.AiService.entries.find {
+                it.id.equals(parts[0].trim(), ignoreCase = true) ||
+                it.displayName.equals(parts[0].trim(), ignoreCase = true)
+            } ?: return@mapNotNull null
+            "swarm:${provider.id}:${parts[1].trim()}"
+        }.toSet()
+    }
+
+    // Flock selection state (pre-select external flocks if present)
     val flocks = uiState.aiSettings.flocks
     val validFlockIds = flocks.map { it.id }.toSet()
     val validSavedFlocks = savedFlockIds.filter { it in validFlockIds }.toSet()
     var selectedFlockIds by remember {
         mutableStateOf(
-            // Use saved flock IDs if available, otherwise default to none selected
-            validSavedFlocks
+            if (externalResolvedFlockIds.isNotEmpty()) externalResolvedFlockIds
+            else validSavedFlocks
         )
     }
 
-    // Swarm selection state
+    // Swarm selection state (pre-select external swarms if present)
     val swarms = uiState.aiSettings.swarms
     val validSwarmIds = swarms.map { it.id }.toSet()
     val validSavedSwarms = savedSwarmIds.filter { it in validSwarmIds }.toSet()
-    var selectedSwarmIds by remember { mutableStateOf(validSavedSwarms) }
+    var selectedSwarmIds by remember {
+        mutableStateOf(
+            if (externalResolvedSwarmIds.isNotEmpty()) externalResolvedSwarmIds
+            else validSavedSwarms
+        )
+    }
 
-    // Direct model selection state (provider/model combinations selected directly, not via swarm)
-    var directlySelectedModelIds by remember { mutableStateOf(savedModelIds) }
+    // Direct model selection state (pre-select external models if present)
+    var directlySelectedModelIds by remember {
+        mutableStateOf(
+            if (externalResolvedModelIds.isNotEmpty()) externalResolvedModelIds
+            else savedModelIds
+        )
+    }
 
-    // Direct agent selection state (separate from flock-based selection)
-    // Filter to only include agents that still exist
+    // Direct agent selection state (pre-select external agents if present)
     val validAgentIds = configuredAgents.map { it.id }.toSet()
     val validSavedAgents = savedAgentIds.filter { it in validAgentIds }.toSet()
-    var directlySelectedAgentIds by remember { mutableStateOf(validSavedAgents) }
+    var directlySelectedAgentIds by remember {
+        mutableStateOf(
+            if (externalResolvedAgentIds.isNotEmpty()) externalResolvedAgentIds
+            else validSavedAgents
+        )
+    }
 
     // Get agents from selected flocks (only active providers)
     val flockAgentIds = uiState.aiSettings.getAgentsForFlocks(selectedFlockIds)
@@ -702,6 +786,76 @@ fun AiReportsScreen(
 
     // Parameters preset selection for the report (multi-select)
     var selectedParametersIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // Auto-generate when external API selections + type are present
+    // Resolves <agent>, <flock>, <swarm>, <model> names to IDs, deduplicates, and triggers generation
+    val hasExternalSelections = uiState.externalAgentNames.isNotEmpty() ||
+            uiState.externalFlockNames.isNotEmpty() ||
+            uiState.externalSwarmNames.isNotEmpty() ||
+            uiState.externalModelSpecs.isNotEmpty()
+    var externalAutoGenerated by remember { mutableStateOf(false) }
+    LaunchedEffect(hasExternalSelections, uiState.externalReportType) {
+        if (hasExternalSelections && uiState.externalReportType != null && !isGenerating && !externalAutoGenerated) {
+            externalAutoGenerated = true
+            val aiSettings = uiState.aiSettings
+
+            // Resolve agent names to IDs (case-insensitive)
+            val resolvedAgentIds = uiState.externalAgentNames.mapNotNull { name ->
+                configuredAgents.find { it.name.equals(name, ignoreCase = true) }?.id
+            }.toSet()
+
+            // Resolve flock names to IDs (case-insensitive)
+            val resolvedFlockIds = uiState.externalFlockNames.mapNotNull { name ->
+                aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }?.id
+            }.toSet()
+
+            // Expand flock agent IDs
+            val flockExpandedAgentIds = aiSettings.getAgentsForFlocks(resolvedFlockIds)
+                .filter { aiSettings.isProviderActive(it.provider) }
+                .map { it.id }.toSet()
+
+            // Resolve swarm names to IDs (case-insensitive)
+            val resolvedSwarmIds = uiState.externalSwarmNames.mapNotNull { name ->
+                aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }?.id
+            }.toSet()
+
+            // Get swarm member synthetic IDs for deduplication
+            val resolvedSwarmMemberIds = aiSettings.getMembersForSwarms(resolvedSwarmIds)
+                .filter { aiSettings.isProviderActive(it.provider) }
+                .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+
+            // Parse <model>provider/model</model> specs into synthetic IDs
+            val resolvedDirectModelIds = uiState.externalModelSpecs.mapNotNull { spec ->
+                val parts = spec.split("/", limit = 2)
+                if (parts.size != 2) return@mapNotNull null
+                val providerName = parts[0].trim()
+                val modelName = parts[1].trim()
+                // Match provider by ID or displayName (case-insensitive)
+                val provider = com.ai.data.AiService.entries.find {
+                    it.id.equals(providerName, ignoreCase = true) ||
+                    it.displayName.equals(providerName, ignoreCase = true)
+                } ?: return@mapNotNull null
+                "swarm:${provider.id}:$modelName"
+            }.toSet()
+
+            // Deduplicate: remove direct models already covered by swarms
+            val uniqueDirectModelIds = resolvedDirectModelIds.filter { it !in resolvedSwarmMemberIds }.toSet()
+
+            // Combined agent IDs (from flocks + directly resolved agents, deduplicated)
+            val allAgentIds = flockExpandedAgentIds + resolvedAgentIds
+
+            // Determine report type
+            val reportType = if (uiState.externalReportType.equals("Table", ignoreCase = true))
+                com.ai.data.ReportType.TABLE else com.ai.data.ReportType.CLASSIC
+
+            // Also deduplicate agents that appear both directly and via flock
+            // (Set union already handles this)
+
+            if (allAgentIds.isNotEmpty() || resolvedSwarmIds.isNotEmpty() || uniqueDirectModelIds.isNotEmpty()) {
+                onGenerate(allAgentIds, resolvedAgentIds, resolvedFlockIds, resolvedSwarmIds, uniqueDirectModelIds, emptyList(), reportType)
+            }
+        }
+    }
 
     Column(
         modifier = Modifier

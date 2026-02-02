@@ -626,11 +626,22 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     // ========== External Intent Instructions ==========
 
-    fun setExternalInstructions(closeHtml: String?, reportType: String?, email: String?) {
+    fun setExternalInstructions(
+        closeHtml: String?, reportType: String?, email: String?,
+        nextAction: String? = null, returnAfterNext: Boolean = false,
+        agentNames: List<String> = emptyList(), flockNames: List<String> = emptyList(),
+        swarmNames: List<String> = emptyList(), modelSpecs: List<String> = emptyList()
+    ) {
         _uiState.value = _uiState.value.copy(
             externalCloseHtml = closeHtml,
             externalReportType = reportType,
-            externalEmail = email
+            externalEmail = email,
+            externalNextAction = nextAction,
+            externalReturn = returnAfterNext,
+            externalAgentNames = agentNames,
+            externalFlockNames = flockNames,
+            externalSwarmNames = swarmNames,
+            externalModelSpecs = modelSpecs
         )
     }
 
@@ -638,7 +649,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(
             externalCloseHtml = null,
             externalReportType = null,
-            externalEmail = null
+            externalEmail = null,
+            externalNextAction = null,
+            externalReturn = false,
+            externalAgentNames = emptyList(),
+            externalFlockNames = emptyList(),
+            externalSwarmNames = emptyList(),
+            externalModelSpecs = emptyList()
         )
     }
 

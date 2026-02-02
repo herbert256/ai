@@ -112,16 +112,28 @@ fun AiNavHost(
                     val regex = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
                     return regex.find(text)?.groupValues?.get(1)?.trim()
                 }
+                fun extractAllTags(tag: String, text: String): List<String> {
+                    val regex = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
+                    return regex.findAll(text).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
+                }
                 val openHtml = extractTag("open", instructions)
                 val closeHtml = extractTag("close", instructions)
                 val reportType = extractTag("type", instructions)
                 val email = extractTag("email", instructions)
+                val nextAction = extractTag("next", instructions)
+                val hasReturn = Regex("<return>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
+
+                // Extract API selection tags (can appear multiple times)
+                val agentNames = extractAllTags("agent", instructions)
+                val flockNames = extractAllTags("flock", instructions)
+                val swarmNames = extractAllTags("swarm", instructions)
+                val modelSpecs = extractAllTags("model", instructions)
 
                 // Wrap openHtml as <user> tag so existing ViewModel parsing handles it
                 val fullPrompt = if (openHtml != null) "$aiPrompt\n<user>$openHtml</user>" else aiPrompt
 
                 // Store instructions in ViewModel and set up for report generation
-                viewModel.setExternalInstructions(closeHtml, reportType, email)
+                viewModel.setExternalInstructions(closeHtml, reportType, email, nextAction, hasReturn, agentNames, flockNames, swarmNames, modelSpecs)
                 viewModel.showGenericAiAgentSelection(externalTitle ?: "", fullPrompt)
 
                 // Navigate directly to reports screen (skip New Report)

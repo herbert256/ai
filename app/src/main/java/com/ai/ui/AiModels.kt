@@ -46,6 +46,13 @@ data class AiUiState(
     val externalCloseHtml: String? = null,
     val externalReportType: String? = null,  // "Classic" or "Table"
     val externalEmail: String? = null,
+    val externalNextAction: String? = null,  // "View", "Share", "Browser", "Email"
+    val externalReturn: Boolean = false,  // finish() after <next> action completes
+    // External intent API selections (from <agent>, <flock>, <swarm>, <model> tags)
+    val externalAgentNames: List<String> = emptyList(),
+    val externalFlockNames: List<String> = emptyList(),
+    val externalSwarmNames: List<String> = emptyList(),
+    val externalModelSpecs: List<String> = emptyList(),  // "provider/model" format
     // Chat
     val chatParameters: ChatParameters = ChatParameters()
 )
