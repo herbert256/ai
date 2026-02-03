@@ -137,7 +137,7 @@ fun HelpScreen(
                     "• Shows provider, model, pricing\n\n" +
                     "All tabs show per-M-token pricing in red (known) or gray (estimated).\n" +
                     "Use the Parameters button to attach reusable parameter presets.\n" +
-                    "Combine selections across tabs freely. Total worker count shown on Generate button."
+                    "Combine selections across tabs freely. Total model count shown on Generate button."
             )
 
             // Report Results

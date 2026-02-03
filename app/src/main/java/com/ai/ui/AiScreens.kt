@@ -408,20 +408,19 @@ fun AiReportsScreenNav(
 
     AiReportsScreen(
         uiState = uiState,
-        onGenerate = { workersList, paramsIds, reportType ->
-            // Split workers into agent-based and model-based
-            val agentWorkerIds = workersList.filter { it.agentId != null }.mapNotNull { it.agentId }.toSet()
-            val modelWorkerIds = workersList.filter { it.agentId == null }
+        onGenerate = { modelsList, paramsIds, reportType ->
+            // Split models into agent-based and model-based
+            val agentIds = modelsList.filter { it.agentId != null }.mapNotNull { it.agentId }.toSet()
+            val directModelIds = modelsList.filter { it.agentId == null }
                 .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
 
             // Save for persistence
-            viewModel.saveAiReportAgents(agentWorkerIds)
-            viewModel.saveAiReportModels(modelWorkerIds)
+            viewModel.saveAiReportAgents(agentIds)
+            viewModel.saveAiReportModels(directModelIds)
             viewModel.saveAiReportFlocks(emptySet())
             viewModel.saveAiReportSwarms(emptySet())
 
-            // Combined agent IDs = agent workers (by agentId)
-            viewModel.generateGenericAiReports(agentWorkerIds, emptySet(), modelWorkerIds, paramsIds, reportType)
+            viewModel.generateGenericAiReports(agentIds, emptySet(), directModelIds, paramsIds, reportType)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
@@ -443,7 +442,7 @@ fun AiReportsScreenNav(
 
 /**
  * Full-screen AI Reports generation and results screen.
- * Shows worker list selection first, then progress and results.
+ * Shows model selection list first, then progress and results.
  */
 
 /**
@@ -467,8 +466,8 @@ internal fun formatPricingPerMillion(context: android.content.Context, provider:
 @Composable
 fun AiReportsScreen(
     uiState: AiUiState,
-    initialWorkers: List<ReportWorker> = emptyList(),
-    onGenerate: (List<ReportWorker>, List<String>, com.ai.data.ReportType) -> Unit,  // workers, paramsIds, reportType
+    initialModels: List<ReportModel> = emptyList(),
+    onGenerate: (List<ReportModel>, List<String>, com.ai.data.ReportType) -> Unit,  // models, paramsIds, reportType
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -678,31 +677,31 @@ fun AiReportsScreen(
         return
     }
 
-    // Workers list (single source of truth for selection)
+    // Models list (single source of truth for selection)
     val aiSettings = uiState.aiSettings
 
-    // Build external workers from intent tags
-    val externalWorkers = remember(uiState.externalAgentNames, uiState.externalFlockNames, uiState.externalSwarmNames, uiState.externalModelSpecs) {
-        val extWorkers = mutableListOf<ReportWorker>()
+    // Build external models from intent tags
+    val externalModels = remember(uiState.externalAgentNames, uiState.externalFlockNames, uiState.externalSwarmNames, uiState.externalModelSpecs) {
+        val extModels = mutableListOf<ReportModel>()
 
         // Resolve <agent> names
         uiState.externalAgentNames.forEach { name ->
             aiSettings.agents.find { it.name.equals(name, ignoreCase = true) }?.let { agent ->
-                expandAgentToWorker(agent, aiSettings)?.let { extWorkers.add(it) }
+                expandAgentToModel(agent, aiSettings)?.let { extModels.add(it) }
             }
         }
 
         // Resolve <flock> names
         uiState.externalFlockNames.forEach { name ->
             aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }?.let { flock ->
-                extWorkers.addAll(expandFlockToWorkers(flock, aiSettings))
+                extModels.addAll(expandFlockToModels(flock, aiSettings))
             }
         }
 
         // Resolve <swarm> names
         uiState.externalSwarmNames.forEach { name ->
             aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }?.let { swarm ->
-                extWorkers.addAll(expandSwarmToWorkers(swarm, aiSettings))
+                extModels.addAll(expandSwarmToModels(swarm, aiSettings))
             }
         }
 
@@ -717,20 +716,20 @@ fun AiReportsScreen(
                         it.displayName.equals(providerName, ignoreCase = true)
                 }
                 if (provider != null) {
-                    extWorkers.add(modelToWorker(provider, modelName))
+                    extModels.add(toReportModel(provider, modelName))
                 }
             }
         }
 
-        deduplicateWorkers(extWorkers)
+        deduplicateModels(extModels)
     }
 
-    val hasExternalSelections = externalWorkers.isNotEmpty()
+    val hasExternalSelections = externalModels.isNotEmpty()
 
-    var workers by remember {
+    var models by remember {
         mutableStateOf(
-            if (hasExternalSelections) deduplicateWorkers(externalWorkers)
-            else initialWorkers
+            if (hasExternalSelections) deduplicateModels(externalModels)
+            else initialModels
         )
     }
 
@@ -752,8 +751,8 @@ fun AiReportsScreen(
             externalAutoGenerated = true
             val reportType = if (uiState.externalReportType.equals("Table", ignoreCase = true))
                 com.ai.data.ReportType.TABLE else com.ai.data.ReportType.CLASSIC
-            if (workers.isNotEmpty()) {
-                onGenerate(workers, emptyList(), reportType)
+            if (models.isNotEmpty()) {
+                onGenerate(models, emptyList(), reportType)
             }
         }
     }
@@ -763,8 +762,8 @@ fun AiReportsScreen(
         SelectFlockScreen(
             aiSettings = aiSettings,
             onSelectFlock = { flock ->
-                val newWorkers = expandFlockToWorkers(flock, aiSettings)
-                workers = deduplicateWorkers(workers + newWorkers)
+                val newModels = expandFlockToModels(flock, aiSettings)
+                models = deduplicateModels(models + newModels)
                 showSelectFlock = false
             },
             onBack = { showSelectFlock = false },
@@ -777,8 +776,8 @@ fun AiReportsScreen(
         SelectAgentScreen(
             aiSettings = aiSettings,
             onSelectAgent = { agent ->
-                expandAgentToWorker(agent, aiSettings)?.let { worker ->
-                    workers = deduplicateWorkers(workers + worker)
+                expandAgentToModel(agent, aiSettings)?.let { entry ->
+                    models = deduplicateModels(models + entry)
                 }
                 showSelectAgent = false
             },
@@ -792,8 +791,8 @@ fun AiReportsScreen(
         SelectSwarmScreen(
             aiSettings = aiSettings,
             onSelectSwarm = { swarm ->
-                val newWorkers = expandSwarmToWorkers(swarm, aiSettings)
-                workers = deduplicateWorkers(workers + newWorkers)
+                val newModels = expandSwarmToModels(swarm, aiSettings)
+                models = deduplicateModels(models + newModels)
                 showSelectSwarm = false
             },
             onBack = { showSelectSwarm = false },
@@ -808,7 +807,7 @@ fun AiReportsScreen(
             aiSettings = aiSettings,
             currentModel = "",
             onSelectModel = { model ->
-                workers = deduplicateWorkers(workers + modelToWorker(pendingProvider!!, model))
+                models = deduplicateModels(models + toReportModel(pendingProvider!!, model))
                 pendingProvider = null
             },
             onBack = { pendingProvider = null },
@@ -834,7 +833,7 @@ fun AiReportsScreen(
         SelectAllModelsScreen(
             aiSettings = aiSettings,
             onSelectModel = { provider, model ->
-                workers = deduplicateWorkers(workers + modelToWorker(provider, model))
+                models = deduplicateModels(models + toReportModel(provider, model))
                 showSelectAllModels = false
             },
             onBack = { showSelectAllModels = false },
@@ -853,7 +852,7 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Reports Ready"
                 isGenerating -> "Generating Reports"
-                else -> "Select Workers"
+                else -> "Select Models"
             },
             onBackClick = if (isComplete) onResetReports else onDismiss,
             onAiClick = onNavigateHome
@@ -902,18 +901,18 @@ fun AiReportsScreen(
                         if (extType != null) {
                             val reportType = if (extType.equals("Table", ignoreCase = true))
                                 com.ai.data.ReportType.TABLE else com.ai.data.ReportType.CLASSIC
-                            onGenerate(workers, selectedParametersIds, reportType)
+                            onGenerate(models, selectedParametersIds, reportType)
                         } else {
                             showReportTypeDialog = true
                         }
                     },
-                    enabled = workers.isNotEmpty(),
+                    enabled = models.isNotEmpty(),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50)
                     )
                 ) {
-                    Text("Generate (${workers.size})", fontSize = 13.sp, maxLines = 1)
+                    Text("Generate (${models.size})", fontSize = 13.sp, maxLines = 1)
                 }
 
                 // Report type selection dialog
@@ -930,7 +929,7 @@ fun AiReportsScreen(
                                 Button(
                                     onClick = {
                                         showReportTypeDialog = false
-                                        onGenerate(workers, selectedParametersIds, com.ai.data.ReportType.CLASSIC)
+                                        onGenerate(models, selectedParametersIds, com.ai.data.ReportType.CLASSIC)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
@@ -942,7 +941,7 @@ fun AiReportsScreen(
                                 Button(
                                     onClick = {
                                         showReportTypeDialog = false
-                                        onGenerate(workers, selectedParametersIds, com.ai.data.ReportType.TABLE)
+                                        onGenerate(models, selectedParametersIds, com.ai.data.ReportType.TABLE)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
@@ -1040,7 +1039,7 @@ fun AiReportsScreen(
                 }
             }
 
-            // Workers list
+            // Models list
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.background
@@ -1049,13 +1048,13 @@ fun AiReportsScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                if (workers.isEmpty()) {
+                if (models.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize().padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No workers added yet.\nUse the buttons above to add workers.",
+                            text = "No models added yet.\nUse the buttons above to add models.",
                             color = Color(0xFFAAAAAA),
                             textAlign = TextAlign.Center
                         )
@@ -1065,9 +1064,9 @@ fun AiReportsScreen(
                         modifier = Modifier.padding(4.dp),
                         verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        items(workers.size, key = { index -> "${workers[index].deduplicationKey}:$index" }) { index ->
-                            val worker = workers[index]
-                            val pricing = formatPricingPerMillion(context, worker.provider, worker.model)
+                        items(models.size, key = { index -> "${models[index].deduplicationKey}:$index" }) { index ->
+                            val entry = models[index]
+                            val pricing = formatPricingPerMillion(context, entry.provider, entry.model)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1077,13 +1076,13 @@ fun AiReportsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = worker.provider.displayName,
+                                        text = entry.provider.displayName,
                                         fontSize = 11.sp,
                                         color = Color(0xFFAAAAAA),
                                         maxLines = 1
                                     )
                                     Text(
-                                        text = worker.model,
+                                        text = entry.model,
                                         fontSize = 13.sp,
                                         color = Color.White,
                                         maxLines = 1,
@@ -1099,7 +1098,7 @@ fun AiReportsScreen(
                                 )
                                 IconButton(
                                     onClick = {
-                                        workers = workers.filterIndexed { i, _ -> i != index }
+                                        models = models.filterIndexed { i, _ -> i != index }
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {

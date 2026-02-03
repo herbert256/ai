@@ -200,14 +200,14 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val allModelMembers = swarmMembers + directModels
             val allModelIds = swarmMemberIds + uniqueDirectModelIds
 
-            // Total worker count
-            val totalWorkers = agents.size + allModelMembers.size
+            // Total model count
+            val totalModels = agents.size + allModelMembers.size
 
             _uiState.value = _uiState.value.copy(
                 showGenericAiAgentSelection = false,
                 showGenericAiReportsDialog = true,
                 genericAiReportsProgress = 0,
-                genericAiReportsTotal = totalWorkers,
+                genericAiReportsTotal = totalModels,
                 genericAiReportsSelectedAgents = selectedAgentIds + allModelIds,
                 genericAiReportsAgentResults = emptyMap(),
                 currentReportId = null  // Will be set after report creation
