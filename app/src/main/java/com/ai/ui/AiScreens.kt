@@ -406,46 +406,8 @@ fun AiReportsScreenNav(
         onNavigateHome()
     }
 
-    // Build initial workers from saved IDs (backward compat: expand saved flocks/swarms)
-    val initialWorkers = remember {
-        val workers = mutableListOf<ReportWorker>()
-
-        // Expand saved flock IDs into workers
-        viewModel.loadAiReportFlocks().forEach { flockId ->
-            aiSettings.getFlockById(flockId)?.let { flock ->
-                workers.addAll(expandFlockToWorkers(flock, aiSettings))
-            }
-        }
-
-        // Expand saved agent IDs into workers
-        viewModel.loadAiReportAgents().forEach { agentId ->
-            aiSettings.getAgentById(agentId)?.let { agent ->
-                expandAgentToWorker(agent, aiSettings)?.let { workers.add(it) }
-            }
-        }
-
-        // Expand saved swarm IDs into workers
-        viewModel.loadAiReportSwarms().forEach { swarmId ->
-            aiSettings.getSwarmById(swarmId)?.let { swarm ->
-                workers.addAll(expandSwarmToWorkers(swarm, aiSettings))
-            }
-        }
-
-        // Expand saved direct model IDs into workers
-        viewModel.loadAiReportModels().forEach { modelId ->
-            val parts = modelId.removePrefix("swarm:").split(":", limit = 2)
-            val providerName = parts.getOrNull(0) ?: return@forEach
-            val modelName = parts.getOrNull(1) ?: return@forEach
-            val provider = com.ai.data.AiService.findById(providerName) ?: return@forEach
-            workers.add(modelToWorker(provider, modelName))
-        }
-
-        deduplicateWorkers(workers)
-    }
-
     AiReportsScreen(
         uiState = uiState,
-        initialWorkers = initialWorkers,
         onGenerate = { workersList, paramsIds, reportType ->
             // Split workers into agent-based and model-based
             val agentWorkerIds = workersList.filter { it.agentId != null }.mapNotNull { it.agentId }.toSet()
@@ -1062,7 +1024,7 @@ fun AiReportsScreen(
                             onClick = { showSelectProvider = true },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF444444))
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
                         ) {
                             Text("Provider", fontSize = 13.sp)
                         }
@@ -1070,7 +1032,7 @@ fun AiReportsScreen(
                             onClick = { showSelectAllModels = true },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF444444))
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
                         ) {
                             Text("All Models", fontSize = 13.sp)
                         }
@@ -1081,7 +1043,7 @@ fun AiReportsScreen(
             // Workers list
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.background
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1100,8 +1062,8 @@ fun AiReportsScreen(
                     }
                 } else {
                     androidx.compose.foundation.lazy.LazyColumn(
-                        modifier = Modifier.padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                        modifier = Modifier.padding(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         items(workers.size, key = { index -> "${workers[index].deduplicationKey}:$index" }) { index ->
                             val worker = workers[index]
@@ -1109,7 +1071,8 @@ fun AiReportsScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -1127,17 +1090,6 @@ fun AiReportsScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                // Source badge
-                                if (worker.sourceName.isNotEmpty()) {
-                                    Text(
-                                        text = "${worker.sourceType}: ${worker.sourceName}",
-                                        fontSize = 9.sp,
-                                        color = Color(0xFF666666),
-                                        maxLines = 1,
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    )
-                                }
-                                // Pricing
                                 Text(
                                     text = pricing.text,
                                     color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
@@ -1145,7 +1097,6 @@ fun AiReportsScreen(
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     maxLines = 1
                                 )
-                                // Delete button
                                 IconButton(
                                     onClick = {
                                         workers = workers.filterIndexed { i, _ -> i != index }
@@ -1155,7 +1106,6 @@ fun AiReportsScreen(
                                     Text("\u2715", color = Color(0xFFFF6666), fontSize = 14.sp)
                                 }
                             }
-                            HorizontalDivider(color = Color(0xFF333333))
                         }
                     }
                 }
