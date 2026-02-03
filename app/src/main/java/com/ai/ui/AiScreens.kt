@@ -15,10 +15,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.ai.R
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 /**
  * AI hub screen - the home page of the app.
@@ -757,23 +761,21 @@ fun AiReportsScreen(
         }
     }
 
-    // Overlay handlers for selection screens (must be before the main Column)
+    // Dialog handlers for selection screens
     if (showSelectFlock) {
-        SelectFlockScreen(
+        ReportSelectFlockDialog(
             aiSettings = aiSettings,
             onSelectFlock = { flock ->
                 val newModels = expandFlockToModels(flock, aiSettings)
                 models = deduplicateModels(models + newModels)
                 showSelectFlock = false
             },
-            onBack = { showSelectFlock = false },
-            onNavigateHome = onNavigateHome
+            onDismiss = { showSelectFlock = false }
         )
-        return
     }
 
     if (showSelectAgent) {
-        SelectAgentScreen(
+        ReportSelectAgentDialog(
             aiSettings = aiSettings,
             onSelectAgent = { agent ->
                 expandAgentToModel(agent, aiSettings)?.let { entry ->
@@ -781,65 +783,54 @@ fun AiReportsScreen(
                 }
                 showSelectAgent = false
             },
-            onBack = { showSelectAgent = false },
-            onNavigateHome = onNavigateHome
+            onDismiss = { showSelectAgent = false }
         )
-        return
     }
 
     if (showSelectSwarm) {
-        SelectSwarmScreen(
+        ReportSelectSwarmDialog(
             aiSettings = aiSettings,
             onSelectSwarm = { swarm ->
                 val newModels = expandSwarmToModels(swarm, aiSettings)
                 models = deduplicateModels(models + newModels)
                 showSelectSwarm = false
             },
-            onBack = { showSelectSwarm = false },
-            onNavigateHome = onNavigateHome
+            onDismiss = { showSelectSwarm = false }
         )
-        return
-    }
-
-    if (pendingProvider != null) {
-        SelectModelScreen(
-            provider = pendingProvider!!,
-            aiSettings = aiSettings,
-            currentModel = "",
-            onSelectModel = { model ->
-                models = deduplicateModels(models + toReportModel(pendingProvider!!, model))
-                pendingProvider = null
-            },
-            onBack = { pendingProvider = null },
-            onNavigateHome = onNavigateHome
-        )
-        return
     }
 
     if (showSelectProvider) {
-        SelectProviderScreen(
+        ReportSelectProviderDialog(
             aiSettings = aiSettings,
             onSelectProvider = { provider ->
                 showSelectProvider = false
                 pendingProvider = provider
             },
-            onBack = { showSelectProvider = false },
-            onNavigateHome = onNavigateHome
+            onDismiss = { showSelectProvider = false }
         )
-        return
+    }
+
+    if (pendingProvider != null) {
+        ReportSelectModelDialog(
+            provider = pendingProvider!!,
+            aiSettings = aiSettings,
+            onSelectModel = { model ->
+                models = deduplicateModels(models + toReportModel(pendingProvider!!, model))
+                pendingProvider = null
+            },
+            onDismiss = { pendingProvider = null }
+        )
     }
 
     if (showSelectAllModels) {
-        SelectAllModelsScreen(
+        ReportSelectAllModelsDialog(
             aiSettings = aiSettings,
             onSelectModel = { provider, model ->
                 models = deduplicateModels(models + toReportModel(provider, model))
                 showSelectAllModels = false
             },
-            onBack = { showSelectAllModels = false },
-            onNavigateHome = onNavigateHome
+            onDismiss = { showSelectAllModels = false }
         )
-        return
     }
 
     Column(
@@ -1808,6 +1799,258 @@ fun ReportAdvancedParametersScreen(
                         unfocusedBorderColor = Color(0xFF444444)
                     )
                 )
+            }
+        }
+    }
+}
+
+// --- Compact report selection popup dialogs ---
+
+private fun dlgFmtPrice(pricePerToken: Double): String {
+    val m = pricePerToken * 1_000_000
+    return when { m == 0.0 -> "0"; m < 0.01 -> "<.01"; else -> "%.2f".format(m) }
+}
+
+private fun dlgFmtPriceM(perMillion: Double): String {
+    return when { perMillion == 0.0 -> "0"; perMillion < 0.01 -> "<.01"; else -> "%.2f".format(perMillion) }
+}
+
+@Composable
+private fun ReportSelectFlockDialog(
+    aiSettings: AiSettings,
+    onSelectFlock: (AiFlock) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val all = aiSettings.flocks
+    val filtered = if (search.isBlank()) all else all.filter { it.name.lowercase().contains(search.lowercase()) }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF1E1E1E)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text("Flocks", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth().height(48.dp), placeholder = { Text("Search...", fontSize = 13.sp) }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6B9BFF), unfocusedBorderColor = Color(0xFF444444), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = Color(0xFF888888), fontSize = 12.sp) } })
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(filtered, key = { it.id }) { flock ->
+                        val agents = aiSettings.getAgentsForFlock(flock)
+                        var tIn = 0.0; var tOut = 0.0; var real = false
+                        agents.forEach { a ->
+                            val p = com.ai.data.PricingCache.getPricing(context, a.provider, aiSettings.getEffectiveModelForAgent(a))
+                            tIn += p.promptPrice * 1_000_000; tOut += p.completionPrice * 1_000_000
+                            if (p.source != "default") real = true
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectFlock(flock) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(flock.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            Text("${agents.size}", fontSize = 11.sp, color = Color(0xFF888888), modifier = Modifier.padding(end = 6.dp))
+                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else Color(0xFF666666))
+                        }
+                        HorizontalDivider(color = Color(0xFF333333))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportSelectAgentDialog(
+    aiSettings: AiSettings,
+    onSelectAgent: (AiAgent) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val all = aiSettings.agents
+    val filtered = if (search.isBlank()) all else all.filter { a ->
+        a.name.lowercase().contains(search.lowercase()) || a.provider.displayName.lowercase().contains(search.lowercase())
+    }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF1E1E1E)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text("Agents", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth().height(48.dp), placeholder = { Text("Search...", fontSize = 13.sp) }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6B9BFF), unfocusedBorderColor = Color(0xFF444444), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = Color(0xFF888888), fontSize = 12.sp) } })
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(filtered, key = { it.id }) { agent ->
+                        val model = aiSettings.getEffectiveModelForAgent(agent)
+                        val p = com.ai.data.PricingCache.getPricing(context, agent.provider, model)
+                        val real = p.source != "default"
+                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${agent.provider.displayName} \u00B7 $model", fontSize = 11.sp, color = Color(0xFF888888), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else Color(0xFF666666))
+                        }
+                        HorizontalDivider(color = Color(0xFF333333))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportSelectSwarmDialog(
+    aiSettings: AiSettings,
+    onSelectSwarm: (AiSwarm) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val all = aiSettings.swarms
+    val filtered = if (search.isBlank()) all else all.filter { it.name.lowercase().contains(search.lowercase()) }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF1E1E1E)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text("Swarms", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth().height(48.dp), placeholder = { Text("Search...", fontSize = 13.sp) }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6B9BFF), unfocusedBorderColor = Color(0xFF444444), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = Color(0xFF888888), fontSize = 12.sp) } })
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(filtered, key = { it.id }) { swarm ->
+                        var tIn = 0.0; var tOut = 0.0; var real = false
+                        swarm.members.forEach { m ->
+                            val p = com.ai.data.PricingCache.getPricing(context, m.provider, m.model)
+                            tIn += p.promptPrice * 1_000_000; tOut += p.completionPrice * 1_000_000
+                            if (p.source != "default") real = true
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectSwarm(swarm) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(swarm.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            Text("${swarm.members.size}", fontSize = 11.sp, color = Color(0xFF888888), modifier = Modifier.padding(end = 6.dp))
+                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else Color(0xFF666666))
+                        }
+                        HorizontalDivider(color = Color(0xFF333333))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportSelectProviderDialog(
+    aiSettings: AiSettings,
+    onSelectProvider: (com.ai.data.AiService) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var search by remember { mutableStateOf("") }
+    val all = com.ai.data.AiService.entries
+    val filtered = if (search.isBlank()) all else all.filter { it.displayName.lowercase().contains(search.lowercase()) }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF1E1E1E)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text("Provider", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth().height(48.dp), placeholder = { Text("Search...", fontSize = 13.sp) }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6B9BFF), unfocusedBorderColor = Color(0xFF444444), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = Color(0xFF888888), fontSize = 12.sp) } })
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(filtered, key = { it.id }) { provider ->
+                        val st = aiSettings.getProviderState(provider)
+                        val emoji = when (st) { "ok" -> "\uD83D\uDD11"; "error" -> "\u274C"; "inactive" -> "\uD83D\uDCA4"; else -> "\u2B55" }
+                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(provider.displayName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            Text(emoji, fontSize = 14.sp)
+                        }
+                        HorizontalDivider(color = Color(0xFF333333))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportSelectModelDialog(
+    provider: com.ai.data.AiService,
+    aiSettings: AiSettings,
+    onSelectModel: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val all = aiSettings.getModels(provider)
+    val filtered = if (search.isBlank()) all else all.filter { it.lowercase().contains(search.lowercase()) }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF1E1E1E)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(provider.displayName, style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("${all.size} models", fontSize = 11.sp, color = Color(0xFF888888))
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth().height(48.dp), placeholder = { Text("Search...", fontSize = 13.sp) }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6B9BFF), unfocusedBorderColor = Color(0xFF444444), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = Color(0xFF888888), fontSize = 12.sp) } })
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(filtered, key = { it }) { model ->
+                        val p = com.ai.data.PricingCache.getPricing(context, provider, model)
+                        val real = p.source != "default"
+                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else Color(0xFF666666))
+                        }
+                        HorizontalDivider(color = Color(0xFF333333))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportSelectAllModelsDialog(
+    aiSettings: AiSettings,
+    onSelectModel: (com.ai.data.AiService, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val all = aiSettings.getActiveServices().flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
+    val filtered = if (search.isBlank()) all else all.filter { (prov, model) ->
+        prov.displayName.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
+    }
+    val sorted = filtered.sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF1E1E1E)) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text("All Models", style = MaterialTheme.typography.titleSmall, color = Color.White, fontWeight = FontWeight.Bold)
+                Text("${all.size} models", fontSize = 11.sp, color = Color(0xFF888888))
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth().height(48.dp), placeholder = { Text("Search...", fontSize = 13.sp) }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6B9BFF), unfocusedBorderColor = Color(0xFF444444), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = Color(0xFF888888), fontSize = 12.sp) } })
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(sorted, key = { "${it.first.id}:${it.second}" }) { (provider, model) ->
+                        val p = com.ai.data.PricingCache.getPricing(context, provider, model)
+                        val real = p.source != "default"
+                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(provider, model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(provider.displayName, fontSize = 11.sp, color = Color(0xFF888888), maxLines = 1)
+                            }
+                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else Color(0xFF666666))
+                        }
+                        HorizontalDivider(color = Color(0xFF333333))
+                    }
+                }
             }
         }
     }
