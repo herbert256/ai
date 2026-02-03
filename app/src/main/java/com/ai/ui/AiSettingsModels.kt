@@ -519,6 +519,85 @@ data class AiSettings(
 }
 
 /**
+ * A worker entry in the AI Reports selection list.
+ * Each worker represents a single provider+model combination that will generate a report.
+ */
+data class ReportWorker(
+    val provider: AiService,
+    val model: String,
+    val type: String,           // "agent" or "model"
+    val sourceType: String,     // "flock", "agent", "swarm", "model"
+    val sourceName: String,     // empty when sourceType is "model"
+    val agentId: String? = null,        // non-null for agent-based workers
+    val endpointId: String? = null,     // from agent config
+    val agentApiKey: String? = null,    // from agent config
+    val paramsIds: List<String> = emptyList()  // from agent/flock/swarm params
+) {
+    val deduplicationKey: String get() = "${provider.id}:$model"
+}
+
+fun expandFlockToWorkers(flock: AiFlock, aiSettings: AiSettings): List<ReportWorker> {
+    return flock.agentIds.mapNotNull { agentId ->
+        val agent = aiSettings.getAgentById(agentId) ?: return@mapNotNull null
+        if (!aiSettings.isProviderActive(agent.provider)) return@mapNotNull null
+        ReportWorker(
+            provider = agent.provider,
+            model = aiSettings.getEffectiveModelForAgent(agent),
+            type = "agent",
+            sourceType = "flock",
+            sourceName = flock.name,
+            agentId = agent.id,
+            endpointId = agent.endpointId,
+            agentApiKey = aiSettings.getEffectiveApiKeyForAgent(agent),
+            paramsIds = flock.paramsIds + agent.paramsIds
+        )
+    }
+}
+
+fun expandAgentToWorker(agent: AiAgent, aiSettings: AiSettings): ReportWorker? {
+    if (!aiSettings.isProviderActive(agent.provider)) return null
+    return ReportWorker(
+        provider = agent.provider,
+        model = aiSettings.getEffectiveModelForAgent(agent),
+        type = "agent",
+        sourceType = "agent",
+        sourceName = agent.name,
+        agentId = agent.id,
+        endpointId = agent.endpointId,
+        agentApiKey = aiSettings.getEffectiveApiKeyForAgent(agent),
+        paramsIds = agent.paramsIds
+    )
+}
+
+fun expandSwarmToWorkers(swarm: AiSwarm, aiSettings: AiSettings): List<ReportWorker> {
+    return swarm.members.filter { aiSettings.isProviderActive(it.provider) }.map { member ->
+        ReportWorker(
+            provider = member.provider,
+            model = member.model,
+            type = "model",
+            sourceType = "swarm",
+            sourceName = swarm.name,
+            paramsIds = swarm.paramsIds
+        )
+    }
+}
+
+fun modelToWorker(provider: AiService, model: String): ReportWorker {
+    return ReportWorker(
+        provider = provider,
+        model = model,
+        type = "model",
+        sourceType = "model",
+        sourceName = ""
+    )
+}
+
+fun deduplicateWorkers(workers: List<ReportWorker>): List<ReportWorker> {
+    val seen = mutableSetOf<String>()
+    return workers.filter { seen.add(it.deduplicationKey) }
+}
+
+/**
  * Statistics for a specific provider+model combination.
  * Tracks call count and token usage (normalized across providers).
  */

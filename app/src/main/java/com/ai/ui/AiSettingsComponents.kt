@@ -1765,3 +1765,158 @@ fun EndpointsSection(
         )
     }
 }
+
+/**
+ * Full-screen screen showing all models across all active providers.
+ * Flat searchable list with provider name, model name, and pricing columns.
+ */
+@Composable
+fun SelectAllModelsScreen(
+    aiSettings: AiSettings,
+    onSelectModel: (AiService, String) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allProviderModels = aiSettings.getActiveServices()
+        .flatMap { provider ->
+            aiSettings.getModels(provider).map { model -> provider to model }
+        }
+
+    val filteredModels = if (searchQuery.isBlank()) allProviderModels
+    else allProviderModels.filter { (provider, model) ->
+        provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
+            model.lowercase().contains(searchQuery.lowercase())
+    }
+
+    val sortedModels = filteredModels
+        .sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = "All Models",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Text(
+            text = "${allProviderModels.size} models across ${aiSettings.getActiveServices().size} providers",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF888888),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search models...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            ),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text("\u2715", color = Color(0xFF888888))
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Table header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Model",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "In $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+            Text(
+                text = "Out $/M",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF888888),
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(70.dp)
+            )
+        }
+
+        HorizontalDivider(color = Color(0xFF444444))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            items(sortedModels, key = { "${it.first.id}:${it.second}" }) { (provider, model) ->
+                val pricing = PricingCache.getPricing(context, provider, model)
+                val isDefaultSource = pricing.source == "default"
+                val priceColor = if (isDefaultSource) Color(0xFF666666) else Color(0xFFFF6B6B)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectModel(provider, model) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = model,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = provider.displayName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888),
+                            maxLines = 1
+                        )
+                    }
+                    Text(
+                        text = formatPrice(pricing.promptPrice),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                    Text(
+                        text = formatPrice(pricing.completionPrice),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = priceColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.width(70.dp)
+                    )
+                }
+                HorizontalDivider(color = Color(0xFF333333))
+            }
+        }
+    }
+}

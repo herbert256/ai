@@ -393,6 +393,7 @@ fun AiReportsScreenNav(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val aiSettings = uiState.aiSettings
 
     // Reset state when leaving the screen
     val handleDismiss = {
@@ -405,23 +406,64 @@ fun AiReportsScreenNav(
         onNavigateHome()
     }
 
+    // Build initial workers from saved IDs (backward compat: expand saved flocks/swarms)
+    val initialWorkers = remember {
+        val workers = mutableListOf<ReportWorker>()
+
+        // Expand saved flock IDs into workers
+        viewModel.loadAiReportFlocks().forEach { flockId ->
+            aiSettings.getFlockById(flockId)?.let { flock ->
+                workers.addAll(expandFlockToWorkers(flock, aiSettings))
+            }
+        }
+
+        // Expand saved agent IDs into workers
+        viewModel.loadAiReportAgents().forEach { agentId ->
+            aiSettings.getAgentById(agentId)?.let { agent ->
+                expandAgentToWorker(agent, aiSettings)?.let { workers.add(it) }
+            }
+        }
+
+        // Expand saved swarm IDs into workers
+        viewModel.loadAiReportSwarms().forEach { swarmId ->
+            aiSettings.getSwarmById(swarmId)?.let { swarm ->
+                workers.addAll(expandSwarmToWorkers(swarm, aiSettings))
+            }
+        }
+
+        // Expand saved direct model IDs into workers
+        viewModel.loadAiReportModels().forEach { modelId ->
+            val parts = modelId.removePrefix("swarm:").split(":", limit = 2)
+            val providerName = parts.getOrNull(0) ?: return@forEach
+            val modelName = parts.getOrNull(1) ?: return@forEach
+            val provider = com.ai.data.AiService.findById(providerName) ?: return@forEach
+            workers.add(modelToWorker(provider, modelName))
+        }
+
+        deduplicateWorkers(workers)
+    }
+
     AiReportsScreen(
         uiState = uiState,
-        savedAgentIds = viewModel.loadAiReportAgents(),
-        savedFlockIds = viewModel.loadAiReportFlocks(),
-        savedSwarmIds = viewModel.loadAiReportSwarms(),
-        savedModelIds = viewModel.loadAiReportModels(),
-        onGenerate = { combinedAgentIds, directAgentIds, selectedFlockIds, selectedSwarmIds, directModelIds, paramsIds, reportType ->
-            viewModel.saveAiReportAgents(directAgentIds)
-            viewModel.saveAiReportFlocks(selectedFlockIds)
-            viewModel.saveAiReportSwarms(selectedSwarmIds)
-            viewModel.saveAiReportModels(directModelIds)
-            viewModel.generateGenericAiReports(combinedAgentIds, selectedSwarmIds, directModelIds, paramsIds, reportType)
+        initialWorkers = initialWorkers,
+        onGenerate = { workersList, paramsIds, reportType ->
+            // Split workers into agent-based and model-based
+            val agentWorkerIds = workersList.filter { it.agentId != null }.mapNotNull { it.agentId }.toSet()
+            val modelWorkerIds = workersList.filter { it.agentId == null }
+                .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+
+            // Save for persistence
+            viewModel.saveAiReportAgents(agentWorkerIds)
+            viewModel.saveAiReportModels(modelWorkerIds)
+            viewModel.saveAiReportFlocks(emptySet())
+            viewModel.saveAiReportSwarms(emptySet())
+
+            // Combined agent IDs = agent workers (by agentId)
+            viewModel.generateGenericAiReports(agentWorkerIds, emptySet(), modelWorkerIds, paramsIds, reportType)
         },
         onStop = { viewModel.stopGenericAiReports() },
         onShare = { shareGenericAiReports(context, uiState) },
         onOpenInBrowser = {
-            // Use the stored AI-REPORT object to generate HTML on demand
             val reportId = uiState.currentReportId
             if (reportId != null) {
                 openAiReportInChrome(context, reportId, uiState.generalSettings.developerMode)
@@ -439,10 +481,8 @@ fun AiReportsScreenNav(
 
 /**
  * Full-screen AI Reports generation and results screen.
- * Shows agent selection first, then progress and results.
+ * Shows worker list selection first, then progress and results.
  */
-// Selection mode for report generation
-private enum class ReportSelectionMode { FLOCKS, AGENTS, SWARMS, MODELS }
 
 /**
  * Format model pricing as "input / output" per million tokens (e.g. "2.50 / 10.00").
@@ -465,11 +505,8 @@ internal fun formatPricingPerMillion(context: android.content.Context, provider:
 @Composable
 fun AiReportsScreen(
     uiState: AiUiState,
-    savedAgentIds: Set<String>,
-    savedFlockIds: Set<String>,
-    savedSwarmIds: Set<String> = emptySet(),
-    savedModelIds: Set<String> = emptySet(),
-    onGenerate: (Set<String>, Set<String>, Set<String>, Set<String>, Set<String>, List<String>, com.ai.data.ReportType) -> Unit,  // combinedAgentIds, directAgentIds, flockIds, swarmIds, directModelIds, paramsIds, reportType
+    initialWorkers: List<ReportWorker> = emptyList(),
+    onGenerate: (List<ReportWorker>, List<String>, com.ai.data.ReportType) -> Unit,  // workers, paramsIds, reportType
     onStop: () -> Unit,
     onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
@@ -679,182 +716,169 @@ fun AiReportsScreen(
         return
     }
 
-    // Selection mode: Flocks, Agents, or Swarms
-    var selectionMode by remember { mutableStateOf(ReportSelectionMode.FLOCKS) }
+    // Workers list (single source of truth for selection)
+    val aiSettings = uiState.aiSettings
 
-    // Search query
-    var searchQuery by remember { mutableStateOf("") }
+    // Build external workers from intent tags
+    val externalWorkers = remember(uiState.externalAgentNames, uiState.externalFlockNames, uiState.externalSwarmNames, uiState.externalModelSpecs) {
+        val extWorkers = mutableListOf<ReportWorker>()
 
-    // Filter agents to only those with an active provider
-    val allConfiguredAgents = uiState.aiSettings.getConfiguredAgents()
-    val configuredAgents = allConfiguredAgents.filter {
-        uiState.aiSettings.isProviderActive(it.provider)
-    }
+        // Resolve <agent> names
+        uiState.externalAgentNames.forEach { name ->
+            aiSettings.agents.find { it.name.equals(name, ignoreCase = true) }?.let { agent ->
+                expandAgentToWorker(agent, aiSettings)?.let { extWorkers.add(it) }
+            }
+        }
 
-    // Pre-resolve external selections for pre-selecting in the UI
-    val externalResolvedAgentIds = remember(uiState.externalAgentNames) {
-        if (uiState.externalAgentNames.isEmpty()) emptySet()
-        else uiState.externalAgentNames.mapNotNull { name ->
-            configuredAgents.find { it.name.equals(name, ignoreCase = true) }?.id
-        }.toSet()
-    }
-    val externalResolvedFlockIds = remember(uiState.externalFlockNames) {
-        if (uiState.externalFlockNames.isEmpty()) emptySet()
-        else uiState.externalFlockNames.mapNotNull { name ->
-            uiState.aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }?.id
-        }.toSet()
-    }
-    val externalResolvedSwarmIds = remember(uiState.externalSwarmNames) {
-        if (uiState.externalSwarmNames.isEmpty()) emptySet()
-        else uiState.externalSwarmNames.mapNotNull { name ->
-            uiState.aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }?.id
-        }.toSet()
-    }
-    val externalResolvedModelIds = remember(uiState.externalModelSpecs) {
-        if (uiState.externalModelSpecs.isEmpty()) emptySet()
-        else uiState.externalModelSpecs.mapNotNull { spec ->
+        // Resolve <flock> names
+        uiState.externalFlockNames.forEach { name ->
+            aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }?.let { flock ->
+                extWorkers.addAll(expandFlockToWorkers(flock, aiSettings))
+            }
+        }
+
+        // Resolve <swarm> names
+        uiState.externalSwarmNames.forEach { name ->
+            aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }?.let { swarm ->
+                extWorkers.addAll(expandSwarmToWorkers(swarm, aiSettings))
+            }
+        }
+
+        // Resolve <model>provider/model</model> specs
+        uiState.externalModelSpecs.forEach { spec ->
             val parts = spec.split("/", limit = 2)
-            if (parts.size != 2) return@mapNotNull null
-            val provider = com.ai.data.AiService.entries.find {
-                it.id.equals(parts[0].trim(), ignoreCase = true) ||
-                it.displayName.equals(parts[0].trim(), ignoreCase = true)
-            } ?: return@mapNotNull null
-            "swarm:${provider.id}:${parts[1].trim()}"
-        }.toSet()
+            if (parts.size == 2) {
+                val providerName = parts[0].trim()
+                val modelName = parts[1].trim()
+                val provider = com.ai.data.AiService.entries.find {
+                    it.id.equals(providerName, ignoreCase = true) ||
+                        it.displayName.equals(providerName, ignoreCase = true)
+                }
+                if (provider != null) {
+                    extWorkers.add(modelToWorker(provider, modelName))
+                }
+            }
+        }
+
+        deduplicateWorkers(extWorkers)
     }
 
-    // Flock selection state (pre-select external flocks if present)
-    val flocks = uiState.aiSettings.flocks
-    val validFlockIds = flocks.map { it.id }.toSet()
-    val validSavedFlocks = savedFlockIds.filter { it in validFlockIds }.toSet()
-    var selectedFlockIds by remember {
+    val hasExternalSelections = externalWorkers.isNotEmpty()
+
+    var workers by remember {
         mutableStateOf(
-            if (externalResolvedFlockIds.isNotEmpty()) externalResolvedFlockIds
-            else validSavedFlocks
+            if (hasExternalSelections) deduplicateWorkers(externalWorkers)
+            else initialWorkers
         )
     }
 
-    // Swarm selection state (pre-select external swarms if present)
-    val swarms = uiState.aiSettings.swarms
-    val validSwarmIds = swarms.map { it.id }.toSet()
-    val validSavedSwarms = savedSwarmIds.filter { it in validSwarmIds }.toSet()
-    var selectedSwarmIds by remember {
-        mutableStateOf(
-            if (externalResolvedSwarmIds.isNotEmpty()) externalResolvedSwarmIds
-            else validSavedSwarms
-        )
-    }
-
-    // Direct model selection state (pre-select external models if present)
-    var directlySelectedModelIds by remember {
-        mutableStateOf(
-            if (externalResolvedModelIds.isNotEmpty()) externalResolvedModelIds
-            else savedModelIds
-        )
-    }
-
-    // Direct agent selection state (pre-select external agents if present)
-    val validAgentIds = configuredAgents.map { it.id }.toSet()
-    val validSavedAgents = savedAgentIds.filter { it in validAgentIds }.toSet()
-    var directlySelectedAgentIds by remember {
-        mutableStateOf(
-            if (externalResolvedAgentIds.isNotEmpty()) externalResolvedAgentIds
-            else validSavedAgents
-        )
-    }
-
-    // Get agents from selected flocks (only active providers)
-    val flockAgentIds = uiState.aiSettings.getAgentsForFlocks(selectedFlockIds)
-        .filter { uiState.aiSettings.isProviderActive(it.provider) }
-        .map { it.id }.toSet()
-
-    // Get members from selected swarms (only active providers)
-    val swarmMembers = uiState.aiSettings.getMembersForSwarms(selectedSwarmIds)
-        .filter { uiState.aiSettings.isProviderActive(it.provider) }
-
-    // Get synthetic IDs for swarm members (to check which models are already selected via swarm)
-    val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-
-    // Combined unique agent IDs (from flocks + directly selected)
-    val combinedAgentIds = flockAgentIds + directlySelectedAgentIds
-
-    // Combined model IDs (from swarms + directly selected, avoiding duplicates)
-    val combinedModelIds = swarmMemberIds + directlySelectedModelIds.filter { it !in swarmMemberIds }
-
-    // Total worker count (agents + all model selections)
-    val totalWorkers = combinedAgentIds.size + combinedModelIds.size
+    // Overlay states for Select screens
+    var showSelectFlock by remember { mutableStateOf(false) }
+    var showSelectAgent by remember { mutableStateOf(false) }
+    var showSelectSwarm by remember { mutableStateOf(false) }
+    var showSelectProvider by remember { mutableStateOf(false) }
+    var pendingProvider by remember { mutableStateOf<com.ai.data.AiService?>(null) }
+    var showSelectAllModels by remember { mutableStateOf(false) }
 
     // Parameters preset selection for the report (multi-select)
     var selectedParametersIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
     // Auto-generate when external API selections + type are present
-    // Resolves <agent>, <flock>, <swarm>, <model> names to IDs, deduplicates, and triggers generation
-    val hasExternalSelections = uiState.externalAgentNames.isNotEmpty() ||
-            uiState.externalFlockNames.isNotEmpty() ||
-            uiState.externalSwarmNames.isNotEmpty() ||
-            uiState.externalModelSpecs.isNotEmpty()
     var externalAutoGenerated by remember { mutableStateOf(false) }
     LaunchedEffect(hasExternalSelections, uiState.externalReportType) {
         if (hasExternalSelections && uiState.externalReportType != null && !uiState.externalSelect && !isGenerating && !externalAutoGenerated) {
             externalAutoGenerated = true
-            val aiSettings = uiState.aiSettings
-
-            // Resolve agent names to IDs (case-insensitive)
-            val resolvedAgentIds = uiState.externalAgentNames.mapNotNull { name ->
-                configuredAgents.find { it.name.equals(name, ignoreCase = true) }?.id
-            }.toSet()
-
-            // Resolve flock names to IDs (case-insensitive)
-            val resolvedFlockIds = uiState.externalFlockNames.mapNotNull { name ->
-                aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }?.id
-            }.toSet()
-
-            // Expand flock agent IDs
-            val flockExpandedAgentIds = aiSettings.getAgentsForFlocks(resolvedFlockIds)
-                .filter { aiSettings.isProviderActive(it.provider) }
-                .map { it.id }.toSet()
-
-            // Resolve swarm names to IDs (case-insensitive)
-            val resolvedSwarmIds = uiState.externalSwarmNames.mapNotNull { name ->
-                aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }?.id
-            }.toSet()
-
-            // Get swarm member synthetic IDs for deduplication
-            val resolvedSwarmMemberIds = aiSettings.getMembersForSwarms(resolvedSwarmIds)
-                .filter { aiSettings.isProviderActive(it.provider) }
-                .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-
-            // Parse <model>provider/model</model> specs into synthetic IDs
-            val resolvedDirectModelIds = uiState.externalModelSpecs.mapNotNull { spec ->
-                val parts = spec.split("/", limit = 2)
-                if (parts.size != 2) return@mapNotNull null
-                val providerName = parts[0].trim()
-                val modelName = parts[1].trim()
-                // Match provider by ID or displayName (case-insensitive)
-                val provider = com.ai.data.AiService.entries.find {
-                    it.id.equals(providerName, ignoreCase = true) ||
-                    it.displayName.equals(providerName, ignoreCase = true)
-                } ?: return@mapNotNull null
-                "swarm:${provider.id}:$modelName"
-            }.toSet()
-
-            // Deduplicate: remove direct models already covered by swarms
-            val uniqueDirectModelIds = resolvedDirectModelIds.filter { it !in resolvedSwarmMemberIds }.toSet()
-
-            // Combined agent IDs (from flocks + directly resolved agents, deduplicated)
-            val allAgentIds = flockExpandedAgentIds + resolvedAgentIds
-
-            // Determine report type
             val reportType = if (uiState.externalReportType.equals("Table", ignoreCase = true))
                 com.ai.data.ReportType.TABLE else com.ai.data.ReportType.CLASSIC
-
-            // Also deduplicate agents that appear both directly and via flock
-            // (Set union already handles this)
-
-            if (allAgentIds.isNotEmpty() || resolvedSwarmIds.isNotEmpty() || uniqueDirectModelIds.isNotEmpty()) {
-                onGenerate(allAgentIds, resolvedAgentIds, resolvedFlockIds, resolvedSwarmIds, uniqueDirectModelIds, emptyList(), reportType)
+            if (workers.isNotEmpty()) {
+                onGenerate(workers, emptyList(), reportType)
             }
         }
+    }
+
+    // Overlay handlers for selection screens (must be before the main Column)
+    if (showSelectFlock) {
+        SelectFlockScreen(
+            aiSettings = aiSettings,
+            onSelectFlock = { flock ->
+                val newWorkers = expandFlockToWorkers(flock, aiSettings)
+                workers = deduplicateWorkers(workers + newWorkers)
+                showSelectFlock = false
+            },
+            onBack = { showSelectFlock = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (showSelectAgent) {
+        SelectAgentScreen(
+            aiSettings = aiSettings,
+            onSelectAgent = { agent ->
+                expandAgentToWorker(agent, aiSettings)?.let { worker ->
+                    workers = deduplicateWorkers(workers + worker)
+                }
+                showSelectAgent = false
+            },
+            onBack = { showSelectAgent = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (showSelectSwarm) {
+        SelectSwarmScreen(
+            aiSettings = aiSettings,
+            onSelectSwarm = { swarm ->
+                val newWorkers = expandSwarmToWorkers(swarm, aiSettings)
+                workers = deduplicateWorkers(workers + newWorkers)
+                showSelectSwarm = false
+            },
+            onBack = { showSelectSwarm = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (pendingProvider != null) {
+        SelectModelScreen(
+            provider = pendingProvider!!,
+            aiSettings = aiSettings,
+            currentModel = "",
+            onSelectModel = { model ->
+                workers = deduplicateWorkers(workers + modelToWorker(pendingProvider!!, model))
+                pendingProvider = null
+            },
+            onBack = { pendingProvider = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (showSelectProvider) {
+        SelectProviderScreen(
+            aiSettings = aiSettings,
+            onSelectProvider = { provider ->
+                showSelectProvider = false
+                pendingProvider = provider
+            },
+            onBack = { showSelectProvider = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (showSelectAllModels) {
+        SelectAllModelsScreen(
+            aiSettings = aiSettings,
+            onSelectModel = { provider, model ->
+                workers = deduplicateWorkers(workers + modelToWorker(provider, model))
+                showSelectAllModels = false
+            },
+            onBack = { showSelectAllModels = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     Column(
@@ -867,10 +891,7 @@ fun AiReportsScreen(
             title = when {
                 isComplete -> "Reports Ready"
                 isGenerating -> "Generating Reports"
-                selectionMode == ReportSelectionMode.FLOCKS -> "Select Flock(s)"
-                selectionMode == ReportSelectionMode.AGENTS -> "Select Agent(s)"
-                selectionMode == ReportSelectionMode.SWARMS -> "Select Swarm(s)"
-                else -> "Select Model(s)"
+                else -> "Select Workers"
             },
             onBackClick = if (isComplete) onResetReports else onDismiss,
             onAiClick = onNavigateHome
@@ -879,7 +900,7 @@ fun AiReportsScreen(
         Spacer(modifier = Modifier.height(6.dp))
 
         if (!isGenerating) {
-            // Action row: Parameters + Clear (left), Generate (right)
+            // Action row: Parameters (left), Generate (right)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -894,7 +915,7 @@ fun AiReportsScreen(
                     )
                 ) {
                     Text(
-                        if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
+                        if (selectedParametersIds.isNotEmpty()) "\u2699 Parameters" else "Parameters",
                         fontSize = 13.sp, maxLines = 1
                     )
                 }
@@ -907,50 +928,30 @@ fun AiReportsScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Clear button
-                Button(
-                    onClick = {
-                        when (selectionMode) {
-                            ReportSelectionMode.FLOCKS -> selectedFlockIds = emptySet()
-                            ReportSelectionMode.AGENTS -> directlySelectedAgentIds = emptySet()
-                            ReportSelectionMode.SWARMS -> selectedSwarmIds = emptySet()
-                            ReportSelectionMode.MODELS -> directlySelectedModelIds = emptySet()
-                        }
-                    },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF8B5CF6)
-                    )
-                ) {
-                    Text("Clear", fontSize = 13.sp, maxLines = 1)
-                }
-
                 Spacer(modifier = Modifier.weight(1f))
 
                 // Report type selection popup state
                 var showReportTypeDialog by remember { mutableStateOf(false) }
 
-                // Generate button (right-aligned) - opens report type popup (or auto-selects for external intent)
+                // Generate button (right-aligned)
                 Button(
                     onClick = {
                         val extType = uiState.externalReportType
                         if (extType != null) {
                             val reportType = if (extType.equals("Table", ignoreCase = true))
                                 com.ai.data.ReportType.TABLE else com.ai.data.ReportType.CLASSIC
-                            onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds, reportType)
+                            onGenerate(workers, selectedParametersIds, reportType)
                         } else {
                             showReportTypeDialog = true
                         }
                     },
-                    enabled = totalWorkers > 0,
+                    enabled = workers.isNotEmpty(),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50)
                     )
                 ) {
-                    Text("Generate ($totalWorkers)", fontSize = 13.sp, maxLines = 1)
+                    Text("Generate (${workers.size})", fontSize = 13.sp, maxLines = 1)
                 }
 
                 // Report type selection dialog
@@ -967,7 +968,7 @@ fun AiReportsScreen(
                                 Button(
                                     onClick = {
                                         showReportTypeDialog = false
-                                        onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds, com.ai.data.ReportType.CLASSIC)
+                                        onGenerate(workers, selectedParametersIds, com.ai.data.ReportType.CLASSIC)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
@@ -979,7 +980,7 @@ fun AiReportsScreen(
                                 Button(
                                     onClick = {
                                         showReportTypeDialog = false
-                                        onGenerate(combinedAgentIds, directlySelectedAgentIds, selectedFlockIds, selectedSwarmIds, directlySelectedModelIds, selectedParametersIds, com.ai.data.ReportType.TABLE)
+                                        onGenerate(workers, selectedParametersIds, com.ai.data.ReportType.TABLE)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
@@ -1005,82 +1006,79 @@ fun AiReportsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Mode toggle buttons
-            Row(
+            // "Add" card with buttons
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    .padding(bottom = 8.dp)
             ) {
-                Button(
-                    onClick = { selectionMode = ReportSelectionMode.FLOCKS },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectionMode == ReportSelectionMode.FLOCKS) Color(0xFF6B9BFF) else Color(0xFF444444)
-                    )
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("Flocks", fontSize = 13.sp)
-                }
-                Button(
-                    onClick = { selectionMode = ReportSelectionMode.AGENTS },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectionMode == ReportSelectionMode.AGENTS) Color(0xFF6B9BFF) else Color(0xFF444444)
+                    Text(
+                        text = "Add",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
                     )
-                ) {
-                    Text("Agents", fontSize = 13.sp)
-                }
-                Button(
-                    onClick = { selectionMode = ReportSelectionMode.SWARMS },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectionMode == ReportSelectionMode.SWARMS) Color(0xFF6B9BFF) else Color(0xFF444444)
-                    )
-                ) {
-                    Text("Swarms", fontSize = 13.sp)
-                }
-                Button(
-                    onClick = { selectionMode = ReportSelectionMode.MODELS },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectionMode == ReportSelectionMode.MODELS) Color(0xFF6B9BFF) else Color(0xFF444444)
-                    )
-                ) {
-                    Text("Models", fontSize = 13.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Button(
+                            onClick = { showSelectFlock = true },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
+                        ) {
+                            Text("Flocks", fontSize = 13.sp)
+                        }
+                        Button(
+                            onClick = { showSelectAgent = true },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
+                        ) {
+                            Text("Agents", fontSize = 13.sp)
+                        }
+                        Button(
+                            onClick = { showSelectSwarm = true },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
+                        ) {
+                            Text("Swarms", fontSize = 13.sp)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Button(
+                            onClick = { showSelectProvider = true },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF444444))
+                        ) {
+                            Text("Provider", fontSize = 13.sp)
+                        }
+                        Button(
+                            onClick = { showSelectAllModels = true },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF444444))
+                        ) {
+                            Text("All Models", fontSize = 13.sp)
+                        }
+                    }
                 }
             }
 
-            // Search field
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                placeholder = { Text(when (selectionMode) {
-                    ReportSelectionMode.FLOCKS -> "Search flocks..."
-                    ReportSelectionMode.AGENTS -> "Search agents..."
-                    ReportSelectionMode.SWARMS -> "Search swarms..."
-                    ReportSelectionMode.MODELS -> "Search models..."
-                }) },
-                singleLine = true,
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Text("✕", color = Color.Gray)
-                        }
-                    }
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
-                )
-            )
-
+            // Workers list
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -1089,287 +1087,75 @@ fun AiReportsScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    when (selectionMode) {
-                        ReportSelectionMode.FLOCKS -> {
-                            // Flock selection mode
-                            val filteredFlocks = flocks
-                                .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
-                                .sortedWith(compareByDescending<AiFlock> { it.id in selectedFlockIds }.thenBy { it.name.lowercase() })
-                            if (flocks.isEmpty()) {
+                if (workers.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No workers added yet.\nUse the buttons above to add workers.",
+                            color = Color(0xFFAAAAAA),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        items(workers.size, key = { index -> "${workers[index].deduplicationKey}:$index" }) { index ->
+                            val worker = workers[index]
+                            val pricing = formatPricingPerMillion(context, worker.provider, worker.model)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = worker.provider.displayName,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFAAAAAA),
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = worker.model,
+                                        fontSize = 13.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                // Source badge
+                                if (worker.sourceName.isNotEmpty()) {
+                                    Text(
+                                        text = "${worker.sourceType}: ${worker.sourceName}",
+                                        fontSize = 9.sp,
+                                        color = Color(0xFF666666),
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                }
+                                // Pricing
                                 Text(
-                                    text = "No AI flocks configured.",
-                                    color = Color(0xFFAAAAAA)
+                                    text = pricing.text,
+                                    color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                                    fontSize = 10.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    maxLines = 1
                                 )
-                            } else if (filteredFlocks.isEmpty()) {
-                                Text(
-                                    text = "No flocks match \"$searchQuery\"",
-                                    color = Color(0xFFAAAAAA)
-                                )
-                            } else {
-                                filteredFlocks.forEach { flock ->
-                                    val flockAgentsList = uiState.aiSettings.getAgentsForFlock(flock)
-                                        .filter { uiState.aiSettings.isProviderActive(it.provider) }
-                                    val flockAgentIdsList = flockAgentsList.map { it.id }.toSet()
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                if (flock.id in selectedFlockIds) {
-                                                    selectedFlockIds = selectedFlockIds - flock.id
-                                                    directlySelectedAgentIds = directlySelectedAgentIds - flockAgentIdsList
-                                                } else {
-                                                    selectedFlockIds = selectedFlockIds + flock.id
-                                                }
-                                            },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(
-                                            checked = flock.id in selectedFlockIds,
-                                            onCheckedChange = { checked ->
-                                                if (checked) {
-                                                    selectedFlockIds = selectedFlockIds + flock.id
-                                                } else {
-                                                    selectedFlockIds = selectedFlockIds - flock.id
-                                                    directlySelectedAgentIds = directlySelectedAgentIds - flockAgentIdsList
-                                                }
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        )
-                                        Text(
-                                            text = "${flock.name} (${flockAgentsList.size})",
-                                            color = Color.White,
-                                            fontSize = 13.sp,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
+                                // Delete button
+                                IconButton(
+                                    onClick = {
+                                        workers = workers.filterIndexed { i, _ -> i != index }
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Text("\u2715", color = Color(0xFFFF6666), fontSize = 14.sp)
                                 }
                             }
-                        }
-                        ReportSelectionMode.AGENTS -> {
-                            // Agent selection mode - show all agents, but flock agents are locked
-                            val filteredAgents = configuredAgents
-                                .filter { agent ->
-                                    searchQuery.isBlank() ||
-                                    agent.name.contains(searchQuery, ignoreCase = true) ||
-                                    agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
-                                    agent.model.contains(searchQuery, ignoreCase = true)
-                                }
-                                .sortedWith(compareByDescending<AiAgent> { it.id in flockAgentIds || it.id in directlySelectedAgentIds }.thenBy { it.name.lowercase() })
-                            if (configuredAgents.isEmpty()) {
-                                Text(
-                                    text = "No AI agents configured.",
-                                    color = Color(0xFFAAAAAA)
-                                )
-                            } else if (filteredAgents.isEmpty()) {
-                                Text(
-                                    text = "No agents match \"$searchQuery\"",
-                                    color = Color(0xFFAAAAAA)
-                                )
-                            } else {
-                                filteredAgents.forEach { agent ->
-                                    val isFromFlock = agent.id in flockAgentIds
-                                    val isChecked = isFromFlock || agent.id in directlySelectedAgentIds
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .then(
-                                                if (isFromFlock) Modifier
-                                                else Modifier.clickable {
-                                                    directlySelectedAgentIds = if (agent.id in directlySelectedAgentIds) {
-                                                        directlySelectedAgentIds - agent.id
-                                                    } else {
-                                                        directlySelectedAgentIds + agent.id
-                                                    }
-                                                }
-                                            ),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(
-                                            checked = isChecked,
-                                            onCheckedChange = if (isFromFlock) null else { checked ->
-                                                directlySelectedAgentIds = if (checked) {
-                                                    directlySelectedAgentIds + agent.id
-                                                } else {
-                                                    directlySelectedAgentIds - agent.id
-                                                }
-                                            },
-                                            enabled = !isFromFlock,
-                                            modifier = Modifier.size(32.dp)
-                                        )
-                                        Text(
-                                            text = agent.name,
-                                            color = if (isFromFlock) Color(0xFF888888) else Color.White,
-                                            fontSize = 13.sp,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        val pricing = formatPricingPerMillion(context, agent.provider, agent.model)
-                                        Text(
-                                            text = pricing.text,
-                                            color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
-                                            fontSize = 10.sp,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        ReportSelectionMode.SWARMS -> {
-                            // Swarm selection mode
-                            val filteredSwarms = swarms
-                                .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
-                                .sortedWith(compareByDescending<AiSwarm> { it.id in selectedSwarmIds }.thenBy { it.name.lowercase() })
-                            if (swarms.isEmpty()) {
-                                Text(
-                                    text = "No AI swarms configured.",
-                                    color = Color(0xFFAAAAAA)
-                                )
-                            } else if (filteredSwarms.isEmpty()) {
-                                Text(
-                                    text = "No swarms match \"$searchQuery\"",
-                                    color = Color(0xFFAAAAAA)
-                                )
-                            } else {
-                                filteredSwarms.forEach { swarm ->
-                                    val swarmMembersList = swarm.members
-                                        .filter { uiState.aiSettings.isProviderActive(it.provider) }
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                selectedSwarmIds = if (swarm.id in selectedSwarmIds) {
-                                                    selectedSwarmIds - swarm.id
-                                                } else {
-                                                    selectedSwarmIds + swarm.id
-                                                }
-                                            },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(
-                                            checked = swarm.id in selectedSwarmIds,
-                                            onCheckedChange = { checked ->
-                                                selectedSwarmIds = if (checked) {
-                                                    selectedSwarmIds + swarm.id
-                                                } else {
-                                                    selectedSwarmIds - swarm.id
-                                                }
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        )
-                                        Text(
-                                            text = "${swarm.name} (${swarmMembersList.size})",
-                                            color = Color.White,
-                                            fontSize = 13.sp,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        ReportSelectionMode.MODELS -> {
-                            // Models selection mode - select provider/model combinations directly
-                            // Build list of all available provider/model combinations (active providers only)
-                            val allProviderModels = uiState.aiSettings.getActiveServices()
-                                .flatMap { provider ->
-                                    val modelsForProvider = uiState.aiSettings.getModels(provider)
-                                    modelsForProvider.map { model -> provider to model }
-                                }
-
-                            val filteredModels = allProviderModels
-                                .filter { (provider, model) ->
-                                    searchQuery.isBlank() ||
-                                    provider.displayName.contains(searchQuery, ignoreCase = true) ||
-                                    model.contains(searchQuery, ignoreCase = true)
-                                }
-                                .sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
-
-                            // Sort selected/swarm items to top
-                            val sortedModels = filteredModels
-                                .sortedWith(compareByDescending<Pair<com.ai.data.AiService, String>> {
-                                    val synId = "swarm:${it.first.id}:${it.second}"
-                                    synId in swarmMemberIds || synId in directlySelectedModelIds
-                                }.thenBy { it.first.displayName.lowercase() }.thenBy { it.second.lowercase() })
-
-                            if (allProviderModels.isEmpty()) {
-                                Text(
-                                    text = "No models available.",
-                                    color = Color(0xFFAAAAAA)
-                                )
-                            } else if (filteredModels.isEmpty()) {
-                                Text(
-                                    text = "No models match \"$searchQuery\"",
-                                    color = Color(0xFFAAAAAA)
-                                )
-                            } else {
-                                sortedModels.forEach { (provider, model) ->
-                                    val syntheticId = "swarm:${provider.id}:$model"
-                                    val isFromSwarm = syntheticId in swarmMemberIds
-                                    val isChecked = isFromSwarm || syntheticId in directlySelectedModelIds
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .then(
-                                                if (isFromSwarm) Modifier
-                                                else Modifier.clickable {
-                                                    directlySelectedModelIds = if (syntheticId in directlySelectedModelIds) {
-                                                        directlySelectedModelIds - syntheticId
-                                                    } else {
-                                                        directlySelectedModelIds + syntheticId
-                                                    }
-                                                }
-                                            ),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(
-                                            checked = isChecked,
-                                            onCheckedChange = if (isFromSwarm) null else { checked ->
-                                                directlySelectedModelIds = if (checked) {
-                                                    directlySelectedModelIds + syntheticId
-                                                } else {
-                                                    directlySelectedModelIds - syntheticId
-                                                }
-                                            },
-                                            enabled = !isFromSwarm,
-                                            modifier = Modifier.size(32.dp)
-                                        )
-                                        Text(
-                                            text = if (isFromSwarm) "${provider.displayName} (via swarm) " else "${provider.displayName} ",
-                                            fontSize = 11.sp,
-                                            color = if (isFromSwarm) Color(0xFF666666) else Color(0xFFAAAAAA),
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = model,
-                                            fontSize = 13.sp,
-                                            color = if (isFromSwarm) Color(0xFF888888) else Color.White,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        val pricing = formatPricingPerMillion(context, provider, model)
-                                        Text(
-                                            text = pricing.text,
-                                            color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
-                                            fontSize = 10.sp,
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
+                            HorizontalDivider(color = Color(0xFF333333))
                         }
                     }
                 }
