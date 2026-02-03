@@ -333,7 +333,7 @@ fun AiNewReportScreen(
                     containerColor = Color(0xFF8B5CF6)
                 )
             ) {
-                Text("Submit", fontSize = 16.sp)
+                Text("Next", fontSize = 16.sp)
             }
         }
 
@@ -460,7 +460,7 @@ internal fun formatPricingPerMillion(context: android.content.Context, provider:
         v < 0.01 -> "0.01"
         else -> "%.2f".format(v)
     }
-    return FormattedPricing("${fmt(input)}/${fmt(output)}", pricing.source == "default")
+    return FormattedPricing("${fmt(input)} / ${fmt(output)}", pricing.source == "default")
 }
 
 @Composable
@@ -912,7 +912,7 @@ fun AiReportsScreen(
                         containerColor = Color(0xFF4CAF50)
                     )
                 ) {
-                    Text("Generate (${models.size})", fontSize = 13.sp, maxLines = 1)
+                    Text("Next", fontSize = 13.sp, maxLines = 1)
                 }
 
                 // Report type selection dialog
@@ -1039,6 +1039,41 @@ fun AiReportsScreen(
                 }
             }
 
+            // Total row
+            if (models.isNotEmpty()) {
+                var totalIn = 0.0
+                var totalOut = 0.0
+                models.forEach { entry ->
+                    val p = com.ai.data.PricingCache.getPricing(context, entry.provider, entry.model)
+                    totalIn += p.promptPrice * 1_000_000
+                    totalOut += p.completionPrice * 1_000_000
+                }
+                fun fmtTotal(v: Double): String = when {
+                    v == 0.0 -> "0.00"
+                    v < 0.01 -> "0.01"
+                    else -> "%.2f".format(v)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Models selected: ${models.size}",
+                        fontSize = 12.sp,
+                        color = Color(0xFFAAAAAA)
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "${fmtTotal(totalIn)} / ${fmtTotal(totalOut)}",
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFFF6B6B)
+                    )
+                }
+            }
+
             // Models list
             Card(
                 colors = CardDefaults.cardColors(
@@ -1074,6 +1109,14 @@ fun AiReportsScreen(
                                     .padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                IconButton(
+                                    onClick = {
+                                        models = models.filterIndexed { i, _ -> i != index }
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Text("\u2715", color = Color(0xFFFF6666), fontSize = 14.sp)
+                                }
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = entry.provider.displayName,
@@ -1096,14 +1139,6 @@ fun AiReportsScreen(
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     maxLines = 1
                                 )
-                                IconButton(
-                                    onClick = {
-                                        models = models.filterIndexed { i, _ -> i != index }
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Text("\u2715", color = Color(0xFFFF6666), fontSize = 14.sp)
-                                }
                             }
                         }
                     }
