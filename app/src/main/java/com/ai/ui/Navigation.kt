@@ -122,6 +122,8 @@ fun AiNavHost(
                 val email = extractTag("email", instructions)
                 val nextAction = extractTag("next", instructions)
                 val hasReturn = Regex("<return>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
+                val hasEdit = Regex("<edit>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
+                val hasSelect = Regex("<select>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
 
                 // Extract API selection tags (can appear multiple times)
                 val agentNames = extractAllTags("agent", instructions)
@@ -129,16 +131,23 @@ fun AiNavHost(
                 val swarmNames = extractAllTags("swarm", instructions)
                 val modelSpecs = extractAllTags("model", instructions)
 
-                // Wrap openHtml as <user> tag so existing ViewModel parsing handles it
-                val fullPrompt = if (openHtml != null) "$aiPrompt\n<user>$openHtml</user>" else aiPrompt
+                // Store instructions in ViewModel
+                viewModel.setExternalInstructions(closeHtml, reportType, email, nextAction, hasReturn, agentNames, flockNames, swarmNames, modelSpecs, hasEdit, hasSelect, openHtml)
 
-                // Store instructions in ViewModel and set up for report generation
-                viewModel.setExternalInstructions(closeHtml, reportType, email, nextAction, hasReturn, agentNames, flockNames, swarmNames, modelSpecs)
-                viewModel.showGenericAiAgentSelection(externalTitle ?: "", fullPrompt)
+                if (hasEdit) {
+                    // <edit>: show New Report screen so user can edit prompt (clean, without <user> wrapper)
+                    navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", aiPrompt)) {
+                        popUpTo(NavRoutes.AI) { inclusive = false }
+                    }
+                } else {
+                    // Default: skip New Report, go directly to agent selection / generation
+                    // Wrap openHtml as <user> tag so existing ViewModel parsing handles it
+                    val fullPrompt = if (openHtml != null) "$aiPrompt\n<user>$openHtml</user>" else aiPrompt
+                    viewModel.showGenericAiAgentSelection(externalTitle ?: "", fullPrompt)
 
-                // Navigate directly to reports screen (skip New Report)
-                navController.navigate(NavRoutes.AI_REPORTS) {
-                    popUpTo(NavRoutes.AI) { inclusive = false }
+                    navController.navigate(NavRoutes.AI_REPORTS) {
+                        popUpTo(NavRoutes.AI) { inclusive = false }
+                    }
                 }
             } else {
                 // No marker - current behavior: navigate to New Report screen
@@ -656,10 +665,10 @@ fun SettingsScreenNav(
         onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) },
         onRefreshAllModels = { settings, forceRefresh, onProgress -> viewModel.refreshAllModelLists(settings, forceRefresh, onProgress) },
         onSaveHuggingFaceApiKey = { key ->
-            viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
+            viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = key))
         },
         onSaveOpenRouterApiKey = { key ->
-            viewModel.updateGeneralSettings(uiState.generalSettings.copy(openRouterApiKey = key))
+            viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = key))
         },
         onNavigateToCostConfig = onNavigateToCostConfig,
         initialSubScreen = initialSubScreen
@@ -705,10 +714,10 @@ fun HousekeepingScreenNav(
         onRefreshAllModels = { settings, forceRefresh, onProgress -> viewModel.refreshAllModelLists(settings, forceRefresh, onProgress) },
         onTestApiKey = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onSaveHuggingFaceApiKey = { key ->
-            viewModel.updateGeneralSettings(uiState.generalSettings.copy(huggingFaceApiKey = key))
+            viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = key))
         },
         onSaveOpenRouterApiKey = { key ->
-            viewModel.updateGeneralSettings(uiState.generalSettings.copy(openRouterApiKey = key))
+            viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = key))
         },
         onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) }
     )

@@ -41,6 +41,10 @@ fun AiAgentsScreen(
     var showModelSelectForProvider by remember { mutableStateOf<AiService?>(null) }
     var pendingModelSelection by remember { mutableStateOf<String?>(null) }
 
+    // Provider selection overlay state
+    var showProviderSelect by remember { mutableStateOf(false) }
+    var pendingProviderSelection by remember { mutableStateOf<AiService?>(null) }
+
     val modelSelectProvider = showModelSelectForProvider
     if (modelSelectProvider != null) {
         SelectModelScreen(
@@ -53,6 +57,16 @@ fun AiAgentsScreen(
                 showModelSelectForProvider = null
             },
             onBack = { showModelSelectForProvider = null },
+            onNavigateHome = onBackToHome
+        )
+    } else if (showProviderSelect) {
+        SelectProviderScreen(
+            aiSettings = aiSettings,
+            onSelectProvider = { provider ->
+                pendingProviderSelection = provider
+                showProviderSelect = false
+            },
+            onBack = { showProviderSelect = false },
             onNavigateHome = onBackToHome
         )
     } else if (showAddScreen || editingAgent != null || copyingAgent != null) {
@@ -94,7 +108,10 @@ fun AiAgentsScreen(
             onPendingModelConsumed = { pendingModelSelection = null },
             onNavigateToSelectModel = { provider ->
                 showModelSelectForProvider = provider
-            }
+            },
+            pendingProviderSelection = pendingProviderSelection,
+            onPendingProviderConsumed = { pendingProviderSelection = null },
+            onNavigateToSelectProvider = { showProviderSelect = true }
         )
     } else {
         // Agent list screen
@@ -354,7 +371,10 @@ internal fun AgentEditScreen(
     prefillName: String = "",
     pendingModelSelection: String? = null,
     onPendingModelConsumed: () -> Unit = {},
-    onNavigateToSelectModel: ((AiService) -> Unit)? = null
+    onNavigateToSelectModel: ((AiService) -> Unit)? = null,
+    pendingProviderSelection: AiService? = null,
+    onPendingProviderConsumed: () -> Unit = {},
+    onNavigateToSelectProvider: (() -> Unit)? = null
 ) {
     val isEditing = agent != null && !forceAddMode
     // Filter providers: must be active (status "ok"), always include current agent's provider when editing
@@ -391,6 +411,15 @@ internal fun AgentEditScreen(
             model = pendingModelSelection
             testResult = null
             onPendingModelConsumed()
+        }
+    }
+
+    // Consume pending provider selection from overlay
+    LaunchedEffect(pendingProviderSelection) {
+        if (pendingProviderSelection != null) {
+            selectedProvider = pendingProviderSelection
+            testResult = null
+            onPendingProviderConsumed()
         }
     }
 
@@ -506,39 +535,31 @@ internal fun AgentEditScreen(
                 singleLine = true
             )
 
-            // Provider dropdown
+            // Provider input field with Select button
             Text(
                 text = "Provider",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFFAAAAAA)
             )
-            var providerExpanded by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(
-                    onClick = { providerExpanded = true },
-                    modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = selectedProvider.displayName,
+                    onValueChange = { },
+                    readOnly = true,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                Button(
+                    onClick = { onNavigateToSelectProvider?.invoke() },
+                    enabled = onNavigateToSelectProvider != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text = selectedProvider.displayName,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(if (providerExpanded) "^" else "v")
-                }
-                DropdownMenu(
-                    expanded = providerExpanded,
-                    onDismissRequest = { providerExpanded = false }
-                ) {
-                    availableProviders.forEach { provider ->
-                        DropdownMenuItem(
-                            text = { Text(provider.displayName) },
-                            onClick = {
-                                selectedProvider = provider
-                                providerExpanded = false
-                                // Clear test result when provider changes
-                                testResult = null
-                            }
-                        )
-                    }
+                    Text("Select", fontSize = 12.sp)
                 }
             }
 

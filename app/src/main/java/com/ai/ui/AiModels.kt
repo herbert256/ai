@@ -48,6 +48,9 @@ data class AiUiState(
     val externalEmail: String? = null,
     val externalNextAction: String? = null,  // "View", "Share", "Browser", "Email"
     val externalReturn: Boolean = false,  // finish() after <next> action completes
+    val externalEdit: Boolean = false,  // show New Report screen for prompt editing
+    val externalSelect: Boolean = false,  // show selection screen even with API selection tags
+    val externalOpenHtml: String? = null,  // <open> content stored separately for <edit> mode
     // External intent API selections (from <agent>, <flock>, <swarm>, <model> tags)
     val externalAgentNames: List<String> = emptyList(),
     val externalFlockNames: List<String> = emptyList(),

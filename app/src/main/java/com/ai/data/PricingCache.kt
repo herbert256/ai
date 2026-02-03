@@ -8,6 +8,7 @@ import com.google.gson.reflect.TypeToken
 /**
  * Cached model pricing data for cost calculations.
  * Uses six-tier lookup: API > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT.
+ * Exception: For OpenRouter provider, OPENROUTER source is checked before OVERRIDE.
  */
 object PricingCache {
 
@@ -154,31 +155,27 @@ object PricingCache {
     /**
      * Get pricing for a specific model, using six-tier lookup.
      * Priority: API (from response) > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
+     * Exception: For OpenRouter provider, OPENROUTER source is checked first (before OVERRIDE).
      * Note: API cost is checked at the call site before calling this function.
      * Always returns pricing (DEFAULT as last resort).
      */
     fun getPricing(context: Context, provider: AiService, model: String): ModelPricing {
         ensureLoaded(context)
 
-        // Build the key for override pricing lookup
-        val overrideKey = "${provider.id}:$model"
+        val isOpenRouter = provider.id == "OPENROUTER"
 
-        // 1. Try user overrides first (highest priority after API cost)
+        // For OpenRouter provider, try OpenRouter pricing first (reflects actual aggregator costs)
+        if (isOpenRouter) {
+            findOpenRouterPricing(provider, model)?.let { return it }
+        }
+
+        // 1. Try user overrides (highest priority after API cost, except for OpenRouter)
+        val overrideKey = "${provider.id}:$model"
         manualPricing?.get(overrideKey)?.let { return it }
 
         // 2. Try OpenRouter API (cached weekly, accurate pricing)
-        openRouterPricing?.let { pricing ->
-            // Try exact match first
-            pricing[model]?.let { return it }
-
-            // Try with provider prefix (e.g., "anthropic/claude-3-opus")
-            val providerPrefix = getOpenRouterPrefix(provider)
-            if (providerPrefix != null) {
-                pricing["$providerPrefix/$model"]?.let { return it }
-            }
-
-            // Try partial match
-            pricing.entries.find { it.key.endsWith("/$model") || it.key == model }?.let { return it.value }
+        if (!isOpenRouter) {
+            findOpenRouterPricing(provider, model)?.let { return it }
         }
 
         // 3. Try LiteLLM (bundled pricing data)
@@ -197,6 +194,27 @@ object PricingCache {
 
         // 5. Return DEFAULT pricing as last resort
         return DEFAULT_PRICING
+    }
+
+    /**
+     * Look up pricing from the OpenRouter cache.
+     * Tries exact match, then provider prefix match, then partial match.
+     */
+    private fun findOpenRouterPricing(provider: AiService, model: String): ModelPricing? {
+        openRouterPricing?.let { pricing ->
+            // Try exact match first
+            pricing[model]?.let { return it }
+
+            // Try with provider prefix (e.g., "anthropic/claude-3-opus")
+            val providerPrefix = getOpenRouterPrefix(provider)
+            if (providerPrefix != null) {
+                pricing["$providerPrefix/$model"]?.let { return it }
+            }
+
+            // Try partial match
+            pricing.entries.find { it.key.endsWith("/$model") || it.key == model }?.let { return it.value }
+        }
+        return null
     }
 
     /**

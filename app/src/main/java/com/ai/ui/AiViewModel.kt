@@ -240,9 +240,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
             // Extract <user>...</user> content from prompt if present
             // Content inside tags goes to HTML export, tags are stripped from AI prompt
+            // Falls back to externalOpenHtml (from <open> tag in <edit> mode)
             val userTagRegex = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)
             val userMatch = userTagRegex.find(prompt)
-            val rapportText = userMatch?.groupValues?.get(1)?.trim()
+            val rapportText = userMatch?.groupValues?.get(1)?.trim() ?: _uiState.value.externalOpenHtml
             val aiPrompt = if (userMatch != null) {
                 prompt.replace(userMatch.value, "").trim()
             } else {
@@ -630,7 +631,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         closeHtml: String?, reportType: String?, email: String?,
         nextAction: String? = null, returnAfterNext: Boolean = false,
         agentNames: List<String> = emptyList(), flockNames: List<String> = emptyList(),
-        swarmNames: List<String> = emptyList(), modelSpecs: List<String> = emptyList()
+        swarmNames: List<String> = emptyList(), modelSpecs: List<String> = emptyList(),
+        edit: Boolean = false, select: Boolean = false, openHtml: String? = null
     ) {
         _uiState.value = _uiState.value.copy(
             externalCloseHtml = closeHtml,
@@ -638,6 +640,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             externalEmail = email,
             externalNextAction = nextAction,
             externalReturn = returnAfterNext,
+            externalEdit = edit,
+            externalSelect = select,
+            externalOpenHtml = openHtml,
             externalAgentNames = agentNames,
             externalFlockNames = flockNames,
             externalSwarmNames = swarmNames,
@@ -652,6 +657,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             externalEmail = null,
             externalNextAction = null,
             externalReturn = false,
+            externalEdit = false,
+            externalSelect = false,
+            externalOpenHtml = null,
             externalAgentNames = emptyList(),
             externalFlockNames = emptyList(),
             externalSwarmNames = emptyList(),
