@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Report - Game Analysis: DrNykterstein vs junglebook1</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { color: #6B9BFF; border-bottom: 2px solid #333; padding-bottom: 10px; text-align: center; }
+        h2 { color: #6B9BFF; font-size: 1.1em; margin-top: 30px; margin-bottom: 10px; }
+        .prompt-section { margin: 30px 0; text-align: center; }
+        .prompt-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
+        .prompt-text {
+            white-space: pre-wrap;
+            margin: 0;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #ccc;
+            text-align: left;
+            display: inline-block;
+        }
+        .agent-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 20px 0;
+        }
+        .agent-btn {
+            padding: 8px 16px;
+            border: 1px solid #444;
+            background: transparent;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .agent-btn:hover {
+            border-color: #6B9BFF;
+        }
+        .agent-btn.active {
+            border-color: #6B9BFF;
+            color: #6B9BFF;
+        }
+        .agent-result {
+            display: none;
+            margin: 20px 0;
+        }
+        .agent-result.active {
+            display: block;
+        }
+        .agent-header { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
+        .agent-response { }
+        .agent-response p { margin: 0 0 1em 0; }
+        .agent-response h2 { color: #6B9BFF; font-size: 1.3em; margin: 1.2em 0 0.5em 0; }
+        .agent-response h3 { color: #6B9BFF; font-size: 1.15em; margin: 1em 0 0.4em 0; }
+        .agent-response h4 { color: #6B9BFF; font-size: 1.05em; margin: 0.8em 0 0.3em 0; }
+        .agent-response ul { margin: 0.5em 0; padding-left: 1.5em; }
+        .agent-response li { margin: 0.3em 0; }
+        .agent-response code { background: #333; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+        .agent-response pre { background: #2a2a2a; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 1em 0; }
+        .agent-response pre code { background: none; padding: 0; }
+        .agent-response strong { color: #fff; }
+        .agent-response em { font-style: italic; }
+        .error { color: #ff6b6b; }
+        .usage-section { margin: 30px 0; }
+        .sources-section { margin-top: 20px; }
+        .sources-label { color: #8B5CF6; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+        .source-link { color: #64B5F6; text-decoration: underline; margin-left: 5px; }
+        .source-item { margin: 4px 0; }
+        .search-results-section { margin-top: 20px; }
+        .search-results-label { color: #FF9800; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+        .search-result { margin: 8px 0; }
+        .search-result-title { color: #64B5F6; text-decoration: underline; font-weight: 500; }
+        .search-result-snippet { color: #aaa; font-size: 0.9em; margin-top: 2px; }
+        .related-questions-section { margin-top: 20px; }
+        .related-questions-label { color: #4CAF50; font-weight: bold; font-size: 1em; margin-bottom: 10px; }
+        .related-question { margin: 4px 0; color: #e0e0e0; }
+        .usage-label { color: #6B9BFF; font-weight: bold; font-size: 1.1em; margin-top: 20px; margin-bottom: 10px; }
+        .usage-json {
+            white-space: pre-wrap;
+            margin: 0 0 15px 0;
+            font-family: monospace;
+            font-size: 0.85em;
+            color: #aaa;
+        }
+        .headers-text {
+            white-space: pre-wrap;
+            margin: 0 0 15px 0;
+            font-family: monospace;
+            font-size: 0.8em;
+            color: #777;
+        }
+        .usage-agent { color: #888; font-size: 0.9em; margin-top: 15px; margin-bottom: 5px; }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+            color: #666;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .cost-table { width: auto; border-collapse: collapse; margin: 20px auto; font-size: 0.85em; }
+        .cost-table th { color: #6B9BFF; text-align: left; padding: 6px 8px; border-bottom: 2px solid #333; font-weight: bold; white-space: nowrap; }
+        .cost-table td { padding: 4px 8px; border-bottom: 1px solid #2a2a2a; white-space: nowrap; text-align: left; }
+        .cost-table td.num { text-align: right; font-family: monospace; }
+        .cost-table tr:last-child td { border-bottom: 2px solid #333; }
+        .cost-table .total-row td { border-top: 2px solid #333; font-weight: bold; color: #6B9BFF; }
+        .think-btn {
+            padding: 4px 12px;
+            border: 1px solid #666;
+            background: #2a2a2a;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 13px;
+            margin: 8px 0;
+            border-radius: 4px;
+        }
+        .think-btn:hover {
+            border-color: #888;
+            color: #ccc;
+        }
+        .think-content {
+            display: none;
+            background: #252525;
+            border-left: 3px solid #555;
+            padding: 12px;
+            margin: 8px 0;
+            color: #999;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+        }
+        .think-content.visible {
+            display: block;
+        }
+        .section-btn {
+            padding: 8px 16px;
+            border: 1px solid #444;
+            background: transparent;
+            color: #6B9BFF;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+        .section-btn:hover {
+            border-color: #6B9BFF;
+            background: #2a2a2a;
+        }
+        .section-btn.active {
+            background: #6B9BFF;
+            color: #1a1a1a;
+            border-color: #6B9BFF;
+        }
+        .section-content {
+            display: none;
+            text-align: center;
+        }
+        .section-content.visible {
+            display: block;
+        }
+        .section-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin: 20px 0 10px 0;
+        }
+    </style>
+    <script>
+        function toggleThink(id) {
+            var content = document.getElementById('think-' + id);
+            var btn = document.getElementById('think-btn-' + id);
+            if (content.classList.contains('visible')) {
+                content.classList.remove('visible');
+                btn.textContent = 'Think';
+            } else {
+                content.classList.add('visible');
+                btn.textContent = 'Hide Think';
+            }
+        }
+        function toggleSection(id) {
+            var sections = ['prompt', 'costs'];
+            sections.forEach(function(s) {
+                var el = document.getElementById('section-' + s);
+                var btn = document.getElementById('btn-' + s);
+                if (el) {
+                    if (s === id) {
+                        el.classList.toggle('visible');
+                        if (btn) btn.classList.toggle('active');
+                    } else {
+                        el.classList.remove('visible');
+                        if (btn) btn.classList.remove('active');
+                    }
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div id="Title"><h1>Game Analysis: DrNykterstein vs junglebook1</h1></div><link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"><script src="https://code.jquery.com/jquery-3.7.1.min.js"></script><script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script><div style="max-width:400px;margin:20px auto;"><div style="text-align:center;padding:6px 12px;color:#ccc;font-size:18px;">Last move black: 23 ..... <img src="https://lichess1.org/assets/piece/cburnett/bQ.svg" style="height:20px;vertical-align:text-top;"> c8 - c7</div><div style="background:#333;color:white;padding:8px 12px;font-weight:bold;text-align:center;">junglebook1</div><div id="board" style="width:100%;"></div><div style="background:#333;color:white;padding:8px 12px;font-weight:bold;text-align:center;">DrNykterstein</div><div style="text-align:center;padding:6px 12px;color:#ccc;font-size:18px;">White to move</div></div><script>var board=Chessboard('board',{position:'6k1/1pq1ppbp/6p1/1p1P4/2n1P3/1B3P2/P1Q2BPP/6K1 w - - 4 24',orientation:'white',pieceTheme:'https://lichess1.org/assets/piece/cburnett/{piece}.svg'});</script><hr style="border:none;border-top:2px solid #333;margin:10px 0 0 0"><div class="agent-buttons">
+                    <button class="agent-btn active" onclick="showAgent('swarm:ANTHROPIC:claude-haiku-4-5-20251001')">Anthropic / claude-haiku-4-5-20251001</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:ANTHROPIC:claude-opus-4-5-20251101')">Anthropic / claude-opus-4-5-20251101</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:ANTHROPIC:claude-sonnet-4-5-20250929')">Anthropic / claude-sonnet-4-5-20250929</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:DEEPSEEK:deepseek-chat')">DeepSeek / deepseek-chat</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:DEEPSEEK:deepseek-reasoner')">DeepSeek / deepseek-reasoner</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:GOOGLE:gemini-2.5-pro')">Google / gemini-2.5-pro</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:MISTRAL:mistral-large-latest')">Mistral / mistral-large-latest</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:MOONSHOT:kimi-k2.5')">Moonshot / kimi-k2.5</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:OPENAI:gpt-4o')">OpenAI / gpt-4o</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:OPENAI:gpt-5.2')">OpenAI / gpt-5.2</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:OPENROUTER:qwen/qwen3-max')">OpenRouter / qwen/qwen3-max</button>
+        
+                    <button class="agent-btn " onclick="showAgent('swarm:XAI:grok-3')">xAI / grok-3</button>
+        
+                </div>
+    
+                <div id="agent-swarm:ANTHROPIC:claude-haiku-4-5-20251001" class="agent-result active">
+                    <div class="agent-header">Anthropic - claude-haiku-4-5-20251001</div>
+                    <div id="Report-swarm:ANTHROPIC:claude-haiku-4-5-20251001" class="report-content">
+        
+                    <div class="agent-response"><p><h2>Chess Position Analysis</h2></p><p><h3>Conclusion</h3><strong>White has chances</strong> – the position is roughly balanced but tactically complex, with White holding a slight structural advantage.</p><p><h3>Position Assessment</h3>White has a space advantage (advanced d5 pawn) and better piece coordination, particularly with the bishop pair. Black's position is somewhat cramped but solid, with counterplay on the queenside (b5, b4) and a fianchettoed bishop on g7 controlling the long diagonal. Material is equal. The position favors active, concrete play rather than passive maneuvering.</p><p>---</p><p><h3>White's Key Plans</h3></p><p><ul><li><strong>Consolidate the d5 advance</strong> – Push d6 to further restrict Black's pieces and weaken the e6/f7 squares, creating long-term pressure.</li></ul></p><p><ul><li><strong>Exploit the bishop pair</strong> – Maneuver bishops to control key squares (particularly f6 as an outpost) and create tactical threats along light and dark-squared diagonals.</li></ul></p><p><ul><li><strong>Neutralize queenside counterplay</strong> – Address Black's potential pawn storm with a5 or be prepared to defend passively while creating faster kingside/center threats.</li></ul></p><p>---</p><p><h3>Black's Key Plans</h3></p><p><ul><li><strong>Activate the knight on c4</strong> – This piece is currently the most active piece; keep it centralized and use it to harass White's pieces (targeting the queen, bishop on b3, or e3 squares).</li></ul></p><p><ul><li><strong>Queenside expansion</strong> – Press forward with b4, potentially forcing the bishop to move and creating weaknesses in White's queenside structure.</li></ul></p><p><ul><li><strong>Activate the queen and bishop</strong> – Improve piece coordination along the long diagonal and central files to generate counterattacking chances and prevent White's d6 push.</li></ul></p></div>
+            </div></div>
+                <div id="agent-swarm:ANTHROPIC:claude-opus-4-5-20251101" class="agent-result ">
+                    <div class="agent-header">Anthropic - claude-opus-4-5-20251101</div>
+                    <div id="Report-swarm:ANTHROPIC:claude-opus-4-5-20251101" class="report-content">
+        
+                    <div class="agent-response"><p><h3>Chess Position Analysis</h3></p><p><strong>FEN:</strong> 6k1/1pq1ppbp/6p1/1p1P4/2n1P3/1B3P2/P1Q2BPP/6K1 w - - 4 24</p><p>---</p><p><h4>1. Conclusion</h4><strong>The position is roughly equal with mutual chances.</strong></p><p>---</p><p><h4>2. Position Assessment</h4></p><p>Material is balanced, but the pawn structures create tension. White has a protected passed pawn on d5, which provides long-term pressure. Black's knight on c4 is actively placed, and the bishop on g7 rakes the long diagonal. White's bishops are reasonably coordinated but somewhat passive. Black's queenside pawn majority (b7-b5) offers counterplay, while White's central space advantage and advanced d-pawn provide compensation.</p><p>---</p><p><h4>3. Key Strategic Themes for White</h4></p><p><ul><li><strong>Advance and support the d-pawn:</strong> Push d6 at the right moment to create a dangerous passed pawn, tying down Black's pieces to blockade duty.</li></ul></p><p><ul><li><strong>Target the knight on c4:</strong> The knight is active but can become a target. Maneuvers like Qc3 or Ba4 can challenge it, potentially winning the b5-pawn.</li></ul></p><p><ul><li><strong>Activate the bishops:</strong> Reposition the f2-bishop to a better diagonal (e3 or d4) to contest the long diagonal and support central/kingside play.</li></ul></p><p>---</p><p><h4>4. Key Strategic Themes for Black</h4></p><p><ul><li><strong>Blockade the d-pawn:</strong> Keep pieces trained on d6 to prevent the pawn's advance; the queen and bishop coordinate well for this.</li></ul></p><p><ul><li><strong>Exploit the knight on c4:</strong> Use the knight's active position to pressure a2, b2, and support the b5-b4 advance, creating queenside counterplay.</li></ul></p><p><ul><li><strong>Activate the g7-bishop:</strong> Look for tactics along the a1-h8 diagonal, especially if White's pieces become uncoordinated or the center opens.</li></ul></p></div>
+            </div></div>
+                <div id="agent-swarm:ANTHROPIC:claude-sonnet-4-5-20250929" class="agent-result ">
+                    <div class="agent-header">Anthropic - claude-sonnet-4-5-20250929</div>
+                    <div id="Report-swarm:ANTHROPIC:claude-sonnet-4-5-20250929" class="report-content">
+        
+                    <div class="agent-response"><p><h2>Position Analysis</h2></p><p><h3>1. Conclusion</h3><strong>The position is roughly equal with balanced chances for both sides.</strong></p><p><h3>2. Brief Assessment</h3>The position is relatively balanced. White has a central pawn majority (d5, e4) and actively placed pieces, particularly the queen and bishops forming a strong diagonal battery. Black has a solid pawn structure, the powerful Bg7 controlling the long diagonal, and an actively placed knight on c4. Material is equal, and both sides have pawn weaknesses (White's a2 and h2, Black's b5 and b7). The position features a typical opposite-colored bishop scenario which often leads to drawish endgames, though there's still plenty of play in the middlegame.</p><p><h3>3. Key Strategic Themes/Plans for White</h3><ul><li><strong>Exploit the d5 pawn wedge</strong>: Use the advanced d-pawn to cramp Black's position, potentially push d6 to create a passed pawn, and restrict Black's pieces</li></ul><ul><li><strong>Target Black's queenside weaknesses</strong>: Pressure the b5 and b7 pawns, potentially infiltrate with the queen via the c-file or a-file</li></ul><ul><li><strong>Coordinate the bishop pair</strong>: Use the Bc2-Bg7 battery and potential Be3 or Bd4 to control key squares and restrict Black's pieces</li></ul></p><p><h3>4. Key Strategic Themes/Plans for Black</h3><ul><li><strong>Activate the c4 knight</strong>: Use the well-placed knight to create threats, potentially rerouting to e5 or a3/b2 to attack White's weaknesses</li></ul><ul><li><strong>Leverage the Bg7 on the long diagonal</strong>: Maintain pressure along the a1-h8 diagonal, especially if White's king becomes exposed</li></ul><ul><li><strong>Create counterplay on the kingside</strong>: Use the pawn majority (e7, f7, g6, h7) to potentially advance f5 or organize piece play against White's king</li></ul></p></div>
+            </div></div>
+                <div id="agent-swarm:DEEPSEEK:deepseek-chat" class="agent-result ">
+                    <div class="agent-header">DeepSeek - deepseek-chat</div>
+                    <div id="Report-swarm:DEEPSEEK:deepseek-chat" class="report-content">
+        
+                    <div class="agent-response"><p><strong>1. Conclusion:</strong>  <br>Black is better / has a clear advantage.</p><p><strong>2. Positional Assessment:</strong>  <br>Black has a strong knight on c4, a queenside pawn majority ready to advance, and a solid structure. White’s bishop on b3 is blocked by its own pawn on d5 and lacks scope, while the d5-pawn is isolated and weak. Black’s pieces are more harmoniously placed for both attack (queen and knight pressure) and defense. White’s king is slightly exposed due to the advanced central pawns.</p><p><strong>3. Key strategic themes/plans for White:</strong><ul><li><strong>Defend the d5-pawn</strong> and try to exchange Black’s active knight (e.g., Qc2-c1 or maneuvers to challenge c4).</li></ul><ul><li><strong>Activate the light-squared bishop</strong> via h4 or g3 to increase its influence, possibly targeting e5 or f6.</li></ul><ul><li><strong>Create counterplay on the kingside</strong> with h4-h5 to challenge Black’s pawn chain and open lines for the rooks (when they enter).</li></ul></p><p><strong>4. Key strategic themes/plans for Black:</strong><ul><li><strong>Pressure the d5-pawn</strong> by doubling rooks on the d-file after …Rd8, forcing White into passive defense.</li></ul><ul><li><strong>Advance the queenside majority</strong> with …b4 and …a5-a4, creating a passed pawn and gaining space.</li></ul><ul><li><strong>Trade dark-squared bishops</strong> with …Bh6 at a suitable moment to weaken White’s dark squares around the king and increase the knight’s dominance.</li></ul></p></div>
+            </div></div>
+                <div id="agent-swarm:DEEPSEEK:deepseek-reasoner" class="agent-result ">
+                    <div class="agent-header">DeepSeek - deepseek-reasoner</div>
+                    <div id="Report-swarm:DEEPSEEK:deepseek-reasoner" class="report-content">
+        
+                    <div class="agent-response"><p><strong>1. Conclusion</strong>  <br>Black is slightly better.</p><p><strong>2. Brief Assessment</strong>  <br>Black has a stable advantage due to White’s isolated d5-pawn, which is a long-term weakness. Black’s knight is actively placed on c4, and Black’s queenside pawn majority is more mobile than White’s kingside majority. White compensates with the bishop pair (especially the strong dark-squared bishop on b3) and some central space. The opposite-colored bishops favor the attacker (Black, who has the initiative), but also offer White defensive chances.</p><p><strong>3. Key Strategic Plans for White</strong><ul><li>Activate the light-squared bishop (Bf2) via h4 or by challenging Black’s knight on c4 with Na3 or Qc1.</li></ul><ul><li>Create counterplay on the kingside with pawn advances like h4-h5, leveraging the bishop pair and open diagonals.</li></ul><ul><li>Neutralize Black’s pressure on d5 by possibly trading the dark-squared bishops (Bb3 at some point) and reinforcing d5 with pieces like Qd2.</li></ul></p><p><strong>4. Key Strategic Plans for Black</strong><ul><li>Increase pressure on the isolated d5-pawn by doubling rooks on the d-file (after bringing a rook to d8) and possibly rerouting the knight to support its attack.</li></ul><ul><li>Advance the queenside pawn majority with ...b4 and ...c6, undermining d5 and creating a passed pawn.</li></ul><ul><li>Trade dark-squared bishops (... Be5 at an opportune moment) to remove White’s best defensive piece and worsen the weakness of the d5-pawn.</li></ul></p></div>
+            </div></div>
+                <div id="agent-swarm:GOOGLE:gemini-2.5-pro" class="agent-result ">
+                    <div class="agent-header">Google - gemini-2.5-pro</div>
+                    <div id="Report-swarm:GOOGLE:gemini-2.5-pro" class="report-content">
+        
+                    <div class="agent-response"><p>Excellent. Here is an analysis of the position.</p><p><h4>1. Short Conclusion</h4>The position is dynamically balanced with chances for both sides.</p><p><h4>2. Brief Assessment</h4>The position is defined by a strategic imbalance. White's primary asset is the strong, passed d5-pawn, which cramps Black's position and represents a long-term winning threat. However, Black has significant counterplay, primarily centered around the monster knight on the c4 outpost. This knight, supported by the powerful fianchettoed bishop on g7, exerts immense pressure on White's queenside and center. The game will likely be decided by whether White can consolidate and advance the d-pawn, or if Black's piece activity will overwhelm White's defenses first.</p><p><h4>3. Key Strategic Themes or Plans for White</h4><ul><li> <strong>Support and Advance the d-pawn:</strong> White's main plan is to nurture their passed pawn. This involves bringing a rook to d1 for support, preparing to push the pawn to d6, and using it to restrict Black's pieces. The advance of this pawn is White's most direct path to victory.</li></ul><ul><li> <strong>Neutralize the c4 Knight:</strong> The black knight on c4 is a major nuisance that must be dealt with. A key idea is to undermine it with the move <strong>a4</strong>, challenging the b5-pawn that supports the knight. Exchanging or dislodging this piece would be a huge strategic success for White.</li></ul><ul><li> <strong>Improve Piece Coordination:</strong> White's rooks are not yet in the game. A priority is to connect them and bring them to key files, such as the d-file to support the pawn and the e-file to defend the e4-pawn. The Bishop on b3 is a fantastic piece that should be preserved.</li></ul></p><p><h4>4. Key Strategic Themes or Plans for Black</h4><ul><li> <strong>Exploit the c4 Outpost:</strong> Black's strategy revolves around their best piece, the knight on c4. It puts pressure on b2, attacks e3, and controls the key d6 square. Black should use this piece to create threats and tie down White's forces, preventing them from easily executing their own plans.</li></ul><ul><li> <strong>Target White's Weaknesses (e4 and b2):</strong> The entire black setup, especially the Bg7 and Nc4, puts pressure on White's key structural points. Constant pressure on the e4-pawn (the defender of d5) and the b2-pawn can force concessions and create tactical opportunities.</li></ul><ul><li> <strong>Blockade the d-pawn:</strong> It is critical for Black to prevent the d5-pawn from advancing. The knight on c4 and the queen on c7 do an excellent job of controlling the d6 square. The plan is to maintain a firm blockade, turning the pawn from a dangerous threat into a static weakness that White must constantly defend.</li></ul></p></div>
+            </div></div>
+                <div id="agent-swarm:MISTRAL:mistral-large-latest" class="agent-result ">
+                    <div class="agent-header">Mistral - mistral-large-latest</div>
+                    <div id="Report-swarm:MISTRAL:mistral-large-latest" class="report-content">
+        
+                    <div class="agent-response"><p><h4><strong>1. Short Conclusion:</strong></h4><strong>"White has chances"</strong> – The position is dynamically balanced, but White’s space advantage, active pieces, and potential for a kingside initiative give them practical winning chances.</p><p>---</p><p><h4><strong>2. Brief Assessment:</strong></h4>White is slightly better due to:<ul><li><strong>Space advantage</strong> (d5 pawn controls key squares, restricting Black’s pieces).</li></ul><ul><li><strong>Better piece activity</strong> (Bb3 eyes f7, Qc2 is centralized, Bf2 is well-placed).</li></ul><ul><li><strong>Potential kingside play</strong> (f3-f4 break or h2-h4-h5 ideas).</li></ul><ul><li><strong>Weakness on b5</strong> (Black’s b5 pawn is a target, and the c4-knight is somewhat misplaced).</li></ul></p><p>Black has counterplay due to:<ul><li><strong>Active queen and bishop</strong> (Qc7 and Bg7 pressure the long diagonal).</li></ul><ul><li><strong>Potential queenside play</strong> (…a5-a4 or …b4 could challenge White’s structure).</li></ul><ul><li><strong>Solid pawn structure</strong> (no immediate weaknesses, though b5 is a long-term concern).</li></ul></p><p>---</p><p><h4><strong>3. Key Strategic Themes/Plans for White:</strong></h4><ul><li><strong>Kingside expansion</strong> – Push <strong>f3-f4</strong> to open lines for the bishop pair or prepare <strong>h2-h4-h5</strong> to weaken Black’s kingside (e.g., h5xg6 followed by Qh7+ ideas).</li></ul><ul><li><strong>Exploit the weak b5 pawn</strong> – Consider <strong>a2-a4</strong> to fix the pawn on b5, then target it with Rc1 or Qb3. Alternatively, <strong>Bc2</strong> followed by <strong>b2-b3</strong> and <strong>a2-a4</strong> to restrict Black’s queenside.</li></ul><ul><li><strong>Centralize the rooks</strong> – Bring a rook to <strong>d1</strong> or <strong>e1</strong> to support the d5 pawn and prepare for potential e4-e5 breaks (though this may require careful timing).</li></ul></p><p>---</p><p><h4><strong>4. Key Strategic Themes/Plans for Black:</strong></h4><ul><li><strong>Challenge White’s d5 pawn</strong> – Play <strong>…f5!</strong> to undermine the e4 pawn and open the position for the bishop pair. If White takes (exf5), recapture with the g-pawn to keep lines open.</li></ul><ul><li><strong>Queenside counterplay</strong> – Push <strong>…a5-a4</strong> to trade the a-pawn for White’s b-pawn, activating the c4-knight (e.g., …a4, …Nxb2, or …Nd6 ideas). Alternatively, <strong>…b4</strong> to create a passed pawn.</li></ul><ul><li><strong>Exploit the long diagonal</strong> – Use the <strong>Bg7-Qc7 battery</strong> to pressure e5 or d4. If White plays f4, <strong>…exf4</strong> followed by <strong>…Qe5</strong> can target the e4 pawn and activate the queen.</li></ul></p><p>---</p><p><h4><strong>Final Thought:</strong></h4>This is a <strong>dynamic, imbalanced position</strong> where White’s space and piece activity give them the initiative, but Black’s counterplay is real. The side that executes their plan first (White on the kingside, Black on the queenside) will seize the advantage.</p></div>
+            </div></div>
+                <div id="agent-swarm:MOONSHOT:kimi-k2.5" class="agent-result ">
+                    <div class="agent-header">Moonshot - kimi-k2.5</div>
+                    <div id="Report-swarm:MOONSHOT:kimi-k2.5" class="report-content">
+        
+                    <div class="agent-response"><p><ul><li><strong>White has a slight edge</strong></li></ul></p><p><ul><li><strong>Assessment</strong>: White possesses the bishop pair and a protected passed d-pawn, providing lasting structural pressure and long-term winning chances. Black's counterplay relies heavily on the temporary activity of the knight on c4, which restricts White's queenside, but this piece lacks permanent support squares. Black's queenside majority (b-pawns) offers potential but is currently immobile. White must neutralize the c4 knight to realize their advantage.</li></ul></p><p><ul><li><strong>White's Strategic Plans</strong>:</li></ul>   - <strong>Push e4-e5</strong>: Open the center and activate the dormant f2-bishop along the h2-b8 diagonal, while potentially creating a second passed pawn or kingside attacking chances against the g6/h7 structure.<br>   - <strong>Dislodge the c4 Knight</strong>: Prepare a3 (when tactically safe) to force the knight to retreat to a less active square, or engineer favorable exchanges that eliminate Black's best piece and cede White control of key dark squares.<br>   - <strong>Support the d-pawn</strong>: Maintain the d5 pawn as a cramp and eventual advanced passed pawn (d6), tying Black's pieces to defense and restricting the g7-bishop's mobility.</p><p><ul><li><strong>Black's Strategic Plans</strong>:</li></ul>   - <strong>Blockade d5</strong>: Play ...e6 to freeze the d-pawn and prevent its advance; this solidifies the center but requires vigilance against future dxe6 breaks that could open the position for White's bishops.<br>   - <strong>Exploit the c4 Outpost</strong>: Use the knight to create tactical pressure against b2 (threatening ...Nxb2) and the queenside, potentially capturing on b3 to ruin White's pawn structure or forcing concessions like a3 which weakens b3.<br>   - <strong>Queenside Expansion</strong>: Advance ...a5 followed by ...b4 to activate the majority, create a passed pawn, and generate counterplay on the half-open files against White's king.</p></div>
+            </div></div>
+                <div id="agent-swarm:OPENAI:gpt-4o" class="agent-result ">
+                    <div class="agent-header">OpenAI - gpt-4o</div>
+                    <div id="Report-swarm:OPENAI:gpt-4o" class="report-content">
+        
+                    <div class="agent-response"><p><ul><li>Conclusion: Black is better.</li></ul></p><p><ul><li>Assessment: Black has a strategic advantage due to White's compromised pawn structure and Black's more active pieces. White is struggling with weak pawns and limited activity for the bishop on b3, while Black's pieces, particularly the knight on c4 and the queen, are well-positioned to create threats.</li></ul></p><p><ul><li>Key Strategic Themes or Plans for White:</li></ul>   - <strong>Protect Key Pawns:</strong> Focus on maintaining pawn structure and defending critical weaknesses, particularly on the queenside. The pawn on d5 needs support to prevent Black's knight from gaining more influence.<br>   - <strong>Activate the Bishop Pair:</strong> Try to open lines for the White bishops by considering pawn breaks or redeployment, especially targeting soft spots in Black's camp.<br>   - <strong>Create Counterplay on the Kingside:</strong> Look to create imbalances or open lines on the kingside, potentially by advancing the pawn majority or exerting pressure with the queen and rooks.</p><p><ul><li>Key Strategic Themes or Plans for Black:</li></ul>   - <strong>Capitalize on the c4 Knight:</strong> Use the strong knight on c4 to pressurize White's position — eyeing weak squares and potentially exchanging for a critical White bishop.<br>   - <strong>Pressure Along the b-file and Centralize the Queen/Bishop:</strong> Increase pressure on White by coordinating threats along the open files and central squares. The Black queen and bishop on the long diagonal should target White's weak pawns.<br>   - <strong>Exploit d5 and Weaknesses:</strong> Look to increase the pressure on the d5 pawn, potentially winning material or forcing further weaknesses in White's position. Ensuring control over the center with the queen and rooks will be essential.</p></div>
+            </div></div>
+                <div id="agent-swarm:OPENAI:gpt-5.2" class="agent-result ">
+                    <div class="agent-header">OpenAI - gpt-5.2</div>
+                    <div id="Report-swarm:OPENAI:gpt-5.2" class="report-content">
+        
+                    <div class="agent-response"><p><h4>1) Conclusion  </h4><strong>Black is better</strong> (clear advantage), though not trivially winning yet.</p><p><h4>2) Brief assessment (who is better and why)  </h4>Black has the <strong>more active pieces and safer king</strong>, plus a <strong>dangerous queenside majority</strong> (especially the passed-ish b-pawn and pressure around c2). White’s king is somewhat airy and White’s pieces (notably the bishop on b3 and queen on c2) are <strong>more defensive than active</strong>. White does have some compensation in the form of a <strong>central pawn wedge</strong> (d5/e4) and chances to generate counterplay if it can create threats against Black’s king or win time with checks—otherwise Black’s queenside play and piece activity should tell.</p><p><h4>3) Key strategic themes / plans for White  </h4><ul><li><strong>Generate kingside counterplay before the queenside collapses</strong>  </li></ul>   Try to create threats against Black’s king (g-file/dark-square pressure, potential checks, or tactics on f7/e7). White’s central pawns can support an attack, but White needs activity quickly.</p><p><ul><li><strong>Use the central pawn wedge to restrict and/or open lines on favorable terms</strong>  </li></ul>   The d5–e4 structure can cramp Black’s pieces. White should look for timely pawn breaks or exchanges that either open lines for the bishops/queen or fix Black’s pawns into targets.</p><p><ul><li><strong>Improve piece coordination and reduce Black’s activity</strong>  </li></ul>   White should aim to trade or neutralize Black’s most active pieces (often the queen and/or the knight on c4). If White can exchange queens or force simplifications while holding the pawn structure, Black’s advantage diminishes.</p><p><h4>4) Key strategic themes / plans for Black  </h4><ul><li><strong>Exploit queenside pressure: b-pawn advance and targets on c2/b3</strong>  </li></ul>   Black’s b-pawn and heavy pieces can create a strong bind. Plans often involve pushing <strong>…b4</strong> (driving pieces, opening files) and leveraging the knight on c4 to harass White’s queen/bishop and invade.</p><p><ul><li><strong>Convert activity into material or a favorable endgame</strong>  </li></ul>   Black is better partly because the pieces are more active; exchanging into an endgame where the queenside pawns can roll (and White’s king remains slightly exposed) is generally desirable.</p><p><ul><li><strong>Keep White’s counterplay contained (especially against the king)</strong>  </li></ul>   Black should be mindful of White’s central pawns and potential checks. Solid king safety and timely defensive moves (including piece regrouping to cover key squares) lets Black press on the queenside without allowing a sudden tactical swing.</p><p>If you want, I can also describe the likely “ideal piece placement” for each side (where each piece wants to be) without calculating concrete tactics.</p></div>
+            </div></div>
+                <div id="agent-swarm:OPENROUTER:qwen/qwen3-max" class="agent-result ">
+                    <div class="agent-header">OpenRouter - qwen/qwen3-max</div>
+                    <div id="Report-swarm:OPENROUTER:qwen/qwen3-max" class="report-content">
+        
+                    <div class="agent-response"><p><strong>1. Conclusion:</strong>  <br>Black is clearly better.</p><p><strong>2. Positional Assessment:</strong>  <br>Black has a material advantage (an extra pawn), a dangerous passed b-pawn supported by the queen, and active pieces—particularly the knight on c4 and bishop on g7 eyeing the long diagonal. White’s position is passive: the queen is tied to defending the b3-bishop, the dark-squared bishop is undeveloped, and the king is exposed on the kingside with limited shelter. White’s pawn structure is solid in the center but lacks dynamism, and there are no immediate counterplay opportunities.</p><p><strong>3. White’s Key Strategic Themes/Plans:</strong>  <ul><li><strong>Activate the dark-squared bishop</strong>: Develop the bishop on f2 to a more active square (e.g., e3 or d4) to increase coordination and relieve the queen of defensive duties.  </li></ul><ul><li><strong>Challenge the knight on c4</strong>: Prepare moves like a3 or b3 (after reinforcing) to undermine the strong knight, though this must be timed carefully due to tactical risks.  </li></ul><ul><li><strong>Seek counterplay on the kingside</strong>: Use the g- and h-pawns to create threats against Black’s king (e.g., h4–h5 ideas), though this is slow and may not compensate for the queenside weaknesses.</li></ul></p><p><strong>4. Black’s Key Strategic Themes/Plans:</strong>  <ul><li><strong>Advance the b-pawn</strong>: Push ...b4–b3 to create a dangerous passer and tie White’s pieces to its defense.  </li></ul><ul><li><strong>Exploit the c4 outpost</strong>: Keep the knight centralized; it restricts White’s pieces and supports potential breaks like ...e5.  </li></ul><ul><li><strong>Coordinate queen and bishop on the long diagonal</strong>: Use the queen–bishop battery along the a1–h8 diagonal to pressure White’s back rank and support pawn advances on both wings.</li></ul></p></div>
+            </div></div>
+                <div id="agent-swarm:XAI:grok-3" class="agent-result ">
+                    <div class="agent-header">xAI - grok-3</div>
+                    <div id="Report-swarm:XAI:grok-3" class="report-content">
+        
+                    <div class="agent-response"><p><h4>Analysis of the Position: 6k1/1pq1ppbp/6p1/1p1P4/2n1P3/1B3P2/P1Q2BPP/6K1 w - - 4 24</h4></p><p>#### 1. Short Conclusion:<br>White has chances. The position is dynamically balanced, with both sides having strengths and weaknesses to exploit.</p><p>#### 2. Brief Assessment:<br>White holds a slight edge due to better piece coordination and potential for central pawn breaks. White’s bishops and queen are well-placed for active play, and the central pawns on d5 and e4 provide space and attacking potential. Black, however, has a solid structure, a strong knight on c4, and counterplay possibilities on the queenside with the b- and c-pawns. Black’s king is slightly exposed, and the pawn on g6 could become a target. Overall, White is marginally better but must play actively to maintain the initiative.</p><p>#### 3. Key Strategic Themes or Plans for White:<ul><li><strong>Central Pawn Break:</strong> Push d5-d6 or e4-e5 at the right moment to open lines for the bishops and queen, potentially targeting Black’s king or creating weaknesses in Black’s pawn structure.</li></ul><ul><li><strong>Pressure on g6:</strong> Use the light-squared bishop and queen to target the g6-pawn, which is a potential weakness in Black’s position, possibly forcing Black to weaken their king’s defense.</li></ul><ul><li><strong>King Safety and Coordination:</strong> Keep the king safe on g1 while ensuring the pieces remain active and coordinated, potentially preparing a kingside attack if Black overextends on the queenside.</li></ul></p><p>#### 4. Key Strategic Themes or Plans for Black:<ul><li><strong>Queenside Counterplay:</strong> Advance the b- and c-pawns (e.g., b5-b4 or c7-c5) to create threats and open lines for the queen and bishop, putting pressure on White’s queenside structure.</li></ul><ul><li><strong>Defend g6 and King Safety:</strong> Be vigilant about the g6-pawn and consider moves like ...h6 or ...Kh7 to reinforce the kingside, preventing White from exploiting weaknesses around the king.</li></ul><ul><li><strong>Knight Maneuvering:</strong> Utilize the knight on c4 to control key central squares and potentially reposition it to d6 or e5 if lines open, creating threats or blocking White’s central pawns.</li></ul></p><p>This position offers rich strategic possibilities for both sides, with White having a slight initiative but Black possessing solid counterplay options.</p></div>
+            </div></div><div class="section-buttons"><button id="btn-prompt" class="section-btn" onclick="toggleSection('prompt')">Prompt</button><button id="btn-costs" class="section-btn" onclick="toggleSection('costs')">Costs</button></div>
+                <div id="section-prompt" class="section-content">
+                <div id="Prompt" class="prompt-section">
+                    <div class="prompt-label">Prompt:</div>
+                    <pre class="prompt-text">You are an expert chess analyst. Analyze the following chess position given in FEN notation.
+
+6k1/1pq1ppbp/6p1/1p1P4/2n1P3/1B3P2/P1Q2BPP/6K1 w - - 4 24
+
+Please provide:
+1. A short conclusion, like "Black is winning" or "it is a dead draw" or "white has changes"
+2. A brief assessment of the position (who is better and why)
+3. 3 Key strategic themes or plans for white
+4. 3 Key strategic themes or plans for black
+
+No need to use an chess engine to look for tactical opportunities, Stockfish is already doing that for me.
+
+Keep your analysis concise but insightful, suitable for a chess player looking to understand the position better.</pre>
+                </div>
+                </div>
+    <div id="section-costs" class="section-content">
+                <div class="prompt-section">
+                    <div class="prompt-label">Costs</div>
+                    <table class="cost-table">
+                        <tr>
+                            <th>Provider</th>
+                            <th>Model</th>
+                            <th style="text-align:right">Seconds</th>
+                            <th style="text-align:right">Input<br>tokens</th>
+                            <th style="text-align:right">Output<br>tokens</th>
+                            <th style="text-align:right">Input<br>cents</th>
+                            <th style="text-align:right">Output<br>cents</th>
+                            <th style="text-align:right">Total<br>cents</th>
+                        </tr>
+        
+                        <tr>
+                            <td>Moonshot</td>
+                            <td>kimi-k2.5</td>
+                            <td class="num">115.63</td>
+                            <td class="num">183</td>
+                            <td class="num">5,435</td>
+                            <td class="num">0.01</td>
+                            <td class="num">1.52</td>
+                            <td class="num">1.53</td>
+                        </tr>
+            
+                        <tr>
+                            <td>Anthropic</td>
+                            <td>claude-opus-4-5-20251101</td>
+                            <td class="num">12.68</td>
+                            <td class="num">200</td>
+                            <td class="num">472</td>
+                            <td class="num">0.10</td>
+                            <td class="num">1.18</td>
+                            <td class="num">1.28</td>
+                        </tr>
+            
+                        <tr>
+                            <td>OpenAI</td>
+                            <td>gpt-5.2</td>
+                            <td class="num">14.98</td>
+                            <td class="num">182</td>
+                            <td class="num">582</td>
+                            <td class="num">0.03</td>
+                            <td class="num">0.81</td>
+                            <td class="num">0.85</td>
+                        </tr>
+            
+                        <tr>
+                            <td>xAI</td>
+                            <td>grok-3</td>
+                            <td class="num">9.53</td>
+                            <td class="num">182</td>
+                            <td class="num">510</td>
+                            <td class="num">0.05</td>
+                            <td class="num">0.77</td>
+                            <td class="num">0.82</td>
+                        </tr>
+            
+                        <tr>
+                            <td>Anthropic</td>
+                            <td>claude-sonnet-4-5-20250929</td>
+                            <td class="num">12.48</td>
+                            <td class="num">200</td>
+                            <td class="num">432</td>
+                            <td class="num">0.06</td>
+                            <td class="num">0.65</td>
+                            <td class="num">0.71</td>
+                        </tr>
+            
+                        <tr>
+                            <td>Google</td>
+                            <td>gemini-2.5-pro</td>
+                            <td class="num">28.88</td>
+                            <td class="num">183</td>
+                            <td class="num">619</td>
+                            <td class="num">0.02</td>
+                            <td class="num">0.62</td>
+                            <td class="num">0.64</td>
+                        </tr>
+            
+                        <tr>
+                            <td>OpenAI</td>
+                            <td>gpt-4o</td>
+                            <td class="num">8.38</td>
+                            <td class="num">183</td>
+                            <td class="num">344</td>
+                            <td class="num">0.05</td>
+                            <td class="num">0.34</td>
+                            <td class="num">0.39</td>
+                        </tr>
+            
+                        <tr>
+                            <td>OpenRouter</td>
+                            <td>qwen/qwen3-max</td>
+                            <td class="num">14.08</td>
+                            <td class="num">186</td>
+                            <td class="num">379</td>
+                            <td class="num">0.02</td>
+                            <td class="num">0.23</td>
+                            <td class="num">0.25</td>
+                        </tr>
+            
+                        <tr>
+                            <td>Anthropic</td>
+                            <td>claude-haiku-4-5-20251001</td>
+                            <td class="num">6.80</td>
+                            <td class="num">200</td>
+                            <td class="num">389</td>
+                            <td class="num">0.02</td>
+                            <td class="num">0.19</td>
+                            <td class="num">0.21</td>
+                        </tr>
+            
+                        <tr>
+                            <td>Mistral</td>
+                            <td>mistral-large-latest</td>
+                            <td class="num">13.52</td>
+                            <td class="num">183</td>
+                            <td class="num">677</td>
+                            <td class="num">0.01</td>
+                            <td class="num">0.10</td>
+                            <td class="num">0.11</td>
+                        </tr>
+            
+                        <tr>
+                            <td>DeepSeek</td>
+                            <td>deepseek-reasoner</td>
+                            <td class="num">17.85</td>
+                            <td class="num">180</td>
+                            <td class="num">527</td>
+                            <td class="num">0.01</td>
+                            <td class="num">0.02</td>
+                            <td class="num">0.03</td>
+                        </tr>
+            
+                        <tr>
+                            <td>DeepSeek</td>
+                            <td>deepseek-chat</td>
+                            <td class="num">11.07</td>
+                            <td class="num">180</td>
+                            <td class="num">326</td>
+                            <td class="num">0.01</td>
+                            <td class="num">0.01</td>
+                            <td class="num">0.02</td>
+                        </tr>
+            
+                        <tr class="total-row">
+                            <td colspan="3">Total</td>
+                            <td class="num">2,242</td>
+                            <td class="num">10,692</td>
+                            <td class="num">0.39</td>
+                            <td class="num">6.45</td>
+                            <td class="num">6.84</td>
+                        </tr>
+                    </table>
+                </div>
+        </div>        <div class="footer">
+            Generated by AI v26.35.649 on 2026-02-04 13:47:16
+        </div>
+    </div>
+
+    <script>
+        function showAgent(agentId) {
+            // Hide all agent results
+            document.querySelectorAll('.agent-result').forEach(el => {
+                el.classList.remove('active');
+            });
+            // Deactivate all buttons
+            document.querySelectorAll('.agent-btn').forEach(el => {
+                el.classList.remove('active');
+            });
+            // Show selected agent result
+            document.getElementById('agent-' + agentId).classList.add('active');
+            // Activate clicked button
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>
