@@ -761,76 +761,155 @@ fun AiReportsScreen(
         }
     }
 
-    // Dialog handlers for selection screens
-    if (showSelectFlock) {
-        ReportSelectFlockDialog(
-            aiSettings = aiSettings,
-            onSelectFlock = { flock ->
-                val newModels = expandFlockToModels(flock, aiSettings)
-                models = deduplicateModels(models + newModels)
-                showSelectFlock = false
-            },
-            onDismiss = { showSelectFlock = false }
-        )
-    }
+    // Selection screen handlers — popup dialogs or full-screen overlays
+    val usePopup = uiState.generalSettings.popupModelSelection
 
-    if (showSelectAgent) {
-        ReportSelectAgentDialog(
-            aiSettings = aiSettings,
-            onSelectAgent = { agent ->
-                expandAgentToModel(agent, aiSettings)?.let { entry ->
-                    models = deduplicateModels(models + entry)
-                }
-                showSelectAgent = false
-            },
-            onDismiss = { showSelectAgent = false }
-        )
-    }
-
-    if (showSelectSwarm) {
-        ReportSelectSwarmDialog(
-            aiSettings = aiSettings,
-            onSelectSwarm = { swarm ->
-                val newModels = expandSwarmToModels(swarm, aiSettings)
-                models = deduplicateModels(models + newModels)
-                showSelectSwarm = false
-            },
-            onDismiss = { showSelectSwarm = false }
-        )
-    }
-
-    if (showSelectProvider) {
-        ReportSelectProviderDialog(
-            aiSettings = aiSettings,
-            onSelectProvider = { provider ->
-                showSelectProvider = false
-                pendingProvider = provider
-            },
-            onDismiss = { showSelectProvider = false }
-        )
-    }
-
-    if (pendingProvider != null) {
-        ReportSelectModelDialog(
-            provider = pendingProvider!!,
-            aiSettings = aiSettings,
-            onSelectModel = { model ->
-                models = deduplicateModels(models + toReportModel(pendingProvider!!, model))
-                pendingProvider = null
-            },
-            onDismiss = { pendingProvider = null }
-        )
-    }
-
-    if (showSelectAllModels) {
-        ReportSelectAllModelsDialog(
-            aiSettings = aiSettings,
-            onSelectModel = { provider, model ->
-                models = deduplicateModels(models + toReportModel(provider, model))
-                showSelectAllModels = false
-            },
-            onDismiss = { showSelectAllModels = false }
-        )
+    if (usePopup) {
+        if (showSelectFlock) {
+            ReportSelectFlockDialog(
+                aiSettings = aiSettings,
+                onSelectFlock = { flock ->
+                    val newModels = expandFlockToModels(flock, aiSettings)
+                    models = deduplicateModels(models + newModels)
+                    showSelectFlock = false
+                },
+                onDismiss = { showSelectFlock = false }
+            )
+        }
+        if (showSelectAgent) {
+            ReportSelectAgentDialog(
+                aiSettings = aiSettings,
+                onSelectAgent = { agent ->
+                    expandAgentToModel(agent, aiSettings)?.let { entry ->
+                        models = deduplicateModels(models + entry)
+                    }
+                    showSelectAgent = false
+                },
+                onDismiss = { showSelectAgent = false }
+            )
+        }
+        if (showSelectSwarm) {
+            ReportSelectSwarmDialog(
+                aiSettings = aiSettings,
+                onSelectSwarm = { swarm ->
+                    val newModels = expandSwarmToModels(swarm, aiSettings)
+                    models = deduplicateModels(models + newModels)
+                    showSelectSwarm = false
+                },
+                onDismiss = { showSelectSwarm = false }
+            )
+        }
+        if (showSelectProvider) {
+            ReportSelectProviderDialog(
+                aiSettings = aiSettings,
+                onSelectProvider = { provider ->
+                    showSelectProvider = false
+                    pendingProvider = provider
+                },
+                onDismiss = { showSelectProvider = false }
+            )
+        }
+        if (pendingProvider != null) {
+            ReportSelectModelDialog(
+                provider = pendingProvider!!,
+                aiSettings = aiSettings,
+                onSelectModel = { model ->
+                    models = deduplicateModels(models + toReportModel(pendingProvider!!, model))
+                    pendingProvider = null
+                },
+                onDismiss = { pendingProvider = null }
+            )
+        }
+        if (showSelectAllModels) {
+            ReportSelectAllModelsDialog(
+                aiSettings = aiSettings,
+                onSelectModel = { provider, model ->
+                    models = deduplicateModels(models + toReportModel(provider, model))
+                    showSelectAllModels = false
+                },
+                onDismiss = { showSelectAllModels = false }
+            )
+        }
+    } else {
+        // Full-screen overlay mode
+        if (showSelectFlock) {
+            SelectFlockScreen(
+                aiSettings = aiSettings,
+                onSelectFlock = { flock ->
+                    val newModels = expandFlockToModels(flock, aiSettings)
+                    models = deduplicateModels(models + newModels)
+                    showSelectFlock = false
+                },
+                onBack = { showSelectFlock = false },
+                onNavigateHome = onNavigateHome
+            )
+            return
+        }
+        if (showSelectAgent) {
+            SelectAgentScreen(
+                aiSettings = aiSettings,
+                onSelectAgent = { agent ->
+                    expandAgentToModel(agent, aiSettings)?.let { entry ->
+                        models = deduplicateModels(models + entry)
+                    }
+                    showSelectAgent = false
+                },
+                onBack = { showSelectAgent = false },
+                onNavigateHome = onNavigateHome
+            )
+            return
+        }
+        if (showSelectSwarm) {
+            SelectSwarmScreen(
+                aiSettings = aiSettings,
+                onSelectSwarm = { swarm ->
+                    val newModels = expandSwarmToModels(swarm, aiSettings)
+                    models = deduplicateModels(models + newModels)
+                    showSelectSwarm = false
+                },
+                onBack = { showSelectSwarm = false },
+                onNavigateHome = onNavigateHome
+            )
+            return
+        }
+        if (showSelectProvider) {
+            SelectProviderScreen(
+                aiSettings = aiSettings,
+                onSelectProvider = { provider ->
+                    showSelectProvider = false
+                    pendingProvider = provider
+                },
+                onBack = { showSelectProvider = false },
+                onNavigateHome = onNavigateHome
+            )
+            return
+        }
+        if (pendingProvider != null) {
+            SelectModelScreen(
+                provider = pendingProvider!!,
+                aiSettings = aiSettings,
+                currentModel = "",
+                onSelectModel = { model ->
+                    models = deduplicateModels(models + toReportModel(pendingProvider!!, model))
+                    pendingProvider = null
+                },
+                onBack = { pendingProvider = null },
+                onNavigateHome = onNavigateHome
+            )
+            return
+        }
+        if (showSelectAllModels) {
+            SelectAllModelsScreen(
+                aiSettings = aiSettings,
+                onSelectModel = { provider, model ->
+                    models = deduplicateModels(models + toReportModel(provider, model))
+                    showSelectAllModels = false
+                },
+                onBack = { showSelectAllModels = false },
+                onNavigateHome = onNavigateHome
+            )
+            return
+        }
     }
 
     Column(

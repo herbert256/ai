@@ -27,7 +27,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
             fullScreenMode = prefs.getBoolean(KEY_FULL_SCREEN_MODE, false),
-            defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: ""
+            defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
+            popupModelSelection = prefs.getBoolean(KEY_POPUP_MODEL_SELECTION, true)
         )
     }
 
@@ -40,6 +41,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             .putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
             .putBoolean(KEY_FULL_SCREEN_MODE, settings.fullScreenMode)
             .putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
+            .putBoolean(KEY_POPUP_MODEL_SELECTION, settings.popupModelSelection)
             .apply()
     }
 
@@ -363,6 +365,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
         private const val KEY_FULL_SCREEN_MODE = "full_screen_mode"
         private const val KEY_DEFAULT_EMAIL = "default_email"
+        private const val KEY_POPUP_MODEL_SELECTION = "popup_model_selection"
 
         // Per-provider settings keys are now computed from AiService.prefsKey
         // e.g., "${service.prefsKey}_api_key", "${service.prefsKey}_model", etc.

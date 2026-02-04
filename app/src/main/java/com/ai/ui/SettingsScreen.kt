@@ -510,6 +510,7 @@ private fun SettingsMainScreen(
     var openRouterApiKey by remember { mutableStateOf(generalSettings.openRouterApiKey) }
     var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
+    var popupModelSelection by remember { mutableStateOf(generalSettings.popupModelSelection) }
 
     fun saveSettings() {
         onSave(generalSettings.copy(
@@ -519,7 +520,8 @@ private fun SettingsMainScreen(
             huggingFaceApiKey = huggingFaceApiKey,
             openRouterApiKey = openRouterApiKey,
             fullScreenMode = fullScreenMode,
-            defaultEmail = defaultEmail
+            defaultEmail = defaultEmail,
+            popupModelSelection = popupModelSelection
         ))
     }
 
@@ -690,6 +692,29 @@ private fun SettingsMainScreen(
                         checked = fullScreenMode,
                         onCheckedChange = {
                             fullScreenMode = it
+                            saveSettings()
+                        }
+                    )
+                }
+
+                // Model selection mode toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Model selection", color = Color.White)
+                        Text(
+                            text = if (popupModelSelection) "Popup" else "Full screen",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFAAAAAA)
+                        )
+                    }
+                    Switch(
+                        checked = popupModelSelection,
+                        onCheckedChange = {
+                            popupModelSelection = it
                             saveSettings()
                         }
                     )

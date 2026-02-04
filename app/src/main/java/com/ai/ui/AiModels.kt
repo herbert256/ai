@@ -10,7 +10,8 @@ data class GeneralSettings(
     val huggingFaceApiKey: String = "",
     val openRouterApiKey: String = "",
     val fullScreenMode: Boolean = false,
-    val defaultEmail: String = ""
+    val defaultEmail: String = "",
+    val popupModelSelection: Boolean = true
 )
 
 // Prompt history entry
