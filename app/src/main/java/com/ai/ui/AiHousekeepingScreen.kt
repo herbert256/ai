@@ -306,6 +306,28 @@ fun HousekeepingScreen(
                                 progressTitle = "Refresh All"
                                 isRefreshingAll = true
 
+                                progressText = "Provider state..."
+                                val stateResults = mutableMapOf<String, String>()
+                                for (service in com.ai.data.AiService.entries) {
+                                    if (aiSettings.getProviderState(service) == "inactive") {
+                                        stateResults[service.displayName] = "inactive"
+                                        continue
+                                    }
+                                    progressText = "State: ${service.displayName}"
+                                    val apiKey = aiSettings.getApiKey(service)
+                                    if (apiKey.isBlank()) {
+                                        onProviderStateChange(service, "not-used")
+                                        stateResults[service.displayName] = "not-used"
+                                    } else {
+                                        val model = aiSettings.getModel(service)
+                                        val error = onTestApiKey(service, apiKey, model)
+                                        val state = if (error == null) "ok" else "error"
+                                        onProviderStateChange(service, state)
+                                        stateResults[service.displayName] = state
+                                    }
+                                }
+                                providerStateResults = stateResults
+
                                 progressText = "Refreshing model lists..."
                                 refreshResults = onRefreshAllModels(aiSettings, true) { provider ->
                                     progressText = "Models: $provider"
@@ -328,28 +350,6 @@ fun HousekeepingScreen(
                                     }
                                     openRouterResult = if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
                                 }
-
-                                progressText = "Provider state..."
-                                val stateResults = mutableMapOf<String, String>()
-                                for (service in com.ai.data.AiService.entries) {
-                                    if (aiSettings.getProviderState(service) == "inactive") {
-                                        stateResults[service.displayName] = "inactive"
-                                        continue
-                                    }
-                                    progressText = "State: ${service.displayName}"
-                                    val apiKey = aiSettings.getApiKey(service)
-                                    if (apiKey.isBlank()) {
-                                        onProviderStateChange(service, "not-used")
-                                        stateResults[service.displayName] = "not-used"
-                                    } else {
-                                        val model = aiSettings.getModel(service)
-                                        val error = onTestApiKey(service, apiKey, model)
-                                        val state = if (error == null) "ok" else "error"
-                                        onProviderStateChange(service, state)
-                                        stateResults[service.displayName] = state
-                                    }
-                                }
-                                providerStateResults = stateResults
 
                                 progressText = "Default agents..."
                                 val genResults = mutableListOf<Pair<String, Boolean>>()
@@ -393,6 +393,41 @@ fun HousekeepingScreen(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("All", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                progressTitle = "Refresh Provider State"
+                                val results = mutableMapOf<String, String>()
+                                for (service in com.ai.data.AiService.entries) {
+                                    if (aiSettings.getProviderState(service) == "inactive") {
+                                        results[service.displayName] = "inactive"
+                                        continue
+                                    }
+                                    progressText = service.displayName
+                                    val apiKey = aiSettings.getApiKey(service)
+                                    if (apiKey.isBlank()) {
+                                        onProviderStateChange(service, "not-used")
+                                        results[service.displayName] = "not-used"
+                                    } else {
+                                        val model = aiSettings.getModel(service)
+                                        val error = onTestApiKey(service, apiKey, model)
+                                        val state = if (error == null) "ok" else "error"
+                                        onProviderStateChange(service, state)
+                                        results[service.displayName] = state
+                                    }
+                                }
+                                providerStateResults = results
+                                progressTitle = ""
+                                progressText = ""
+                                showProviderStateResultDialog = true
+                            }
+                        },
+                        enabled = !isAnyRunning,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text("Provider state", fontSize = 12.sp)
                     }
                     Button(
                         onClick = {
@@ -443,41 +478,6 @@ fun HousekeepingScreen(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("OpenRouter data", fontSize = 12.sp)
-                    }
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                progressTitle = "Refresh Provider State"
-                                val results = mutableMapOf<String, String>()
-                                for (service in com.ai.data.AiService.entries) {
-                                    if (aiSettings.getProviderState(service) == "inactive") {
-                                        results[service.displayName] = "inactive"
-                                        continue
-                                    }
-                                    progressText = service.displayName
-                                    val apiKey = aiSettings.getApiKey(service)
-                                    if (apiKey.isBlank()) {
-                                        onProviderStateChange(service, "not-used")
-                                        results[service.displayName] = "not-used"
-                                    } else {
-                                        val model = aiSettings.getModel(service)
-                                        val error = onTestApiKey(service, apiKey, model)
-                                        val state = if (error == null) "ok" else "error"
-                                        onProviderStateChange(service, state)
-                                        results[service.displayName] = state
-                                    }
-                                }
-                                providerStateResults = results
-                                progressTitle = ""
-                                progressText = ""
-                                showProviderStateResultDialog = true
-                            }
-                        },
-                        enabled = !isAnyRunning,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text("Provider state", fontSize = 12.sp)
                     }
                     Button(
                         onClick = {
@@ -1014,6 +1014,7 @@ private fun exportModelCostsToCsv(
     val allModels = mutableListOf<ProviderModel>()
 
     for (service in AiService.entries) {
+        if (aiSettings.getProviderState(service) != "ok") continue
         val models = aiSettings.getModels(service)
         models.forEach { allModels.add(ProviderModel(service.id, it)) }
     }
@@ -1031,15 +1032,25 @@ private fun exportModelCostsToCsv(
 
     // Build CSV - prices in USD per million tokens
     val csv = StringBuilder()
-    csv.appendLine("Provider,Model,Override $/M In,Override $/M Out,OpenRouter $/M In,OpenRouter $/M Out,LiteLLM $/M In,LiteLLM $/M Out,Fallback $/M In,Fallback $/M Out")
+    csv.appendLine("Provider,Model,Current $/M In,Current $/M Out,Current Source,Override $/M In,Override $/M Out,OpenRouter $/M In,OpenRouter $/M Out,LiteLLM $/M In,LiteLLM $/M Out,Fallback $/M In,Fallback $/M Out")
 
     for (pm in sortedModels) {
+        val provider = com.ai.data.AiService.findById(pm.provider)
         val overrideKey = "${pm.provider}:${pm.model}"
         val override = overridePricing[overrideKey]
+
+        // Current effective pricing (what getPricing returns)
+        val current = if (provider != null) pricingCache.getPricing(context, provider, pm.model) else null
 
         // For OpenRouter, try both the full key and provider/model format
         val openRouterKey = if (pm.provider == "OPENROUTER") pm.model else findOpenRouterKey(pm.provider, pm.model, openRouterPricing)
         val openRouter = openRouterPricing[openRouterKey]
+
+        // Skip OPENROUTER rows where current pricing equals OpenRouter pricing (redundant)
+        if (pm.provider == "OPENROUTER" && current != null && openRouter != null &&
+            current.promptPrice == openRouter.promptPrice && current.completionPrice == openRouter.completionPrice) {
+            continue
+        }
 
         // For LiteLLM, try direct and with prefix
         val litellmKey = findLiteLLMKey(pm.provider, pm.model, litellmPricing)
@@ -1051,6 +1062,12 @@ private fun exportModelCostsToCsv(
             append(escapeCsvField(pm.provider))
             append(",")
             append(escapeCsvField(pm.model))
+            append(",")
+            append(toDollarsPerMillion(current?.promptPrice))
+            append(",")
+            append(toDollarsPerMillion(current?.completionPrice))
+            append(",")
+            append(current?.source ?: "")
             append(",")
             append(toDollarsPerMillion(override?.promptPrice))
             append(",")
@@ -1100,7 +1117,8 @@ private fun exportModelCostsToCsv(
 /**
  * Import model costs from CSV file.
  * Reads the Override $/M In and Override $/M Out columns and sets them as manual pricing overrides.
- * CSV format: Provider,Model,Override $/M In,Override $/M Out,...
+ * CSV format: Provider,Model,Current $/M In,Current $/M Out,Current Source,Override $/M In,Override $/M Out,...
+ * Also supports legacy format without Current columns: Provider,Model,Override $/M In,Override $/M Out,...
  * Returns (imported count, skipped count).
  */
 private fun importModelCostsFromCsv(context: android.content.Context, uri: android.net.Uri): Pair<Int, Int> {
@@ -1116,6 +1134,13 @@ private fun importModelCostsFromCsv(context: android.content.Context, uri: andro
 
         if (lines.isEmpty()) return Pair(0, 0)
 
+        // Detect format from header: new format has "Current Source" in column 4
+        val header = parseCsvLine(lines[0])
+        val hasCurrentColumns = header.size > 4 && header[4].trim().equals("Current Source", ignoreCase = true)
+        val overrideInIdx = if (hasCurrentColumns) 5 else 2
+        val overrideOutIdx = if (hasCurrentColumns) 6 else 3
+        val minFields = overrideOutIdx + 1
+
         // Skip header row
         for (i in 1 until lines.size) {
             val line = lines[i]
@@ -1126,15 +1151,15 @@ private fun importModelCostsFromCsv(context: android.content.Context, uri: andro
 
             // Parse CSV line (handling quoted fields)
             val fields = parseCsvLine(line)
-            if (fields.size < 4) {
+            if (fields.size < minFields) {
                 skipped++
                 continue
             }
 
             val providerName = fields[0].trim()
             val model = fields[1].trim()
-            val overrideInputStr = fields[2].trim()
-            val overrideOutputStr = fields[3].trim()
+            val overrideInputStr = fields[overrideInIdx].trim()
+            val overrideOutputStr = fields[overrideOutIdx].trim()
 
             // Skip if override columns are empty
             if (overrideInputStr.isBlank() || overrideOutputStr.isBlank()) {
@@ -1158,6 +1183,14 @@ private fun importModelCostsFromCsv(context: android.content.Context, uri: andro
             // Map provider name to AiService
             val provider = com.ai.data.AiService.findById(providerName)
             if (provider == null) {
+                skipped++
+                continue
+            }
+
+            // Compare against current calculated pricing (without overrides)
+            // Only add an override if the CSV price differs from what we'd compute anyway
+            val currentPricing = com.ai.data.PricingCache.getPricingWithoutOverride(context, provider, model)
+            if (currentPricing.promptPrice == promptPricePerToken && currentPricing.completionPrice == completionPricePerToken) {
                 skipped++
                 continue
             }

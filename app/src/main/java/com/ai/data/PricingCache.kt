@@ -149,8 +149,8 @@ object PricingCache {
             .apply()
     }
 
-    // Default pricing: $2.50 per 1M input tokens, $5.00 per 1M output tokens
-    private val DEFAULT_PRICING = ModelPricing("default", 2.50e-6, 5.00e-6, "DEFAULT")
+    // Default pricing: $25.00 per 1M input tokens, $75.00 per 1M output tokens
+    private val DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6, "DEFAULT")
 
     /**
      * Get pricing for a specific model, using six-tier lookup.
@@ -193,6 +193,33 @@ object PricingCache {
         FALLBACK_PRICING[model]?.let { return it }
 
         // 5. Return DEFAULT pricing as last resort
+        return DEFAULT_PRICING
+    }
+
+    /**
+     * Get pricing for a specific model, skipping manual overrides.
+     * Uses: OPENROUTER > LITELLM > FALLBACK > DEFAULT.
+     * Used to check if a manual override would actually change the computed price.
+     */
+    fun getPricingWithoutOverride(context: Context, provider: AiService, model: String): ModelPricing {
+        ensureLoaded(context)
+
+        // 1. Try OpenRouter API
+        findOpenRouterPricing(provider, model)?.let { return it }
+
+        // 2. Try LiteLLM
+        litellmPricing?.let { pricing ->
+            pricing[model]?.let { return it }
+            val litellmPrefix = getLiteLLMPrefix(provider)
+            if (litellmPrefix != null) {
+                pricing["$litellmPrefix/$model"]?.let { return it }
+            }
+        }
+
+        // 3. Try hardcoded FALLBACK
+        FALLBACK_PRICING[model]?.let { return it }
+
+        // 4. Return DEFAULT pricing as last resort
         return DEFAULT_PRICING
     }
 

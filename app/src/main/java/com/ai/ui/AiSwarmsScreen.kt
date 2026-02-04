@@ -389,10 +389,11 @@ fun SwarmEditScreen(
                         val pricing = formatPricingPerMillion(context, member.provider, member.model)
                         Text(
                             text = pricing.text,
-                            color = if (pricing.isDefault) Color(0xFF666666) else Color(0xFFFF6B6B),
+                            color = if (pricing.isDefault) Color(0xFF2A2A2A) else Color(0xFFFF6B6B),
                             fontSize = 10.sp,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            maxLines = 1
+                            maxLines = 1,
+                            modifier = if (pricing.isDefault) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                         )
                     }
                 }

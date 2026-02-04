@@ -143,12 +143,24 @@ class AiAnalysisRepository {
     }
 
     /**
-     * Builds the final prompt by replacing @FEN@ and @DATE@ placeholders.
+     * Builds the final prompt by replacing placeholders.
+     * Supported: @FEN@, @DATE@, @MODEL@, @PROVIDER@, @AGENT@
      */
-    private fun buildPrompt(promptTemplate: String, content: String): String {
-        return promptTemplate
+    private fun buildPrompt(
+        promptTemplate: String,
+        content: String,
+        agent: com.ai.ui.AiAgent? = null
+    ): String {
+        var result = promptTemplate
             .replace("@FEN@", content)
             .replace("@DATE@", formatCurrentDate())
+        if (agent != null) {
+            result = result
+                .replace("@MODEL@", agent.model)
+                .replace("@PROVIDER@", agent.provider.displayName)
+                .replace("@AGENT@", agent.name)
+        }
+        return result
     }
 
     /**
@@ -234,7 +246,7 @@ class AiAnalysisRepository {
             )
         }
 
-        val finalPrompt = buildPrompt(prompt, content)
+        val finalPrompt = buildPrompt(prompt, content, agent)
 
         suspend fun makeApiCall(): AiAnalysisResponse {
             var params = mergeParameters(agentResolvedParams, overrideParams)

@@ -489,7 +489,7 @@ object AiApiFactory {
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(TracingInterceptor())
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(420, TimeUnit.SECONDS)
+        .readTimeout(600, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 

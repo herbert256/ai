@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -321,11 +323,15 @@ private fun ModelSearchResultCard(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            // Arrow indicator
+            val context = LocalContext.current
+            val pricing = formatPricingPerMillion(context, item.provider, item.modelName)
             Text(
-                text = ">",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFF888888)
+                text = pricing.text,
+                color = if (pricing.isDefault) Color(0xFF2A2A2A) else Color(0xFFFF6B6B),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                modifier = if (pricing.isDefault) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
             )
         }
     }
