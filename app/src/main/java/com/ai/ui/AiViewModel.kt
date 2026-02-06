@@ -27,6 +27,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
     private var reportGenerationJob: Job? = null
+    private var reportRunningInBackground = false
 
     // Settings persistence
     private fun loadGeneralSettings(): GeneralSettings = settingsPrefs.loadGeneralSettings()
@@ -531,6 +532,16 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             // Wait for all jobs to complete
             (agentJobs + swarmJobs).awaitAll()
 
+            // Show toast if report was continued in background
+            if (reportRunningInBackground) {
+                reportRunningInBackground = false
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Report \"$title\" is ready",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+
             // Clear the current report ID for API tracing
             ApiTracer.currentReportId = null
         }
@@ -592,6 +603,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             currentReportId = null,
             reportAdvancedParameters = null
         ) }
+    }
+
+    fun continueReportInBackground() {
+        reportRunningInBackground = true
+        dismissGenericAiReportsDialog()
     }
 
     // ========== Model Fetching ==========

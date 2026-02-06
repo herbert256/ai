@@ -43,6 +43,11 @@ fun AiReportsScreenNav(
         onNavigateHome()
     }
 
+    val handleContinueInBackground = {
+        viewModel.continueReportInBackground()
+        onNavigateHome()
+    }
+
     AiReportsScreen(
         uiState = uiState,
         onGenerate = { modelsList, paramsIds, reportType ->
@@ -70,6 +75,7 @@ fun AiReportsScreenNav(
         onDismiss = handleDismiss,
         onResetReports = { viewModel.dismissGenericAiReportsDialog() },
         onNavigateHome = handleNavigateHome,
+        onContinueInBackground = handleContinueInBackground,
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
@@ -111,6 +117,7 @@ fun AiReportsScreen(
     onDismiss: () -> Unit,
     onResetReports: () -> Unit = {},
     onNavigateHome: () -> Unit = onDismiss,
+    onContinueInBackground: () -> Unit = onNavigateHome,
     advancedParameters: AiAgentParameters? = null,
     onAdvancedParametersChange: (AiAgentParameters?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
@@ -845,6 +852,34 @@ fun AiReportsScreen(
 
 
         } else {
+            // STOP + Background buttons at top while generating
+            if (isGenerating && !isComplete) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onStop,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFCC3333)
+                        )
+                    ) {
+                        Text("STOP", fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = onContinueInBackground,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2196F3)
+                        )
+                    ) {
+                        Text("Background", fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             // Action buttons at top when complete
             if (isComplete) {
                 val compactButtonPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
@@ -1219,20 +1254,6 @@ fun AiReportsScreen(
                 }
             }
 
-            // STOP button while generating
-            if (isGenerating && !isComplete) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = onStop,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFCC3333)
-                    )
-                ) {
-                    Text("STOP", fontWeight = FontWeight.Bold)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
         }
     }
 }
