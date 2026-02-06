@@ -374,7 +374,7 @@ fun ChatSessionScreen(
     sessionId: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSendMessage: suspend (List<ChatMessage>, String) -> ChatMessage?,
+    onSendMessage: suspend (List<ChatMessage>, String) -> ChatMessage,
     onSendMessageStream: ((List<ChatMessage>) -> Flow<String>)? = null,
     onRecordStatistics: (Int, Int) -> Unit = { _, _ -> }
 ) {
@@ -405,8 +405,8 @@ fun ChatSessionScreen(
         PricingCache.getPricing(context, provider, model)
     }
 
-    // Helper to estimate tokens from text (roughly 4 chars per token)
-    fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
+    // Helper to estimate tokens from text
+    fun estimateTokens(text: String): Int = AiViewModel.estimateTokens(text)
 
     // Current session ID (create new one if not continuing an existing session)
     val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }
@@ -676,18 +676,14 @@ fun ChatSessionScreen(
                                 isLoading = true
                                 try {
                                     val response = onSendMessage(messages, input)
-                                    if (response != null) {
-                                        messages = messages + response
-                                        saveSession(messages)
+                                    messages = messages + response
+                                    saveSession(messages)
 
-                                        // Track output tokens and calculate cost
-                                        val outputTokens = estimateTokens(response.content)
-                                        totalOutputTokens += outputTokens
-                                        totalCost += (inputTokensForThisRequest * pricing.promptPrice) +
-                                                (outputTokens * pricing.completionPrice)
-                                    } else {
-                                        error = "Failed to get response"
-                                    }
+                                    // Track output tokens and calculate cost
+                                    val outputTokens = estimateTokens(response.content)
+                                    totalOutputTokens += outputTokens
+                                    totalCost += (inputTokensForThisRequest * pricing.promptPrice) +
+                                            (outputTokens * pricing.completionPrice)
                                 } catch (e: Exception) {
                                     error = e.message ?: "Unknown error"
                                 } finally {

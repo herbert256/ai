@@ -110,7 +110,7 @@ fun AiHubScreen(
             HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping, enabled = hasAnyProviderApiKey)
 
             Spacer(modifier = Modifier.height(32.dp))
-            HubCard(icon = "\u2699\uFE0F", title = "General Settings", onClick = onNavigateToSettings)
+            HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
 

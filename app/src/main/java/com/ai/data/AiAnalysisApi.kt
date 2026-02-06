@@ -750,10 +750,16 @@ data class OpenAiStreamRequest(
     val max_tokens: Int? = null,
     val temperature: Float? = null,
     val top_p: Float? = null,
+    val top_k: Int? = null,
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val stop: List<String>? = null,
-    val seed: Int? = null
+    val seed: Int? = null,
+    val random_seed: Int? = null,
+    val response_format: OpenAiResponseFormat? = null,
+    val return_citations: Boolean? = null,
+    val search_recency_filter: String? = null,
+    val search: Boolean? = null
 )
 
 /**
@@ -768,7 +774,11 @@ data class ClaudeStreamRequest(
     val top_p: Float? = null,
     val top_k: Int? = null,
     val system: String? = null,
-    val stop_sequences: List<String>? = null
+    val stop_sequences: List<String>? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val seed: Int? = null,
+    val search: Boolean? = null
 )
 
 /**

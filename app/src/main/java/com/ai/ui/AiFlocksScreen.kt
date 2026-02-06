@@ -51,7 +51,7 @@ fun AiFlocksScreen(
         Button(
             onClick = onAddFlock,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             Text("Add Flock")
         }
@@ -65,7 +65,7 @@ fun AiFlocksScreen(
             ) {
                 Text(
                     text = "No flocks configured.\nAdd a flock to group agents together.",
-                    color = Color(0xFF888888),
+                    color = AiColors.TextTertiary,
                     fontSize = 16.sp
                 )
             }
@@ -81,9 +81,13 @@ fun AiFlocksScreen(
                     val flockAgents = aiSettings.getAgentsForFlock(flock).filter { agent ->
                         aiSettings.isProviderActive(agent.provider)
                     }
-                    FlockListItem(
-                        flock = flock,
-                        agents = flockAgents,
+                    SettingsListItemCard(
+                        title = flock.name,
+                        subtitle = if (flockAgents.isEmpty()) {
+                            "No agents"
+                        } else {
+                            "${flockAgents.size} agent${if (flockAgents.size == 1) "" else "s"}: ${flockAgents.take(3).joinToString(", ") { it.name }}${if (flockAgents.size > 3) "..." else ""}"
+                        },
                         onClick = { onEditFlock(flock.id) },
                         onDelete = { showDeleteDialog = flock }
                     )
@@ -94,77 +98,16 @@ fun AiFlocksScreen(
 
     // Delete confirmation dialog
     showDeleteDialog?.let { flock ->
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
-            title = { Text("Delete Flock") },
-            text = { Text("Are you sure you want to delete \"${flock.name}\"?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val newFlocks = aiSettings.flocks.filter { it.id != flock.id }
-                        onSave(aiSettings.copy(flocks = newFlocks))
-                        showDeleteDialog = null
-                    }
-                ) {
-                    Text("Delete", color = Color(0xFFFF6B6B))
-                }
+        DeleteConfirmationDialog(
+            entityType = "Flock",
+            entityName = flock.name,
+            onConfirm = {
+                val newFlocks = aiSettings.flocks.filter { it.id != flock.id }
+                onSave(aiSettings.copy(flocks = newFlocks))
+                showDeleteDialog = null
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteDialog = null }
         )
-    }
-}
-
-/**
- * List item for a flock showing name and agent count.
- */
-@Composable
-private fun FlockListItem(
-    flock: AiFlock,
-    agents: List<AiAgent>,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A3A)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = flock.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (agents.isEmpty()) {
-                        "No agents"
-                    } else {
-                        "${agents.size} agent${if (agents.size == 1) "" else "s"}: ${agents.take(3).joinToString(", ") { it.name }}${if (agents.size > 3) "..." else ""}"
-                    },
-                    fontSize = 14.sp,
-                    color = Color(0xFF888888)
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Text("X", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 
@@ -191,6 +134,9 @@ fun FlockEditScreen(
 
     // Parameters preset selection (multi-select)
     var selectedParametersIds by remember { mutableStateOf(flock?.paramsIds ?: emptyList()) }
+
+    // System prompt selection (single-select)
+    var selectedSystemPromptId by remember { mutableStateOf(flock?.systemPromptId) }
 
     // Get all configured agents with active providers
     val configuredAgents = aiSettings.getConfiguredAgents().filter { agent ->
@@ -239,11 +185,11 @@ fun FlockEditScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 isError = nameError != null,
-                supportingText = nameError?.let { { Text(it, color = Color(0xFFFF6B6B)) } },
+                supportingText = nameError?.let { { Text(it, color = AiColors.Red) } },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
+                    unfocusedBorderColor = AiColors.BorderUnfocused,
+                    focusedLabelColor = AiColors.Purple,
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
@@ -265,21 +211,22 @@ fun FlockEditScreen(
                                 id = flock?.id ?: UUID.randomUUID().toString(),
                                 name = name.trim(),
                                 agentIds = selectedAgentIds.toList(),
-                                paramsIds = selectedParametersIds
+                                paramsIds = selectedParametersIds,
+                                systemPromptId = selectedSystemPromptId
                             )
                             onSave(newFlock)
                         }
                     }
                 },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
             ) {
                 Text(if (isEditing) "Save" else "Create", fontSize = 13.sp, maxLines = 1)
             }
             Button(
                 onClick = { showParamsDialog = true },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
             ) {
                 Text(
                     if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
@@ -299,10 +246,17 @@ fun FlockEditScreen(
             )
         }
 
+        // System prompt selector
+        SystemPromptSelector(
+            aiSettings = aiSettings,
+            selectedSystemPromptId = selectedSystemPromptId,
+            onSystemPromptSelected = { id -> selectedSystemPromptId = id }
+        )
+
         if (configuredAgents.isEmpty()) {
             Text(
                 text = "No agents configured. Create agents first.",
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 fontSize = 14.sp
             )
         } else {
@@ -314,9 +268,9 @@ fun FlockEditScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
+                    unfocusedBorderColor = AiColors.BorderUnfocused,
+                    focusedLabelColor = AiColors.Purple,
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
@@ -327,7 +281,7 @@ fun FlockEditScreen(
                 Text(
                     text = "Showing ${filteredAgents.size} of ${configuredAgents.size} agents",
                     fontSize = 12.sp,
-                    color = Color(0xFF888888)
+                    color = AiColors.TextTertiary
                 )
             }
 
@@ -376,18 +330,18 @@ fun FlockEditScreen(
                         Text(
                             text = " ${agent.provider.displayName} ",
                             fontSize = 11.sp,
-                            color = Color(0xFFAAAAAA),
+                            color = AiColors.TextSecondary,
                             maxLines = 1,
                             modifier = Modifier.weight(1f)
                         )
                         val pricing = formatPricingPerMillion(context, agent.provider, agent.model)
                         Text(
                             text = pricing.text,
-                            color = if (pricing.isDefault) Color(0xFF2A2A2A) else Color(0xFFFF6B6B),
+                            color = if (pricing.isDefault) Color(0xFF2A2A2A) else AiColors.Red,
                             fontSize = 10.sp,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             maxLines = 1,
-                            modifier = if (pricing.isDefault) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                            modifier = if (pricing.isDefault) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                         )
                     }
                 }

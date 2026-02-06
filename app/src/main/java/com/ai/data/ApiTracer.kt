@@ -277,20 +277,23 @@ class TracingInterceptor : Interceptor {
         // Execute the request
         val response = chain.proceed(request)
 
-        // Capture response details
+        // Capture response details - skip buffering for streaming responses to avoid
+        // blocking the entire stream and defeating the purpose of SSE streaming
+        val isStreaming = response.header("Content-Type")?.contains("text/event-stream") == true ||
+            response.header("Transfer-Encoding") == "chunked" && response.header("Content-Type")?.contains("application/json") != true
         val responseHeaders = headersToMap(response.headers)
-        val responseBody = response.body?.let { body ->
-            try {
-                val source = body.source()
-                source.request(Long.MAX_VALUE)
-                val buffer = source.buffer
-
-                // Get the content
-                val content = buffer.clone().readUtf8()
-
-                content
-            } catch (e: Exception) {
-                null
+        val responseBody = if (isStreaming) {
+            "[streaming response - not captured]"
+        } else {
+            response.body?.let { body ->
+                try {
+                    val source = body.source()
+                    source.request(Long.MAX_VALUE)
+                    val buffer = source.buffer
+                    buffer.clone().readUtf8()
+                } catch (e: Exception) {
+                    null
+                }
             }
         }
 
@@ -319,7 +322,8 @@ class TracingInterceptor : Interceptor {
         for (i in 0 until headers.size) {
             val name = headers.name(i)
             val value = headers.value(i)
-            map[name] = value
+            // Preserve multiple values for the same header by joining with comma
+            map[name] = map[name]?.let { "$it, $value" } ?: value
         }
         return map
     }

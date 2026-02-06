@@ -266,8 +266,7 @@ fun AiAgentsScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            val newAgents = aiSettings.agents.filter { it.id != agent.id }
-                            onSave(aiSettings.copy(agents = newAgents))
+                            onSave(aiSettings.removeAgent(agent.id))
                             showDeleteConfirm = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
@@ -401,6 +400,9 @@ internal fun AgentEditScreen(
     // Parameters preset selection (multi-select) - initialized directly from agent's paramsIds
     var selectedParametersIds by remember { mutableStateOf(agent?.paramsIds ?: emptyList()) }
 
+    // System prompt selection (single-select)
+    var selectedSystemPromptId by remember { mutableStateOf(agent?.systemPromptId) }
+
     // Endpoint state - tracks the selected endpoint ID and URL for the agent
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
     var showEndpointDialog by remember { mutableStateOf(false) }
@@ -485,7 +487,8 @@ internal fun AgentEditScreen(
                             model = model,
                             apiKey = apiKey.trim(),
                             endpointId = selectedEndpointId,
-                            paramsIds = selectedParametersIds
+                            paramsIds = selectedParametersIds,
+                            systemPromptId = selectedSystemPromptId
                         )
                         isSaving = false
                         onSave(newAgent)
@@ -718,6 +721,13 @@ internal fun AgentEditScreen(
                 onParamsSelected = { ids -> selectedParametersIds = ids }
             )
 
+            // System prompt selection (single-select)
+            SystemPromptSelector(
+                aiSettings = aiSettings,
+                selectedSystemPromptId = selectedSystemPromptId,
+                onSystemPromptSelected = { id -> selectedSystemPromptId = id }
+            )
+
             // Save error message
             if (saveError != null) {
                 Text(
@@ -752,7 +762,8 @@ internal fun AgentEditScreen(
                             model = model,
                             apiKey = apiKey.trim(),
                             endpointId = selectedEndpointId,
-                            paramsIds = selectedParametersIds
+                            paramsIds = selectedParametersIds,
+                            systemPromptId = selectedSystemPromptId
                         )
                         isSaving = false
                         onSave(newAgent)

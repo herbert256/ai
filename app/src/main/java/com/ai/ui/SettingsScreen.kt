@@ -38,7 +38,10 @@ enum class SettingsSubScreen {
     AI_EDIT_PROMPT, // Edit existing prompt
     AI_PARAMETERS,      // AI Parameters CRUD
     AI_ADD_PARAMETERS,  // Add new parameters
-    AI_EDIT_PARAMETERS  // Edit existing parameters
+    AI_EDIT_PARAMETERS, // Edit existing parameters
+    AI_SYSTEM_PROMPTS,      // AI System Prompts CRUD
+    AI_ADD_SYSTEM_PROMPT,   // Add new system prompt
+    AI_EDIT_SYSTEM_PROMPT   // Edit existing system prompt
 }
 
 /**
@@ -86,6 +89,9 @@ fun SettingsScreen(
     // State for params editing
     var editingParametersId by remember { mutableStateOf<String?>(null) }
 
+    // State for system prompt editing
+    var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
+
     // Helper to generate unique agent name
     fun generateUniqueAgentName(baseName: String): String {
         val existingNames = aiSettings.agents.map { it.name }.toSet()
@@ -119,9 +125,9 @@ fun SettingsScreen(
             SettingsSubScreen.AI_FLOCKS -> {
                 currentSubScreen = SettingsSubScreen.AI_SETUP
             }
-            // AI Prompts goes back to AI_SETUP
+            // AI Prompts goes back to MAIN (General Settings)
             SettingsSubScreen.AI_PROMPTS -> {
-                currentSubScreen = SettingsSubScreen.AI_SETUP
+                currentSubScreen = SettingsSubScreen.MAIN
             }
             // AI Parameters goes back to AI_SETUP
             SettingsSubScreen.AI_PARAMETERS -> {
@@ -146,6 +152,10 @@ fun SettingsScreen(
             // Parameters screens go back to AI_PARAMETERS
             SettingsSubScreen.AI_ADD_PARAMETERS,
             SettingsSubScreen.AI_EDIT_PARAMETERS -> currentSubScreen = SettingsSubScreen.AI_PARAMETERS
+            // System Prompt screens
+            SettingsSubScreen.AI_SYSTEM_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_SETUP
+            SettingsSubScreen.AI_ADD_SYSTEM_PROMPT,
+            SettingsSubScreen.AI_EDIT_SYSTEM_PROMPT -> currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -153,10 +163,12 @@ fun SettingsScreen(
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> SettingsMainScreen(
             generalSettings = generalSettings,
+            aiSettings = aiSettings,
             onBack = onBack,
             onNavigateHome = onNavigateHome,
             onSave = onSaveGeneral,
-            onTrackApiCallsChanged = onTrackApiCallsChanged
+            onTrackApiCallsChanged = onTrackApiCallsChanged,
+            onNavigate = { currentSubScreen = it }
         )
         SettingsSubScreen.AI_PROVIDER_EDIT -> {
             val provider = selectedProvider
@@ -489,6 +501,46 @@ fun SettingsScreen(
                 onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.AI_SYSTEM_PROMPTS -> AiSystemPromptsListScreen(
+            aiSettings = aiSettings,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddSystemPrompt = { currentSubScreen = SettingsSubScreen.AI_ADD_SYSTEM_PROMPT },
+            onEditSystemPrompt = { spId ->
+                editingSystemPromptId = spId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_SYSTEM_PROMPT
+            }
+        )
+        SettingsSubScreen.AI_ADD_SYSTEM_PROMPT -> SystemPromptEditScreen(
+            systemPrompt = null,
+            existingNames = aiSettings.systemPrompts.map { it.name }.toSet(),
+            onSave = { newSp ->
+                val newList = aiSettings.systemPrompts + newSp
+                onSaveAi(aiSettings.copy(systemPrompts = newList))
+                currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_SYSTEM_PROMPT -> {
+            val sp = editingSystemPromptId?.let { aiSettings.getSystemPromptById(it) }
+            SystemPromptEditScreen(
+                systemPrompt = sp,
+                existingNames = aiSettings.systemPrompts.filter { it.id != editingSystemPromptId }.map { it.name }.toSet(),
+                onSave = { updatedSp ->
+                    val newList = aiSettings.systemPrompts.map { if (it.id == updatedSp.id) updatedSp else it }
+                    onSaveAi(aiSettings.copy(systemPrompts = newList))
+                    editingSystemPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+                },
+                onBack = {
+                    editingSystemPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
     }
 }
 
@@ -498,10 +550,12 @@ fun SettingsScreen(
 @Composable
 private fun SettingsMainScreen(
     generalSettings: GeneralSettings,
+    aiSettings: AiSettings,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSave: (GeneralSettings) -> Unit,
-    onTrackApiCallsChanged: (Boolean) -> Unit = {}
+    onTrackApiCallsChanged: (Boolean) -> Unit = {},
+    onNavigate: (SettingsSubScreen) -> Unit = {}
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
@@ -794,6 +848,16 @@ private fun SettingsMainScreen(
                 }
             }
         }
+
+        // Prompts card
+        val configuredPrompts = aiSettings.prompts.size
+        AiSetupNavigationCard(
+            title = "Prompts",
+            description = "Internal prompts for AI-powered features",
+            icon = "📝",
+            count = "$configuredPrompts configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
+        )
     }
 }
 

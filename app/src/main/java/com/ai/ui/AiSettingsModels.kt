@@ -133,7 +133,8 @@ data class AiAgent(
     val model: String,                 // Model name
     val apiKey: String,                // API key for this agent
     val endpointId: String? = null,    // Reference to AiEndpoint ID (null = use default/hardcoded)
-    val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
+    val paramsIds: List<String> = emptyList(),  // References to AiParameters IDs (parameter presets)
+    val systemPromptId: String? = null // Reference to AiSystemPrompt ID
 )
 
 /**
@@ -143,7 +144,8 @@ data class AiFlock(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val agentIds: List<String> = emptyList(),  // List of agent IDs in this flock
-    val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
+    val paramsIds: List<String> = emptyList(),  // References to AiParameters IDs (parameter presets)
+    val systemPromptId: String? = null // Reference to AiSystemPrompt ID
 )
 
 /**
@@ -163,7 +165,8 @@ data class AiSwarm(
     val id: String,                    // UUID
     val name: String,                  // User-defined name
     val members: List<AiSwarmMember> = emptyList(),  // List of provider/model combinations
-    val paramsIds: List<String> = emptyList()  // References to AiParameters IDs (parameter presets)
+    val paramsIds: List<String> = emptyList(),  // References to AiParameters IDs (parameter presets)
+    val systemPromptId: String? = null // Reference to AiSystemPrompt ID
 )
 
 /**
@@ -208,6 +211,16 @@ data class AiParameters(
 }
 
 /**
+ * AI System Prompt - a reusable named system prompt that can be connected to Agents, Flocks, and Swarms.
+ * When an API call is made, the connected system prompt is injected into the request.
+ */
+data class AiSystemPrompt(
+    val id: String,       // UUID
+    val name: String,     // User-defined name
+    val prompt: String    // System prompt text
+)
+
+/**
  * AI Prompt - internal prompts used by the app for AI-powered features.
  * Supports variable replacement: @MODEL@, @PROVIDER@, @AGENT@, @SWARM@, @NOW@
  */
@@ -224,13 +237,13 @@ data class AiPrompt(
         model: String? = null,
         provider: String? = null,
         agent: String? = null,
-        flock: String? = null
+        swarm: String? = null
     ): String {
         var resolved = promptText
         if (model != null) resolved = resolved.replace("@MODEL@", model)
         if (provider != null) resolved = resolved.replace("@PROVIDER@", provider)
         if (agent != null) resolved = resolved.replace("@AGENT@", agent)
-        if (flock != null) resolved = resolved.replace("@SWARM@", flock)
+        if (swarm != null) resolved = resolved.replace("@SWARM@", swarm)
         resolved = resolved.replace("@NOW@", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date()))
         return resolved
     }
@@ -249,6 +262,8 @@ data class AiSettings(
     val swarms: List<AiSwarm> = emptyList(),
     // AI Parameters (reusable parameter presets)
     val parameters: List<AiParameters> = emptyList(),
+    // AI System Prompts (reusable system prompts for agents/flocks/swarms)
+    val systemPrompts: List<AiSystemPrompt> = emptyList(),
     // AI Prompts (internal app prompts)
     val prompts: List<AiPrompt> = emptyList(),
     // API Endpoints per provider (multiple endpoints allowed, one can be default)
@@ -369,6 +384,9 @@ data class AiSettings(
     // Helper methods for prompts
     fun getPromptByName(name: String): AiPrompt? = prompts.find { it.name.equals(name, ignoreCase = true) }
 
+    // Helper methods for system prompts
+    fun getSystemPromptById(id: String): AiSystemPrompt? = systemPrompts.find { it.id == id }
+
     // Helper methods for params
     fun getParametersById(id: String): AiParameters? = parameters.find { it.id == id }
 
@@ -435,18 +453,75 @@ data class AiSettings(
 
     /**
      * Remove a provider and all its associated data from settings.
+     * Also cleans flock references to deleted agents.
      */
     fun removeProvider(service: AiService): AiSettings {
+        val removedAgentIds = agents.filter { it.provider.id == service.id }.map { it.id }.toSet()
         return copy(
             providers = providers - service,
             endpoints = endpoints - service,
             providerStates = providerStates - service.id,
-            // Remove agents that reference this provider
             agents = agents.filter { it.provider.id != service.id },
-            // Remove swarm members that reference this provider
+            flocks = flocks.map { flock ->
+                flock.copy(agentIds = flock.agentIds.filter { it !in removedAgentIds })
+            },
             swarms = swarms.map { swarm ->
                 swarm.copy(members = swarm.members.filter { it.provider.id != service.id })
+            },
+            // Clean orphaned prompts referencing deleted agents
+            prompts = prompts.filter { it.agentId !in removedAgentIds }
+        )
+    }
+
+    /**
+     * Remove a system prompt and clean all references from agents, flocks, and swarms.
+     */
+    fun removeSystemPrompt(systemPromptId: String): AiSettings {
+        return copy(
+            systemPrompts = systemPrompts.filter { it.id != systemPromptId },
+            agents = agents.map { agent ->
+                if (agent.systemPromptId == systemPromptId) agent.copy(systemPromptId = null) else agent
+            },
+            flocks = flocks.map { flock ->
+                if (flock.systemPromptId == systemPromptId) flock.copy(systemPromptId = null) else flock
+            },
+            swarms = swarms.map { swarm ->
+                if (swarm.systemPromptId == systemPromptId) swarm.copy(systemPromptId = null) else swarm
             }
+        )
+    }
+
+    /**
+     * Remove a parameter preset and clean all references from agents, flocks, swarms, and providers.
+     */
+    fun removeParameters(parametersId: String): AiSettings {
+        return copy(
+            parameters = parameters.filter { it.id != parametersId },
+            agents = agents.map { agent ->
+                agent.copy(paramsIds = agent.paramsIds.filter { it != parametersId })
+            },
+            flocks = flocks.map { flock ->
+                flock.copy(paramsIds = flock.paramsIds.filter { it != parametersId })
+            },
+            swarms = swarms.map { swarm ->
+                swarm.copy(paramsIds = swarm.paramsIds.filter { it != parametersId })
+            },
+            providers = providers.mapValues { (_, config) ->
+                config.copy(parametersIds = config.parametersIds.filter { it != parametersId })
+            }
+        )
+    }
+
+    /**
+     * Remove an agent and clean all references from flocks.
+     */
+    fun removeAgent(agentId: String): AiSettings {
+        return copy(
+            agents = agents.filter { it.id != agentId },
+            flocks = flocks.map { flock ->
+                flock.copy(agentIds = flock.agentIds.filter { it != agentId })
+            },
+            prompts = prompts.filter { it.agentId != agentId }
         )
     }
 
@@ -509,9 +584,10 @@ data class AiSettings(
                 systemPrompt = params.systemPrompt ?: acc.systemPrompt,
                 stopSequences = params.stopSequences ?: acc.stopSequences,
                 seed = params.seed ?: acc.seed,
-                responseFormatJson = if (params.responseFormatJson) true else acc.responseFormatJson,
-                searchEnabled = if (params.searchEnabled) true else acc.searchEnabled,
-                returnCitations = if (params.returnCitations) true else acc.returnCitations,
+                // Later presets override earlier ones (not "sticky true" anymore)
+                responseFormatJson = params.responseFormatJson,
+                searchEnabled = params.searchEnabled,
+                returnCitations = params.returnCitations,
                 searchRecency = params.searchRecency ?: acc.searchRecency
             )
         }
@@ -606,9 +682,10 @@ data class AiUsageStats(
     val model: String,
     val callCount: Int = 0,
     val inputTokens: Long = 0,
-    val outputTokens: Long = 0,
-    val totalTokens: Long = 0
+    val outputTokens: Long = 0
 ) {
+    /** Total tokens = input + output (computed, never drifts) */
+    val totalTokens: Long get() = inputTokens + outputTokens
     /** Unique key for this provider+model combination */
     val key: String get() = "${provider.id}::$model"
 }

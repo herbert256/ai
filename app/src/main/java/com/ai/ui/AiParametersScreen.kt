@@ -49,7 +49,7 @@ fun AiParametersListScreen(
         Button(
             onClick = onAddParameters,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             Text("Add Parameters")
         }
@@ -63,7 +63,7 @@ fun AiParametersListScreen(
             ) {
                 Text(
                     text = "No parameter presets configured.\nAdd a preset to reuse parameters across agents.",
-                    color = Color(0xFF888888),
+                    color = AiColors.TextTertiary,
                     fontSize = 16.sp
                 )
             }
@@ -75,8 +75,16 @@ fun AiParametersListScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 aiSettings.parameters.sortedBy { it.name.lowercase() }.forEach { params ->
-                    ParametersListItem(
-                        params = params,
+                    val configuredCount = listOfNotNull(
+                        params.temperature, params.maxTokens, params.topP, params.topK,
+                        params.frequencyPenalty, params.presencePenalty,
+                        params.systemPrompt?.takeIf { it.isNotBlank() },
+                        params.stopSequences?.takeIf { it.isNotEmpty() }, params.seed
+                    ).size + listOf(params.responseFormatJson, params.searchEnabled, params.returnCitations).count { it } +
+                        (if (params.searchRecency != null) 1 else 0)
+                    SettingsListItemCard(
+                        title = params.name,
+                        subtitle = "$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured",
                         onClick = { onEditParameters(params.id) },
                         onDelete = { showDeleteDialog = params }
                     )
@@ -87,89 +95,15 @@ fun AiParametersListScreen(
 
     // Delete confirmation dialog
     showDeleteDialog?.let { params ->
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
-            title = { Text("Delete Parameters") },
-            text = { Text("Are you sure you want to delete \"${params.name}\"?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val newParams = aiSettings.parameters.filter { it.id != params.id }
-                        onSave(aiSettings.copy(parameters = newParams))
-                        showDeleteDialog = null
-                    }
-                ) {
-                    Text("Delete", color = Color(0xFFFF6B6B))
-                }
+        DeleteConfirmationDialog(
+            entityType = "Parameters",
+            entityName = params.name,
+            onConfirm = {
+                onSave(aiSettings.removeParameters(params.id))
+                showDeleteDialog = null
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteDialog = null }
         )
-    }
-}
-
-/**
- * List item for a parameters preset showing name and configured parameters count.
- */
-@Composable
-private fun ParametersListItem(
-    params: AiParameters,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    // Count configured parameters
-    val configuredCount = listOfNotNull(
-        params.temperature,
-        params.maxTokens,
-        params.topP,
-        params.topK,
-        params.frequencyPenalty,
-        params.presencePenalty,
-        params.systemPrompt?.takeIf { it.isNotBlank() },
-        params.stopSequences?.takeIf { it.isNotEmpty() },
-        params.seed
-    ).size + listOf(
-        params.responseFormatJson,
-        params.searchEnabled,
-        params.returnCitations
-    ).count { it } + (if (params.searchRecency != null) 1 else 0)
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A3A)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = params.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "$configuredCount parameter${if (configuredCount == 1) "" else "s"} configured",
-                    fontSize = 14.sp,
-                    color = Color(0xFF888888)
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Text("X", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 
@@ -253,11 +187,11 @@ fun ParametersEditScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = nameError != null,
-                supportingText = nameError?.let { { Text(it, color = Color(0xFFFF6B6B)) } },
+                supportingText = nameError?.let { { Text(it, color = AiColors.Red) } },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
+                    unfocusedBorderColor = AiColors.BorderUnfocused,
+                    focusedLabelColor = AiColors.Purple,
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
@@ -268,13 +202,13 @@ fun ParametersEditScreen(
                 text = "Parameters",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
-                color = Color(0xFF8B5CF6)
+                color = AiColors.Purple
             )
 
             Text(
                 text = "Toggle parameters on/off. Only enabled parameters will be applied.",
                 fontSize = 12.sp,
-                color = Color(0xFF888888)
+                color = AiColors.TextTertiary
             )
 
             // Temperature
@@ -356,7 +290,7 @@ fun ParametersEditScreen(
 
             // System Prompt
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -367,7 +301,7 @@ fun ParametersEditScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("System Prompt", color = Color.White, fontWeight = FontWeight.Medium)
-                            Text("System instruction", fontSize = 12.sp, color = Color(0xFF888888))
+                            Text("System instruction", fontSize = 12.sp, color = AiColors.TextTertiary)
                         }
                         Switch(
                             checked = systemPromptEnabled,
@@ -384,8 +318,8 @@ fun ParametersEditScreen(
                             maxLines = 6,
                             placeholder = { Text("Enter system prompt...") },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF444444),
+                                focusedBorderColor = AiColors.Purple,
+                                unfocusedBorderColor = AiColors.BorderUnfocused,
                                 cursorColor = Color.White
                             )
                         )
@@ -398,12 +332,12 @@ fun ParametersEditScreen(
                 text = "Options",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
-                color = Color(0xFF8B5CF6)
+                color = AiColors.Purple
             )
 
             // Response Format JSON
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -415,7 +349,7 @@ fun ParametersEditScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("JSON Response Format", color = Color.White)
-                        Text("Request JSON output (OpenAI)", fontSize = 12.sp, color = Color(0xFF888888))
+                        Text("Request JSON output (OpenAI)", fontSize = 12.sp, color = AiColors.TextTertiary)
                     }
                     Switch(
                         checked = responseFormatJson,
@@ -426,7 +360,7 @@ fun ParametersEditScreen(
 
             // Search Enabled
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -438,7 +372,7 @@ fun ParametersEditScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Web Search", color = Color.White)
-                        Text("Enable web search (xAI, Perplexity)", fontSize = 12.sp, color = Color(0xFF888888))
+                        Text("Enable web search (xAI, Perplexity)", fontSize = 12.sp, color = AiColors.TextTertiary)
                     }
                     Switch(
                         checked = searchEnabled,
@@ -449,7 +383,7 @@ fun ParametersEditScreen(
 
             // Return Citations
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -461,7 +395,7 @@ fun ParametersEditScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Return Citations", color = Color.White)
-                        Text("Include citations (Perplexity)", fontSize = 12.sp, color = Color(0xFF888888))
+                        Text("Include citations (Perplexity)", fontSize = 12.sp, color = AiColors.TextTertiary)
                     }
                     Switch(
                         checked = returnCitations,
@@ -472,7 +406,7 @@ fun ParametersEditScreen(
 
             // Search Recency
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -483,7 +417,7 @@ fun ParametersEditScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Search Recency", color = Color.White, fontWeight = FontWeight.Medium)
-                            Text("Filter search results by time (Perplexity)", fontSize = 12.sp, color = Color(0xFF888888))
+                            Text("Filter search results by time (Perplexity)", fontSize = 12.sp, color = AiColors.TextTertiary)
                         }
                         Switch(
                             checked = searchRecencyEnabled,
@@ -545,7 +479,7 @@ fun ParametersEditScreen(
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             Text(if (isEditing) "Save Changes" else "Create Preset")
         }
@@ -566,7 +500,7 @@ private fun ParameterToggleField(
     keyboardType: KeyboardType
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A3A)),
+        colors = CardDefaults.cardColors(containerColor = AiColors.CardBackground),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -577,7 +511,7 @@ private fun ParameterToggleField(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(label, color = Color.White, fontWeight = FontWeight.Medium)
-                    Text(description, fontSize = 12.sp, color = Color(0xFF888888))
+                    Text(description, fontSize = 12.sp, color = AiColors.TextTertiary)
                 }
                 Switch(
                     checked = enabled,
@@ -593,8 +527,8 @@ private fun ParameterToggleField(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF8B5CF6),
-                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedBorderColor = AiColors.Purple,
+                        unfocusedBorderColor = AiColors.BorderUnfocused,
                         cursorColor = Color.White
                     )
                 )
@@ -622,7 +556,7 @@ fun ParametersSelector(
     Button(
         onClick = { showParametersDialog = true },
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
         if (hasParams) {
@@ -677,7 +611,7 @@ fun ParametersSelectorDialog(
                     onClick = { localSelection = emptySet() },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Clear All", color = Color(0xFFFF6B6B))
+                    Text("Clear All", color = AiColors.Red)
                 }
 
                 if (aiSettings.parameters.isNotEmpty()) {

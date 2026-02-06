@@ -262,10 +262,6 @@ fun AiSetupScreen(
             enabled = hasApiKey
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
-        HorizontalDivider(color = Color(0xFF404040))
-        Spacer(modifier = Modifier.height(4.dp))
-
         // Parameters card
         val configuredParameters = aiSettings.parameters.size
         AiSetupNavigationCard(
@@ -276,14 +272,14 @@ fun AiSetupScreen(
             onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) }
         )
 
-        // Prompts card
-        val configuredPrompts = aiSettings.prompts.size
+        // System Prompts card
+        val configuredSystemPrompts = aiSettings.systemPrompts.size
         AiSetupNavigationCard(
-            title = "Prompts",
-            description = "Internal prompts for AI-powered features",
-            icon = "📝",
-            count = "$configuredPrompts configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
+            title = "System Prompts",
+            description = "Reusable system prompts for agents, flocks, and swarms",
+            icon = "\uD83D\uDCAC",
+            count = "$configuredSystemPrompts configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) }
         )
 
         // Costs card

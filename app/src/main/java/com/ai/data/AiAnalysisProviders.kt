@@ -45,7 +45,9 @@ internal suspend fun AiAnalysisRepository.analyzeWithChatGptResponsesApi(service
             AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        val errorBody = response.errorBody()?.string()
+        val errorDetail = if (errorBody != null) "API error: ${response.code()} ${response.message()} - $errorBody" else "API error: ${response.code()} ${response.message()}"
+        AiAnalysisResponse(service, null, errorDetail, httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
@@ -54,7 +56,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithClaude(service: AiService, 
     val request = ClaudeRequest(
         model = model,
         messages = listOf(ClaudeMessage(role = "user", content = prompt)),
-        max_tokens = params?.maxTokens ?: 1024,
+        max_tokens = params?.maxTokens ?: 4096,
         temperature = params?.temperature,
         top_p = params?.topP,
         top_k = params?.topK,
@@ -90,7 +92,9 @@ internal suspend fun AiAnalysisRepository.analyzeWithClaude(service: AiService, 
             AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        val errorBody = response.errorBody()?.string()
+        val errorMsg = if (errorBody != null) "API error: ${response.code()} ${response.message()} - $errorBody" else "API error: ${response.code()} ${response.message()}"
+        AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 
@@ -247,7 +251,9 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
             AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()}", httpHeaders = headers, httpStatusCode = statusCode)
+        val errorBody = response.errorBody()?.string()
+        val errorDetail = if (errorBody != null) "API error: ${response.code()} ${response.message()} - $errorBody" else "API error: ${response.code()} ${response.message()}"
+        AiAnalysisResponse(service, null, errorDetail, httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
 

@@ -249,7 +249,7 @@ class AiAnalysisRepository {
         val finalPrompt = buildPrompt(prompt, content, agent)
 
         suspend fun makeApiCall(): AiAnalysisResponse {
-            var params = mergeParameters(agentResolvedParams, overrideParams)
+            var params = validateParams(mergeParameters(agentResolvedParams, overrideParams))
 
             // If user has set advanced parameters, filter by supported parameters
             if (overrideParams != null && context != null) {
@@ -265,29 +265,19 @@ class AiAnalysisRepository {
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
 
-        // First attempt
-        try {
-            val result = makeApiCall()
-            if (result.isSuccess) {
-                return@withContext result
-            }
-            android.util.Log.w("AiAnalysis", "Agent ${agent.name} first attempt failed: ${result.error}, retrying...")
-            delay(RETRY_DELAY_MS)
-            return@withContext makeApiCall()
-        } catch (e: Exception) {
-            android.util.Log.w("AiAnalysis", "Agent ${agent.name} first attempt exception: ${e.message}, retrying...")
-            try {
-                delay(RETRY_DELAY_MS)
-                return@withContext makeApiCall()
-            } catch (e2: Exception) {
-                return@withContext AiAnalysisResponse(
+        withRetry(
+            label = "Agent ${agent.name}",
+            makeCall = { makeApiCall() },
+            isSuccess = { it.isSuccess },
+            errorResult = { e ->
+                AiAnalysisResponse(
                     service = agent.provider,
                     analysis = null,
-                    error = "Network error after retry: ${e2.message ?: "Unknown error"}",
+                    error = "Network error after retry: ${e.message ?: "Unknown error"}",
                     agentName = agent.name
                 )
             }
-        }
+        )
     }
 
     /**
@@ -311,7 +301,7 @@ class AiAnalysisRepository {
         val finalPrompt = prompt.replace("@DATE@", formatCurrentDate())
 
         suspend fun makeApiCall(): AiAnalysisResponse {
-            val params = agentResolvedParams
+            val params = validateParams(agentResolvedParams)
             val result = when (agent.provider.apiFormat) {
                 ApiFormat.ANTHROPIC -> analyzeWithClaude(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
                 ApiFormat.GOOGLE -> analyzeWithGemini(agent.provider, agent.apiKey, finalPrompt, agent.model, params)
@@ -320,34 +310,65 @@ class AiAnalysisRepository {
             return result.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
 
-        try {
-            val result = makeApiCall()
-            if (result.isSuccess) {
-                return@withContext result
-            }
-            android.util.Log.w("AiAnalysis", "Agent ${agent.name} player analysis failed: ${result.error}, retrying...")
-            delay(RETRY_DELAY_MS)
-            return@withContext makeApiCall()
-        } catch (e: Exception) {
-            android.util.Log.w("AiAnalysis", "Agent ${agent.name} player analysis exception: ${e.message}, retrying...")
-            try {
-                delay(RETRY_DELAY_MS)
-                return@withContext makeApiCall()
-            } catch (e2: Exception) {
-                return@withContext AiAnalysisResponse(
+        withRetry(
+            label = "Agent ${agent.name} player",
+            makeCall = { makeApiCall() },
+            isSuccess = { it.isSuccess },
+            errorResult = { e ->
+                AiAnalysisResponse(
                     service = agent.provider,
                     analysis = null,
-                    error = "Network error after retry: ${e2.message ?: "Unknown error"}",
+                    error = "Network error after retry: ${e.message ?: "Unknown error"}",
                     agentName = agent.name
                 )
             }
-        }
+        )
     }
 
     /**
      * Check if a model requires the Responses API (GPT-5.x and newer).
      * Chat Completions API is used for older models (gpt-4o, gpt-4, gpt-3.5, etc.)
      */
+    /**
+     * Execute an API call with one retry on failure.
+     */
+    internal suspend fun <T> withRetry(
+        label: String,
+        makeCall: suspend () -> T,
+        isSuccess: (T) -> Boolean,
+        errorResult: (Exception) -> T
+    ): T {
+        try {
+            val result = makeCall()
+            if (isSuccess(result)) return result
+            android.util.Log.w("AiAnalysis", "$label first attempt failed, retrying...")
+            delay(RETRY_DELAY_MS)
+            return makeCall()
+        } catch (e: Exception) {
+            android.util.Log.w("AiAnalysis", "$label first attempt exception: ${e.message}, retrying...")
+            try {
+                delay(RETRY_DELAY_MS)
+                return makeCall()
+            } catch (e2: Exception) {
+                return errorResult(e2)
+            }
+        }
+    }
+
+    /**
+     * Clamp parameter values to valid API ranges.
+     */
+    internal fun validateParams(params: com.ai.ui.AiAgentParameters): com.ai.ui.AiAgentParameters {
+        return params.copy(
+            temperature = params.temperature?.coerceIn(0f, 2f),
+            topP = params.topP?.coerceIn(0f, 1f),
+            topK = params.topK?.coerceAtLeast(1),
+            maxTokens = params.maxTokens?.coerceAtLeast(1),
+            frequencyPenalty = params.frequencyPenalty?.coerceIn(-2f, 2f),
+            presencePenalty = params.presencePenalty?.coerceIn(-2f, 2f)
+        )
+    }
+
     internal fun usesResponsesApi(model: String): Boolean {
         val lowerModel = model.lowercase()
         return lowerModel.startsWith("gpt-5") ||

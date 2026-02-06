@@ -17,9 +17,10 @@ object ProviderRegistry {
     private const val KEY_PROVIDERS = "providers_json"
     private const val KEY_INITIALIZED = "initialized"
 
-    private val providers = mutableListOf<AiService>()
+    private val providers = java.util.concurrent.CopyOnWriteArrayList<AiService>()
     private var initialized = false
     private var prefs: SharedPreferences? = null
+    private val lock = Any()
 
     /**
      * Initialize the registry. Must be called before any provider access.
@@ -85,23 +86,29 @@ object ProviderRegistry {
 
     /** Add a new provider. */
     fun add(service: AiService) {
-        providers.add(service)
-        save()
+        synchronized(lock) {
+            providers.add(service)
+            save()
+        }
     }
 
     /** Update an existing provider (matched by id). */
     fun update(service: AiService) {
-        val index = providers.indexOfFirst { it.id == service.id }
-        if (index >= 0) {
-            providers[index] = service
-            save()
+        synchronized(lock) {
+            val index = providers.indexOfFirst { it.id == service.id }
+            if (index >= 0) {
+                providers[index] = service
+                save()
+            }
         }
     }
 
     /** Remove a provider by id. */
     fun remove(id: String) {
-        providers.removeAll { it.id == id }
-        save()
+        synchronized(lock) {
+            providers.removeAll { it.id == id }
+            save()
+        }
     }
 
     /** Persist current providers to SharedPreferences. */
@@ -128,14 +135,16 @@ object ProviderRegistry {
      * Adds any that are missing by id.
      */
     fun ensureProviders(services: List<AiService>) {
-        var changed = false
-        for (service in services) {
-            if (findById(service.id) == null) {
-                providers.add(service)
-                changed = true
+        synchronized(lock) {
+            var changed = false
+            for (service in services) {
+                if (findById(service.id) == null) {
+                    providers.add(service)
+                    changed = true
+                }
             }
+            if (changed) save()
         }
-        if (changed) save()
     }
 }
 

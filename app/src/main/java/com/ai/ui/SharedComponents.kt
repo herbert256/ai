@@ -13,6 +13,140 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
+ * Centralized color constants used across all AI screens.
+ * Replaces hardcoded Color() calls for consistency and easy theming.
+ */
+object AiColors {
+    // Primary accent colors
+    val Purple = Color(0xFF8B5CF6)          // Buttons, labels, focused borders
+    val Indigo = Color(0xFF6366F1)          // Secondary buttons, selection highlights
+    val Blue = Color(0xFF6B9BFF)            // Links, info text, provider editor
+    val Green = Color(0xFF4CAF50)           // Success, save buttons
+    val Red = Color(0xFFFF6B6B)             // Delete, error, pricing
+    val RedBright = Color(0xFFFF5252)       // Error text, delete buttons
+    val RedDark = Color(0xFFF44336)         // Delete button backgrounds
+    val Orange = Color(0xFFFF9800)          // Warnings, variable hints
+
+    // Card and surface colors
+    val CardBackground = Color(0xFF2A2A3A)  // Card backgrounds
+    val CardBackgroundAlt = Color(0xFF2A3A4A) // Alt card background (info cards)
+    val DisabledBackground = Color(0xFF1A1A1A) // Disabled card
+    val IndigoHighlight = Color(0xFF2A4A3A) // Selected/default endpoint
+
+    // Text colors
+    val TextPrimary = Color.White
+    val TextSecondary = Color(0xFFAAAAAA)
+    val TextTertiary = Color(0xFF888888)
+    val TextDim = Color(0xFF666666)
+    val TextDisabled = Color(0xFF555555)
+    val TextVeryDim = Color(0xFF444444)
+    val TextDarkest = Color(0xFF333333)
+
+    // Border colors
+    val BorderFocused = Purple
+    val BorderUnfocused = Color(0xFF444444)
+    val BorderBlueFocused = Blue
+
+    // Status colors
+    val StatusOk = Green
+    val StatusError = RedBright
+    val StatusInactive = TextTertiary
+    val StatusNotUsed = TextDisabled
+
+    // Pricing display
+    val PricingReal = Red
+    val PricingDefault = TextDim
+    val PricingBadgeBackground = Color(0xFF666666)
+    val PricingBadgeText = Color(0xFF2A2A2A)
+
+    // Success count
+    val CountGreen = Color(0xFF00E676)
+}
+
+/**
+ * Reusable delete confirmation dialog.
+ * Replaces the 8+ near-identical delete dialogs across screens.
+ */
+@Composable
+fun DeleteConfirmationDialog(
+    entityType: String,
+    entityName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete $entityType") },
+        text = { Text("Are you sure you want to delete \"$entityName\"?") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Delete", color = AiColors.Red)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+/**
+ * Reusable list item card with title, subtitle, and delete button.
+ * Replaces duplicated card components across agents, flocks, swarms, parameters, prompts screens.
+ */
+@Composable
+fun SettingsListItemCard(
+    title: String,
+    subtitle: String,
+    extraLine: String? = null,
+    subtitleColor: Color = AiColors.TextTertiary,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AiColors.CardBackground),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 14.sp,
+                    color = subtitleColor
+                )
+                if (extraLine != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = extraLine,
+                        fontSize = 12.sp,
+                        color = AiColors.TextDim
+                    )
+                }
+            }
+            IconButton(onClick = onDelete) {
+                Text("X", color = AiColors.Red, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
  * Generic title bar used across all screens in the app.
  * Shows a back button on the left, optional title in the middle, and "AI" on the right.
  *

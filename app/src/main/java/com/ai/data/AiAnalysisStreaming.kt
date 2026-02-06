@@ -225,7 +225,10 @@ internal fun AiAnalysisRepository.streamChatClaude(
         temperature = params.temperature,
         top_p = params.topP,
         top_k = params.topK,
-        system = systemPrompt
+        system = systemPrompt,
+        frequency_penalty = params.frequencyPenalty,
+        presence_penalty = params.presencePenalty,
+        search = if (params.searchEnabled) true else null
     )
 
     val api = AiApiFactory.createClaudeStreamApiWithBaseUrl(baseUrl)
@@ -340,8 +343,13 @@ internal fun AiAnalysisRepository.streamChatOpenAiCompatible(
             max_tokens = params.maxTokens,
             temperature = params.temperature,
             top_p = params.topP,
+            top_k = params.topK,
             frequency_penalty = params.frequencyPenalty,
-            presence_penalty = params.presencePenalty
+            presence_penalty = params.presencePenalty,
+            seed = if (service.seedFieldName == "seed") null else null,  // seed not in ChatParameters
+            search = if (params.searchEnabled) true else null,
+            return_citations = if (service.supportsCitations) params.returnCitations else null,
+            search_recency_filter = if (service.supportsSearchRecency) params.searchRecency else null
         )
 
         val response = withContext(Dispatchers.IO) {

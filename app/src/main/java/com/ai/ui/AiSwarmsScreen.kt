@@ -50,7 +50,7 @@ fun AiSwarmsScreen(
         Button(
             onClick = onAddSwarm,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             Text("Add Swarm")
         }
@@ -64,7 +64,7 @@ fun AiSwarmsScreen(
             ) {
                 Text(
                     text = "No swarms configured.\nAdd a swarm to group provider/model combinations.",
-                    color = Color(0xFF888888),
+                    color = AiColors.TextTertiary,
                     fontSize = 16.sp
                 )
             }
@@ -80,9 +80,13 @@ fun AiSwarmsScreen(
                     val swarmMembers = swarm.members.filter { member ->
                         aiSettings.isProviderActive(member.provider)
                     }
-                    SwarmListItem(
-                        swarm = swarm,
-                        members = swarmMembers,
+                    SettingsListItemCard(
+                        title = swarm.name,
+                        subtitle = if (swarmMembers.isEmpty()) {
+                            "No members"
+                        } else {
+                            "${swarmMembers.size} member${if (swarmMembers.size == 1) "" else "s"}: ${swarmMembers.take(3).joinToString(", ") { "${it.provider.displayName}/${it.model.take(20)}" }}${if (swarmMembers.size > 3) "..." else ""}"
+                        },
                         onClick = { onEditSwarm(swarm.id) },
                         onDelete = { showDeleteDialog = swarm }
                     )
@@ -93,77 +97,16 @@ fun AiSwarmsScreen(
 
     // Delete confirmation dialog
     showDeleteDialog?.let { swarm ->
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
-            title = { Text("Delete Swarm") },
-            text = { Text("Are you sure you want to delete \"${swarm.name}\"?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val newSwarms = aiSettings.swarms.filter { it.id != swarm.id }
-                        onSave(aiSettings.copy(swarms = newSwarms))
-                        showDeleteDialog = null
-                    }
-                ) {
-                    Text("Delete", color = Color(0xFFFF6B6B))
-                }
+        DeleteConfirmationDialog(
+            entityType = "Swarm",
+            entityName = swarm.name,
+            onConfirm = {
+                val newSwarms = aiSettings.swarms.filter { it.id != swarm.id }
+                onSave(aiSettings.copy(swarms = newSwarms))
+                showDeleteDialog = null
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteDialog = null }
         )
-    }
-}
-
-/**
- * List item for a swarm showing name and member count.
- */
-@Composable
-private fun SwarmListItem(
-    swarm: AiSwarm,
-    members: List<AiSwarmMember>,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A3A)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = swarm.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (members.isEmpty()) {
-                        "No members"
-                    } else {
-                        "${members.size} member${if (members.size == 1) "" else "s"}: ${members.take(3).joinToString(", ") { "${it.provider.displayName}/${it.model.take(20)}" }}${if (members.size > 3) "..." else ""}"
-                    },
-                    fontSize = 14.sp,
-                    color = Color(0xFF888888)
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Text("X", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 
@@ -191,6 +134,9 @@ fun SwarmEditScreen(
 
     // Parameters preset selection (multi-select)
     var selectedParametersIds by remember { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
+
+    // System prompt selection (single-select)
+    var selectedSystemPromptId by remember { mutableStateOf(swarm?.systemPromptId) }
 
     // Get all available provider/model combinations, sorted by provider name
     val allProviderModels = remember(aiSettings, availableModels, developerMode) {
@@ -245,11 +191,11 @@ fun SwarmEditScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 isError = nameError != null,
-                supportingText = nameError?.let { { Text(it, color = Color(0xFFFF6B6B)) } },
+                supportingText = nameError?.let { { Text(it, color = AiColors.Red) } },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
+                    unfocusedBorderColor = AiColors.BorderUnfocused,
+                    focusedLabelColor = AiColors.Purple,
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
@@ -271,21 +217,22 @@ fun SwarmEditScreen(
                                 id = swarm?.id ?: UUID.randomUUID().toString(),
                                 name = name.trim(),
                                 members = selectedMembers.toList(),
-                                paramsIds = selectedParametersIds
+                                paramsIds = selectedParametersIds,
+                                systemPromptId = selectedSystemPromptId
                             )
                             onSave(newSwarm)
                         }
                     }
                 },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
             ) {
                 Text(if (isEditing) "Save" else "Create", fontSize = 13.sp, maxLines = 1)
             }
             Button(
                 onClick = { showParamsDialog = true },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
             ) {
                 Text(
                     if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
@@ -305,10 +252,17 @@ fun SwarmEditScreen(
             )
         }
 
+        // System prompt selector
+        SystemPromptSelector(
+            aiSettings = aiSettings,
+            selectedSystemPromptId = selectedSystemPromptId,
+            onSystemPromptSelected = { id -> selectedSystemPromptId = id }
+        )
+
         if (allProviderModels.isEmpty()) {
             Text(
                 text = "No providers configured with API keys. Configure providers first.",
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 fontSize = 14.sp
             )
         } else {
@@ -320,9 +274,9 @@ fun SwarmEditScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
+                    unfocusedBorderColor = AiColors.BorderUnfocused,
+                    focusedLabelColor = AiColors.Purple,
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
@@ -333,7 +287,7 @@ fun SwarmEditScreen(
                 Text(
                     text = "Showing ${filteredProviderModels.size} of ${allProviderModels.size} models",
                     fontSize = 12.sp,
-                    color = Color(0xFF888888)
+                    color = AiColors.TextTertiary
                 )
             }
 
@@ -375,7 +329,7 @@ fun SwarmEditScreen(
                         Text(
                             text = "${member.provider.displayName} ",
                             fontSize = 11.sp,
-                            color = Color(0xFFAAAAAA),
+                            color = AiColors.TextSecondary,
                             maxLines = 1
                         )
                         Text(
@@ -389,11 +343,11 @@ fun SwarmEditScreen(
                         val pricing = formatPricingPerMillion(context, member.provider, member.model)
                         Text(
                             text = pricing.text,
-                            color = if (pricing.isDefault) Color(0xFF2A2A2A) else Color(0xFFFF6B6B),
+                            color = if (pricing.isDefault) Color(0xFF2A2A2A) else AiColors.Red,
                             fontSize = 10.sp,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             maxLines = 1,
-                            modifier = if (pricing.isDefault) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                            modifier = if (pricing.isDefault) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                         )
                     }
                 }

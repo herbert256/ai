@@ -49,14 +49,16 @@ data class AgentExport(
     val model: String,
     val apiKey: String,
     val parametersIds: List<String>? = null,
-    val endpointId: String? = null
+    val endpointId: String? = null,
+    val systemPromptId: String? = null
 )
 
 data class FlockExport(
     val id: String,
     val name: String,
     val agentIds: List<String>,
-    val parametersIds: List<String>? = null
+    val parametersIds: List<String>? = null,
+    val systemPromptId: String? = null
 )
 
 /**
@@ -71,7 +73,8 @@ data class SwarmExport(
     val id: String,
     val name: String,
     val members: List<SwarmMemberExport>,
-    val parametersIds: List<String>? = null
+    val parametersIds: List<String>? = null,
+    val systemPromptId: String? = null
 )
 
 /**
@@ -106,6 +109,15 @@ data class ParametersExport(
 )
 
 /**
+ * Data class for system prompt in JSON export/import (version 21+).
+ */
+data class SystemPromptExport(
+    val id: String,
+    val name: String,
+    val prompt: String
+)
+
+/**
  * Data class for manual pricing override in JSON export/import (version 9+).
  * Key format: "PROVIDER:model" (e.g., "OPENAI:gpt-4o")
  */
@@ -134,12 +146,13 @@ data class ProviderEndpointsExport(
 )
 
 data class AiConfigExport(
-    val version: Int = 20,
+    val version: Int = 21,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,
     val swarms: List<SwarmExport>? = null,
     val parameters: List<ParametersExport>? = null,
+    val systemPrompts: List<SystemPromptExport>? = null,
     val huggingFaceApiKey: String? = null,
     val aiPrompts: List<PromptExport>? = null,
     val manualPricing: List<ManualPricingExport>? = null,
@@ -209,7 +222,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             model = agent.model,
             apiKey = agent.apiKey,
             parametersIds = agent.paramsIds.ifEmpty { null },
-            endpointId = agent.endpointId
+            endpointId = agent.endpointId,
+            systemPromptId = agent.systemPromptId
         )
     }
 
@@ -219,7 +233,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             id = flock.id,
             name = flock.name,
             agentIds = flock.agentIds,
-            parametersIds = flock.paramsIds.ifEmpty { null }
+            parametersIds = flock.paramsIds.ifEmpty { null },
+            systemPromptId = flock.systemPromptId
         )
     }
 
@@ -234,7 +249,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
                     model = member.model
                 )
             },
-            parametersIds = swarm.paramsIds.ifEmpty { null }
+            parametersIds = swarm.paramsIds.ifEmpty { null },
+            systemPromptId = swarm.systemPromptId
         )
     }
 
@@ -266,6 +282,15 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             searchEnabled = param.searchEnabled,
             returnCitations = param.returnCitations,
             searchRecency = param.searchRecency
+        )
+    }
+
+    // Convert system prompts
+    val systemPrompts = aiSettings.systemPrompts.map { sp ->
+        SystemPromptExport(
+            id = sp.id,
+            name = sp.name,
+            prompt = sp.prompt
         )
     }
 
@@ -305,6 +330,7 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         flocks = flocks,
         swarms = swarms.ifEmpty { null },
         parameters = parameters.ifEmpty { null },
+        systemPrompts = systemPrompts.ifEmpty { null },
         huggingFaceApiKey = huggingFaceApiKey.ifBlank { null },
         aiPrompts = aiPrompts.ifEmpty { null },
         manualPricing = manualPricing.ifEmpty { null },
@@ -337,6 +363,12 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             type = "application/json"
             putExtra(android.content.Intent.EXTRA_STREAM, uri)
             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        // Warn user that API keys are included in plain text
+        val hasKeys = AiService.entries.any { aiSettings.getApiKey(it).isNotBlank() }
+        if (hasKeys) {
+            Toast.makeText(context, "Warning: Export contains API keys in plain text", Toast.LENGTH_LONG).show()
         }
 
         context.startActivity(android.content.Intent.createChooser(shareIntent, "Export AI Configuration"))
@@ -494,7 +526,8 @@ private fun processImportedConfig(
                 model = agentExport.model,
                 apiKey = agentExport.apiKey,
                 endpointId = agentExport.endpointId,
-                paramsIds = agentExport.parametersIds ?: emptyList()
+                paramsIds = agentExport.parametersIds ?: emptyList(),
+                systemPromptId = agentExport.systemPromptId
             )
         }
     }
@@ -505,7 +538,8 @@ private fun processImportedConfig(
             id = flockExport.id,
             name = flockExport.name,
             agentIds = flockExport.agentIds,
-            paramsIds = flockExport.parametersIds ?: emptyList()
+            paramsIds = flockExport.parametersIds ?: emptyList(),
+            systemPromptId = flockExport.systemPromptId
         )
     } ?: emptyList()
 
@@ -519,7 +553,8 @@ private fun processImportedConfig(
                     val provider = AiService.findById(memberExport.provider) ?: return@mapNotNull null
                     AiSwarmMember(provider = provider, model = memberExport.model)
                 },
-                paramsIds = swarmExport.parametersIds ?: emptyList()
+                paramsIds = swarmExport.parametersIds ?: emptyList(),
+                systemPromptId = swarmExport.systemPromptId
             )
         } catch (e: Exception) { null }
     } ?: emptyList()
@@ -555,12 +590,22 @@ private fun processImportedConfig(
         )
     } ?: emptyList())
 
+    // Import system prompts
+    val systemPrompts = export.systemPrompts?.map { spExport ->
+        AiSystemPrompt(
+            id = spExport.id,
+            name = spExport.name,
+            prompt = spExport.prompt
+        )
+    } ?: emptyList()
+
     // Import provider settings
     var settings = currentSettings.copy(
         agents = agents,
         flocks = flocks,
         swarms = swarms,
         parameters = parameters,
+        systemPrompts = systemPrompts,
         prompts = aiPrompts
     )
 
@@ -627,7 +672,7 @@ private fun processImportedConfig(
 }
 
 /**
- * Import AI configuration from a file URI. Accepts version 20.
+ * Import AI configuration from a file URI. Accepts versions 11-21.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettings): AiConfigImportResult? {
     return try {
@@ -649,8 +694,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         val gson = createAiGson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
-        if (export.version != 20) {
-            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 20.", Toast.LENGTH_LONG).show()
+        if (export.version !in 11..21) {
+            Toast.makeText(context, "Unsupported configuration version: ${export.version}. Expected version 11-21.", Toast.LENGTH_LONG).show()
             return null
         }
 

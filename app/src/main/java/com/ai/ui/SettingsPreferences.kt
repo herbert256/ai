@@ -59,10 +59,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val flocks = loadFlocks()
         val swarms = loadSwarms()
         val parameters = loadParameters()
+        val systemPrompts = loadSystemPrompts()
         val prompts = loadPrompts()
         val endpoints = loadEndpoints()
         val providerStates = loadProviderStates()
-        return baseSettings.copy(agents = agents, flocks = flocks, swarms = swarms, parameters = parameters, prompts = prompts, endpoints = endpoints, providerStates = providerStates)
+        return baseSettings.copy(agents = agents, flocks = flocks, swarms = swarms, parameters = parameters, systemPrompts = systemPrompts, prompts = prompts, endpoints = endpoints, providerStates = providerStates)
     }
 
     fun loadAiSettings(): AiSettings {
@@ -156,6 +157,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             .putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
             .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             .putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
+            .putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
             .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
             .putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
@@ -181,8 +183,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         return try {
             val type = object : TypeToken<List<AiAgent>>() {}.type
             val list: List<AiAgent>? = gson.fromJson(json, type)
-            // Filter out agents with unknown providers
-            list?.filter { AiService.findById(it.provider.id) != null } ?: emptyList()
+            // Filter out agents with unknown providers; coalesce Gson null defaults
+            list?.filter { AiService.findById(it.provider.id) != null }?.map { agent ->
+                agent.copy(
+                    paramsIds = agent.paramsIds ?: emptyList()
+                )
+            } ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -196,7 +202,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val json = prefs.getString(KEY_AI_FLOCKS, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<AiFlock>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            val list: List<AiFlock>? = gson.fromJson(json, type)
+            list?.map { flock ->
+                flock.copy(
+                    agentIds = flock.agentIds ?: emptyList(),
+                    paramsIds = flock.paramsIds ?: emptyList()
+                )
+            } ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -210,7 +222,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<AiSwarm>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            val list: List<AiSwarm>? = gson.fromJson(json, type)
+            list?.map { swarm ->
+                swarm.copy(
+                    members = swarm.members ?: emptyList(),
+                    paramsIds = swarm.paramsIds ?: emptyList()
+                )
+            } ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -224,6 +242,25 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val json = prefs.getString(KEY_AI_PARAMETERS, null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<AiParameters>>() {}.type
+            val list: List<AiParameters>? = gson.fromJson(json, type)
+            list?.map { params ->
+                params.copy(
+                    stopSequences = params.stopSequences
+                )
+            } ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // ============================================================================
+    // AI System Prompts
+    // ============================================================================
+
+    private fun loadSystemPrompts(): List<AiSystemPrompt> {
+        val json = prefs.getString(KEY_AI_SYSTEM_PROMPTS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<AiSystemPrompt>>() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -381,6 +418,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // AI parameters (reusable parameter presets)
         private const val KEY_AI_PARAMETERS = "ai_parameters"
 
+        // AI system prompts (reusable system prompts for agents/flocks/swarms)
+        private const val KEY_AI_SYSTEM_PROMPTS = "ai_system_prompts"
+
         // AI prompts (internal app prompts)
         private const val KEY_AI_PROMPTS = "ai_prompts"
 
@@ -483,18 +523,19 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         model: String,
         inputTokens: Int,
         outputTokens: Int,
-        totalTokens: Int
+        totalTokens: Int = inputTokens + outputTokens
     ) {
-        val stats = loadUsageStats().toMutableMap()
-        val key = "${provider.id}::$model"
-        val existing = stats[key] ?: AiUsageStats(provider, model)
-        stats[key] = existing.copy(
-            callCount = existing.callCount + 1,
-            inputTokens = existing.inputTokens + inputTokens,
-            outputTokens = existing.outputTokens + outputTokens,
-            totalTokens = existing.totalTokens + totalTokens
-        )
-        saveUsageStats(stats)
+        synchronized(this) {
+            val stats = loadUsageStats().toMutableMap()
+            val key = "${provider.id}::$model"
+            val existing = stats[key] ?: AiUsageStats(provider, model)
+            stats[key] = existing.copy(
+                callCount = existing.callCount + 1,
+                inputTokens = existing.inputTokens + inputTokens,
+                outputTokens = existing.outputTokens + outputTokens
+            )
+            saveUsageStats(stats)
+        }
     }
 
     fun clearUsageStats() {

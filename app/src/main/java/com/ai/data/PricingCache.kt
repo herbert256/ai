@@ -109,11 +109,13 @@ object PricingCache {
      * Remove manual pricing override for a provider/model combination.
      */
     fun removeManualPricing(context: Context, provider: AiService, model: String) {
-        ensureLoaded(context)
-        val key = "${provider.id}:$model"
-        manualPricing?.remove(key)
-        saveManualPricing(context)
-        android.util.Log.d("PricingCache", "Removed manual pricing for $key")
+        synchronized(lock) {
+            ensureLoaded(context)
+            val key = "${provider.id}:$model"
+            manualPricing?.remove(key)
+            saveManualPricing(context)
+            android.util.Log.d("PricingCache", "Removed manual pricing for $key")
+        }
     }
 
     /**

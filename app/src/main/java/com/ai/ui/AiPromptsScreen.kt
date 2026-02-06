@@ -49,7 +49,7 @@ fun AiPromptsScreen(
         Button(
             onClick = onAddPrompt,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             Text("Add Prompt")
         }
@@ -59,7 +59,7 @@ fun AiPromptsScreen(
         // Info text about variables
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF2A3A4A)
+                containerColor = AiColors.CardBackgroundAlt
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -70,12 +70,12 @@ fun AiPromptsScreen(
                     text = "Supported variables:",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFFF9800)
+                    color = AiColors.Orange
                 )
                 Text(
                     text = "@MODEL@ @PROVIDER@ @AGENT@ @SWARM@ @NOW@",
                     fontSize = 12.sp,
-                    color = Color(0xFFAAAAAA)
+                    color = AiColors.TextSecondary
                 )
             }
         }
@@ -89,7 +89,7 @@ fun AiPromptsScreen(
             ) {
                 Text(
                     text = "No prompts configured.\nAdd a prompt to use AI features like Model Info.",
-                    color = Color(0xFF888888),
+                    color = AiColors.TextTertiary,
                     fontSize = 16.sp
                 )
             }
@@ -105,9 +105,11 @@ fun AiPromptsScreen(
                     val agent = aiSettings.getAgentForPrompt(prompt)
                     val agentVisible = agent != null && aiSettings.isProviderActive(agent.provider)
 
-                    PromptListItem(
-                        prompt = prompt,
-                        agentName = if (agentVisible) agent?.name else null,
+                    SettingsListItemCard(
+                        title = prompt.name,
+                        subtitle = if (agentVisible) "Agent: ${agent?.name}" else "Agent not found",
+                        subtitleColor = if (agentVisible) AiColors.TextTertiary else AiColors.Red,
+                        extraLine = prompt.promptText.take(50) + if (prompt.promptText.length > 50) "..." else "",
                         onClick = { onEditPrompt(prompt.id) },
                         onDelete = { showDeleteDialog = prompt }
                     )
@@ -118,79 +120,16 @@ fun AiPromptsScreen(
 
     // Delete confirmation dialog
     showDeleteDialog?.let { prompt ->
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = null },
-            title = { Text("Delete Prompt") },
-            text = { Text("Are you sure you want to delete \"${prompt.name}\"?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val newPrompts = aiSettings.prompts.filter { it.id != prompt.id }
-                        onSave(aiSettings.copy(prompts = newPrompts))
-                        showDeleteDialog = null
-                    }
-                ) {
-                    Text("Delete", color = Color(0xFFFF6B6B))
-                }
+        DeleteConfirmationDialog(
+            entityType = "Prompt",
+            entityName = prompt.name,
+            onConfirm = {
+                val newPrompts = aiSettings.prompts.filter { it.id != prompt.id }
+                onSave(aiSettings.copy(prompts = newPrompts))
+                showDeleteDialog = null
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteDialog = null }
         )
-    }
-}
-
-/**
- * List item for a prompt showing name and agent.
- */
-@Composable
-private fun PromptListItem(
-    prompt: AiPrompt,
-    agentName: String?,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A3A)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = prompt.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (agentName != null) "Agent: $agentName" else "Agent not found",
-                    fontSize = 14.sp,
-                    color = if (agentName != null) Color(0xFF888888) else Color(0xFFFF6B6B)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = prompt.promptText.take(50) + if (prompt.promptText.length > 50) "..." else "",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Text("X", color = Color(0xFFFF6B6B), fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 
@@ -264,11 +203,11 @@ fun PromptEditScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = nameError != null,
-                supportingText = nameError?.let { { Text(it, color = Color(0xFFFF6B6B)) } },
+                supportingText = nameError?.let { { Text(it, color = AiColors.Red) } },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
+                    unfocusedBorderColor = AiColors.BorderUnfocused,
+                    focusedLabelColor = AiColors.Purple,
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
@@ -279,7 +218,7 @@ fun PromptEditScreen(
                 text = "Agent",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
-                color = Color(0xFF8B5CF6)
+                color = AiColors.Purple
             )
 
             Row(
@@ -295,8 +234,8 @@ fun PromptEditScreen(
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF8B5CF6),
-                        unfocusedBorderColor = Color(0xFF444444),
+                        focusedBorderColor = AiColors.Purple,
+                        unfocusedBorderColor = AiColors.BorderUnfocused,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White
                     )
@@ -304,7 +243,7 @@ fun PromptEditScreen(
                 Button(
                     onClick = { showSelectAgent = true },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF6366F1)
+                        containerColor = AiColors.Indigo
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
@@ -323,9 +262,9 @@ fun PromptEditScreen(
                     .height(200.dp),
                 maxLines = 10,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444),
-                    focusedLabelColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
+                    unfocusedBorderColor = AiColors.BorderUnfocused,
+                    focusedLabelColor = AiColors.Purple,
                     unfocusedLabelColor = Color.Gray,
                     cursorColor = Color.White
                 )
@@ -335,7 +274,7 @@ fun PromptEditScreen(
             Text(
                 text = "Variables: @MODEL@ (model name), @PROVIDER@ (provider name), @AGENT@ (agent name), @SWARM@ (flock name), @NOW@ (current date/time)",
                 fontSize = 12.sp,
-                color = Color(0xFF888888)
+                color = AiColors.TextTertiary
             )
         }
 
@@ -370,7 +309,7 @@ fun PromptEditScreen(
                 }
             },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             Text(if (isEditing) "Save Changes" else "Create Prompt")
         }

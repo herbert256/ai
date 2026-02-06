@@ -7,6 +7,7 @@ import com.ai.ui.ChatSession
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import kotlin.concurrent.withLock
 
 /**
  * Singleton class to manage AI chat history storage.
@@ -16,6 +17,7 @@ object ChatHistoryManager {
     private const val HISTORY_DIR = "chat-history"
     private var historyDir: File? = null
     private val gson: Gson = createAiGson(prettyPrint = true)
+    private val lock = java.util.concurrent.locks.ReentrantLock()
 
     /**
      * Initialize the manager with the app context.
@@ -35,19 +37,20 @@ object ChatHistoryManager {
      */
     fun saveSession(session: ChatSession): Boolean {
         val dir = historyDir ?: return false
-        if (!dir.exists()) {
-            dir.mkdirs()
-        }
-
-        val file = File(dir, "${session.id}.json")
-        return try {
-            val json = gson.toJson(session)
-            file.writeText(json)
-            android.util.Log.d("ChatHistoryManager", "Saved chat session: ${session.id}")
-            true
-        } catch (e: Exception) {
-            android.util.Log.e("ChatHistoryManager", "Failed to save chat session: ${e.message}", e)
-            false
+        return lock.withLock {
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+            val file = File(dir, "${session.id}.json")
+            try {
+                val json = gson.toJson(session)
+                file.writeText(json)
+                android.util.Log.d("ChatHistoryManager", "Saved chat session: ${session.id}")
+                true
+            } catch (e: Exception) {
+                android.util.Log.e("ChatHistoryManager", "Failed to save chat session: ${e.message}", e)
+                false
+            }
         }
     }
 
@@ -56,15 +59,16 @@ object ChatHistoryManager {
      */
     fun loadSession(sessionId: String): ChatSession? {
         val dir = historyDir ?: return null
-        val file = File(dir, "$sessionId.json")
-        if (!file.exists()) return null
-
-        return try {
-            val json = file.readText()
-            gson.fromJson(json, ChatSession::class.java)
-        } catch (e: Exception) {
-            android.util.Log.e("ChatHistoryManager", "Failed to load chat session: ${e.message}", e)
-            null
+        return lock.withLock {
+            val file = File(dir, "$sessionId.json")
+            if (!file.exists()) return null
+            try {
+                val json = file.readText()
+                gson.fromJson(json, ChatSession::class.java)
+            } catch (e: Exception) {
+                android.util.Log.e("ChatHistoryManager", "Failed to load chat session: ${e.message}", e)
+                null
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
+    private var reportGenerationJob: Job? = null
 
     // Settings persistence
     private fun loadGeneralSettings(): GeneralSettings = settingsPrefs.loadGeneralSettings()
@@ -49,10 +51,10 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val generalSettings = loadGeneralSettings()
         val aiSettings = loadAiSettings()
 
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             generalSettings = generalSettings,
             aiSettings = aiSettings
-        )
+        ) }
 
         // Enable API tracing if configured
         ApiTracer.isTracingEnabled = generalSettings.trackApiCalls
@@ -67,24 +69,24 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateGeneralSettings(settings: GeneralSettings) {
         saveGeneralSettings(settings)
-        _uiState.value = _uiState.value.copy(generalSettings = settings)
+        _uiState.update { it.copy(generalSettings = settings) }
     }
 
     fun updateAiSettings(settings: AiSettings) {
         saveAiSettings(settings)
-        _uiState.value = _uiState.value.copy(aiSettings = settings)
+        _uiState.update { it.copy(aiSettings = settings) }
     }
 
     fun updateProviderState(service: AiService, state: String) {
         val updated = _uiState.value.aiSettings.withProviderState(service, state)
         saveAiSettings(updated)
-        _uiState.value = _uiState.value.copy(aiSettings = updated)
+        _uiState.update { it.copy(aiSettings = updated) }
     }
 
     fun updateTrackApiCalls(enabled: Boolean) {
         val settings = _uiState.value.generalSettings.copy(trackApiCalls = enabled)
         saveGeneralSettings(settings)
-        _uiState.value = _uiState.value.copy(generalSettings = settings)
+        _uiState.update { it.copy(generalSettings = settings) }
         ApiTracer.isTracingEnabled = enabled
         if (!enabled) {
             ApiTracer.clearTraces()
@@ -140,28 +142,63 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     // ========== Generic AI Reports ==========
 
     fun showGenericAiAgentSelection(title: String, prompt: String) {
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             genericAiPromptTitle = title,
             genericAiPromptText = prompt,
             showGenericAiAgentSelection = true,
-            // Clear previous report state to prevent showing old results
             showGenericAiReportsDialog = false,
             genericAiReportsProgress = 0,
             genericAiReportsTotal = 0,
             genericAiReportsSelectedAgents = emptySet(),
             genericAiReportsAgentResults = emptyMap(),
             currentReportId = null
-        )
+        ) }
     }
 
     fun dismissGenericAiAgentSelection() {
-        _uiState.value = _uiState.value.copy(
-            showGenericAiAgentSelection = false
-        )
+        _uiState.update { it.copy(showGenericAiAgentSelection = false) }
+    }
+
+    /**
+     * Resolve the effective system prompt text for an agent.
+     * Priority: flock/swarm systemPromptId > agent systemPromptId.
+     */
+    private fun resolveSystemPromptText(aiSettings: AiSettings, agentSystemPromptId: String?, groupSystemPromptId: String?): String? {
+        val effectiveId = groupSystemPromptId ?: agentSystemPromptId
+        return effectiveId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+    }
+
+    /**
+     * Find the flock that contains a given agent ID and return the flock's systemPromptId.
+     * Only returns a systemPromptId from flocks that actually have one set.
+     * If multiple flocks contain this agent with system prompts, the first valid one wins.
+     */
+    private fun findFlockSystemPromptIdForAgent(aiSettings: AiSettings, agentId: String): String? {
+        return aiSettings.flocks
+            .filter { agentId in it.agentIds && it.systemPromptId != null }
+            .firstNotNullOfOrNull { flock ->
+                flock.systemPromptId?.takeIf { aiSettings.getSystemPromptById(it) != null }
+            }
+    }
+
+    /**
+     * Find the swarm that contains a given provider/model member and return the swarm's systemPromptId.
+     * Only returns a systemPromptId from swarms that actually have one set and valid.
+     */
+    private fun findSwarmSystemPromptIdForMember(aiSettings: AiSettings, provider: AiService, model: String): String? {
+        return aiSettings.swarms
+            .filter { swarm ->
+                swarm.systemPromptId != null &&
+                swarm.members.any { it.provider.id == provider.id && it.model == model }
+            }
+            .firstNotNullOfOrNull { swarm ->
+                swarm.systemPromptId?.takeIf { aiSettings.getSystemPromptById(it) != null }
+            }
     }
 
     fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedSwarmIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), parametersIds: List<String> = emptyList(), reportType: com.ai.data.ReportType = com.ai.data.ReportType.CLASSIC) {
-        viewModelScope.launch {
+        reportGenerationJob?.cancel()
+        reportGenerationJob = viewModelScope.launch {
             val context = getApplication<Application>()
             val aiSettings = _uiState.value.aiSettings
             val prompt = _uiState.value.genericAiPromptText
@@ -203,15 +240,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             // Total model count
             val totalModels = agents.size + allModelMembers.size
 
-            _uiState.value = _uiState.value.copy(
+            _uiState.update { it.copy(
                 showGenericAiAgentSelection = false,
                 showGenericAiReportsDialog = true,
                 genericAiReportsProgress = 0,
                 genericAiReportsTotal = totalModels,
                 genericAiReportsSelectedAgents = selectedAgentIds + allModelIds,
                 genericAiReportsAgentResults = emptyMap(),
-                currentReportId = null  // Will be set after report creation
-            )
+                currentReportId = null
+            ) }
 
             // Create AI Report objects for agents
             val reportAgents = agents.map { agent ->
@@ -262,7 +299,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val reportId = report.id
 
             // Store reportId in state for tracking
-            _uiState.value = _uiState.value.copy(currentReportId = reportId)
+            _uiState.update { it.copy(currentReportId = reportId) }
 
             // Set the current report ID for API tracing (if enabled)
             ApiTracer.currentReportId = reportId
@@ -285,7 +322,14 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     )
 
                     // Resolve agent's parameter presets to AiAgentParameters
-                    val agentParams = aiSettings.resolveAgentParameters(agent)
+                    var agentParams = aiSettings.resolveAgentParameters(agent)
+
+                    // Inject system prompt if connected (flock overrides agent)
+                    val flockSpId = findFlockSystemPromptIdForAgent(aiSettings, agent.id)
+                    val spText = resolveSystemPromptText(aiSettings, agent.systemPromptId, flockSpId)
+                    if (spText != null) {
+                        agentParams = agentParams.copy(systemPrompt = spText)
+                    }
 
                     val startTime = System.currentTimeMillis()
                     val response = try {
@@ -360,11 +404,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
 
-                    // Update state immediately when this agent completes
-                    _uiState.value = _uiState.value.copy(
-                        genericAiReportsProgress = _uiState.value.genericAiReportsProgress + 1,
-                        genericAiReportsAgentResults = _uiState.value.genericAiReportsAgentResults + (agent.id to response)
-                    )
+                    // Update state atomically when this agent completes
+                    _uiState.update { state ->
+                        state.copy(
+                            genericAiReportsProgress = state.genericAiReportsProgress + 1,
+                            genericAiReportsAgentResults = state.genericAiReportsAgentResults + (agent.id to response)
+                        )
+                    }
                 }
             }
 
@@ -393,12 +439,22 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         apiKey = providerApiKey
                     )
 
+                    // Resolve swarm system prompt
+                    val swarmSpId = findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)
+                    val swarmSpText = swarmSpId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                    val swarmResolvedParams = if (swarmSpText != null) {
+                        AiAgentParameters(systemPrompt = swarmSpText)
+                    } else {
+                        AiAgentParameters()
+                    }
+
                     val startTime = System.currentTimeMillis()
                     val response = try {
                         aiAnalysisRepository.analyzeWithAgent(
                             agent = tempAgent,
                             content = "",
                             prompt = aiPrompt,
+                            agentResolvedParams = swarmResolvedParams,
                             overrideParams = overrideParams,
                             context = context
                         )
@@ -462,11 +518,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
 
-                    // Update state immediately when this swarm member completes
-                    _uiState.value = _uiState.value.copy(
-                        genericAiReportsProgress = _uiState.value.genericAiReportsProgress + 1,
-                        genericAiReportsAgentResults = _uiState.value.genericAiReportsAgentResults + (syntheticId to response)
-                    )
+                    // Update state atomically when this swarm member completes
+                    _uiState.update { state ->
+                        state.copy(
+                            genericAiReportsProgress = state.genericAiReportsProgress + 1,
+                            genericAiReportsAgentResults = state.genericAiReportsAgentResults + (syntheticId to response)
+                        )
+                    }
                 }
             }
 
@@ -479,6 +537,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stopGenericAiReports() {
+        reportGenerationJob?.cancel()
+        reportGenerationJob = null
         val context = getApplication<Application>()
         val currentState = _uiState.value
         val selectedAgents = currentState.genericAiReportsSelectedAgents
@@ -513,16 +573,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Clear the current report ID for API tracing
         ApiTracer.currentReportId = null
 
-        _uiState.value = currentState.copy(
+        _uiState.update { it.copy(
             genericAiReportsProgress = currentState.genericAiReportsTotal,
             genericAiReportsAgentResults = updatedResults
-        )
+        ) }
     }
 
     fun dismissGenericAiReportsDialog() {
-        // Clear the current report ID for API tracing
         ApiTracer.currentReportId = null
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             showGenericAiReportsDialog = false,
             genericAiPromptTitle = "",
             genericAiPromptText = "",
@@ -531,8 +590,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             genericAiReportsSelectedAgents = emptySet(),
             genericAiReportsAgentResults = emptyMap(),
             currentReportId = null,
-            reportAdvancedParameters = null  // Clear advanced parameters
-        )
+            reportAdvancedParameters = null
+        ) }
     }
 
     // ========== Model Fetching ==========
@@ -622,7 +681,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     // ========== AI Chat ==========
 
     fun setChatParameters(params: ChatParameters) {
-        _uiState.value = _uiState.value.copy(chatParameters = params)
+        _uiState.update { it.copy(chatParameters = params) }
     }
 
     // ========== External Intent Instructions ==========
@@ -634,7 +693,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         swarmNames: List<String> = emptyList(), modelSpecs: List<String> = emptyList(),
         edit: Boolean = false, select: Boolean = false, openHtml: String? = null
     ) {
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             externalCloseHtml = closeHtml,
             externalReportType = reportType,
             externalEmail = email,
@@ -647,11 +706,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             externalFlockNames = flockNames,
             externalSwarmNames = swarmNames,
             externalModelSpecs = modelSpecs
-        )
+        ) }
     }
 
     fun clearExternalInstructions() {
-        _uiState.value = _uiState.value.copy(
+        _uiState.update { it.copy(
             externalCloseHtml = null,
             externalReportType = null,
             externalEmail = null,
@@ -664,17 +723,17 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             externalFlockNames = emptyList(),
             externalSwarmNames = emptyList(),
             externalModelSpecs = emptyList()
-        )
+        ) }
     }
 
     // ========== Report Advanced Parameters ==========
 
     fun setReportAdvancedParameters(params: AiAgentParameters?) {
-        _uiState.value = _uiState.value.copy(reportAdvancedParameters = params)
+        _uiState.update { it.copy(reportAdvancedParameters = params) }
     }
 
     fun clearReportAdvancedParameters() {
-        _uiState.value = _uiState.value.copy(reportAdvancedParameters = null)
+        _uiState.update { it.copy(reportAdvancedParameters = null) }
     }
 
     suspend fun sendChatMessage(
@@ -682,7 +741,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         apiKey: String,
         model: String,
         messages: List<ChatMessage>
-    ): ChatMessage? {
+    ): ChatMessage {
         return try {
             val response = aiAnalysisRepository.sendChatMessage(
                 service = service,
@@ -691,7 +750,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 messages = messages,
                 params = _uiState.value.chatParameters
             )
-            // Estimate tokens and record statistics
             val inputTokens = messages.sumOf { estimateTokens(it.content) }
             val outputTokens = estimateTokens(response)
             settingsPrefs.updateUsageStats(
@@ -703,7 +761,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             )
             ChatMessage(role = "assistant", content = response)
         } catch (e: Exception) {
-            null
+            ChatMessage(role = "assistant", content = "Error: ${e.message ?: "Unknown error"}")
         }
     }
 
@@ -725,10 +783,15 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    /**
-     * Estimate token count from text (roughly 4 characters per token).
-     */
-    private fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
+    companion object {
+        /** Estimate token count from text (roughly 4 characters per token). */
+        fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
+
+        private const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
+        private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms_v2"
+        private const val AI_REPORT_FLOCKS_KEY = "ai_report_flocks_v2"
+        private const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
+    }
 
     /**
      * Send a chat message with streaming response.
@@ -752,10 +815,4 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         ).flowOn(Dispatchers.IO)
     }
 
-    companion object {
-        private const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
-        private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms_v2"
-        private const val AI_REPORT_FLOCKS_KEY = "ai_report_flocks_v2"
-        private const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
-    }
 }
