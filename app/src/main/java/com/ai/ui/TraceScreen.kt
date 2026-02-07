@@ -494,8 +494,16 @@ fun TraceDetailScreen(
     onNavigateHome: () -> Unit = onBack
 ) {
     val context = LocalContext.current
-    val trace = remember { ApiTracer.readTraceFile(filename) }
-    val rawJson = remember { ApiTracer.readTraceFileRaw(filename) ?: "" }
+
+    // Get sorted trace file list for prev/next navigation
+    val traceFiles = remember { ApiTracer.getTraceFiles().map { it.filename } }
+    var currentFilename by remember { mutableStateOf(filename) }
+    val currentIndex = traceFiles.indexOf(currentFilename)
+    val hasPrevious = currentIndex > 0
+    val hasNext = currentIndex < traceFiles.size - 1 && currentIndex >= 0
+
+    val trace = remember(currentFilename) { ApiTracer.readTraceFile(currentFilename) }
+    val rawJson = remember(currentFilename) { ApiTracer.readTraceFileRaw(currentFilename) ?: "" }
     var currentView by remember { mutableStateOf(TraceContentView.RESPONSE_DATA) }
 
     if (trace == null) {
@@ -511,27 +519,27 @@ fun TraceDetailScreen(
     }
 
     // Prepare content for each view
-    val prettyJson = remember { ApiTracer.prettyPrintJson(rawJson) }
-    val requestHeadersText = remember {
+    val prettyJson = remember(currentFilename) { ApiTracer.prettyPrintJson(rawJson) }
+    val requestHeadersText = remember(currentFilename) {
         trace.request.headers.entries
             .sortedBy { it.key.lowercase() }
             .joinToString("\n") { "${it.key}: ${it.value}" }
     }
-    val responseHeadersText = remember {
+    val responseHeadersText = remember(currentFilename) {
         trace.response.headers.entries
             .sortedBy { it.key.lowercase() }
             .joinToString("\n") { "${it.key}: ${it.value}" }
     }
-    val requestDataText = remember { ApiTracer.prettyPrintJson(trace.request.body ?: "") }
-    val responseDataText = remember { ApiTracer.prettyPrintJson(trace.response.body ?: "") }
+    val requestDataText = remember(currentFilename) { ApiTracer.prettyPrintJson(trace.request.body ?: "") }
+    val responseDataText = remember(currentFilename) { ApiTracer.prettyPrintJson(trace.response.body ?: "") }
 
     // Parse JSON trees for interactive view
-    val requestTreeNodes = remember { trace.request.body?.let { parseJsonTree(it) } }
-    val responseTreeNodes = remember { trace.response.body?.let { parseJsonTree(it) } }
-    val requestIsArray = remember {
+    val requestTreeNodes = remember(currentFilename) { trace.request.body?.let { parseJsonTree(it) } }
+    val responseTreeNodes = remember(currentFilename) { trace.response.body?.let { parseJsonTree(it) } }
+    val requestIsArray = remember(currentFilename) {
         try { trace.request.body?.let { JsonParser().parse(it) is JsonArray } ?: false } catch (_: Exception) { false }
     }
-    val responseIsArray = remember {
+    val responseIsArray = remember(currentFilename) {
         try { trace.response.body?.let { JsonParser().parse(it) is JsonArray } ?: false } catch (_: Exception) { false }
     }
 
@@ -758,6 +766,38 @@ fun TraceDetailScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 Text("Share data")
+            }
+        }
+
+        // Previous / Next navigation
+        if (traceFiles.size > 1) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { if (hasPrevious) currentFilename = traceFiles[currentIndex - 1] },
+                    enabled = hasPrevious,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF555555),
+                        disabledContainerColor = Color(0xFF333333)
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("< Previous", color = if (hasPrevious) Color.White else Color(0xFF666666))
+                }
+                Button(
+                    onClick = { if (hasNext) currentFilename = traceFiles[currentIndex + 1] },
+                    enabled = hasNext,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF555555),
+                        disabledContainerColor = Color(0xFF333333)
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Next >", color = if (hasNext) Color.White else Color(0xFF666666))
+                }
             }
         }
     }

@@ -739,9 +739,13 @@ data class DualChatConfig(
     val model1Provider: com.ai.data.AiService,
     val model1Name: String,
     val model1SystemPrompt: String = "",
+    val model1Params: ChatParameters = ChatParameters(),
     val model2Provider: com.ai.data.AiService,
     val model2Name: String,
     val model2SystemPrompt: String = "",
+    val model2Params: ChatParameters = ChatParameters(),
     val subject: String,
-    val interactionCount: Int = 10
+    val interactionCount: Int = 10,
+    val firstPrompt: String = "Let's talk about %subject%",
+    val secondPrompt: String = "What do you think about: %answer%"
 )

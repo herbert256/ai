@@ -3,10 +3,11 @@ package com.ai.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,11 +20,48 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
 import com.ai.data.AiService
 import com.ai.data.PricingCache
+import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+
+private const val DUAL_CHAT_PREFS = "dual_chat_prefs"
+private const val KEY_MODEL1_PROVIDER = "model1_provider"
+private const val KEY_MODEL1_NAME = "model1_name"
+private const val KEY_MODEL1_SYSTEM = "model1_system"
+private const val KEY_MODEL1_PARAMS = "model1_params"
+private const val KEY_MODEL2_PROVIDER = "model2_provider"
+private const val KEY_MODEL2_NAME = "model2_name"
+private const val KEY_MODEL2_SYSTEM = "model2_system"
+private const val KEY_MODEL2_PARAMS = "model2_params"
+private const val KEY_SUBJECT = "subject"
+private const val KEY_INTERACTION_COUNT = "interaction_count"
+private const val KEY_FIRST_PROMPT = "first_prompt"
+private const val KEY_SECOND_PROMPT = "second_prompt"
+private const val DEFAULT_FIRST_PROMPT = "Let's talk about %subject%"
+private const val DEFAULT_SECOND_PROMPT = "What do you think about: %answer%"
+
+private val gson = Gson()
+
+private fun loadChatParams(prefs: android.content.SharedPreferences, key: String): ChatParameters {
+    val json = prefs.getString(key, null) ?: return ChatParameters()
+    return try { gson.fromJson(json, ChatParameters::class.java) } catch (e: Exception) { ChatParameters() }
+}
+
+/** Summarize non-default params for display. */
+private fun ChatParameters.summary(): String {
+    val parts = mutableListOf<String>()
+    temperature?.let { parts.add("temp=%.1f".format(it)) }
+    maxTokens?.let { parts.add("max=$it") }
+    topP?.let { parts.add("topP=%.1f".format(it)) }
+    topK?.let { parts.add("topK=$it") }
+    frequencyPenalty?.let { parts.add("freq=%.1f".format(it)) }
+    presencePenalty?.let { parts.add("pres=%.1f".format(it)) }
+    return if (parts.isEmpty()) "Default" else parts.joinToString(", ")
+}
 
 /**
  * Setup screen for dual AI chat - select two models and a subject.
@@ -35,33 +73,81 @@ fun DualChatSetupScreen(
     onNavigateHome: () -> Unit,
     onStartSession: (DualChatConfig) -> Unit
 ) {
-    var model1Provider by remember { mutableStateOf<AiService?>(null) }
-    var model1Name by remember { mutableStateOf("") }
-    var model1SystemPrompt by remember { mutableStateOf("") }
-    var model2Provider by remember { mutableStateOf<AiService?>(null) }
-    var model2Name by remember { mutableStateOf("") }
-    var model2SystemPrompt by remember { mutableStateOf("") }
-    var subject by remember { mutableStateOf("") }
-    var interactionCount by remember { mutableStateOf("10") }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(DUAL_CHAT_PREFS, Context.MODE_PRIVATE) }
 
-    // Full-screen overlay for model selection
-    var selectingModel by remember { mutableStateOf(0) } // 0=none, 1=model1, 2=model2
+    var model1Provider by remember { mutableStateOf(prefs.getString(KEY_MODEL1_PROVIDER, null)?.let { AiService.findById(it) }) }
+    var model1Name by remember { mutableStateOf(prefs.getString(KEY_MODEL1_NAME, "") ?: "") }
+    var model1SystemPrompt by remember { mutableStateOf(prefs.getString(KEY_MODEL1_SYSTEM, "") ?: "") }
+    var model1Params by remember { mutableStateOf(loadChatParams(prefs, KEY_MODEL1_PARAMS)) }
+    var model2Provider by remember { mutableStateOf(prefs.getString(KEY_MODEL2_PROVIDER, null)?.let { AiService.findById(it) }) }
+    var model2Name by remember { mutableStateOf(prefs.getString(KEY_MODEL2_NAME, "") ?: "") }
+    var model2SystemPrompt by remember { mutableStateOf(prefs.getString(KEY_MODEL2_SYSTEM, "") ?: "") }
+    var model2Params by remember { mutableStateOf(loadChatParams(prefs, KEY_MODEL2_PARAMS)) }
+    var subject by remember { mutableStateOf(prefs.getString(KEY_SUBJECT, "") ?: "") }
+    var interactionCount by remember { mutableStateOf(prefs.getString(KEY_INTERACTION_COUNT, "10") ?: "10") }
+    var firstPrompt by remember { mutableStateOf(prefs.getString(KEY_FIRST_PROMPT, DEFAULT_FIRST_PROMPT) ?: DEFAULT_FIRST_PROMPT) }
+    var secondPrompt by remember { mutableStateOf(prefs.getString(KEY_SECOND_PROMPT, DEFAULT_SECOND_PROMPT) ?: DEFAULT_SECOND_PROMPT) }
 
-    if (selectingModel > 0) {
+    // Save all values to prefs
+    fun savePrefs() {
+        prefs.edit()
+            .putString(KEY_MODEL1_PROVIDER, model1Provider?.id)
+            .putString(KEY_MODEL1_NAME, model1Name)
+            .putString(KEY_MODEL1_SYSTEM, model1SystemPrompt)
+            .putString(KEY_MODEL1_PARAMS, gson.toJson(model1Params))
+            .putString(KEY_MODEL2_PROVIDER, model2Provider?.id)
+            .putString(KEY_MODEL2_NAME, model2Name)
+            .putString(KEY_MODEL2_SYSTEM, model2SystemPrompt)
+            .putString(KEY_MODEL2_PARAMS, gson.toJson(model2Params))
+            .putString(KEY_SUBJECT, subject)
+            .putString(KEY_INTERACTION_COUNT, interactionCount)
+            .putString(KEY_FIRST_PROMPT, firstPrompt)
+            .putString(KEY_SECOND_PROMPT, secondPrompt)
+            .apply()
+    }
+
+    // Full-screen overlay state: 0=none, 1=select model1, 2=select model2, 3=params model1, 4=params model2
+    var overlayMode by remember { mutableStateOf(0) }
+
+    // Model selection overlays
+    if (overlayMode == 1 || overlayMode == 2) {
         SelectAllModelsScreen(
             aiSettings = aiSettings,
             onSelectModel = { provider, model ->
-                if (selectingModel == 1) {
+                if (overlayMode == 1) {
                     model1Provider = provider
                     model1Name = model
                 } else {
                     model2Provider = provider
                     model2Name = model
                 }
-                selectingModel = 0
+                overlayMode = 0
+                savePrefs()
             },
-            onBack = { selectingModel = 0 },
+            onBack = { overlayMode = 0 },
             onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    // Parameters editing overlays
+    if (overlayMode == 3 || overlayMode == 4) {
+        val isModel1 = overlayMode == 3
+        val params = if (isModel1) model1Params else model2Params
+        val modelLabel = if (isModel1) "Model 1" else "Model 2"
+        val color = if (isModel1) Color(0xFF4488CC) else Color(0xFF44AA66)
+        DualChatParamsScreen(
+            title = "$modelLabel Parameters",
+            initialParams = params,
+            color = color,
+            onBack = { overlayMode = 0 },
+            onNavigateHome = onNavigateHome,
+            onApply = { newParams ->
+                if (isModel1) model1Params = newParams else model2Params = newParams
+                overlayMode = 0
+                savePrefs()
+            }
         )
         return
     }
@@ -84,9 +170,10 @@ fun DualChatSetupScreen(
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .weight(1f)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // Model 1
             ModelSelectionCard(
@@ -94,8 +181,10 @@ fun DualChatSetupScreen(
                 providerName = model1Provider?.displayName,
                 modelName = model1Name,
                 systemPrompt = model1SystemPrompt,
-                onSystemPromptChange = { model1SystemPrompt = it },
-                onSelectClick = { selectingModel = 1 },
+                onSystemPromptChange = { model1SystemPrompt = it; savePrefs() },
+                onSelectClick = { overlayMode = 1 },
+                onParamsClick = { overlayMode = 3 },
+                paramsSummary = model1Params.summary(),
                 color = Color(0xFF4488CC)
             )
 
@@ -105,70 +194,117 @@ fun DualChatSetupScreen(
                 providerName = model2Provider?.displayName,
                 modelName = model2Name,
                 systemPrompt = model2SystemPrompt,
-                onSystemPromptChange = { model2SystemPrompt = it },
-                onSelectClick = { selectingModel = 2 },
+                onSystemPromptChange = { model2SystemPrompt = it; savePrefs() },
+                onSelectClick = { overlayMode = 2 },
+                onParamsClick = { overlayMode = 4 },
+                paramsSummary = model2Params.summary(),
                 color = Color(0xFF44AA66)
             )
 
-            // Subject
-            OutlinedTextField(
-                value = subject,
-                onValueChange = { subject = it },
-                label = { Text("Subject") },
-                placeholder = { Text("What should they discuss?") },
+            // Subject + Interactions on one row
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF555555)
-                )
-            )
-
-            // Number of interactions
-            OutlinedTextField(
-                value = interactionCount,
-                onValueChange = { interactionCount = it.filter { c -> c.isDigit() } },
-                label = { Text("Number of interactions") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF555555)
-                )
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Go button
-            Button(
-                onClick = {
-                    if (canStart) {
-                        onStartSession(
-                            DualChatConfig(
-                                model1Provider = model1Provider!!,
-                                model1Name = model1Name,
-                                model1SystemPrompt = model1SystemPrompt,
-                                model2Provider = model2Provider!!,
-                                model2Name = model2Name,
-                                model2SystemPrompt = model2SystemPrompt,
-                                subject = subject,
-                                interactionCount = interactionCount.toIntOrNull() ?: 10
-                            )
-                        )
-                    }
-                },
-                enabled = canStart,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4488CC),
-                    disabledContainerColor = Color(0xFF333333)
-                )
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Go", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = subject,
+                    onValueChange = { subject = it; savePrefs() },
+                    label = { Text("Subject") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF555555)
+                    )
+                )
+                OutlinedTextField(
+                    value = interactionCount,
+                    onValueChange = { interactionCount = it.filter { c -> c.isDigit() }; savePrefs() },
+                    label = { Text("Rounds") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.width(80.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF6B9BFF),
+                        unfocusedBorderColor = Color(0xFF555555)
+                    )
+                )
             }
+
+            // First prompt template
+            OutlinedTextField(
+                value = firstPrompt,
+                onValueChange = { firstPrompt = it; savePrefs() },
+                label = { Text("1st prompt (%subject%)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF4488CC),
+                    unfocusedBorderColor = Color(0xFF555555)
+                )
+            )
+
+            // Second prompt template
+            OutlinedTextField(
+                value = secondPrompt,
+                onValueChange = { secondPrompt = it; savePrefs() },
+                label = { Text("2nd prompt (%answer%)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF44AA66),
+                    unfocusedBorderColor = Color(0xFF555555)
+                )
+            )
+
+            Text(
+                "From 3rd on: previous response is sent directly",
+                fontSize = 11.sp,
+                color = Color(0xFF666666)
+            )
+        }
+
+        // Go button pinned at bottom
+        Button(
+            onClick = {
+                if (canStart) {
+                    savePrefs()
+                    onStartSession(
+                        DualChatConfig(
+                            model1Provider = model1Provider!!,
+                            model1Name = model1Name,
+                            model1SystemPrompt = model1SystemPrompt,
+                            model1Params = model1Params,
+                            model2Provider = model2Provider!!,
+                            model2Name = model2Name,
+                            model2SystemPrompt = model2SystemPrompt,
+                            model2Params = model2Params,
+                            subject = subject,
+                            interactionCount = interactionCount.toIntOrNull() ?: 10,
+                            firstPrompt = firstPrompt,
+                            secondPrompt = secondPrompt
+                        )
+                    )
+                }
+            },
+            enabled = canStart,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF4488CC),
+                disabledContainerColor = Color(0xFF333333)
+            )
+        ) {
+            Text("Go", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -181,6 +317,8 @@ private fun ModelSelectionCard(
     systemPrompt: String,
     onSystemPromptChange: (String) -> Unit,
     onSelectClick: () -> Unit,
+    onParamsClick: () -> Unit,
+    paramsSummary: String,
     color: Color
 ) {
     Card(
@@ -189,8 +327,8 @@ private fun ModelSelectionCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -198,34 +336,45 @@ private fun ModelSelectionCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
+                        Text("  $paramsSummary", fontSize = 11.sp, color = Color(0xFF888888))
+                    }
                     if (providerName != null) {
                         Text(
                             "$providerName / $modelName",
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             color = Color(0xFFCCCCCC),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
-                        Text("Not selected", fontSize = 13.sp, color = Color(0xFF888888))
+                        Text("Not selected", fontSize = 12.sp, color = Color(0xFF888888))
                     }
                 }
-                Button(
-                    onClick = onSelectClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.3f)),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                ) {
-                    Text("Select", color = color)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Button(
+                        onClick = onParamsClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.5f)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        Text("Params", color = Color.White, fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = onSelectClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = color),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)
+                    ) {
+                        Text("Select", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
             OutlinedTextField(
                 value = systemPrompt,
                 onValueChange = onSystemPromptChange,
-                label = { Text("System prompt (optional)") },
+                label = { Text("System prompt (optional)", fontSize = 12.sp) },
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 1,
-                maxLines = 3,
+                singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
@@ -235,6 +384,91 @@ private fun ModelSelectionCard(
             )
         }
     }
+}
+
+/**
+ * Full-screen overlay for editing chat parameters for a dual chat model.
+ */
+@Composable
+private fun DualChatParamsScreen(
+    title: String,
+    initialParams: ChatParameters,
+    color: Color,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onApply: (ChatParameters) -> Unit
+) {
+    var temperature by remember { mutableStateOf(initialParams.temperature?.toString() ?: "") }
+    var maxTokens by remember { mutableStateOf(initialParams.maxTokens?.toString() ?: "") }
+    var topP by remember { mutableStateOf(initialParams.topP?.toString() ?: "") }
+    var topK by remember { mutableStateOf(initialParams.topK?.toString() ?: "") }
+    var frequencyPenalty by remember { mutableStateOf(initialParams.frequencyPenalty?.toString() ?: "") }
+    var presencePenalty by remember { mutableStateOf(initialParams.presencePenalty?.toString() ?: "") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        AiTitleBar(
+            title = title,
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = {
+                onApply(ChatParameters(
+                    temperature = temperature.toFloatOrNull(),
+                    maxTokens = maxTokens.toIntOrNull(),
+                    topP = topP.toFloatOrNull(),
+                    topK = topK.toIntOrNull(),
+                    frequencyPenalty = frequencyPenalty.toFloatOrNull(),
+                    presencePenalty = presencePenalty.toFloatOrNull()
+                ))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = color)
+        ) {
+            Text("Apply", fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ParamTextField("Temperature (0.0 - 2.0)", temperature, color) { temperature = it }
+            ParamTextField("Max Tokens", maxTokens, color) { maxTokens = it }
+            ParamTextField("Top P (0.0 - 1.0)", topP, color) { topP = it }
+            ParamTextField("Top K", topK, color) { topK = it }
+            ParamTextField("Frequency Penalty (-2.0 - 2.0)", frequencyPenalty, color) { frequencyPenalty = it }
+            ParamTextField("Presence Penalty (-2.0 - 2.0)", presencePenalty, color) { presencePenalty = it }
+        }
+    }
+}
+
+@Composable
+private fun ParamTextField(label: String, value: String, color: Color, onValueChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = color,
+            unfocusedBorderColor = Color(0xFF444444),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White
+        )
+    )
 }
 
 /**
@@ -269,7 +503,7 @@ fun DualChatSessionScreen(
     var targetInteractions by remember { mutableIntStateOf(config.interactionCount) }
     var isRunning by remember { mutableStateOf(true) }
     var isStopped by remember { mutableStateOf(false) }
-    var thinkingModel by remember { mutableStateOf<Int?>(null) } // which model is thinking (1 or 2)
+    var thinkingModel by remember { mutableStateOf<Int?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var chatJob by remember { mutableStateOf<Job?>(null) }
 
@@ -316,12 +550,12 @@ fun DualChatSessionScreen(
                     thinkingModel = 1
                     val model1Messages = buildMessagesForModel(1).toMutableList()
                     if (messages.isEmpty()) {
-                        // First message - introduce the topic
-                        model1Messages.add(ChatMessage(role = "user", content = "Let's talk about ${config.subject}"))
+                        val prompt = config.firstPrompt.replace("%subject%", config.subject)
+                        model1Messages.add(ChatMessage(role = "user", content = prompt))
                     }
 
                     val apiKey1 = aiSettings.getApiKey(config.model1Provider)
-                    val params1 = ChatParameters(systemPrompt = config.model1SystemPrompt)
+                    val params1 = config.model1Params.copy(systemPrompt = config.model1SystemPrompt)
                     val response1 = viewModel.sendDualChatMessage(
                         config.model1Provider, apiKey1, config.model1Name, model1Messages, params1
                     )
@@ -332,16 +566,22 @@ fun DualChatSessionScreen(
                     model1OutputTokens += outputTokens1
 
                     messages.add(DualMessage(1, response1, config.model1Provider.displayName, config.model1Name))
-
-                    // Scroll to bottom
                     scope.launch { listState.animateScrollToItem(messages.size - 1) }
 
                     // Model 2's turn
                     thinkingModel = 2
-                    val model2Messages = buildMessagesForModel(2)
+                    val model2Messages = buildMessagesForModel(2).let { msgs ->
+                        if (currentInteraction == 0 && msgs.isNotEmpty()) {
+                            val last = msgs.last()
+                            if (last.role == "user") {
+                                val prompt = config.secondPrompt.replace("%answer%", last.content)
+                                msgs.dropLast(1) + last.copy(content = prompt)
+                            } else msgs
+                        } else msgs
+                    }
 
                     val apiKey2 = aiSettings.getApiKey(config.model2Provider)
-                    val params2 = ChatParameters(systemPrompt = config.model2SystemPrompt)
+                    val params2 = config.model2Params.copy(systemPrompt = config.model2SystemPrompt)
                     val response2 = viewModel.sendDualChatMessage(
                         config.model2Provider, apiKey2, config.model2Name, model2Messages, params2
                     )
@@ -355,8 +595,6 @@ fun DualChatSessionScreen(
 
                     currentInteraction++
                     thinkingModel = null
-
-                    // Scroll to bottom
                     scope.launch { listState.animateScrollToItem(messages.size - 1) }
                 }
             } catch (e: CancellationException) {
@@ -445,7 +683,6 @@ fun DualChatSessionScreen(
                 DualMessageBubble(msg)
             }
 
-            // Thinking indicator
             if (thinkingModel != null) {
                 item {
                     val thinkingName = if (thinkingModel == 1) config.model1Name else config.model2Name

@@ -1783,6 +1783,7 @@ fun SelectAllModelsScreen(
     val activeServices = aiSettings.getActiveServices()
     var selectedProvider by remember { mutableStateOf<AiService?>(null) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
+    var freeOnly by remember { mutableStateOf(false) }
 
     val allProviderModels = activeServices
         .flatMap { provider ->
@@ -1793,11 +1794,18 @@ fun SelectAllModelsScreen(
         allProviderModels.filter { it.first == selectedProvider }
     } else allProviderModels
 
-    val filteredModels = if (searchQuery.isBlank()) providerFiltered
+    val searchFiltered = if (searchQuery.isBlank()) providerFiltered
     else providerFiltered.filter { (provider, model) ->
         provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
             model.lowercase().contains(searchQuery.lowercase())
     }
+
+    val filteredModels = if (freeOnly) {
+        searchFiltered.filter { (provider, model) ->
+            val pricing = PricingCache.getPricing(context, provider, model)
+            pricing.promptPrice == 0.0 && pricing.completionPrice == 0.0
+        }
+    } else searchFiltered
 
     val sortedModels = filteredModels
         .sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
@@ -1815,7 +1823,10 @@ fun SelectAllModelsScreen(
         )
 
         Text(
-            text = "${allProviderModels.size} models across ${activeServices.size} providers",
+            text = if (sortedModels.size == allProviderModels.size)
+                "${allProviderModels.size} models across ${activeServices.size} providers"
+            else
+                "${sortedModels.size} of ${allProviderModels.size} models",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF888888),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -1878,7 +1889,30 @@ fun SelectAllModelsScreen(
             }
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // Free only switch
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Free models only",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
+            )
+            Switch(
+                checked = freeOnly,
+                onCheckedChange = { freeOnly = it },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0xFF6B9BFF),
+                    uncheckedThumbColor = Color(0xFF888888),
+                    uncheckedTrackColor = Color(0xFF444444)
+                )
+            )
+        }
 
         // Table header
         Row(
