@@ -718,26 +718,13 @@ fun AiReportsScreen(
                         ) {
                             Text("Swarms", fontSize = 13.sp)
                         }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Button(
-                            onClick = { showSelectProvider = true },
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
-                        ) {
-                            Text("Provider", fontSize = 13.sp)
-                        }
                         Button(
                             onClick = { showSelectAllModels = true },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
                         ) {
-                            Text("All Models", fontSize = 13.sp)
+                            Text("Models", fontSize = 13.sp)
                         }
                     }
                 }

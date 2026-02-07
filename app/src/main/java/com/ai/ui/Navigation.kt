@@ -47,6 +47,8 @@ object NavRoutes {
     const val AI_MODEL_INFO = "ai_model_info/{provider}/{model}"
     const val AI_API_TEST = "ai_api_test"
     const val AI_API_TEST_EDIT = "ai_api_test_edit"
+    const val AI_DUAL_CHAT_SETUP = "ai_dual_chat_setup"
+    const val AI_DUAL_CHAT_SESSION = "ai_dual_chat_session"
     const val DEVELOPER_OPTIONS = "developer_options"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
@@ -78,7 +80,9 @@ object NavRoutes {
 /**
  * Main navigation host for the app.
  * @param externalTitle Optional title from external app intent
+ * @param externalSystem Optional system prompt from external app intent
  * @param externalPrompt Optional prompt from external app intent
+ * @param externalInstructions Optional instructions from external app intent (control tags)
  * @param onExternalIntentHandled Callback when external intent has been processed
  */
 @Composable
@@ -87,7 +91,9 @@ fun AiNavHost(
     navController: NavHostController = rememberNavController(),
     viewModel: AiViewModel = viewModel(),
     externalTitle: String? = null,
+    externalSystem: String? = null,
     externalPrompt: String? = null,
+    externalInstructions: String? = null,
     onExternalIntentHandled: () -> Unit = {}
 ) {
     // Navigate to home, clearing the back stack
@@ -100,58 +106,72 @@ fun AiNavHost(
     // Handle external intent - navigate to new report when external prompt is provided
     LaunchedEffect(externalPrompt) {
         if (externalPrompt != null) {
+            // Helper functions for parsing instruction tags
+            fun extractTag(tag: String, text: String): String? {
+                val regex = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
+                return regex.find(text)?.groupValues?.get(1)?.trim()
+            }
+            fun extractAllTags(tag: String, text: String): List<String> {
+                val regex = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
+                return regex.findAll(text).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
+            }
+
+            // Determine prompt and instructions from either:
+            // 1. Separate parameters (new format): prompt + instructions extras
+            // 2. Combined format (legacy): single prompt with "-- end prompt --" marker
             val marker = "-- end prompt --"
-            if (externalPrompt.contains(marker)) {
-                // Parse marker: prompt above, instructions below
+            val aiPrompt: String
+            val instructions: String
+
+            if (externalInstructions != null) {
+                // New format: separate parameters
+                aiPrompt = externalPrompt.trim()
+                instructions = externalInstructions
+            } else if (externalPrompt.contains(marker)) {
+                // Legacy format: split by marker
                 val parts = externalPrompt.split(marker, limit = 2)
-                val aiPrompt = parts[0].trim()
-                val instructions = parts.getOrElse(1) { "" }
-
-                // Extract instruction tags
-                fun extractTag(tag: String, text: String): String? {
-                    val regex = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
-                    return regex.find(text)?.groupValues?.get(1)?.trim()
+                aiPrompt = parts[0].trim()
+                instructions = parts.getOrElse(1) { "" }
+            } else {
+                // No instructions at all - navigate to New Report screen
+                navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
                 }
-                fun extractAllTags(tag: String, text: String): List<String> {
-                    val regex = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
-                    return regex.findAll(text).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
-                }
-                val openHtml = extractTag("open", instructions)
-                val closeHtml = extractTag("close", instructions)
-                val reportType = extractTag("type", instructions)
-                val email = extractTag("email", instructions)
-                val nextAction = extractTag("next", instructions)
-                val hasReturn = Regex("<return>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
-                val hasEdit = Regex("<edit>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
-                val hasSelect = Regex("<select>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
+                onExternalIntentHandled()
+                return@LaunchedEffect
+            }
 
-                // Extract API selection tags (can appear multiple times)
-                val agentNames = extractAllTags("agent", instructions)
-                val flockNames = extractAllTags("flock", instructions)
-                val swarmNames = extractAllTags("swarm", instructions)
-                val modelSpecs = extractAllTags("model", instructions)
+            // Parse instruction tags
+            val openHtml = extractTag("open", instructions)
+            val closeHtml = extractTag("close", instructions)
+            val reportType = extractTag("type", instructions)
+            val email = extractTag("email", instructions)
+            val nextAction = extractTag("next", instructions)
+            val hasReturn = Regex("<return>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
+            val hasEdit = Regex("<edit>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
+            val hasSelect = Regex("<select>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
 
-                // Store instructions in ViewModel
-                viewModel.setExternalInstructions(closeHtml, reportType, email, nextAction, hasReturn, agentNames, flockNames, swarmNames, modelSpecs, hasEdit, hasSelect, openHtml)
+            // Extract API selection tags (can appear multiple times)
+            val agentNames = extractAllTags("agent", instructions)
+            val flockNames = extractAllTags("flock", instructions)
+            val swarmNames = extractAllTags("swarm", instructions)
+            val modelSpecs = extractAllTags("model", instructions)
 
-                if (hasEdit) {
-                    // <edit>: show New Report screen so user can edit prompt (clean, without <user> wrapper)
-                    navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", aiPrompt)) {
-                        popUpTo(NavRoutes.AI) { inclusive = false }
-                    }
-                } else {
-                    // Default: skip New Report, go directly to agent selection / generation
-                    // Wrap openHtml as <user> tag so existing ViewModel parsing handles it
-                    val fullPrompt = if (openHtml != null) "$aiPrompt\n<user>$openHtml</user>" else aiPrompt
-                    viewModel.showGenericAiAgentSelection(externalTitle ?: "", fullPrompt)
+            // Store instructions in ViewModel (including system prompt from intent)
+            viewModel.setExternalInstructions(closeHtml, reportType, email, nextAction, hasReturn, agentNames, flockNames, swarmNames, modelSpecs, hasEdit, hasSelect, openHtml, systemPrompt = externalSystem)
 
-                    navController.navigate(NavRoutes.AI_REPORTS) {
-                        popUpTo(NavRoutes.AI) { inclusive = false }
-                    }
+            if (hasEdit) {
+                // <edit>: show New Report screen so user can edit prompt (clean, without <user> wrapper)
+                navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", aiPrompt)) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
                 }
             } else {
-                // No marker - current behavior: navigate to New Report screen
-                navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", externalPrompt)) {
+                // Default: skip New Report, go directly to agent selection / generation
+                // Wrap openHtml as <user> tag so existing ViewModel parsing handles it
+                val fullPrompt = if (openHtml != null) "$aiPrompt\n<user>$openHtml</user>" else aiPrompt
+                viewModel.showGenericAiAgentSelection(externalTitle ?: "", fullPrompt)
+
+                navController.navigate(NavRoutes.AI_REPORTS) {
                     popUpTo(NavRoutes.AI) { inclusive = false }
                 }
             }
@@ -421,7 +441,8 @@ fun AiNavHost(
                 onNavigateToAgentSelect = { navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT) },
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
-                onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) }
+                onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) },
+                onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) }
             )
         }
 
@@ -595,6 +616,31 @@ fun AiNavHost(
                 onSelectSession = { sessionId ->
                     navController.navigate(NavRoutes.aiChatContinue(sessionId))
                 }
+            )
+        }
+
+        // Dual chat setup
+        composable(NavRoutes.AI_DUAL_CHAT_SETUP) {
+            val uiState by viewModel.uiState.collectAsState()
+            DualChatSetupScreen(
+                aiSettings = uiState.aiSettings,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onStartSession = { config ->
+                    viewModel.setDualChatConfig(config)
+                    navController.navigate(NavRoutes.AI_DUAL_CHAT_SESSION)
+                }
+            )
+        }
+
+        // Dual chat session
+        composable(NavRoutes.AI_DUAL_CHAT_SESSION) {
+            val uiState by viewModel.uiState.collectAsState()
+            DualChatSessionScreen(
+                viewModel = viewModel,
+                aiSettings = uiState.aiSettings,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
 

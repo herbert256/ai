@@ -204,6 +204,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val aiSettings = _uiState.value.aiSettings
             val prompt = _uiState.value.genericAiPromptText
             val title = _uiState.value.genericAiPromptTitle
+            val externalSystemPrompt = _uiState.value.externalSystemPrompt
             // Use the parametersIds to merge params presets, or fall back to advanced parameters
             val mergedParams = aiSettings.mergeParameters(parametersIds)
             val overrideParams = mergedParams ?: _uiState.value.reportAdvancedParameters
@@ -325,9 +326,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     // Resolve agent's parameter presets to AiAgentParameters
                     var agentParams = aiSettings.resolveAgentParameters(agent)
 
-                    // Inject system prompt if connected (flock overrides agent)
+                    // Inject system prompt if connected (flock overrides agent, external is fallback)
                     val flockSpId = findFlockSystemPromptIdForAgent(aiSettings, agent.id)
-                    val spText = resolveSystemPromptText(aiSettings, agent.systemPromptId, flockSpId)
+                    val spText = resolveSystemPromptText(aiSettings, agent.systemPromptId, flockSpId) ?: externalSystemPrompt
                     if (spText != null) {
                         agentParams = agentParams.copy(systemPrompt = spText)
                     }
@@ -440,9 +441,9 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         apiKey = providerApiKey
                     )
 
-                    // Resolve swarm system prompt
+                    // Resolve swarm system prompt (external is fallback)
                     val swarmSpId = findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)
-                    val swarmSpText = swarmSpId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                    val swarmSpText = swarmSpId?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: externalSystemPrompt
                     val swarmResolvedParams = if (swarmSpText != null) {
                         AiAgentParameters(systemPrompt = swarmSpText)
                     } else {
@@ -700,6 +701,40 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(chatParameters = params) }
     }
 
+    fun setDualChatConfig(config: DualChatConfig?) {
+        _uiState.update { it.copy(dualChatConfig = config) }
+    }
+
+    /**
+     * Send a chat message for dual chat with explicit ChatParameters.
+     * Throws on error (unlike sendChatMessage which returns error as message content).
+     */
+    suspend fun sendDualChatMessage(
+        service: AiService,
+        apiKey: String,
+        model: String,
+        messages: List<ChatMessage>,
+        params: ChatParameters
+    ): String {
+        val response = aiAnalysisRepository.sendChatMessage(
+            service = service,
+            apiKey = apiKey,
+            model = model,
+            messages = messages,
+            params = params
+        )
+        val inputTokens = messages.sumOf { estimateTokens(it.content) }
+        val outputTokens = estimateTokens(response)
+        settingsPrefs.updateUsageStats(
+            provider = service,
+            model = model,
+            inputTokens = inputTokens,
+            outputTokens = outputTokens,
+            totalTokens = inputTokens + outputTokens
+        )
+        return response
+    }
+
     // ========== External Intent Instructions ==========
 
     fun setExternalInstructions(
@@ -707,9 +742,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         nextAction: String? = null, returnAfterNext: Boolean = false,
         agentNames: List<String> = emptyList(), flockNames: List<String> = emptyList(),
         swarmNames: List<String> = emptyList(), modelSpecs: List<String> = emptyList(),
-        edit: Boolean = false, select: Boolean = false, openHtml: String? = null
+        edit: Boolean = false, select: Boolean = false, openHtml: String? = null,
+        systemPrompt: String? = null
     ) {
         _uiState.update { it.copy(
+            externalSystemPrompt = systemPrompt,
             externalCloseHtml = closeHtml,
             externalReportType = reportType,
             externalEmail = email,
@@ -727,6 +764,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearExternalInstructions() {
         _uiState.update { it.copy(
+            externalSystemPrompt = null,
             externalCloseHtml = null,
             externalReportType = null,
             externalEmail = null,

@@ -43,7 +43,9 @@ data class AiUiState(
     val currentReportId: String? = null,  // ID of the current AI report being generated
     // Report advanced parameters (override agent parameters for a specific report)
     val reportAdvancedParameters: AiAgentParameters? = null,
-    // External intent instructions (from -- end prompt -- marker)
+    // External intent parameters
+    val externalSystemPrompt: String? = null,  // System prompt from intent
+    // External intent instructions (from -- end prompt -- marker or instructions parameter)
     val externalCloseHtml: String? = null,
     val externalReportType: String? = null,  // "Classic" or "Table"
     val externalEmail: String? = null,
@@ -58,5 +60,7 @@ data class AiUiState(
     val externalSwarmNames: List<String> = emptyList(),
     val externalModelSpecs: List<String> = emptyList(),  // "provider/model" format
     // Chat
-    val chatParameters: ChatParameters = ChatParameters()
+    val chatParameters: ChatParameters = ChatParameters(),
+    // Dual chat
+    val dualChatConfig: DualChatConfig? = null
 )

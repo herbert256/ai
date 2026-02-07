@@ -232,8 +232,13 @@ internal fun ReportSelectAllModelsDialog(
 ) {
     val context = LocalContext.current
     var search by remember { mutableStateOf("") }
-    val all = aiSettings.getActiveServices().flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
-    val filtered = if (search.isBlank()) all else all.filter { (prov, model) ->
+    val activeServices = aiSettings.getActiveServices()
+    var selectedProvider by remember { mutableStateOf<com.ai.data.AiService?>(null) }
+    var providerDropdownExpanded by remember { mutableStateOf(false) }
+
+    val all = activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
+    val providerFiltered = if (selectedProvider != null) all.filter { it.first == selectedProvider } else all
+    val filtered = if (search.isBlank()) providerFiltered else providerFiltered.filter { (prov, model) ->
         prov.displayName.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
     }
     val sorted = filtered.sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
@@ -243,6 +248,32 @@ internal fun ReportSelectAllModelsDialog(
             Column(modifier = Modifier.padding(12.dp)) {
                 Text("All models \u2014 ${all.size}", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
+                // Provider filter dropdown
+                Box {
+                    OutlinedButton(
+                        onClick = { providerDropdownExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFF444444))
+                    ) {
+                        Text(selectedProvider?.displayName ?: "All Providers", modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (selectedProvider != null) Color.White else Color(0xFF888888))
+                        Text("\u25BE", color = Color(0xFF888888))
+                    }
+                    DropdownMenu(expanded = providerDropdownExpanded, onDismissRequest = { providerDropdownExpanded = false },
+                        modifier = Modifier.background(Color(0xFF2D2D2D))) {
+                        DropdownMenuItem(
+                            text = { Text("All Providers", color = if (selectedProvider == null) Color(0xFF6B9BFF) else Color.White, fontSize = 13.sp) },
+                            onClick = { selectedProvider = null; providerDropdownExpanded = false })
+                        activeServices.sortedBy { it.displayName.lowercase() }.forEach { provider ->
+                            val modelCount = aiSettings.getModels(provider).size
+                            DropdownMenuItem(
+                                text = { Text("${provider.displayName} ($modelCount)", color = if (selectedProvider == provider) Color(0xFF6B9BFF) else Color.White, fontSize = 13.sp) },
+                                onClick = { selectedProvider = provider; providerDropdownExpanded = false })
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6B9BFF), unfocusedBorderColor = Color(0xFF444444), focusedTextColor = Color.White, unfocusedTextColor = Color.White),
@@ -255,7 +286,9 @@ internal fun ReportSelectAllModelsDialog(
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(provider, model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(provider.displayName, fontSize = 11.sp, color = Color(0xFF888888), maxLines = 1)
+                                if (selectedProvider == null) {
+                                    Text(provider.displayName, fontSize = 11.sp, color = Color(0xFF888888), maxLines = 1)
+                                }
                             }
                             Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else Color(0xFF2A2A2A), modifier = if (!real) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }

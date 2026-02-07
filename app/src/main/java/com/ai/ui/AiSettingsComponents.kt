@@ -2,6 +2,7 @@ package com.ai.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -1779,14 +1780,21 @@ fun SelectAllModelsScreen(
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
+    val activeServices = aiSettings.getActiveServices()
+    var selectedProvider by remember { mutableStateOf<AiService?>(null) }
+    var providerDropdownExpanded by remember { mutableStateOf(false) }
 
-    val allProviderModels = aiSettings.getActiveServices()
+    val allProviderModels = activeServices
         .flatMap { provider ->
             aiSettings.getModels(provider).map { model -> provider to model }
         }
 
-    val filteredModels = if (searchQuery.isBlank()) allProviderModels
-    else allProviderModels.filter { (provider, model) ->
+    val providerFiltered = if (selectedProvider != null) {
+        allProviderModels.filter { it.first == selectedProvider }
+    } else allProviderModels
+
+    val filteredModels = if (searchQuery.isBlank()) providerFiltered
+    else providerFiltered.filter { (provider, model) ->
         provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
             model.lowercase().contains(searchQuery.lowercase())
     }
@@ -1807,11 +1815,47 @@ fun SelectAllModelsScreen(
         )
 
         Text(
-            text = "${allProviderModels.size} models across ${aiSettings.getActiveServices().size} providers",
+            text = "${allProviderModels.size} models across ${activeServices.size} providers",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF888888),
             modifier = Modifier.padding(bottom = 8.dp)
         )
+
+        // Provider filter dropdown
+        Box {
+            OutlinedButton(
+                onClick = { providerDropdownExpanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFF444444))
+            ) {
+                Text(
+                    text = selectedProvider?.displayName ?: "All Providers",
+                    modifier = Modifier.weight(1f),
+                    color = if (selectedProvider != null) Color.White else Color(0xFF888888)
+                )
+                Text("\u25BE", color = Color(0xFF888888))
+            }
+            DropdownMenu(
+                expanded = providerDropdownExpanded,
+                onDismissRequest = { providerDropdownExpanded = false },
+                modifier = Modifier.background(Color(0xFF2D2D2D))
+            ) {
+                DropdownMenuItem(
+                    text = { Text("All Providers", color = if (selectedProvider == null) Color(0xFF6B9BFF) else Color.White) },
+                    onClick = { selectedProvider = null; providerDropdownExpanded = false }
+                )
+                activeServices.sortedBy { it.displayName.lowercase() }.forEach { provider ->
+                    val modelCount = aiSettings.getModels(provider).size
+                    DropdownMenuItem(
+                        text = { Text("${provider.displayName} ($modelCount)", color = if (selectedProvider == provider) Color(0xFF6B9BFF) else Color.White) },
+                        onClick = { selectedProvider = provider; providerDropdownExpanded = false }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = searchQuery,
@@ -1891,12 +1935,14 @@ fun SelectAllModelsScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = provider.displayName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF888888),
-                            maxLines = 1
-                        )
+                        if (selectedProvider == null) {
+                            Text(
+                                text = provider.displayName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF888888),
+                                maxLines = 1
+                            )
+                        }
                     }
                     Text(
                         text = formatPrice(pricing.promptPrice),

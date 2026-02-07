@@ -28,7 +28,9 @@ import com.ai.ui.theme.AiTheme
 class MainActivity : ComponentActivity() {
     // Reactive state for external intent parameters
     private val externalTitle = mutableStateOf<String?>(null)
+    private val externalSystem = mutableStateOf<String?>(null)
     private val externalPrompt = mutableStateOf<String?>(null)
+    private val externalInstructions = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,11 +66,15 @@ class MainActivity : ComponentActivity() {
                     AiNavHost(
                         modifier = Modifier.padding(innerPadding),
                         externalTitle = externalTitle.value,
+                        externalSystem = externalSystem.value,
                         externalPrompt = externalPrompt.value,
+                        externalInstructions = externalInstructions.value,
                         onExternalIntentHandled = {
                             // Clear after navigation so subsequent normal navigation works
                             externalTitle.value = null
+                            externalSystem.value = null
                             externalPrompt.value = null
+                            externalInstructions.value = null
                         },
                         viewModel = viewModel
                     )
@@ -96,7 +102,9 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         if (intent?.action == "com.ai.ACTION_NEW_REPORT") {
             externalTitle.value = intent.getStringExtra("title")
+            externalSystem.value = intent.getStringExtra("system")
             externalPrompt.value = intent.getStringExtra("prompt")
+            externalInstructions.value = intent.getStringExtra("instructions")
         }
     }
 }

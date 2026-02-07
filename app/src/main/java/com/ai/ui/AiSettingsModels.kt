@@ -731,3 +731,17 @@ data class ChatParameters(
     val returnCitations: Boolean = true,
     val searchRecency: String? = null
 )
+
+/**
+ * Configuration for a dual-chat session where two AI models converse with each other.
+ */
+data class DualChatConfig(
+    val model1Provider: com.ai.data.AiService,
+    val model1Name: String,
+    val model1SystemPrompt: String = "",
+    val model2Provider: com.ai.data.AiService,
+    val model2Name: String,
+    val model2SystemPrompt: String = "",
+    val subject: String,
+    val interactionCount: Int = 10
+)

@@ -1008,7 +1008,8 @@ fun AiChatsHubScreen(
     onNavigateToAgentSelect: () -> Unit,
     onNavigateToNewChat: () -> Unit,
     onNavigateToChatHistory: () -> Unit,
-    onNavigateToChatSearch: () -> Unit
+    onNavigateToChatSearch: () -> Unit,
+    onNavigateToDualChat: () -> Unit = {}
 ) {
     // Check if there are any agents with an active provider
     val hasAgents = aiSettings.agents.any { agent ->
@@ -1069,6 +1070,15 @@ fun AiChatsHubScreen(
                 description = "Find messages in your chat history",
                 onClick = onNavigateToChatSearch,
                 enabled = hasChatHistory
+            )
+
+            // Let 2 AI models chat
+            ChatHubCard(
+                icon = "\uD83E\uDD1C\uD83E\uDD1B",
+                title = "Let 2 AI models chat",
+                description = "Watch two models converse on a topic",
+                onClick = onNavigateToDualChat,
+                enabled = true
             )
         }
     }
