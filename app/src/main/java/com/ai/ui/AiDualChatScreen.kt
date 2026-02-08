@@ -188,6 +188,34 @@ fun DualChatSetupScreen(
                 color = Color(0xFF4488CC)
             )
 
+            // Swap button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = {
+                        val tmpProvider = model1Provider
+                        val tmpName = model1Name
+                        val tmpSystem = model1SystemPrompt
+                        val tmpParams = model1Params
+                        model1Provider = model2Provider
+                        model1Name = model2Name
+                        model1SystemPrompt = model2SystemPrompt
+                        model1Params = model2Params
+                        model2Provider = tmpProvider
+                        model2Name = tmpName
+                        model2SystemPrompt = tmpSystem
+                        model2Params = tmpParams
+                        savePrefs()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)
+                ) {
+                    Text("⇅ Swap", fontSize = 12.sp, color = Color.White)
+                }
+            }
+
             // Model 2
             ModelSelectionCard(
                 label = "Model 2",

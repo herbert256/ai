@@ -180,7 +180,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
     baseUrl: String = service.baseUrl
 ): AiAnalysisResponse {
     // Check if this model uses the Responses API (OpenAI gpt-5.x, o3, o4)
-    if (usesResponsesApi(model)) {
+    if (usesResponsesApi(service, model)) {
         return analyzeWithChatGptResponsesApi(service, apiKey, prompt, model, params)
     }
 

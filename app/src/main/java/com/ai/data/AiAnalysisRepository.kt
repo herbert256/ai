@@ -369,11 +369,14 @@ class AiAnalysisRepository {
         )
     }
 
-    internal fun usesResponsesApi(model: String): Boolean {
+    internal fun usesResponsesApi(service: AiService, model: String): Boolean {
         val lowerModel = model.lowercase()
-        return lowerModel.startsWith("gpt-5") ||
-               lowerModel.startsWith("o3") ||
-               lowerModel.startsWith("o4")
+        if (service.endpointRules.isNotEmpty()) {
+            return service.endpointRules.any {
+                lowerModel.startsWith(it.modelPrefix.lowercase()) && it.endpointType == "responses"
+            }
+        }
+        return false
     }
 
 }

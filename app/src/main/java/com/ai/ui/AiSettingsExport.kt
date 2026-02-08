@@ -39,7 +39,8 @@ data class ProviderConfigExport(
     val apiFormat: String? = null,             // "OPENAI_COMPATIBLE", "ANTHROPIC", "GOOGLE"
     val chatPath: String? = null,
     val modelsPath: String? = null,
-    val openRouterName: String? = null
+    val openRouterName: String? = null,
+    val endpointRules: List<com.ai.data.EndpointRule>? = null
 )
 
 data class AgentExport(
@@ -209,7 +210,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
             apiFormat = service.apiFormat.name,
             chatPath = service.chatPath,
             modelsPath = service.modelsPath,
-            openRouterName = service.openRouterName
+            openRouterName = service.openRouterName,
+            endpointRules = service.endpointRules.ifEmpty { null }
         )
     }
 
@@ -504,11 +506,19 @@ private fun processImportedConfig(
     currentSettings: AiSettings
 ): AiConfigImportResult {
     // Register provider definitions from import (creates missing providers in registry)
+    // and update endpoint rules on existing providers
     export.providerDefinitions?.let { defs ->
-        val newProviders = defs.mapNotNull { def ->
-            if (com.ai.data.ProviderRegistry.findById(def.id) == null) {
-                try { def.toAiService() } catch (e: Exception) { null }
-            } else null
+        val newProviders = mutableListOf<AiService>()
+        for (def in defs) {
+            val existing = com.ai.data.ProviderRegistry.findById(def.id)
+            if (existing == null) {
+                try { newProviders.add(def.toAiService()) } catch (_: Exception) {}
+            } else if (!def.endpointRules.isNullOrEmpty() && existing.endpointRules != def.endpointRules) {
+                // Update existing provider with imported endpoint rules
+                try {
+                    com.ai.data.ProviderRegistry.update(def.toAiService())
+                } catch (_: Exception) {}
+            }
         }
         if (newProviders.isNotEmpty()) {
             com.ai.data.ProviderRegistry.ensureProviders(newProviders)

@@ -11,7 +11,12 @@
     "modelsPath": "v1/models",
     "prefsKey": "ai_openai",
     "modelFilter": "gpt|o1|o3|o4",
-    "defaultModelSource": "API"
+    "defaultModelSource": "API",
+    "endpointRules": [
+      {"modelPrefix": "gpt-5", "endpointType": "responses"},
+      {"modelPrefix": "o3", "endpointType": "responses"},
+      {"modelPrefix": "o4", "endpointType": "responses"}
+    ]
   },
   {
     "id": "ANTHROPIC",

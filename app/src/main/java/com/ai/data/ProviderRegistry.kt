@@ -172,7 +172,8 @@ data class ProviderDefinition(
     val modelFilter: String? = null,
     val litellmPrefix: String? = null,
     val hardcodedModels: List<String>? = null,
-    val defaultModelSource: String? = null
+    val defaultModelSource: String? = null,
+    val endpointRules: List<EndpointRule>? = null
 ) {
     fun toAiService(): AiService = AiService(
         id = id,
@@ -194,7 +195,8 @@ data class ProviderDefinition(
         modelFilter = modelFilter,
         litellmPrefix = litellmPrefix,
         hardcodedModels = hardcodedModels,
-        defaultModelSource = defaultModelSource
+        defaultModelSource = defaultModelSource,
+        endpointRules = endpointRules ?: emptyList()
     )
 
     companion object {
@@ -218,7 +220,8 @@ data class ProviderDefinition(
             modelFilter = s.modelFilter,
             litellmPrefix = s.litellmPrefix,
             hardcodedModels = s.hardcodedModels,
-            defaultModelSource = s.defaultModelSource
+            defaultModelSource = s.defaultModelSource,
+            endpointRules = s.endpointRules.ifEmpty { null }
         )
     }
 }

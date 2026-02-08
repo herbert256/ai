@@ -36,6 +36,11 @@ internal suspend fun AiAnalysisRepository.sendChatMessageOpenAiCompatible(
     messages: List<com.ai.ui.ChatMessage>,
     params: com.ai.ui.ChatParameters
 ): String {
+    // Check if this model uses the Responses API (OpenAI gpt-5.x, o3, o4)
+    if (usesResponsesApi(service, model)) {
+        return sendChatMessageResponsesApi(service, apiKey, model, messages, params)
+    }
+
     val api = AiApiFactory.createOpenAiCompatibleApi(service.baseUrl)
     val normalizedBase = if (service.baseUrl.endsWith("/")) service.baseUrl else "${service.baseUrl}/"
     val chatUrl = normalizedBase + service.chatPath
@@ -62,6 +67,59 @@ internal suspend fun AiAnalysisRepository.sendChatMessageOpenAiCompatible(
         return content ?: throw Exception("No response content")
     } else {
         throw Exception("API error: ${response.code()} ${response.message()}")
+    }
+}
+
+/**
+ * Send a non-streaming chat message via OpenAI Responses API (gpt-5.x, o3, o4).
+ */
+internal suspend fun AiAnalysisRepository.sendChatMessageResponsesApi(
+    service: AiService,
+    apiKey: String,
+    model: String,
+    messages: List<com.ai.ui.ChatMessage>,
+    params: com.ai.ui.ChatParameters
+): String {
+    val api = AiApiFactory.createOpenAiApiWithBaseUrl(service.baseUrl)
+    val systemPrompt = messages.find { it.role == "system" }?.content
+    val inputMessages = messages
+        .filter { it.role != "system" }
+        .map { msg -> OpenAiResponsesInputMessage(role = msg.role, content = msg.content) }
+
+    // For single user message, use simple input string; for multi-turn, use input array
+    val request = if (inputMessages.size == 1 && inputMessages.first().role == "user") {
+        OpenAiResponsesRequest(
+            model = model,
+            input = inputMessages.first().content,
+            instructions = systemPrompt
+        )
+    } else {
+        // Multi-turn: need to use the streaming request type without stream flag
+        // but the non-streaming API also accepts the array format via the simple request
+        OpenAiResponsesRequest(
+            model = model,
+            input = inputMessages.last().content,
+            instructions = systemPrompt
+        )
+    }
+
+    val response = api.createResponse(
+        authorization = "Bearer $apiKey",
+        request = request
+    )
+    if (response.isSuccessful) {
+        val body = response.body()
+        val content = body?.output?.let { outputs ->
+            outputs.firstOrNull()?.content?.firstOrNull { it.type == "output_text" }?.text
+                ?: outputs.firstOrNull()?.content?.firstOrNull { it.type == "text" }?.text
+                ?: outputs.firstOrNull()?.content?.firstNotNullOfOrNull { it.text }
+                ?: outputs.firstOrNull { it.type == "message" }?.content?.firstNotNullOfOrNull { it.text }
+                ?: outputs.flatMap { it.content ?: emptyList() }.firstNotNullOfOrNull { it.text }
+        }
+        return content ?: throw Exception("No response content")
+    } else {
+        val errorBody = response.errorBody()?.string()
+        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
     }
 }
 

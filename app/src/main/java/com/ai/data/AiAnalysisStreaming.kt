@@ -305,7 +305,7 @@ internal fun AiAnalysisRepository.streamChatOpenAiCompatible(
     params: com.ai.ui.ChatParameters,
     baseUrl: String
 ): Flow<String> = flow {
-    if (usesResponsesApi(model)) {
+    if (usesResponsesApi(service, model)) {
         val api = AiApiFactory.createOpenAiStreamApiWithBaseUrl(baseUrl)
         val inputMessages = messages.map { msg ->
             OpenAiResponsesInputMessage(role = msg.role, content = msg.content)

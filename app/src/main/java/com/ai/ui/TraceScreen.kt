@@ -566,11 +566,13 @@ fun TraceDetailScreen(
     val isSuccess = statusCode in 200..299
     val backgroundColor = if (isSuccess) MaterialTheme.colorScheme.background else Color(0xFF4A1515)
 
+    val smallButtonPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
-            .padding(16.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         AiTitleBar(
             title = "Trace Detail - $statusCode",
@@ -578,11 +580,11 @@ fun TraceDetailScreen(
             onAiClick = onNavigateHome
         )
 
-        // Centered endpoint URL display
+        // Endpoint URL
         Text(
             text = trace.request.url,
             color = Color(0xFFAAAAAA),
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -590,89 +592,64 @@ fun TraceDetailScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-        // Centered "All" button
+        // All 5 view buttons in 2 rows
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Button(
                 onClick = { currentView = TraceContentView.ALL },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentView == TraceContentView.ALL) activeButtonColor else inactiveButtonColor
-                )
-            ) {
-                Text("All", fontSize = 12.sp)
+                ),
+                contentPadding = smallButtonPadding,
+                modifier = Modifier.weight(1f)
+            ) { Text("All", fontSize = 11.sp) }
+            if (hasRequestHeaders) {
+                Button(
+                    onClick = { currentView = TraceContentView.REQUEST_HEADERS },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (currentView == TraceContentView.REQUEST_HEADERS) activeButtonColor else inactiveButtonColor
+                    ),
+                    contentPadding = smallButtonPadding,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Req Hdr", fontSize = 11.sp) }
+            }
+            if (hasResponseHeaders) {
+                Button(
+                    onClick = { currentView = TraceContentView.RESPONSE_HEADERS },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (currentView == TraceContentView.RESPONSE_HEADERS) activeButtonColor else inactiveButtonColor
+                    ),
+                    contentPadding = smallButtonPadding,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Rsp Hdr", fontSize = 11.sp) }
+            }
+            if (hasRequestData) {
+                Button(
+                    onClick = { currentView = TraceContentView.REQUEST_DATA },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (currentView == TraceContentView.REQUEST_DATA) activeButtonColor else inactiveButtonColor
+                    ),
+                    contentPadding = smallButtonPadding,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Req Data", fontSize = 11.sp) }
+            }
+            if (hasResponseData) {
+                Button(
+                    onClick = { currentView = TraceContentView.RESPONSE_DATA },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (currentView == TraceContentView.RESPONSE_DATA) activeButtonColor else inactiveButtonColor
+                    ),
+                    contentPadding = smallButtonPadding,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Rsp Data", fontSize = 11.sp) }
             }
         }
 
         Spacer(modifier = Modifier.height(4.dp))
-
-        // Row 1: Request headers, Response headers (Headers before Data)
-        if (hasRequestHeaders || hasResponseHeaders) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (hasRequestHeaders) {
-                    Button(
-                        onClick = { currentView = TraceContentView.REQUEST_HEADERS },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentView == TraceContentView.REQUEST_HEADERS) activeButtonColor else inactiveButtonColor
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Request headers", fontSize = 12.sp)
-                    }
-                }
-                if (hasResponseHeaders) {
-                    Button(
-                        onClick = { currentView = TraceContentView.RESPONSE_HEADERS },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentView == TraceContentView.RESPONSE_HEADERS) activeButtonColor else inactiveButtonColor
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Response headers", fontSize = 12.sp)
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-
-        // Row 2: Request data, Response data (Data after Headers)
-        if (hasRequestData || hasResponseData) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (hasRequestData) {
-                    Button(
-                        onClick = { currentView = TraceContentView.REQUEST_DATA },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentView == TraceContentView.REQUEST_DATA) activeButtonColor else inactiveButtonColor
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Request data", fontSize = 12.sp)
-                    }
-                }
-                if (hasResponseData) {
-                    Button(
-                        onClick = { currentView = TraceContentView.RESPONSE_DATA },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentView == TraceContentView.RESPONSE_DATA) activeButtonColor else inactiveButtonColor
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Response data", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Content area
         Box(
@@ -681,7 +658,6 @@ fun TraceDetailScreen(
                 .fillMaxWidth()
                 .background(Color(0xFF1A1A1A))
         ) {
-            // Use JSON tree view for request/response data when parseable
             val treeNodes = when (currentView) {
                 TraceContentView.REQUEST_DATA -> requestTreeNodes
                 TraceContentView.RESPONSE_DATA -> responseTreeNodes
@@ -713,13 +689,25 @@ fun TraceDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-        // Bottom buttons row: Copy and Share
+        // Bottom row: Prev, Copy, Share, Next — all on one line
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            if (traceFiles.size > 1) {
+                Button(
+                    onClick = { if (hasPrevious) currentFilename = traceFiles[currentIndex - 1] },
+                    enabled = hasPrevious,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF555555),
+                        disabledContainerColor = Color(0xFF333333)
+                    ),
+                    contentPadding = smallButtonPadding,
+                    modifier = Modifier.weight(1f)
+                ) { Text("<", fontSize = 12.sp, color = if (hasPrevious) Color.White else Color(0xFF666666)) }
+            }
             Button(
                 onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -727,28 +715,18 @@ fun TraceDetailScreen(
                     clipboard.setPrimaryClip(clip)
                     Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                 },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3366BB)
-                ),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Copy to clipboard")
-            }
-
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3366BB)),
+                contentPadding = smallButtonPadding,
+                modifier = Modifier.weight(2f)
+            ) { Text("Copy", fontSize = 12.sp) }
             Button(
                 onClick = {
                     try {
                         val cacheDir = File(context.cacheDir, "shared_traces")
                         cacheDir.mkdirs()
-                        val tempFile = File(cacheDir, filename)
+                        val tempFile = File(cacheDir, currentFilename)
                         tempFile.writeText(rawJson)
-
-                        val uri = FileProvider.getUriForFile(
-                            context,
-                            "${context.packageName}.fileprovider",
-                            tempFile
-                        )
-
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "application/json"
                             putExtra(Intent.EXTRA_SUBJECT, "API Trace: ${trace.hostname}")
@@ -760,33 +738,11 @@ fun TraceDetailScreen(
                         Toast.makeText(context, "Failed to share: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
-                ),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Share data")
-            }
-        }
-
-        // Previous / Next navigation
-        if (traceFiles.size > 1) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { if (hasPrevious) currentFilename = traceFiles[currentIndex - 1] },
-                    enabled = hasPrevious,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF555555),
-                        disabledContainerColor = Color(0xFF333333)
-                    ),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("< Previous", color = if (hasPrevious) Color.White else Color(0xFF666666))
-                }
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                contentPadding = smallButtonPadding,
+                modifier = Modifier.weight(2f)
+            ) { Text("Share", fontSize = 12.sp) }
+            if (traceFiles.size > 1) {
                 Button(
                     onClick = { if (hasNext) currentFilename = traceFiles[currentIndex + 1] },
                     enabled = hasNext,
@@ -794,10 +750,9 @@ fun TraceDetailScreen(
                         containerColor = Color(0xFF555555),
                         disabledContainerColor = Color(0xFF333333)
                     ),
+                    contentPadding = smallButtonPadding,
                     modifier = Modifier.weight(1f)
-                ) {
-                    Text("Next >", color = if (hasNext) Color.White else Color(0xFF666666))
-                }
+                ) { Text(">", fontSize = 12.sp, color = if (hasNext) Color.White else Color(0xFF666666)) }
             }
         }
     }
