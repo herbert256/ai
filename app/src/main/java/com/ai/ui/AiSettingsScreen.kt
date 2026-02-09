@@ -369,10 +369,12 @@ fun AiProvidersScreen(
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onProviderSelected: (AiService) -> Unit,
-    onAddProvider: () -> Unit = {}
+    onAddProvider: (AiService) -> Unit = {}
 ) {
     // Toggle between showing only active ("ok") providers and all providers
     var showAll by remember { mutableStateOf(false) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newProviderName by remember { mutableStateOf("") }
 
     // Provider definitions: service and title, built dynamically from registry
     data class ProviderEntry(
@@ -406,11 +408,11 @@ fun AiProvidersScreen(
 
         // Add Provider button
         OutlinedButton(
-            onClick = onAddProvider,
+            onClick = { newProviderName = ""; showAddDialog = true },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4CAF50))
         ) {
-            Text("+ Add Custom Provider")
+            Text("+ Add Provider")
         }
 
         // Provider cards
@@ -435,6 +437,47 @@ fun AiProvidersScreen(
                 else "Show all providers (${allProviders.size})"
             )
         }
+    }
+
+    if (showAddDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Add Provider", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = newProviderName,
+                    onValueChange = { newProviderName = it },
+                    label = { Text("Provider name") },
+                    placeholder = { Text("e.g. My Local LLM") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newProviderName.isNotBlank()) {
+                            val id = newProviderName.trim().uppercase().replace(Regex("[^A-Z0-9]"), "_")
+                            val prefsKey = newProviderName.trim().lowercase().replace(Regex("[^a-z0-9]"), "_")
+                            val newService = AiService(
+                                id = id,
+                                displayName = newProviderName.trim(),
+                                baseUrl = "https://",
+                                adminUrl = "",
+                                defaultModel = "",
+                                prefsKey = prefsKey
+                            )
+                            showAddDialog = false
+                            onAddProvider(newService)
+                        }
+                    },
+                    enabled = newProviderName.isNotBlank()
+                ) { Text("Create") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 

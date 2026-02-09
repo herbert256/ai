@@ -30,6 +30,62 @@ import com.ai.data.PricingCache
 import kotlinx.coroutines.launch
 
 /**
+ * Reusable collapsible card with a clickable title header.
+ * Collapsed by default, click to expand/collapse.
+ */
+@Composable
+fun CollapsibleCard(
+    title: String,
+    defaultExpanded: Boolean = false,
+    summary: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var expanded by remember { mutableStateOf(defaultExpanded) }
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f)
+                )
+                if (summary != null && !expanded) {
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF888888),
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+                Text(
+                    text = if (expanded) "▾" else "▸",
+                    color = Color(0xFF888888),
+                    fontSize = 16.sp
+                )
+            }
+            if (expanded) {
+                content()
+            }
+        }
+    }
+}
+
+/**
  * Format a per-token price as per-million-token display string.
  */
 private fun formatPrice(pricePerToken: Double): String {
@@ -868,15 +924,10 @@ fun AiServiceSettingsScreenTemplate(
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
     apiKey: String = "",
-    defaultModel: String = "",
-    availableModels: List<String> = emptyList(),
-    onDefaultModelChange: (String) -> Unit = {},
     adminUrl: String = "",
     onAdminUrlChange: (String) -> Unit = {},
     onTestApiKey: (suspend () -> String?)? = null,
-    onCreateAgent: (() -> Unit)? = null,
     onProviderStateChange: ((String) -> Unit)? = null,
-    onSelectDefaultModel: (() -> Unit)? = null,
     additionalContent: @Composable ColumnScope.() -> Unit
 ) {
     val context = LocalContext.current
@@ -914,19 +965,6 @@ fun AiServiceSettingsScreenTemplate(
                 onBackClick = handleBack,
                 onAiClick = onBackToHome
             )
-
-            // Create AI Agent button (only show if API key is configured)
-            if (onCreateAgent != null && apiKey.isNotBlank()) {
-                Button(
-                    onClick = onCreateAgent,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2196F3)
-                    )
-                ) {
-                    Text("Create Agent")
-                }
-            }
 
             // Admin URL (editable with open button)
             Card(
@@ -982,70 +1020,7 @@ fun AiServiceSettingsScreenTemplate(
                 }
             }
 
-            // Default Model (selectable from available models)
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Default Model",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Model used for API key testing and new agents",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFAAAAAA)
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = defaultModel,
-                            onValueChange = onDefaultModelChange,
-                            label = { Text("Model name") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            )
-                        )
-                        if (onSelectDefaultModel != null) {
-                            Button(
-                                onClick = onSelectDefaultModel,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF6366F1)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Text("Select", fontSize = 12.sp)
-                            }
-                        }
-                    }
-
-                    if (availableModels.isEmpty()) {
-                        Text(
-                            text = "Enter model name manually or configure model list below",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF888888)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Additional content (model selection, etc.)
+            // Additional content
             additionalContent()
         }
 
@@ -1094,23 +1069,8 @@ fun ApiKeyInputSection(
     var testSuccess by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "API Key",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-
+    val keySummary = if (apiKey.isBlank()) "not set" else "••••${apiKey.takeLast(4)}"
+    CollapsibleCard(title = "API Key", summary = keySummary) {
             OutlinedTextField(
                 value = apiKey,
                 onValueChange = {
@@ -1184,171 +1144,271 @@ fun ApiKeyInputSection(
                     }
                 }
             }
-        }
     }
 }
 
 /**
- * Unified model selection section with source toggle (API vs Manual).
+ * Unified Models section combining default model, model list management, and model info settings.
  */
 @Composable
-fun UnifiedModelSelectionSection(
+fun ModelsSection(
+    defaultModel: String,
+    onDefaultModelChange: (String) -> Unit,
+    onSelectDefaultModel: (() -> Unit)? = null,
     modelSource: ModelSource,
     models: List<String>,
     isLoadingModels: Boolean,
     onModelSourceChange: (ModelSource) -> Unit,
     onModelsChange: (List<String>) -> Unit,
-    onFetchModels: () -> Unit
+    onFetchModels: () -> Unit,
+    modelListUrl: String = "",
+    defaultModelListUrl: String = "",
+    onModelListUrlChange: (String) -> Unit = {},
+    modelsPath: String = "v1/models",
+    modelsPathNull: Boolean = false,
+    onModelsPathChange: (String) -> Unit = {},
+    onModelsPathNullChange: (Boolean) -> Unit = {},
+    modelFilter: String = "",
+    onModelFilterChange: (String) -> Unit = {},
+    modelListFormat: String = "object",
+    onModelListFormatChange: (String) -> Unit = {},
+    litellmPrefix: String = "",
+    onLitellmPrefixChange: (String) -> Unit = {}
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf<String?>(null) }
     var newModelName by remember { mutableStateOf("") }
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    val modelsSummary = if (defaultModel.isNotBlank()) defaultModel else "${models.size} models"
+    CollapsibleCard(title = "Models", summary = modelsSummary) {
+        // Default Model
+        Text(
+            text = "Default model used for API key testing and new agents",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFAAAAAA)
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = defaultModel,
+                onValueChange = onDefaultModelChange,
+                label = { Text("Default Model") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                )
+            )
+            if (onSelectDefaultModel != null) {
+                Button(
+                    onClick = onSelectDefaultModel,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF6366F1)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Model list URL
+        OutlinedTextField(
+            value = modelListUrl,
+            onValueChange = onModelListUrlChange,
+            label = { Text("Model List URL") },
+            placeholder = { Text(defaultModelListUrl) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            )
+        )
+        if (modelListUrl.isBlank() && defaultModelListUrl.isNotBlank()) {
+            Text(
+                text = "Default: $defaultModelListUrl",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF888888)
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = if (modelsPathNull) "" else modelsPath,
+                onValueChange = { onModelsPathChange(it); onModelsPathNullChange(false) },
+                label = { Text("Models Path") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                enabled = !modelsPathNull,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("None", style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888))
+                Switch(checked = modelsPathNull, onCheckedChange = onModelsPathNullChange)
+            }
+        }
+
+        OutlinedTextField(
+            value = modelFilter,
+            onValueChange = onModelFilterChange,
+            label = { Text("Model Filter Regex") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            supportingText = { Text("Only models matching this regex are shown") },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        OutlinedTextField(
+            value = litellmPrefix,
+            onValueChange = onLitellmPrefixChange,
+            label = { Text("LiteLLM Prefix") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF6B9BFF),
+                unfocusedBorderColor = Color(0xFF444444)
+            )
+        )
+
+        // Model list format dropdown
+        var listFormatExpanded by remember { mutableStateOf(false) }
+        Box {
+            OutlinedTextField(
+                value = modelListFormat,
+                onValueChange = {},
+                label = { Text("Model List Format") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { listFormatExpanded = true },
+                readOnly = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF6B9BFF),
+                    unfocusedBorderColor = Color(0xFF444444)
+                )
+            )
+            DropdownMenu(
+                expanded = listFormatExpanded,
+                onDismissRequest = { listFormatExpanded = false }
+            ) {
+                listOf("object", "array", "google").forEach { fmt ->
+                    DropdownMenuItem(
+                        text = { Text(fmt) },
+                        onClick = { onModelListFormatChange(fmt); listFormatExpanded = false }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Model source toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Models",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                text = "Model source:",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFAAAAAA)
             )
+            FilterChip(
+                selected = modelSource == ModelSource.API,
+                onClick = { onModelSourceChange(ModelSource.API) },
+                label = { Text("API") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = Color.White
+                )
+            )
+            FilterChip(
+                selected = modelSource == ModelSource.MANUAL,
+                onClick = { onModelSourceChange(ModelSource.MANUAL) },
+                label = { Text("Manual") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = Color.White
+                )
+            )
+        }
 
-            // Model source toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        // API mode: Fetch button and model list
+        if (modelSource == ModelSource.API) {
+            Button(
+                onClick = onFetchModels,
+                enabled = !isLoadingModels
             ) {
-                Text(
-                    text = "Model source:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
-                )
-                FilterChip(
-                    selected = modelSource == ModelSource.API,
-                    onClick = { onModelSourceChange(ModelSource.API) },
-                    label = { Text("API") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White
+                if (isLoadingModels) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
                     )
-                )
-                FilterChip(
-                    selected = modelSource == ModelSource.MANUAL,
-                    onClick = { onModelSourceChange(ModelSource.MANUAL) },
-                    label = { Text("Manual") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White
-                    )
-                )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Loading...")
+                } else {
+                    Text("Retrieve models")
+                }
             }
 
-            // API mode: Fetch button and model list
-            if (modelSource == ModelSource.API) {
-                Button(
-                    onClick = onFetchModels,
-                    enabled = !isLoadingModels
-                ) {
-                    if (isLoadingModels) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Loading...")
-                    } else {
-                        Text("Retrieve models")
-                    }
-                }
-
-                if (models.isNotEmpty()) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        models.forEach { model ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        Color(0xFF2A3A4A),
-                                        shape = MaterialTheme.shapes.small
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = model,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
+            if (models.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    models.forEach { model ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = model, color = Color.White, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
             }
+        }
 
-            // Manual mode: Add button and model list management
-            if (modelSource == ModelSource.MANUAL) {
-                Button(
-                    onClick = {
-                        newModelName = ""
-                        showAddDialog = true
-                    }
-                ) {
-                    Text("+ Add model")
-                }
+        // Manual mode: Add button and model list management
+        if (modelSource == ModelSource.MANUAL) {
+            Button(onClick = { newModelName = ""; showAddDialog = true }) {
+                Text("+ Add model")
+            }
 
-                // Show current manual models with edit/delete
-                if (models.isNotEmpty()) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        models.forEach { model ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        Color(0xFF2A3A4A),
-                                        shape = MaterialTheme.shapes.small
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = model,
-                                    color = Color.White,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = {
-                                        editingModel = model
-                                        newModelName = model
-                                        showAddDialog = true
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Text("✎", color = Color(0xFFAAAAAA))
-                                }
-                                IconButton(
-                                    onClick = {
-                                        val newList = models.filter { it != model }
-                                        onModelsChange(newList)
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Text("✕", color = Color(0xFFFF6666))
-                                }
-                            }
+            if (models.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    models.forEach { model ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = model, color = Color.White, modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = { editingModel = model; newModelName = model; showAddDialog = true },
+                                modifier = Modifier.size(32.dp)
+                            ) { Text("\u270E", color = Color(0xFFAAAAAA)) }
+                            IconButton(
+                                onClick = { onModelsChange(models.filter { it != model }) },
+                                modifier = Modifier.size(32.dp)
+                            ) { Text("\u2715", color = Color(0xFFFF6666)) }
                         }
                     }
                 }
@@ -1359,10 +1419,7 @@ fun UnifiedModelSelectionSection(
     // Add/Edit model dialog
     if (showAddDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showAddDialog = false
-                editingModel = null
-            },
+            onDismissRequest = { showAddDialog = false; editingModel = null },
             title = {
                 Text(
                     if (editingModel != null) "Edit Model" else "Add Model",
@@ -1393,73 +1450,12 @@ fun UnifiedModelSelectionSection(
                         editingModel = null
                     },
                     enabled = newModelName.isNotBlank()
-                ) {
-                    Text("Save")
-                }
+                ) { Text("Save") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showAddDialog = false
-                    editingModel = null
-                }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showAddDialog = false; editingModel = null }) { Text("Cancel") }
             }
         )
-    }
-}
-
-/**
- * Model List URL section for provider settings.
- * Allows configuring a custom URL for fetching the model list.
- */
-@Composable
-fun ModelListUrlSection(
-    modelListUrl: String,
-    defaultModelListUrl: String,
-    onModelListUrlChange: (String) -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Model List URL",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            Text(
-                text = "Custom URL for retrieving the model list (leave empty for default)",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
-            )
-            OutlinedTextField(
-                value = modelListUrl,
-                onValueChange = onModelListUrlChange,
-                label = { Text("URL") },
-                placeholder = { Text(defaultModelListUrl) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
-            )
-            if (modelListUrl.isBlank()) {
-                Text(
-                    text = "Default: $defaultModelListUrl",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF888888)
-                )
-            }
-        }
     }
 }
 
@@ -1490,23 +1486,8 @@ fun EndpointsSection(
         endpoints
     }
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "API Endpoints",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-
+    val endpointsSummary = "${effectiveEndpoints.size} endpoint${if (effectiveEndpoints.size != 1) "s" else ""}"
+    CollapsibleCard(title = "API Endpoints", summary = endpointsSummary) {
             Text(
                 text = "Configure custom API endpoints for this provider",
                 style = MaterialTheme.typography.bodySmall,
@@ -1614,7 +1595,6 @@ fun EndpointsSection(
                     }
                 }
             }
-        }
     }
 
     // Add/Edit endpoint dialog

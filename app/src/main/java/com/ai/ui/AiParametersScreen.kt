@@ -550,34 +550,117 @@ fun ParametersSelector(
     onParamsSelected: (List<String>) -> Unit,
     label: String = "Parameters"
 ) {
-    var showParametersDialog by remember { mutableStateOf(false) }
-    val hasParams = selectedParametersIds.isNotEmpty()
+    var showAddDialog by remember { mutableStateOf(false) }
+    val selectedParams = selectedParametersIds.mapNotNull { id ->
+        aiSettings.parameters.find { it.id == id }
+    }
+    val availableParams = aiSettings.parameters
+        .filter { it.id !in selectedParametersIds }
+        .sortedBy { it.name.lowercase() }
 
-    Button(
-        onClick = { showParametersDialog = true },
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        if (hasParams) {
-            Text("⚙ ", fontSize = 14.sp)
+    val summary = if (selectedParams.isEmpty()) "none" else "${selectedParams.size} selected"
+    CollapsibleCard(title = label, summary = summary) {
+        if (selectedParams.isEmpty()) {
+            Text(
+                text = "No parameter presets assigned",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF888888)
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                selectedParams.forEach { params ->
+                    val configuredCount = listOfNotNull(
+                        params.temperature, params.maxTokens, params.topP, params.topK,
+                        params.frequencyPenalty, params.presencePenalty,
+                        params.systemPrompt?.takeIf { it.isNotBlank() }, params.seed
+                    ).size + listOf(params.responseFormatJson, params.searchEnabled, params.returnCitations)
+                        .count { it } + (if (params.searchRecency != null) 1 else 0)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(params.name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "$configuredCount param${if (configuredCount == 1) "" else "s"}",
+                                fontSize = 12.sp, color = Color.Gray
+                            )
+                        }
+                        IconButton(
+                            onClick = { onParamsSelected(selectedParametersIds.filter { it != params.id }) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Text("\u2715", color = Color(0xFFFF6666))
+                        }
+                    }
+                }
+            }
         }
-        Text(
-            if (hasParams) "$label (${selectedParametersIds.size})" else label,
-            fontSize = 14.sp
-        )
+
+        if (availableParams.isNotEmpty()) {
+            Button(
+                onClick = { showAddDialog = true },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text("+ Add", fontSize = 12.sp)
+            }
+        } else if (aiSettings.parameters.isEmpty()) {
+            Text(
+                "No parameter presets configured.\nGo to AI Setup > Parameters to create presets.",
+                fontSize = 12.sp, color = Color.Gray
+            )
+        }
     }
 
-    // Multi-select Parameters Dialog
-    if (showParametersDialog) {
-        ParametersSelectorDialog(
-            aiSettings = aiSettings,
-            selectedParametersIds = selectedParametersIds,
-            onParamsSelected = { ids ->
-                onParamsSelected(ids)
-                showParametersDialog = false
+    if (showAddDialog && availableParams.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Add Parameters", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    availableParams.forEach { params ->
+                        val configuredCount = listOfNotNull(
+                            params.temperature, params.maxTokens, params.topP, params.topK,
+                            params.frequencyPenalty, params.presencePenalty,
+                            params.systemPrompt?.takeIf { it.isNotBlank() }, params.seed
+                        ).size + listOf(params.responseFormatJson, params.searchEnabled, params.returnCitations)
+                            .count { it } + (if (params.searchRecency != null) 1 else 0)
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onParamsSelected(selectedParametersIds + params.id)
+                                    showAddDialog = false
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(params.name, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                Text(
+                                    "$configuredCount param${if (configuredCount == 1) "" else "s"} configured",
+                                    fontSize = 12.sp, color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                }
             },
-            onDismiss = { showParametersDialog = false }
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+            },
+            confirmButton = {}
         )
     }
 }

@@ -222,7 +222,6 @@ fun ProviderSettingsScreen(
     var defModelFilter by remember { mutableStateOf(service.modelFilter ?: "") }
     var defLitellmPrefix by remember { mutableStateOf(service.litellmPrefix ?: "") }
     var defEndpointRules by remember { mutableStateOf(service.endpointRules) }
-    var showDefinitionSection by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showDefAddRuleDialog by remember { mutableStateOf(false) }
     var defEditingRuleIndex by remember { mutableIntStateOf(-1) }
@@ -330,15 +329,10 @@ fun ProviderSettingsScreen(
         onBackToAiSettings = onBackToAiSettings,
         onBackToHome = onBackToHome,
         apiKey = apiKey,
-        defaultModel = defaultModel,
-        availableModels = models,
-        onDefaultModelChange = { defaultModel = it },
         adminUrl = adminUrl,
         onAdminUrlChange = { adminUrl = it },
         onTestApiKey = { onTestApiKey(service, apiKey, defaultModel) },
-        onCreateAgent = onCreateAgent,
-        onProviderStateChange = onProviderStateChange,
-        onSelectDefaultModel = { showModelSelect = true }
+        onProviderStateChange = onProviderStateChange
     ) {
         // Provider state with inactive toggle
         val scope = rememberCoroutineScope()
@@ -436,61 +430,34 @@ fun ProviderSettingsScreen(
             defaultEndpointUrl = service.baseUrl,
             onEndpointsChange = { endpoints = it }
         )
-        ModelListUrlSection(
-            modelListUrl = modelListUrl,
-            defaultModelListUrl = aiSettings.getDefaultModelListUrl(service),
-            onModelListUrlChange = { modelListUrl = it }
-        )
-        UnifiedModelSelectionSection(
+        ModelsSection(
+            defaultModel = defaultModel,
+            onDefaultModelChange = { defaultModel = it },
+            onSelectDefaultModel = { showModelSelect = true },
             modelSource = modelSource,
             models = models,
             isLoadingModels = isLoadingModels,
             onModelSourceChange = { modelSource = it },
             onModelsChange = { models = it },
-            onFetchModels = { onFetchModels(apiKey) }
+            onFetchModels = { onFetchModels(apiKey) },
+            modelListUrl = modelListUrl,
+            defaultModelListUrl = aiSettings.getDefaultModelListUrl(service),
+            onModelListUrlChange = { modelListUrl = it },
+            modelsPath = defModelsPath,
+            modelsPathNull = defModelsPathNull,
+            onModelsPathChange = { defModelsPath = it },
+            onModelsPathNullChange = { defModelsPathNull = it },
+            modelFilter = defModelFilter,
+            onModelFilterChange = { defModelFilter = it },
+            modelListFormat = defModelListFormat,
+            onModelListFormatChange = { defModelListFormat = it },
+            litellmPrefix = defLitellmPrefix,
+            onLitellmPrefixChange = { defLitellmPrefix = it }
         )
 
-        // Collapsible Provider Definition section
+        // Provider Definition section
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = { showDefinitionSection = !showDefinitionSection },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (showDefinitionSection) "Hide Provider Definition" else "Show Provider Definition")
-        }
-
-        if (showDefinitionSection) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "Provider Definition",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-
-                    // ID (read-only)
-                    OutlinedTextField(
-                        value = service.id,
-                        onValueChange = {},
-                        label = { Text("Provider ID") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
-                        )
-                    )
-
+        CollapsibleCard(title = "Provider Definition") {
                     OutlinedTextField(
                         value = defDisplayName,
                         onValueChange = { defDisplayName = it },
@@ -507,18 +474,6 @@ fun ProviderSettingsScreen(
                         value = defBaseUrl,
                         onValueChange = { defBaseUrl = it },
                         label = { Text("Base URL") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = defDefaultModel,
-                        onValueChange = { defDefaultModel = it },
-                        label = { Text("Default Model") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -587,44 +542,6 @@ fun ProviderSettingsScreen(
                         )
                     )
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        OutlinedTextField(
-                            value = if (defModelsPathNull) "" else defModelsPath,
-                            onValueChange = { defModelsPath = it; defModelsPathNull = false },
-                            label = { Text("Models Path") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            enabled = !defModelsPathNull,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6B9BFF),
-                                unfocusedBorderColor = Color(0xFF444444)
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("None", style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888))
-                            Switch(
-                                checked = defModelsPathNull,
-                                onCheckedChange = { defModelsPathNull = it }
-                            )
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = defAdminUrl,
-                        onValueChange = { defAdminUrl = it },
-                        label = { Text("Admin URL") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
-                        )
-                    )
-
                     OutlinedTextField(
                         value = defPrefsKey,
                         onValueChange = { defPrefsKey = it.lowercase().replace(Regex("[^a-z0-9_]"), "") },
@@ -662,59 +579,6 @@ fun ProviderSettingsScreen(
                             unfocusedBorderColor = Color(0xFF444444)
                         )
                     )
-
-                    OutlinedTextField(
-                        value = defModelFilter,
-                        onValueChange = { defModelFilter = it },
-                        label = { Text("Model Filter Regex") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = defLitellmPrefix,
-                        onValueChange = { defLitellmPrefix = it },
-                        label = { Text("LiteLLM Prefix") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
-                        )
-                    )
-
-                    // Model list format dropdown
-                    var defListFormatExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        OutlinedTextField(
-                            value = defModelListFormat,
-                            onValueChange = {},
-                            label = { Text("Model List Format") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { defListFormatExpanded = true },
-                            readOnly = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6B9BFF),
-                                unfocusedBorderColor = Color(0xFF444444)
-                            )
-                        )
-                        DropdownMenu(
-                            expanded = defListFormatExpanded,
-                            onDismissRequest = { defListFormatExpanded = false }
-                        ) {
-                            listOf("object", "array", "google").forEach { fmt ->
-                                DropdownMenuItem(
-                                    text = { Text(fmt) },
-                                    onClick = { defModelListFormat = fmt; defListFormatExpanded = false }
-                                )
-                            }
-                        }
-                    }
 
                     // Boolean toggles
                     Row(
@@ -789,60 +653,58 @@ fun ProviderSettingsScreen(
                         }
                     }
                 }
-            }
 
-            // Add/Edit Rule Dialog for definition endpoint rules
-            if (showDefAddRuleDialog) {
-                val editing = defEditingRuleIndex >= 0
-                val existingRule = if (editing) defEndpointRules[defEditingRuleIndex] else null
-                var rulePrefix by remember(showDefAddRuleDialog, defEditingRuleIndex) { mutableStateOf(existingRule?.modelPrefix ?: "") }
-                var ruleType by remember(showDefAddRuleDialog, defEditingRuleIndex) { mutableStateOf(existingRule?.endpointType ?: "responses") }
+        // Add/Edit Rule Dialog for definition endpoint rules
+        if (showDefAddRuleDialog) {
+            val editing = defEditingRuleIndex >= 0
+            val existingRule = if (editing) defEndpointRules[defEditingRuleIndex] else null
+            var rulePrefix by remember(showDefAddRuleDialog, defEditingRuleIndex) { mutableStateOf(existingRule?.modelPrefix ?: "") }
+            var ruleType by remember(showDefAddRuleDialog, defEditingRuleIndex) { mutableStateOf(existingRule?.endpointType ?: "responses") }
 
-                AlertDialog(
-                    onDismissRequest = { showDefAddRuleDialog = false },
-                    title = { Text(if (editing) "Edit Rule" else "Add Endpoint Rule") },
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = rulePrefix,
-                                onValueChange = { rulePrefix = it },
-                                label = { Text("Model Prefix") },
-                                placeholder = { Text("e.g. gpt-5, o3, o4") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                            Text("Endpoint Type:", color = Color.White, fontSize = 14.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("responses", "chat").forEach { type ->
-                                    FilterChip(
-                                        selected = ruleType == type,
-                                        onClick = { ruleType = type },
-                                        label = { Text(type) }
-                                    )
-                                }
+            AlertDialog(
+                onDismissRequest = { showDefAddRuleDialog = false },
+                title = { Text(if (editing) "Edit Rule" else "Add Endpoint Rule") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = rulePrefix,
+                            onValueChange = { rulePrefix = it },
+                            label = { Text("Model Prefix") },
+                            placeholder = { Text("e.g. gpt-5, o3, o4") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Text("Endpoint Type:", color = Color.White, fontSize = 14.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("responses", "chat").forEach { type ->
+                                FilterChip(
+                                    selected = ruleType == type,
+                                    onClick = { ruleType = type },
+                                    label = { Text(type) }
+                                )
                             }
                         }
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                if (rulePrefix.isNotBlank()) {
-                                    val newRule = EndpointRule(rulePrefix, ruleType)
-                                    defEndpointRules = if (editing) {
-                                        defEndpointRules.toMutableList().also { it[defEditingRuleIndex] = newRule }
-                                    } else {
-                                        defEndpointRules + newRule
-                                    }
-                                    showDefAddRuleDialog = false
-                                }
-                            }
-                        ) { Text("Save") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDefAddRuleDialog = false }) { Text("Cancel") }
                     }
-                )
-            }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (rulePrefix.isNotBlank()) {
+                                val newRule = EndpointRule(rulePrefix, ruleType)
+                                defEndpointRules = if (editing) {
+                                    defEndpointRules.toMutableList().also { it[defEditingRuleIndex] = newRule }
+                                } else {
+                                    defEndpointRules + newRule
+                                }
+                                showDefAddRuleDialog = false
+                            }
+                        }
+                    ) { Text("Save") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDefAddRuleDialog = false }) { Text("Cancel") }
+                }
+            )
         }
 
         // Delete Provider button

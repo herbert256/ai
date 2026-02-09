@@ -20,7 +20,6 @@ import com.ai.data.AiService
 enum class SettingsSubScreen {
     MAIN,
     AI_PROVIDER_EDIT,  // Dynamic provider editing (uses selectedProvider state)
-    AI_ADD_PROVIDER,   // Add new custom provider definition
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
     AI_PROVIDERS,   // Provider model configuration
@@ -115,7 +114,6 @@ fun SettingsScreen(
         when (currentSubScreen) {
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            SettingsSubScreen.AI_ADD_PROVIDER -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
@@ -193,17 +191,6 @@ fun SettingsScreen(
                 )
             }
         }
-        SettingsSubScreen.AI_ADD_PROVIDER -> ProviderDefinitionEditorScreen(
-            provider = null,
-            onSave = { newService ->
-                com.ai.data.ProviderRegistry.add(newService)
-                // Initialize provider config in settings
-                onSaveAi(aiSettings.withProvider(newService, defaultProviderConfig(newService)))
-                currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            },
-            onBack = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-            onNavigateHome = onNavigateHome
-        )
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
@@ -236,7 +223,12 @@ fun SettingsScreen(
                 selectedProvider = service
                 currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
             },
-            onAddProvider = { currentSubScreen = SettingsSubScreen.AI_ADD_PROVIDER }
+            onAddProvider = { newService ->
+                com.ai.data.ProviderRegistry.add(newService)
+                onSaveAi(aiSettings.withProvider(newService, defaultProviderConfig(newService)))
+                selectedProvider = newService
+                currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+            }
         )
         SettingsSubScreen.AI_AGENTS -> AiAgentsScreen(
             aiSettings = aiSettings,
