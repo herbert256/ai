@@ -811,11 +811,8 @@ fun AiServiceNavigationCard(
     providerState: String = if (hasApiKey) "ok" else "not-used",
     showStateDetails: Boolean = false,
     @Suppress("UNUSED_PARAMETER") adminUrl: String = "",
-    onEdit: () -> Unit,
-    onEditDefinition: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onEdit: () -> Unit
 ) {
-    var showMenu by remember { mutableStateOf(false) }
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -858,37 +855,6 @@ fun AiServiceNavigationCard(
                     "not-used" -> Text(text = "\u2B55", fontSize = 14.sp) // ⭕
                 }
             }
-
-            // Overflow menu for edit definition / delete
-            if (onEditDefinition != null || onDelete != null) {
-                Box {
-                    Text(
-                        text = "\u22EE",  // vertical ellipsis
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFF888888),
-                        modifier = Modifier
-                            .clickable { showMenu = true }
-                            .padding(horizontal = 4.dp)
-                    )
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        if (onEditDefinition != null) {
-                            DropdownMenuItem(
-                                text = { Text("Edit Definition") },
-                                onClick = { showMenu = false; onEditDefinition() }
-                            )
-                        }
-                        if (onDelete != null) {
-                            DropdownMenuItem(
-                                text = { Text("Delete", color = Color(0xFFFF5252)) },
-                                onClick = { showMenu = false; onDelete() }
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -901,8 +867,6 @@ fun AiServiceSettingsScreenTemplate(
     title: String,
     onBackToAiSettings: () -> Unit,
     onBackToHome: () -> Unit,
-    onSave: () -> Unit,
-    hasChanges: Boolean = false,
     apiKey: String = "",
     defaultModel: String = "",
     availableModels: List<String> = emptyList(),
@@ -917,24 +881,20 @@ fun AiServiceSettingsScreenTemplate(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var isSaving by remember { mutableStateOf(false) }
+    var isTesting by remember { mutableStateOf(false) }
 
-    // Handle save - always saves and navigates back.
-    // If API key is present, runs test first to determine provider state,
-    // but saves regardless of test outcome.
-    val handleSave: () -> Unit = {
+    // Test API key on back navigation, then navigate back
+    val handleBack: () -> Unit = {
         if (apiKey.isNotBlank() && onTestApiKey != null) {
-            isSaving = true
+            isTesting = true
             coroutineScope.launch {
                 val error = onTestApiKey()
                 onProviderStateChange?.invoke(if (error == null) "ok" else "error")
-                isSaving = false
-                onSave()
+                isTesting = false
                 onBackToAiSettings()
             }
         } else {
-            onProviderStateChange?.invoke(if (apiKey.isBlank()) "not-used" else "error")
-            onSave()
+            if (apiKey.isBlank()) onProviderStateChange?.invoke("not-used")
             onBackToAiSettings()
         }
     }
@@ -951,49 +911,20 @@ fun AiServiceSettingsScreenTemplate(
         ) {
             AiTitleBar(
                 title = title,
-                onBackClick = onBackToAiSettings,
+                onBackClick = handleBack,
                 onAiClick = onBackToHome
             )
 
-            // Save button at the top
-            // Buttons row: Save and Create AI Agent
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            // Create AI Agent button (only show if API key is configured)
+            if (onCreateAgent != null && apiKey.isNotBlank()) {
                 Button(
-                    onClick = handleSave,
-                    modifier = Modifier.weight(1f),
-                    enabled = hasChanges && !isSaving,
+                    onClick = onCreateAgent,
+                    modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50),
-                        disabledContainerColor = Color(0xFF2E7D32).copy(alpha = 0.5f)
+                        containerColor = Color(0xFF2196F3)
                     )
                 ) {
-                    if (isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Saving...")
-                    } else {
-                        Text("Save")
-                    }
-                }
-
-                // Create AI Agent button (only show if API key is configured)
-                if (onCreateAgent != null && apiKey.isNotBlank()) {
-                    Button(
-                        onClick = onCreateAgent,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2196F3)
-                        )
-                    ) {
-                        Text("Create Agent")
-                    }
+                    Text("Create Agent")
                 }
             }
 
@@ -1118,8 +1049,8 @@ fun AiServiceSettingsScreenTemplate(
             additionalContent()
         }
 
-        // Loading overlay when saving
-        if (isSaving) {
+        // Loading overlay when testing API key
+        if (isTesting) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

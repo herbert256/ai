@@ -212,7 +212,7 @@ data class OpenAiError(
 // OpenAI Responses API models (for GPT-5.x and newer models)
 data class OpenAiResponsesRequest(
     val model: String,
-    val input: String,
+    val input: Any,
     val instructions: String? = null
 )
 
@@ -837,4 +837,3 @@ interface GeminiStreamApi {
         @Body request: GeminiRequest
     ): Response<okhttp3.ResponseBody>
 }
-

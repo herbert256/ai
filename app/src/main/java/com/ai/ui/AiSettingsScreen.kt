@@ -369,13 +369,10 @@ fun AiProvidersScreen(
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onProviderSelected: (AiService) -> Unit,
-    onAddProvider: () -> Unit = {},
-    onEditProviderDef: (AiService) -> Unit = {},
-    onDeleteProvider: (AiService) -> Unit = {}
+    onAddProvider: () -> Unit = {}
 ) {
     // Toggle between showing only active ("ok") providers and all providers
     var showAll by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf<AiService?>(null) }
 
     // Provider definitions: service and title, built dynamically from registry
     data class ProviderEntry(
@@ -391,27 +388,6 @@ fun AiProvidersScreen(
         allProviders
     } else {
         allProviders.filter { aiSettings.getProviderState(it.service) == "ok" }
-    }
-
-    // Delete confirmation dialog
-    showDeleteConfirm?.let { service ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("Delete Provider") },
-            text = { Text("Delete \"${service.displayName}\"? This will also remove all agents and swarm members using this provider.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteProvider(service)
-                        showDeleteConfirm = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF5252))
-                ) { Text("Delete") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
-            }
-        )
     }
 
     Column(
@@ -444,9 +420,7 @@ fun AiProvidersScreen(
                 providerState = aiSettings.getProviderState(entry.service),
                 showStateDetails = showAll,
                 adminUrl = entry.service.adminUrl,
-                onEdit = { onProviderSelected(entry.service) },
-                onEditDefinition = { onEditProviderDef(entry.service) },
-                onDelete = { showDeleteConfirm = entry.service }
+                onEdit = { onProviderSelected(entry.service) }
             )
         }
 
@@ -498,6 +472,9 @@ fun ProviderDefinitionEditorScreen(
     var modelListFormat by remember { mutableStateOf(provider?.modelListFormat ?: "object") }
     var modelFilter by remember { mutableStateOf(provider?.modelFilter ?: "") }
     var litellmPrefix by remember { mutableStateOf(provider?.litellmPrefix ?: "") }
+    var endpointRules by remember { mutableStateOf(provider?.endpointRules ?: emptyList()) }
+    var showAddRuleDialog by remember { mutableStateOf(false) }
+    var editingRuleIndex by remember { mutableIntStateOf(-1) }
 
     // Validation
     val idValid = id.isNotBlank() && (!isNew || AiService.findById(id) == null)
@@ -813,6 +790,106 @@ fun ProviderDefinitionEditorScreen(
                 Text("Extract API Cost", color = Color.White)
                 Switch(checked = extractApiCost, onCheckedChange = { extractApiCost = it })
             }
+
+            // Endpoint Rules section
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Endpoint Rules", color = Color.White, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = { editingRuleIndex = -1; showAddRuleDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("+ Add", fontSize = 12.sp)
+                }
+            }
+            Text(
+                "Route models to different API endpoints by prefix",
+                color = Color(0xFF888888),
+                fontSize = 12.sp
+            )
+            endpointRules.forEachIndexed { index, rule ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF2A2A2A), shape = MaterialTheme.shapes.small)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("${rule.modelPrefix}*", color = Color(0xFF6B9BFF), fontSize = 14.sp)
+                        Text("→ ${rule.endpointType}", color = Color(0xFFAAAAAA), fontSize = 12.sp)
+                    }
+                    Row {
+                        IconButton(onClick = { editingRuleIndex = index; showAddRuleDialog = true }) {
+                            Text("✎", color = Color(0xFF888888))
+                        }
+                        IconButton(onClick = {
+                            endpointRules = endpointRules.toMutableList().also { it.removeAt(index) }
+                        }) {
+                            Text("✕", color = Color(0xFFCC4444))
+                        }
+                    }
+                }
+            }
+
+            // Add/Edit Rule Dialog
+            if (showAddRuleDialog) {
+                val editing = editingRuleIndex >= 0
+                val existingRule = if (editing) endpointRules[editingRuleIndex] else null
+                var rulePrefix by remember(showAddRuleDialog, editingRuleIndex) { mutableStateOf(existingRule?.modelPrefix ?: "") }
+                var ruleType by remember(showAddRuleDialog, editingRuleIndex) { mutableStateOf(existingRule?.endpointType ?: "responses") }
+
+                AlertDialog(
+                    onDismissRequest = { showAddRuleDialog = false },
+                    title = { Text(if (editing) "Edit Rule" else "Add Endpoint Rule") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = rulePrefix,
+                                onValueChange = { rulePrefix = it },
+                                label = { Text("Model Prefix") },
+                                placeholder = { Text("e.g. gpt-5, o3, o4") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Text("Endpoint Type:", color = Color.White, fontSize = 14.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("responses", "chat").forEach { type ->
+                                    FilterChip(
+                                        selected = ruleType == type,
+                                        onClick = { ruleType = type },
+                                        label = { Text(type) }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                if (rulePrefix.isNotBlank()) {
+                                    val newRule = com.ai.data.EndpointRule(rulePrefix, ruleType)
+                                    endpointRules = if (editing) {
+                                        endpointRules.toMutableList().also { it[editingRuleIndex] = newRule }
+                                    } else {
+                                        endpointRules + newRule
+                                    }
+                                    showAddRuleDialog = false
+                                }
+                            }
+                        ) { Text("Save") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddRuleDialog = false }) { Text("Cancel") }
+                    }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -838,7 +915,8 @@ fun ProviderDefinitionEditorScreen(
                     extractApiCost = extractApiCost,
                     modelListFormat = modelListFormat,
                     modelFilter = modelFilter.ifBlank { null },
-                    litellmPrefix = litellmPrefix.ifBlank { null }
+                    litellmPrefix = litellmPrefix.ifBlank { null },
+                    endpointRules = endpointRules
                 )
                 onSave(service)
             },

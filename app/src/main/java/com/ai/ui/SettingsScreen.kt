@@ -21,7 +21,6 @@ enum class SettingsSubScreen {
     MAIN,
     AI_PROVIDER_EDIT,  // Dynamic provider editing (uses selectedProvider state)
     AI_ADD_PROVIDER,   // Add new custom provider definition
-    AI_EDIT_PROVIDER_DEF,  // Edit provider definition (displayName, baseUrl, etc.)
     // AI architecture
     AI_SETUP,       // Hub with navigation cards
     AI_PROVIDERS,   // Provider model configuration
@@ -116,8 +115,7 @@ fun SettingsScreen(
         when (currentSubScreen) {
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            SettingsSubScreen.AI_ADD_PROVIDER,
-            SettingsSubScreen.AI_EDIT_PROVIDER_DEF -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            SettingsSubScreen.AI_ADD_PROVIDER -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             // AI screens navigate back to AI_SETUP
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_AGENTS,
@@ -183,7 +181,15 @@ fun SettingsScreen(
                     onFetchModels = { key -> onFetchModels(provider, key) },
                     onTestApiKey = onTestAiModel,
                     onCreateAgent = { navigateToAddAgent(provider, aiSettings.getApiKey(provider), aiSettings.getModel(provider)) },
-                    onProviderStateChange = { state -> onProviderStateChange(provider, state) }
+                    onProviderStateChange = { state -> onProviderStateChange(provider, state) },
+                    onUpdateDefinition = { updatedService ->
+                        com.ai.data.ProviderRegistry.update(updatedService)
+                    },
+                    onDeleteProvider = { service ->
+                        com.ai.data.ProviderRegistry.remove(service.id)
+                        onSaveAi(aiSettings.removeProvider(service))
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                    }
                 )
             }
         }
@@ -198,20 +204,6 @@ fun SettingsScreen(
             onBack = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
             onNavigateHome = onNavigateHome
         )
-        SettingsSubScreen.AI_EDIT_PROVIDER_DEF -> {
-            val provider = selectedProvider
-            if (provider != null) {
-                ProviderDefinitionEditorScreen(
-                    provider = provider,
-                    onSave = { updatedService ->
-                        com.ai.data.ProviderRegistry.update(updatedService)
-                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-                    },
-                    onBack = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
-                    onNavigateHome = onNavigateHome
-                )
-            }
-        }
         // Three-tier AI architecture screens
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
@@ -244,16 +236,7 @@ fun SettingsScreen(
                 selectedProvider = service
                 currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
             },
-            onAddProvider = { currentSubScreen = SettingsSubScreen.AI_ADD_PROVIDER },
-            onEditProviderDef = { service ->
-                selectedProvider = service
-                currentSubScreen = SettingsSubScreen.AI_EDIT_PROVIDER_DEF
-            },
-            onDeleteProvider = { service ->
-                com.ai.data.ProviderRegistry.remove(service.id)
-                // Remove provider config from settings
-                onSaveAi(aiSettings.removeProvider(service))
-            }
+            onAddProvider = { currentSubScreen = SettingsSubScreen.AI_ADD_PROVIDER }
         )
         SettingsSubScreen.AI_AGENTS -> AiAgentsScreen(
             aiSettings = aiSettings,

@@ -45,8 +45,8 @@ internal fun AiAnalysisRepository.parseOpenAiSseStream(responseBody: ResponseBod
             if (currentLine.isBlank() || currentLine.startsWith(":")) continue
 
             // Parse SSE data lines
-            if (currentLine.startsWith("data: ")) {
-                val data = currentLine.removePrefix("data: ").trim()
+            if (currentLine.startsWith("data:")) {
+                val data = currentLine.removePrefix("data:").trim()
 
                 // Check for stream termination
                 if (data == "[DONE]") break
@@ -89,14 +89,14 @@ internal fun AiAnalysisRepository.parseOpenAiResponsesSseStream(responseBody: Re
             }
 
             // Parse event type
-            if (currentLine.startsWith("event: ")) {
-                eventType = currentLine.removePrefix("event: ").trim()
+            if (currentLine.startsWith("event:")) {
+                eventType = currentLine.removePrefix("event:").trim()
                 continue
             }
 
             // Parse data
-            if (currentLine.startsWith("data: ")) {
-                val data = currentLine.removePrefix("data: ").trim()
+            if (currentLine.startsWith("data:")) {
+                val data = currentLine.removePrefix("data:").trim()
 
                 // Check for stream termination
                 if (data == "[DONE]") break
@@ -141,14 +141,14 @@ internal fun AiAnalysisRepository.parseClaudeSseStream(responseBody: ResponseBod
             }
 
             // Parse event type
-            if (currentLine.startsWith("event: ")) {
-                eventType = currentLine.removePrefix("event: ").trim()
+            if (currentLine.startsWith("event:")) {
+                eventType = currentLine.removePrefix("event:").trim()
                 continue
             }
 
             // Parse data lines
-            if (currentLine.startsWith("data: ")) {
-                val data = currentLine.removePrefix("data: ").trim()
+            if (currentLine.startsWith("data:")) {
+                val data = currentLine.removePrefix("data:").trim()
 
                 // Only process content_block_delta events
                 if (eventType == "content_block_delta") {
@@ -185,8 +185,8 @@ internal fun AiAnalysisRepository.parseGeminiSseStream(responseBody: ResponseBod
             if (currentLine.isBlank()) continue
 
             // Parse data lines
-            if (currentLine.startsWith("data: ")) {
-                val data = currentLine.removePrefix("data: ").trim()
+            if (currentLine.startsWith("data:")) {
+                val data = currentLine.removePrefix("data:").trim()
 
                 try {
                     val chunk = gson.fromJson(data, GeminiStreamChunk::class.java)
@@ -365,4 +365,3 @@ internal fun AiAnalysisRepository.streamChatOpenAiCompatible(
         }
     }
 }
-

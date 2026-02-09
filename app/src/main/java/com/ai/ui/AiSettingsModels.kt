@@ -29,7 +29,13 @@ data class ProviderConfig(
  */
 fun defaultProviderConfig(service: AiService): ProviderConfig {
     val defaultModels: List<String> = service.hardcodedModels ?: emptyList()
-    val defaultModelSource = service.defaultModelSource?.let { ModelSource.valueOf(it) }
+    val defaultModelSource = service.defaultModelSource?.let {
+        try {
+            ModelSource.valueOf(it)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
         ?: if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
     return ProviderConfig(
         model = service.defaultModel,

@@ -86,7 +86,8 @@ internal suspend fun AiAnalysisRepository.sendChatMessageResponsesApi(
         .filter { it.role != "system" }
         .map { msg -> OpenAiResponsesInputMessage(role = msg.role, content = msg.content) }
 
-    // For single user message, use simple input string; for multi-turn, use input array
+    // For single user message, use simple input string; for multi-turn, send full input array.
+    // This preserves conversation context for Responses API models.
     val request = if (inputMessages.size == 1 && inputMessages.first().role == "user") {
         OpenAiResponsesRequest(
             model = model,
@@ -94,11 +95,9 @@ internal suspend fun AiAnalysisRepository.sendChatMessageResponsesApi(
             instructions = systemPrompt
         )
     } else {
-        // Multi-turn: need to use the streaming request type without stream flag
-        // but the non-streaming API also accepts the array format via the simple request
         OpenAiResponsesRequest(
             model = model,
-            input = inputMessages.last().content,
+            input = inputMessages,
             instructions = systemPrompt
         )
     }
