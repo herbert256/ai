@@ -179,6 +179,7 @@ fun defaultEndpointsForProvider(service: AiService): List<AiEndpoint> = when (se
 /**
  * Unified provider settings screen for all 31 AI services.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProviderSettingsScreen(
     service: AiService,
@@ -484,21 +485,25 @@ fun ProviderSettingsScreen(
 
                     // API Format dropdown
                     var defFormatExpanded by remember { mutableStateOf(false) }
-                    Box {
+                    ExposedDropdownMenuBox(
+                        expanded = defFormatExpanded,
+                        onExpandedChange = { defFormatExpanded = it }
+                    ) {
                         OutlinedTextField(
                             value = defApiFormat.name,
                             onValueChange = {},
                             label = { Text("API Format") },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { defFormatExpanded = true },
+                                .menuAnchor(),
                             readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = defFormatExpanded) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF6B9BFF),
                                 unfocusedBorderColor = Color(0xFF444444)
                             )
                         )
-                        DropdownMenu(
+                        ExposedDropdownMenu(
                             expanded = defFormatExpanded,
                             onDismissRequest = { defFormatExpanded = false }
                         ) {
