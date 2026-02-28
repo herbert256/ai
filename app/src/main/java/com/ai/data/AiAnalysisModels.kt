@@ -35,6 +35,33 @@ suspend fun AiAnalysisRepository.testModel(
 }
 
 /**
+ * Test a model with a custom prompt and return the response text.
+ * @return Pair(responseText, errorMessage) - responseText is null on error, errorMessage is null on success
+ */
+suspend fun AiAnalysisRepository.testModelWithPrompt(
+    service: AiService,
+    apiKey: String,
+    model: String,
+    prompt: String
+): Pair<String?, String?> = withContext(Dispatchers.IO) {
+    try {
+        val response = when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> analyzeWithClaude(service, apiKey, prompt, model)
+            ApiFormat.GOOGLE -> analyzeWithGemini(service, apiKey, prompt, model)
+            ApiFormat.OPENAI_COMPATIBLE -> analyzeWithOpenAiCompatible(service, apiKey, prompt, model)
+        }
+
+        if (response.isSuccess) {
+            Pair(response.analysis, null)
+        } else {
+            Pair(null, response.error ?: "Unknown error")
+        }
+    } catch (e: Exception) {
+        Pair(null, e.message ?: "Connection error")
+    }
+}
+
+/**
  * Test API connection with a raw JSON body.
  * Used by the Edit API Request screen to send user-edited JSON.
  */

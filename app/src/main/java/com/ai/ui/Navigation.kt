@@ -205,7 +205,8 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { filename -> navController.navigate(NavRoutes.traceDetail(filename)) }
             )
         }
 
@@ -214,7 +215,8 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) }
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { filename -> navController.navigate(NavRoutes.traceDetail(filename)) }
             )
         }
 
@@ -693,6 +695,7 @@ fun SettingsScreenNav(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {},
+    onNavigateToTrace: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -705,7 +708,6 @@ fun SettingsScreenNav(
         onBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onSaveGeneral = { viewModel.updateGeneralSettings(it) },
-        onTrackApiCallsChanged = { viewModel.updateTrackApiCalls(it) },
         onSaveAi = { viewModel.updateAiSettings(it) },
         onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
         onProviderStateChange = { service, state -> viewModel.updateProviderState(service, state) },
@@ -717,6 +719,8 @@ fun SettingsScreenNav(
             viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = key))
         },
         onNavigateToCostConfig = onNavigateToCostConfig,
+        onTestModelWithPrompt = { service, apiKey, model, prompt -> viewModel.testModelWithPrompt(service, apiKey, model, prompt) },
+        onNavigateToTrace = onNavigateToTrace,
         initialSubScreen = initialSubScreen
     )
 }
@@ -729,13 +733,15 @@ fun AiSetupScreenNav(
     viewModel: AiViewModel,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateToCostConfig: () -> Unit = {}
+    onNavigateToCostConfig: () -> Unit = {},
+    onNavigateToTrace: (String) -> Unit = {}
 ) {
     SettingsScreenNav(
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
         onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig,
+        onNavigateToTrace = onNavigateToTrace,
         initialSubScreen = SettingsSubScreen.AI_SETUP
     )
 }

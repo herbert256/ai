@@ -194,7 +194,9 @@ fun ProviderSettingsScreen(
     onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {},
     onUpdateDefinition: (AiService) -> Unit = {},
-    onDeleteProvider: (AiService) -> Unit = {}
+    onDeleteProvider: (AiService) -> Unit = {},
+    onTestModelWithPrompt: (suspend (String) -> Pair<Boolean, String?>)? = null,
+    onNavigateToTrace: ((String) -> Unit)? = null
 ) {
     var apiKey by remember { mutableStateOf(aiSettings.getApiKey(service)) }
     var defaultModel by remember { mutableStateOf(aiSettings.getModel(service)) }
@@ -453,11 +455,12 @@ fun ProviderSettingsScreen(
             modelListFormat = defModelListFormat,
             onModelListFormatChange = { defModelListFormat = it },
             litellmPrefix = defLitellmPrefix,
-            onLitellmPrefixChange = { defLitellmPrefix = it }
+            onLitellmPrefixChange = { defLitellmPrefix = it },
+            onTestModel = onTestModelWithPrompt,
+            onNavigateToTrace = onNavigateToTrace
         )
 
         // Provider Definition section
-        Spacer(modifier = Modifier.height(8.dp))
         CollapsibleCard(title = "Provider Definition") {
                     OutlinedTextField(
                         value = defDisplayName,
@@ -713,7 +716,6 @@ fun ProviderSettingsScreen(
         }
 
         // Delete Provider button
-        Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = { showDeleteConfirm = true },
             modifier = Modifier.fillMaxWidth(),

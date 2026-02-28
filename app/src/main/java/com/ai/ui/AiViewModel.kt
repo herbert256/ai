@@ -57,8 +57,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             aiSettings = aiSettings
         ) }
 
-        // Enable API tracing if configured
-        ApiTracer.isTracingEnabled = generalSettings.trackApiCalls
+        // Always enable API tracing
+        ApiTracer.isTracingEnabled = true
 
         // Refresh model lists in background for providers with API source and configured API key
         viewModelScope.launch {
@@ -82,16 +82,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         val updated = _uiState.value.aiSettings.withProviderState(service, state)
         saveAiSettings(updated)
         _uiState.update { it.copy(aiSettings = updated) }
-    }
-
-    fun updateTrackApiCalls(enabled: Boolean) {
-        val settings = _uiState.value.generalSettings.copy(trackApiCalls = enabled)
-        saveGeneralSettings(settings)
-        _uiState.update { it.copy(generalSettings = settings) }
-        ApiTracer.isTracingEnabled = enabled
-        if (!enabled) {
-            ApiTracer.clearTraces()
-        }
     }
 
     fun clearTraces() {
@@ -692,6 +682,24 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             result
         } catch (e: Exception) {
             e.message ?: "Test failed"
+        }
+    }
+
+    /**
+     * Test a specific model with a custom prompt, returning success status and trace filename.
+     */
+    suspend fun testModelWithPrompt(service: AiService, apiKey: String, model: String, prompt: String): Pair<Boolean, String?> {
+        return try {
+            val traceCountBefore = ApiTracer.getTraceCount()
+            val (responseText, _) = aiAnalysisRepository.testModelWithPrompt(service, apiKey, model, prompt)
+            val traceFile = ApiTracer.getTraceFiles().firstOrNull()?.let {
+                if (ApiTracer.getTraceCount() > traceCountBefore) it.filename else null
+            } ?: ApiTracer.getTraceFiles().firstOrNull()?.filename
+            val success = responseText != null && responseText.trim().equals("O", ignoreCase = true)
+            Pair(success, traceFile)
+        } catch (e: Exception) {
+            val traceFile = ApiTracer.getTraceFiles().firstOrNull()?.filename
+            Pair(false, traceFile)
         }
     }
 

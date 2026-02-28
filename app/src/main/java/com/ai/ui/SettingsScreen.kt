@@ -54,7 +54,6 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack,
     onSaveGeneral: (GeneralSettings) -> Unit,
-    onTrackApiCallsChanged: (Boolean) -> Unit = {},
     onSaveAi: (AiSettings) -> Unit,
     onFetchModels: (AiService, String) -> Unit = { _, _ -> },
     onTestAiModel: suspend (AiService, String, String) -> String? = { _, _, _ -> null },
@@ -63,6 +62,8 @@ fun SettingsScreen(
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
+    onTestModelWithPrompt: suspend (AiService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
+    onNavigateToTrace: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
@@ -163,7 +164,6 @@ fun SettingsScreen(
             onBack = onBack,
             onNavigateHome = onNavigateHome,
             onSave = onSaveGeneral,
-            onTrackApiCallsChanged = onTrackApiCallsChanged,
             onNavigate = { currentSubScreen = it }
         )
         SettingsSubScreen.AI_PROVIDER_EDIT -> {
@@ -187,7 +187,11 @@ fun SettingsScreen(
                         com.ai.data.ProviderRegistry.remove(service.id)
                         onSaveAi(aiSettings.removeProvider(service))
                         currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-                    }
+                    },
+                    onTestModelWithPrompt = { model ->
+                        onTestModelWithPrompt(provider, aiSettings.getApiKey(provider), model, "Return only the letter O, nothing more")
+                    },
+                    onNavigateToTrace = onNavigateToTrace
                 )
             }
         }
@@ -529,12 +533,10 @@ private fun SettingsMainScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSave: (GeneralSettings) -> Unit,
-    onTrackApiCallsChanged: (Boolean) -> Unit = {},
     onNavigate: (SettingsSubScreen) -> Unit = {}
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
-    var trackApiCalls by remember { mutableStateOf(generalSettings.trackApiCalls) }
     var huggingFaceApiKey by remember { mutableStateOf(generalSettings.huggingFaceApiKey) }
     var openRouterApiKey by remember { mutableStateOf(generalSettings.openRouterApiKey) }
     var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
@@ -545,7 +547,6 @@ private fun SettingsMainScreen(
         onSave(generalSettings.copy(
             userName = userName.ifBlank { "user" },
             developerMode = developerMode,
-            trackApiCalls = trackApiCalls,
             huggingFaceApiKey = huggingFaceApiKey,
             openRouterApiKey = openRouterApiKey,
             fullScreenMode = fullScreenMode,
@@ -748,26 +749,6 @@ private fun SettingsMainScreen(
                         }
                     )
                 }
-            }
-        }
-
-        // Developer settings card
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Developer",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
 
                 // Developer mode toggle
                 Row(
@@ -789,36 +770,6 @@ private fun SettingsMainScreen(
                             developerMode = it
                             saveSettings()
                         }
-                    )
-                }
-
-                HorizontalDivider(color = Color(0xFF404040))
-
-                // Track API calls toggle (disabled when developer mode is off)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Track API calls",
-                            color = if (developerMode) Color.White else Color(0xFF666666)
-                        )
-                        Text(
-                            text = "Log all API requests for debugging",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (developerMode) Color(0xFFAAAAAA) else Color(0xFF555555)
-                        )
-                    }
-                    Switch(
-                        checked = trackApiCalls,
-                        onCheckedChange = {
-                            trackApiCalls = it
-                            saveSettings()
-                            onTrackApiCallsChanged(it)
-                        },
-                        enabled = developerMode
                     )
                 }
             }

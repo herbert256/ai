@@ -1173,15 +1173,22 @@ fun ModelsSection(
     modelListFormat: String = "object",
     onModelListFormatChange: (String) -> Unit = {},
     litellmPrefix: String = "",
-    onLitellmPrefixChange: (String) -> Unit = {}
+    onLitellmPrefixChange: (String) -> Unit = {},
+    onTestModel: (suspend (String) -> Pair<Boolean, String?>) ? = null,
+    onNavigateToTrace: ((String) -> Unit)? = null
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingModel by remember { mutableStateOf<String?>(null) }
     var newModelName by remember { mutableStateOf("") }
+    // Test results: model -> (success, traceFilename)
+    val testResults = remember { mutableStateMapOf<String, Pair<Boolean, String?>>() }
+    var isTesting by remember { mutableStateOf(false) }
+    var testingModel by remember { mutableStateOf<String?>(null) }
+    val testScope = rememberCoroutineScope()
 
+    // Default Model card
     val modelsSummary = if (defaultModel.isNotBlank()) defaultModel else "${models.size} models"
-    CollapsibleCard(title = "Models", summary = modelsSummary) {
-        // Default Model
+    CollapsibleCard(title = "Default Model", summary = modelsSummary) {
         Text(
             text = "Default model used for API key testing and new agents",
             style = MaterialTheme.typography.bodySmall,
@@ -1214,10 +1221,11 @@ fun ModelsSection(
                 }
             }
         }
+    }
 
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Model list URL
+    // Automatic model list card
+    val autoModelCount = if (modelSource == ModelSource.API) models.size else 0
+    CollapsibleCard(title = "Automatic model list", summary = "$autoModelCount models") {
         OutlinedTextField(
             value = modelListUrl,
             onValueChange = onModelListUrlChange,
@@ -1317,41 +1325,16 @@ fun ModelsSection(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Model source toggle
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Model source:",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
-            )
-            FilterChip(
-                selected = modelSource == ModelSource.API,
-                onClick = { onModelSourceChange(ModelSource.API) },
-                label = { Text("API") },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White
-                )
-            )
-            FilterChip(
-                selected = modelSource == ModelSource.MANUAL,
-                onClick = { onModelSourceChange(ModelSource.MANUAL) },
-                label = { Text("Manual") },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White
-                )
-            )
-        }
-
-        // API mode: Fetch button and model list
-        if (modelSource == ModelSource.API) {
             Button(
-                onClick = onFetchModels,
+                onClick = {
+                    onModelSourceChange(ModelSource.API)
+                    onFetchModels()
+                },
                 enabled = !isLoadingModels
             ) {
                 if (isLoadingModels) {
@@ -1366,50 +1349,155 @@ fun ModelsSection(
                     Text("Retrieve models")
                 }
             }
+            if (onTestModel != null && modelSource == ModelSource.API && models.isNotEmpty()) {
+                Button(
+                    onClick = {
+                        testScope.launch {
+                            isTesting = true
+                            testResults.clear()
+                            for (m in models) {
+                                testingModel = m
+                                val (success, trace) = onTestModel(m)
+                                testResults[m] = Pair(success, trace)
+                            }
+                            testingModel = null
+                            isTesting = false
+                        }
+                    },
+                    enabled = !isTesting,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                ) {
+                    Text("Test")
+                }
+            }
+            if (modelSource == ModelSource.API) {
+                Text("Active", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
 
-            if (models.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    models.forEach { model ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = model, color = Color.White, style = MaterialTheme.typography.bodyMedium)
+        if (modelSource == ModelSource.API && models.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                models.forEach { model ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = model,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (testingModel == model) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color(0xFFFF9800),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                        val result = testResults[model]
+                        if (result != null) {
+                            val traceFile = result.second
+                            Text(
+                                text = if (result.first) "\u2714" else "\u2716",
+                                color = if (result.first) Color(0xFF4CAF50) else Color(0xFFFF5252),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = if (traceFile != null && onNavigateToTrace != null) {
+                                    Modifier.clickable { onNavigateToTrace(traceFile) }
+                                } else Modifier
+                            )
                         }
                     }
                 }
             }
         }
+    }
 
-        // Manual mode: Add button and model list management
-        if (modelSource == ModelSource.MANUAL) {
-            Button(onClick = { newModelName = ""; showAddDialog = true }) {
+    // Manual model list card
+    val manualModelCount = if (modelSource == ModelSource.MANUAL) models.size else 0
+    CollapsibleCard(title = "Manual model list", summary = "$manualModelCount models") {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(onClick = {
+                onModelSourceChange(ModelSource.MANUAL)
+                newModelName = ""; showAddDialog = true
+            }) {
                 Text("+ Add model")
             }
-
-            if (models.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    models.forEach { model ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = model, color = Color.White, modifier = Modifier.weight(1f))
-                            IconButton(
-                                onClick = { editingModel = model; newModelName = model; showAddDialog = true },
-                                modifier = Modifier.size(32.dp)
-                            ) { Text("\u270E", color = Color(0xFFAAAAAA)) }
-                            IconButton(
-                                onClick = { onModelsChange(models.filter { it != model }) },
-                                modifier = Modifier.size(32.dp)
-                            ) { Text("\u2715", color = Color(0xFFFF6666)) }
+            if (onTestModel != null && modelSource == ModelSource.MANUAL && models.isNotEmpty()) {
+                Button(
+                    onClick = {
+                        testScope.launch {
+                            isTesting = true
+                            testResults.clear()
+                            for (m in models) {
+                                testingModel = m
+                                val (success, trace) = onTestModel(m)
+                                testResults[m] = Pair(success, trace)
+                            }
+                            testingModel = null
+                            isTesting = false
                         }
+                    },
+                    enabled = !isTesting,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                ) {
+                    Text("Test")
+                }
+            }
+            if (modelSource == ModelSource.MANUAL) {
+                Text("Active", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        if (modelSource == ModelSource.MANUAL && models.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                models.forEach { model ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = model, color = Color.White, modifier = Modifier.weight(1f))
+                        if (testingModel == model) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color(0xFFFF9800),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        val result = testResults[model]
+                        if (result != null) {
+                            val traceFile = result.second
+                            Text(
+                                text = if (result.first) "\u2714" else "\u2716",
+                                color = if (result.first) Color(0xFF4CAF50) else Color(0xFFFF5252),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = if (traceFile != null && onNavigateToTrace != null) {
+                                    Modifier.clickable { onNavigateToTrace(traceFile) }
+                                } else Modifier
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        IconButton(
+                            onClick = { editingModel = model; newModelName = model; showAddDialog = true },
+                            modifier = Modifier.size(32.dp)
+                        ) { Text("\u270E", color = Color(0xFFAAAAAA)) }
+                        IconButton(
+                            onClick = { onModelsChange(models.filter { it != model }) },
+                            modifier = Modifier.size(32.dp)
+                        ) { Text("\u2715", color = Color(0xFFFF6666)) }
                     }
                 }
             }
