@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
 import com.ai.data.PricingCache
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 /**
@@ -1183,7 +1185,7 @@ fun ModelsSection(
     // Test results: model -> (success, traceFilename)
     val testResults = remember { mutableStateMapOf<String, Pair<Boolean, String?>>() }
     var isTesting by remember { mutableStateOf(false) }
-    var testingModel by remember { mutableStateOf<String?>(null) }
+    val testingModels = remember { mutableStateListOf<String>() }
     val testScope = rememberCoroutineScope()
 
     // Default Model card
@@ -1355,12 +1357,15 @@ fun ModelsSection(
                         testScope.launch {
                             isTesting = true
                             testResults.clear()
-                            for (m in models) {
-                                testingModel = m
-                                val (success, trace) = onTestModel(m)
-                                testResults[m] = Pair(success, trace)
-                            }
-                            testingModel = null
+                            testingModels.clear()
+                            testingModels.addAll(models)
+                            models.map { m ->
+                                async {
+                                    val (success, trace) = onTestModel(m)
+                                    testResults[m] = Pair(success, trace)
+                                    testingModels.remove(m)
+                                }
+                            }.awaitAll()
                             isTesting = false
                         }
                     },
@@ -1391,7 +1396,7 @@ fun ModelsSection(
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f)
                         )
-                        if (testingModel == model) {
+                        if (model in testingModels) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 color = Color(0xFFFF9800),
@@ -1437,12 +1442,15 @@ fun ModelsSection(
                         testScope.launch {
                             isTesting = true
                             testResults.clear()
-                            for (m in models) {
-                                testingModel = m
-                                val (success, trace) = onTestModel(m)
-                                testResults[m] = Pair(success, trace)
-                            }
-                            testingModel = null
+                            testingModels.clear()
+                            testingModels.addAll(models)
+                            models.map { m ->
+                                async {
+                                    val (success, trace) = onTestModel(m)
+                                    testResults[m] = Pair(success, trace)
+                                    testingModels.remove(m)
+                                }
+                            }.awaitAll()
                             isTesting = false
                         }
                     },
@@ -1468,7 +1476,7 @@ fun ModelsSection(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(text = model, color = Color.White, modifier = Modifier.weight(1f))
-                        if (testingModel == model) {
+                        if (model in testingModels) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 color = Color(0xFFFF9800),
