@@ -39,6 +39,8 @@ private const val KEY_MODEL2_SYSTEM = "model2_system"
 private const val KEY_MODEL2_PARAMS = "model2_params"
 private const val KEY_SUBJECT = "subject"
 private const val KEY_INTERACTION_COUNT = "interaction_count"
+private const val KEY_MODEL1_SYSTEM_PROMPT_ID = "model1_system_prompt_id"
+private const val KEY_MODEL2_SYSTEM_PROMPT_ID = "model2_system_prompt_id"
 private const val KEY_FIRST_PROMPT = "first_prompt"
 private const val KEY_SECOND_PROMPT = "second_prompt"
 private const val DEFAULT_FIRST_PROMPT = "Let's talk about %subject%"
@@ -84,6 +86,8 @@ fun DualChatSetupScreen(
     var model2Name by remember { mutableStateOf(prefs.getString(KEY_MODEL2_NAME, "") ?: "") }
     var model2SystemPrompt by remember { mutableStateOf(prefs.getString(KEY_MODEL2_SYSTEM, "") ?: "") }
     var model2Params by remember { mutableStateOf(loadChatParams(prefs, KEY_MODEL2_PARAMS)) }
+    var model1SystemPromptId by remember { mutableStateOf(prefs.getString(KEY_MODEL1_SYSTEM_PROMPT_ID, null)) }
+    var model2SystemPromptId by remember { mutableStateOf(prefs.getString(KEY_MODEL2_SYSTEM_PROMPT_ID, null)) }
     var subject by remember { mutableStateOf(prefs.getString(KEY_SUBJECT, "") ?: "") }
     var interactionCount by remember { mutableStateOf(prefs.getString(KEY_INTERACTION_COUNT, "10") ?: "10") }
     var firstPrompt by remember { mutableStateOf(prefs.getString(KEY_FIRST_PROMPT, DEFAULT_FIRST_PROMPT) ?: DEFAULT_FIRST_PROMPT) }
@@ -100,6 +104,8 @@ fun DualChatSetupScreen(
             .putString(KEY_MODEL2_NAME, model2Name)
             .putString(KEY_MODEL2_SYSTEM, model2SystemPrompt)
             .putString(KEY_MODEL2_PARAMS, gson.toJson(model2Params))
+            .putString(KEY_MODEL1_SYSTEM_PROMPT_ID, model1SystemPromptId)
+            .putString(KEY_MODEL2_SYSTEM_PROMPT_ID, model2SystemPromptId)
             .putString(KEY_SUBJECT, subject)
             .putString(KEY_INTERACTION_COUNT, interactionCount)
             .putString(KEY_FIRST_PROMPT, firstPrompt)
@@ -185,6 +191,9 @@ fun DualChatSetupScreen(
                 onSelectClick = { overlayMode = 1 },
                 onParamsClick = { overlayMode = 3 },
                 paramsSummary = model1Params.summary(),
+                aiSettings = aiSettings,
+                systemPromptId = model1SystemPromptId,
+                onSystemPromptIdChange = { model1SystemPromptId = it; savePrefs() },
                 color = Color(0xFF4488CC)
             )
 
@@ -199,14 +208,17 @@ fun DualChatSetupScreen(
                         val tmpName = model1Name
                         val tmpSystem = model1SystemPrompt
                         val tmpParams = model1Params
+                        val tmpSystemPromptId = model1SystemPromptId
                         model1Provider = model2Provider
                         model1Name = model2Name
                         model1SystemPrompt = model2SystemPrompt
                         model1Params = model2Params
+                        model1SystemPromptId = model2SystemPromptId
                         model2Provider = tmpProvider
                         model2Name = tmpName
                         model2SystemPrompt = tmpSystem
                         model2Params = tmpParams
+                        model2SystemPromptId = tmpSystemPromptId
                         savePrefs()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
@@ -226,6 +238,9 @@ fun DualChatSetupScreen(
                 onSelectClick = { overlayMode = 2 },
                 onParamsClick = { overlayMode = 4 },
                 paramsSummary = model2Params.summary(),
+                aiSettings = aiSettings,
+                systemPromptId = model2SystemPromptId,
+                onSystemPromptIdChange = { model2SystemPromptId = it; savePrefs() },
                 color = Color(0xFF44AA66)
             )
 
@@ -305,15 +320,17 @@ fun DualChatSetupScreen(
             onClick = {
                 if (canStart) {
                     savePrefs()
+                    val resolved1 = model1SystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: model1SystemPrompt
+                    val resolved2 = model2SystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: model2SystemPrompt
                     onStartSession(
                         DualChatConfig(
                             model1Provider = model1Provider!!,
                             model1Name = model1Name,
-                            model1SystemPrompt = model1SystemPrompt,
+                            model1SystemPrompt = resolved1,
                             model1Params = model1Params,
                             model2Provider = model2Provider!!,
                             model2Name = model2Name,
-                            model2SystemPrompt = model2SystemPrompt,
+                            model2SystemPrompt = resolved2,
                             model2Params = model2Params,
                             subject = subject,
                             interactionCount = interactionCount.toIntOrNull() ?: 10,
@@ -347,8 +364,14 @@ private fun ModelSelectionCard(
     onSelectClick: () -> Unit,
     onParamsClick: () -> Unit,
     paramsSummary: String,
+    aiSettings: AiSettings,
+    systemPromptId: String?,
+    onSystemPromptIdChange: (String?) -> Unit,
     color: Color
 ) {
+    var showSystemPromptDialog by remember { mutableStateOf(false) }
+    val systemPromptName = systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF2A3A4A))
     ) {
@@ -358,44 +381,48 @@ private fun ModelSelectionCard(
                 .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Row(
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
+                Text("  $paramsSummary", fontSize = 11.sp, color = Color(0xFF888888))
+                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = { showSystemPromptDialog = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (systemPromptId != null) Color(0xFF6C5CE7) else color.copy(alpha = 0.5f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        if (systemPromptName != null) systemPromptName else "System",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Button(
+                    onClick = onParamsClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.5f)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                ) {
+                    Text("Params", color = Color.White, fontSize = 12.sp)
+                }
+            }
+            Button(
+                onClick = onSelectClick,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                colors = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.3f)),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
-                        Text("  $paramsSummary", fontSize = 11.sp, color = Color(0xFF888888))
-                    }
-                    if (providerName != null) {
-                        Text(
-                            "$providerName / $modelName",
-                            fontSize = 12.sp,
-                            color = Color(0xFFCCCCCC),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    } else {
-                        Text("Not selected", fontSize = 12.sp, color = Color(0xFF888888))
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Button(
-                        onClick = onParamsClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.5f)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                    ) {
-                        Text("Params", color = Color.White, fontSize = 12.sp)
-                    }
-                    Button(
-                        onClick = onSelectClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = color),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)
-                    ) {
-                        Text("Select", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
+                Text(
+                    text = if (providerName != null) "$providerName / $modelName" else "Select model",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             OutlinedTextField(
                 value = systemPrompt,
@@ -411,6 +438,18 @@ private fun ModelSelectionCard(
                 )
             )
         }
+    }
+
+    if (showSystemPromptDialog) {
+        SystemPromptSelectorDialog(
+            aiSettings = aiSettings,
+            selectedSystemPromptId = systemPromptId,
+            onSystemPromptSelected = { id ->
+                onSystemPromptIdChange(id)
+                showSystemPromptDialog = false
+            },
+            onDismiss = { showSystemPromptDialog = false }
+        )
     }
 }
 
