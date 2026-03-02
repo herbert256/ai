@@ -64,7 +64,7 @@ internal fun AiAnalysisRepository.parseOpenAiSseStream(responseBody: ResponseBod
             }
         }
     } finally {
-        reader.close()
+        try { reader.close() } catch (_: Exception) { }
         responseBody.close()
     }
 }
@@ -116,7 +116,7 @@ internal fun AiAnalysisRepository.parseOpenAiResponsesSseStream(responseBody: Re
             }
         }
     } finally {
-        reader.close()
+        try { reader.close() } catch (_: Exception) { }
         responseBody.close()
     }
 }
@@ -165,7 +165,7 @@ internal fun AiAnalysisRepository.parseClaudeSseStream(responseBody: ResponseBod
             }
         }
     } finally {
-        reader.close()
+        try { reader.close() } catch (_: Exception) { }
         responseBody.close()
     }
 }
@@ -198,7 +198,7 @@ internal fun AiAnalysisRepository.parseGeminiSseStream(responseBody: ResponseBod
             }
         }
     } finally {
-        reader.close()
+        try { reader.close() } catch (_: Exception) { }
         responseBody.close()
     }
 }

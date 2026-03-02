@@ -342,13 +342,18 @@ class AiAnalysisRepository {
             if (isSuccess(result)) return result
             android.util.Log.w("AiAnalysis", "$label first attempt failed, retrying...")
             delay(RETRY_DELAY_MS)
-            return makeCall()
+            return try {
+                makeCall()
+            } catch (e: Exception) {
+                errorResult(e)
+            }
         } catch (e: Exception) {
             android.util.Log.w("AiAnalysis", "$label first attempt exception: ${e.message}, retrying...")
             try {
                 delay(RETRY_DELAY_MS)
                 return makeCall()
             } catch (e2: Exception) {
+                e2.addSuppressed(e)
                 return errorResult(e2)
             }
         }

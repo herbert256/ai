@@ -2,24 +2,24 @@
 
 ## Technical Details
 
-- **Language**: Kotlin 1.9.22
-- **UI**: Jetpack Compose with Material 3 (dark theme, black background)
+- **Language**: Kotlin 2.2.10
+- **UI**: Jetpack Compose with Material 3 (BOM 2026.01.01, dark theme, black background)
 - **Architecture**: MVVM with StateFlow, Repository pattern
 - **Networking**: Retrofit 2.9.0 with OkHttp 4.12.0, Gson serialization
 - **Streaming**: Server-Sent Events (SSE) with Kotlin Flow (3 format-specific parsers)
 - **Persistence**: SharedPreferences (JSON) + file-based storage
-- **Min SDK**: 26 (Android 8.0), Target SDK: 34 (Android 14)
-- **Build tools**: Gradle 8.5, AGP 8.2.2, Java 17
-- **Codebase**: ~25,800 lines across 40 Kotlin files
+- **Min SDK**: 26 (Android 8.0), Target SDK: 36 (Android 16)
+- **Build tools**: Gradle 9.1.0, AGP 9.0.1, Java 17
+- **Codebase**: ~28,700 lines across 47 Kotlin files
 - **Permissions**: Only INTERNET
 - **Provider architecture**: 28 OpenAI-compatible providers share unified code paths; only Anthropic and Google Gemini have unique implementations
 
 ## Building
 
 ### Prerequisites
-- Android Studio Hedgehog or newer
+- Android Studio Ladybug or newer
 - Java 17
-- Android SDK 34
+- Android SDK 36
 
 ### Debug Build
 ```bash
@@ -130,16 +130,18 @@ manual_pricing                         # JSON Map
 /cache/ai_analysis/                    # Temp sharing files
 /cache/shared_traces/                  # Exported traces
 /cache/exports/                        # Config export files
+/assets/setup.json                            # First-run provider definitions (AiConfigExport format)
 /assets/model_prices_and_context_window.json  # Bundled LiteLLM pricing (1.2 MB)
 ```
 
 ## Configuration Export Format
 
-Version 17 JSON format:
+Version 21 JSON format:
 ```json
 {
-  "version": 17,
+  "version": 21,
   "huggingFaceApiKey": "hf_...",
+  "openRouterApiKey": "sk-or-...",
   "providers": {
     "OPENAI": {
       "modelSource": "API",
@@ -150,6 +152,7 @@ Version 17 JSON format:
       "modelListUrl": null
     }
   },
+  "providerStates": { "OPENAI": "ENABLED", "GROQ": "DISABLED" },
   "agents": [
     {
       "id": "uuid",
@@ -161,48 +164,28 @@ Version 17 JSON format:
       "parametersIds": ["params-uuid"]
     }
   ],
-  "flocks": [
-    {
-      "id": "uuid",
-      "name": "My Flock",
-      "agentIds": ["agent-uuid-1", "agent-uuid-2"],
-      "parametersIds": []
-    }
-  ],
-  "swarms": [
-    {
-      "id": "uuid",
-      "name": "My Swarm",
-      "members": [{"provider": "OPENAI", "model": "gpt-4o"}],
-      "parametersIds": []
-    }
-  ],
-  "params": [
-    {
-      "id": "params-uuid",
-      "name": "Creative",
-      "temperature": 0.9,
-      "maxTokens": 4096
-    }
-  ],
+  "flocks": [...],
+  "swarms": [...],
+  "params": [...],
   "aiPrompts": [...],
   "manualPricing": [...],
-  "providerEndpoints": [...]
+  "providerEndpoints": [...],
+  "providerDefinitions": [...]
 }
 ```
 
-Import supports versions 11-18. Legacy versions are auto-migrated.
+Version history: v11-v17 (initial), v18 (parametersIds, prompts, pricing, endpoints), v19 (openRouterApiKey), v20 (providerDefinitions), v21 (providerStates). Import supports versions 11-21 with auto-migration.
 
 ## Dependencies
 
 | Category | Library | Version |
 |----------|---------|---------|
-| AndroidX | core-ktx | 1.12.0 |
-| AndroidX | lifecycle-runtime-ktx | 2.7.0 |
-| AndroidX | activity-compose | 1.8.2 |
-| AndroidX | compose-bom | 2024.02.00 |
-| AndroidX | lifecycle-viewmodel-compose | 2.7.0 |
-| AndroidX | navigation-compose | 2.7.7 |
+| AndroidX | core-ktx | 1.17.0 |
+| AndroidX | lifecycle-runtime-ktx | 2.10.0 |
+| AndroidX | activity-compose | 1.12.4 |
+| AndroidX | compose-bom | 2026.01.01 |
+| AndroidX | lifecycle-viewmodel-compose | 2.10.0 |
+| AndroidX | navigation-compose | 2.9.7 |
 | Networking | retrofit | 2.9.0 |
 | Networking | converter-gson / converter-scalars | 2.9.0 |
 | Networking | okhttp / logging-interceptor | 4.12.0 |
@@ -218,12 +201,6 @@ Import supports versions 11-18. Legacy versions are auto-migrated.
 - **External intent**: `com.ai.ACTION_NEW_REPORT`
 - **FileProvider**: `com.ai.fileprovider`
 
-## Legacy Items
+## Legacy Notes
 
-The project evolved from a chess evaluation app ("Eval"). Unused legacy resources remain:
-- 12 chess piece PNG drawables in `res/drawable/`
-- 4 audio WAV files in `res/raw/`
-- Chess colors in `res/values/colors.xml`
-- `eco_codes.json` (420 KB) chess opening database in assets
-- ProGuard rules referencing `com.chessreplay.*`
-- `useLegacyPackaging = true` and `extractNativeLibs = true` for former Stockfish JNI
+The project evolved from a chess evaluation app ("Eval"). All legacy chess resources have been removed (drawables, audio, eco_codes.json). ProGuard rules have been cleaned up. The SharedPreferences file is still named `eval_prefs` for backward compatibility.

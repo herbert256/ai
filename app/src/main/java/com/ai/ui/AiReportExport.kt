@@ -17,7 +17,7 @@ private fun processThinkSectionsForHtml(text: String, agentId: String): String {
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
-        val id = "${agentId}-${thinkIndex++}"
+        val id = "${agentId}-${thinkIndex++}".replace("'", "").replace("\"", "").replace("&", "")
         """<button id="think-btn-$id" class="think-btn" onclick="toggleThink('$id')">Think</button><div id="think-$id" class="think-content">$thinkContent</div>"""
     }
 

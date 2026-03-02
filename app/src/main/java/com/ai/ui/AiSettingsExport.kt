@@ -146,6 +146,15 @@ data class ProviderEndpointsExport(
     val endpoints: List<EndpointExport>
 )
 
+/**
+ * AI Configuration export/import format.
+ * Version history:
+ * - v11-v17: Initial versions (agents, flocks, swarms, parameters, systemPrompts)
+ * - v18: Added parametersIds per provider, aiPrompts, manualPricing, providerEndpoints
+ * - v19: Added openRouterApiKey
+ * - v20: Added providerDefinitions (setup.json support)
+ * - v21: Added providerStates
+ */
 data class AiConfigExport(
     val version: Int = 21,
     val providers: Map<String, ProviderConfigExport>,

@@ -114,6 +114,9 @@ fun DualChatSetupScreen(
         }
     }
 
+    // Auto-save when leaving the screen
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { savePrefs() } }
+
     // Full-screen overlay state: 0=none, 1=select model1, 2=select model2
     var overlayMode by remember { mutableIntStateOf(0) }
 
@@ -220,7 +223,7 @@ fun DualChatSetupScreen(
             ) {
                 OutlinedTextField(
                     value = subject,
-                    onValueChange = { subject = it; savePrefs() },
+                    onValueChange = { subject = it },
                     label = { Text("Subject") },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
@@ -233,7 +236,7 @@ fun DualChatSetupScreen(
                 )
                 OutlinedTextField(
                     value = interactionCount,
-                    onValueChange = { interactionCount = it.filter { c -> c.isDigit() }; savePrefs() },
+                    onValueChange = { interactionCount = it.filter { c -> c.isDigit() } },
                     label = { Text("Rounds") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.width(80.dp),
@@ -250,7 +253,7 @@ fun DualChatSetupScreen(
             // First prompt template
             OutlinedTextField(
                 value = firstPrompt,
-                onValueChange = { firstPrompt = it; savePrefs() },
+                onValueChange = { firstPrompt = it },
                 label = { Text("1st prompt (%subject%)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -265,7 +268,7 @@ fun DualChatSetupScreen(
             // Second prompt template
             OutlinedTextField(
                 value = secondPrompt,
-                onValueChange = { secondPrompt = it; savePrefs() },
+                onValueChange = { secondPrompt = it },
                 label = { Text("2nd prompt (%answer%)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -490,6 +493,9 @@ fun DualChatSessionScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var chatJob by remember { mutableStateOf<Job?>(null) }
 
+    // Cancel chatJob when composable is disposed to prevent memory leaks
+    DisposableEffect(Unit) { onDispose { chatJob?.cancel() } }
+
     // Extra chats input
     var extraChatsText by remember { mutableStateOf("10") }
 
@@ -663,7 +669,7 @@ fun DualChatSessionScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            items(messages.size) { index ->
+            items(messages.size, key = { it }) { index ->
                 val msg = messages[index]
                 DualMessageBubble(msg)
             }

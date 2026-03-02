@@ -512,7 +512,7 @@ fun ChatSessionScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.Bottom)
                 ) {
                     // Messages in order (oldest first, newest at bottom)
-                    items(displayMessages) { message ->
+                    items(displayMessages, key = { it.timestamp }) { message ->
                         ChatMessageBubble(message = message, userName = userName)
                     }
 
@@ -917,7 +917,7 @@ fun ChatHistoryScreen(
                     .weight(1f)
             ) {
                 LazyColumn {
-                    items(currentPageSessions) { session ->
+                    items(currentPageSessions, key = { it.id }) { session ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1245,7 +1245,7 @@ fun ChatSearchScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(searchResults) { result ->
+                    items(searchResults, key = { "${it.sessionId}:${it.messageTimestamp}" }) { result ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -42,35 +42,41 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 
 ## Project Summary
 
-Android app for AI-powered reports and chat using 31 AI services. Kotlin, Jetpack Compose, Material 3 dark theme. MVVM with StateFlow. Retrofit + OkHttp for networking. SSE streaming via Kotlin Flow. SharedPreferences + file storage for persistence. Namespace: `com.ai`, minSdk 26, targetSdk 34.
+Android app for AI-powered reports and chat using 31 AI services. Kotlin 2.2.10, Jetpack Compose (BOM 2026.01.01), Material 3 dark theme. MVVM with StateFlow. Retrofit + OkHttp for networking. SSE streaming via Kotlin Flow. SharedPreferences + file storage for persistence. Namespace: `com.ai`, minSdk 26, targetSdk 36. Build: AGP 9.0.1, Gradle 9.1.0, Java 17.
 
 ## Package Structure
 
 ```
 com.ai/
 ├── MainActivity.kt                    # Entry point
-├── data/
+├── data/                              # Data layer (12 files)
 │   ├── AiAnalysisApi.kt              # Retrofit interfaces, AiService data class, request/response models
-│   ├── AiAnalysisRepository.kt       # Repository facade
+│   ├── AiAnalysisRepository.kt       # Repository facade with retry logic
 │   ├── AiAnalysisProviders.kt        # Analysis methods (1 unified + 3 format-specific)
 │   ├── AiAnalysisStreaming.kt        # Streaming + SSE parsers
 │   ├── AiAnalysisChat.kt            # Chat methods
-│   ├── AiAnalysisModels.kt          # Model fetching
+│   ├── AiAnalysisModels.kt          # Model fetching + API connection testing
+│   ├── AiDataModels.kt              # Chat/agent models (ChatMessage, ChatSession, etc.)
 │   ├── AiReportStorage.kt            # Thread-safe report persistence (ReentrantLock)
 │   ├── ChatHistoryManager.kt         # Chat session storage
 │   ├── PricingCache.kt               # Six-tier pricing cache
+│   ├── ProviderRegistry.kt           # Provider definitions loaded from setup.json
 │   └── ApiTracer.kt                  # API request/response logging
-└── ui/
+└── ui/                                # UI layer (34 files)
     ├── AiViewModel.kt                # Central state management
     ├── AiModels.kt                   # UI state classes
     ├── AiSettingsModels.kt           # AiSettings, ProviderConfig, AiAgent, AiFlock, AiSwarm, AiParameters
-    ├── AiScreens.kt                  # Report screens + pricing utility
-    ├── ChatScreens.kt                # Chat UI with streaming
+    ├── AiReportScreen.kt             # Report creation + progress
+    ├── AiReportSelectionDialogs.kt   # Agent/flock/swarm selection dialogs
+    ├── AiReportParametersScreen.kt   # Report parameter configuration
+    ├── ChatScreens.kt                # Chat UI with streaming + history
+    ├── AiDualChatScreen.kt           # Side-by-side dual chat
     ├── AiContentDisplay.kt           # Response rendering with think sections
     ├── AiHistoryScreen.kt            # Report history
     ├── AiReportExport.kt             # HTML report generation
     ├── AiModelScreens.kt             # Model search/info
-    ├── AiStatisticsScreen.kt         # Statistics and Costs
+    ├── AiStatisticsScreen.kt         # Combined AI Usage (statistics + costs)
+    ├── AiHubScreens.kt               # Main hub screen
     ├── AiServiceSettingsScreens.kt   # Provider settings + defaultEndpointsForProvider()
     ├── AiSettingsScreen.kt           # AI settings hub
     ├── AiSettingsComponents.kt       # Reusable settings UI components
@@ -79,12 +85,14 @@ com.ai/
     ├── AiSwarmsScreen.kt             # Swarm CRUD
     ├── AiParametersScreen.kt         # Parameter presets
     ├── AiPromptsScreen.kt            # Prompts CRUD
+    ├── AiSystemPromptsScreen.kt      # System prompts management
     ├── PromptHistoryScreen.kt        # Prompt history
     ├── AiHousekeepingScreen.kt       # Housekeeping tools
     ├── AiDeveloperScreens.kt         # Developer mode screens
-    ├── AiSettingsExport.kt           # Export/import configuration
+    ├── AiSettingsExport.kt           # Export/import configuration (v21)
     ├── SettingsScreen.kt             # Settings hub + two-tier navigation (SettingsSubScreen enum)
     ├── SettingsPreferences.kt        # SharedPreferences load/save
+    ├── AiUiFormatting.kt             # Shared formatting utilities
     ├── HelpScreen.kt                 # In-app docs
     ├── TraceScreen.kt                # API trace viewer
     ├── Navigation.kt                 # Jetpack Navigation routes
@@ -109,15 +117,16 @@ com.ai/
 - **Anthropic max_tokens**: Required (defaults to 4096), unlike OpenAI where it's optional.
 - **Google auth**: Uses `?key=` query parameter, not Bearer token.
 - **OpenAI dual API**: Chat Completions for gpt-4o etc., Responses API for gpt-5.x/o3/o4. Auto-routed via `usesResponsesApi()`.
-- **Export version**: Currently v18. Import accepts 11-18.
-- **Legacy chess resources**: App evolved from chess app "Eval". Unused chess assets remain (drawables, audio, eco_codes.json, ProGuard rules).
+- **Export version**: Currently v21. Import accepts 11-21.
+- **First-run setup**: `assets/setup.json` uses `AiConfigExport` format, loaded via `ProviderRegistry` and `importAiConfigFromAsset()`. Can include providers, agents, parameters, etc.
 
 ## Adding a New AI Service (OpenAI-compatible)
 
 1. Add entry to `AiService` companion object in `AiAnalysisApi.kt`
-2. Add hardcoded models in `AiSettingsModels.kt` (only if no model list API)
-3. Add default endpoints in `defaultEndpointsForProvider()` in `AiServiceSettingsScreens.kt` (only if multiple endpoints)
-4. Add OpenRouter prefix mapping in `PricingCache.kt` if applicable
+2. Add to `ProviderRegistry` in `ProviderRegistry.kt` or include in `assets/setup.json`
+3. Add hardcoded models in `AiSettingsModels.kt` (only if no model list API)
+4. Add default endpoints in `defaultEndpointsForProvider()` in `AiServiceSettingsScreens.kt` (only if multiple endpoints)
+5. Add OpenRouter prefix mapping in `PricingCache.kt` if applicable
 
 For a non-OpenAI-compatible provider, also add: new `ApiFormat` value, Retrofit interface, format-specific methods in Providers/Streaming/Chat files, and SSE parser.
 

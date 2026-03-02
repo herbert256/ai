@@ -97,34 +97,36 @@ suspend fun AiAnalysisRepository.testApiConnectionWithJson(
             .build()
 
         val response = client.newCall(request).execute()
-        val headers = formatHeaders(response.headers)
-        val statusCode = response.code
+        response.use {
+            val headers = formatHeaders(response.headers)
+            val statusCode = response.code
 
-        if (response.isSuccessful) {
-            val responseBody = response.body?.string()
-            val gson = com.google.gson.Gson()
-            try {
-                val openAiResponse = gson.fromJson(responseBody, OpenAiResponse::class.java)
-                val content = openAiResponse?.choices?.firstOrNull()?.message?.content
-                val usage = openAiResponse?.usage?.let {
-                    TokenUsage(
-                        inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
-                        outputTokens = it.completion_tokens ?: it.output_tokens ?: 0,
-                        apiCost = extractApiCost(it, service)
-                    )
-                }
-                if (content != null) {
-                    AiAnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
-                } else {
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                val gson = com.google.gson.Gson()
+                try {
+                    val openAiResponse = gson.fromJson(responseBody, OpenAiResponse::class.java)
+                    val content = openAiResponse?.choices?.firstOrNull()?.message?.content
+                    val usage = openAiResponse?.usage?.let {
+                        TokenUsage(
+                            inputTokens = it.prompt_tokens ?: it.input_tokens ?: 0,
+                            outputTokens = it.completion_tokens ?: it.output_tokens ?: 0,
+                            apiCost = extractApiCost(it, service)
+                        )
+                    }
+                    if (content != null) {
+                        AiAnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
+                    } else {
+                        AiAnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
+                    }
+                } catch (e: Exception) {
+                    // If we can't parse as OpenAI format, just return the raw response
                     AiAnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
                 }
-            } catch (e: Exception) {
-                // If we can't parse as OpenAI format, just return the raw response
-                AiAnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
+            } else {
+                val errorBody = response.body?.string()
+                AiAnalysisResponse(service, null, "API error: $statusCode - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
             }
-        } else {
-            val errorBody = response.body?.string()
-            AiAnalysisResponse(service, null, "API error: $statusCode - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
         }
     } catch (e: Exception) {
         AiAnalysisResponse(service, null, "Error: ${e.message}")

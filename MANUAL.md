@@ -211,9 +211,9 @@ Generated reports include:
 - Citations and sources (when provided)
 - Token usage and HTTP headers (developer mode only)
 
-## AI Costs
+## AI Usage
 
-Track your AI spending:
+Track your AI usage and spending:
 - **Total cost** across all models
 - **Expandable provider groups** showing per-model breakdown
 - **Pricing sources** (color-coded): API, Manual, OpenRouter, LiteLLM, Fallback
@@ -269,10 +269,8 @@ AI Hub (Home)
 |   +-- View info / Start chat / Create agent
 +-- AI History
 |   +-- Browse -> View/Share/Browser/Delete reports
-+-- AI Statistics
-|   +-- API calls, token usage per provider/model
-+-- AI Costs
-|   +-- Estimated costs with expandable provider groups
++-- AI Usage
+|   +-- API calls, token usage, estimated costs per provider/model
 +-- Settings
     +-- General
     |   +-- Username, Full screen mode, Developer mode, API tracing

@@ -29,7 +29,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(AiUiState())
     val uiState: StateFlow<AiUiState> = _uiState.asStateFlow()
     private var reportGenerationJob: Job? = null
-    private var reportRunningInBackground = false
+    @Volatile private var reportRunningInBackground = false
 
     // Settings persistence
     private fun loadGeneralSettings(): GeneralSettings = settingsPrefs.loadGeneralSettings()
@@ -567,7 +567,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     ?.removePrefix("swarm:")
                     ?.substringBefore(':')
                     ?.let { com.ai.data.AiService.findById(it) }
-                    ?: com.ai.data.AiService.entries.first()
+                    ?: com.ai.data.AiService.entries.firstOrNull()
+                    ?: com.ai.data.AiService.findById("OPENAI")!!
 
                 // Mark as stopped in storage if we have a reportId
                 if (reportId != null) {
@@ -630,6 +631,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 settingsPrefs.saveModelsForProvider(service, models)
             } catch (e: Exception) {
+                android.util.Log.w("AiViewModel", "Failed to fetch models for ${service.displayName}: ${e.message}")
                 _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor - service) }
             }
         }
@@ -651,8 +653,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
         if (servicesToRefresh.isEmpty()) return emptyMap()
 
-        val results = java.util.concurrent.ConcurrentHashMap<String, Int>()
-        coroutineScope {
+        val results = coroutineScope {
             servicesToRefresh.map { service ->
                 async {
                     onProgress?.invoke(service.displayName)
@@ -663,19 +664,19 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         }
                         settingsPrefs.saveModelsForProvider(service, models)
                         settingsPrefs.updateModelListTimestamp(service)
-                        results[service.displayName] = models.size
+                        service.displayName to models.size
                     } catch (e: Exception) {
-                        results[service.displayName] = -1
+                        service.displayName to -1
                     }
                 }
-            }.awaitAll()
+            }.awaitAll().toMap()
         }
 
         if (results.isNotEmpty()) {
             android.util.Log.d("AiViewModel", "Model lists refreshed for ${results.size} providers")
         }
 
-        return results.toMap()
+        return results
     }
 
     /**

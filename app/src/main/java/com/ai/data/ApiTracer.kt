@@ -309,8 +309,9 @@ class TracingInterceptor : Interceptor {
         // Extract model from request body
         val model = requestBody?.let { body ->
             try {
-                val json = com.google.gson.JsonParser().parse(body).asJsonObject
-                json.get("model")?.asString
+                @Suppress("DEPRECATION")
+                val element = com.google.gson.JsonParser().parse(body)
+                if (element.isJsonObject) element.asJsonObject.get("model")?.asString else null
             } catch (_: Exception) { null }
         }
 

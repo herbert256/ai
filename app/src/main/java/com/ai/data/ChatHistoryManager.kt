@@ -2,7 +2,6 @@ package com.ai.data
 
 import android.content.Context
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.io.File
 import kotlin.concurrent.withLock
 

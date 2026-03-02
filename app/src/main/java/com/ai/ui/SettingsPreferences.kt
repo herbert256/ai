@@ -180,11 +180,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val type = object : TypeToken<List<AiAgent>>() {}.type
             val list: List<AiAgent>? = gson.fromJson(json, type)
             // Filter out agents with unknown providers; coalesce Gson null defaults
-            list?.filter { AiService.findById(it.provider.id) != null }?.map { agent ->
-                agent.copy(
-                    paramsIds = agent.paramsIds
-                )
-            } ?: emptyList()
+            list?.filter { AiService.findById(it.provider.id) != null } ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -199,12 +195,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         return try {
             val type = object : TypeToken<List<AiFlock>>() {}.type
             val list: List<AiFlock>? = gson.fromJson(json, type)
-            list?.map { flock ->
-                flock.copy(
-                    agentIds = flock.agentIds,
-                    paramsIds = flock.paramsIds
-                )
-            } ?: emptyList()
+            list ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -219,12 +210,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         return try {
             val type = object : TypeToken<List<AiSwarm>>() {}.type
             val list: List<AiSwarm>? = gson.fromJson(json, type)
-            list?.map { swarm ->
-                swarm.copy(
-                    members = swarm.members,
-                    paramsIds = swarm.paramsIds
-                )
-            } ?: emptyList()
+            list ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -388,6 +374,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     companion object {
+        /** File-level lock for usage stats to prevent lost updates across instances. */
+        private val usageStatsLock = Any()
+
         const val PREFS_NAME = "eval_prefs"
 
         // General settings
@@ -521,7 +510,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         outputTokens: Int,
         totalTokens: Int = inputTokens + outputTokens
     ) {
-        synchronized(this) {
+        synchronized(usageStatsLock) {
             val stats = loadUsageStats().toMutableMap()
             val key = "${provider.id}::$model"
             val existing = stats[key] ?: AiUsageStats(provider, model)
