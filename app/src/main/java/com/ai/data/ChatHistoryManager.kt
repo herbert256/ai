@@ -3,6 +3,11 @@ package com.ai.data
 import android.content.Context
 import com.google.gson.Gson
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import kotlin.concurrent.withLock
 
 /**
@@ -14,6 +19,8 @@ object ChatHistoryManager {
     private var historyDir: File? = null
     private val gson: Gson = createAiGson(prettyPrint = true)
     private val lock = java.util.concurrent.locks.ReentrantLock()
+    private val _historyVersion = MutableStateFlow(0L)
+    val historyVersion: StateFlow<Long> = _historyVersion.asStateFlow()
 
     /**
      * Initialize the manager with the app context.
@@ -44,6 +51,7 @@ object ChatHistoryManager {
             try {
                 val json = gson.toJson(session)
                 file.writeText(json)
+                notifyHistoryChanged()
                 android.util.Log.d("ChatHistoryManager", "Saved chat session: ${session.id}")
                 true
             } catch (e: Exception) {
@@ -99,7 +107,11 @@ object ChatHistoryManager {
         val dir = historyDir ?: return false
         val file = File(dir, "$sessionId.json")
         return try {
-            file.delete()
+            file.delete().also { deleted ->
+                if (deleted) {
+                    notifyHistoryChanged()
+                }
+            }
         } catch (e: Exception) {
             false
         }
@@ -110,7 +122,13 @@ object ChatHistoryManager {
      */
     fun clearHistory() {
         val dir = historyDir ?: return
-        dir.listFiles()?.forEach { it.delete() }
+        var changed = false
+        dir.listFiles()?.forEach { file ->
+            changed = file.delete() || changed
+        }
+        if (changed) {
+            notifyHistoryChanged()
+        }
     }
 
     /**
@@ -120,5 +138,17 @@ object ChatHistoryManager {
         val dir = historyDir ?: return 0
         if (!dir.exists()) return 0
         return dir.listFiles { file -> file.extension == "json" }?.size ?: 0
+    }
+
+    suspend fun getAllSessionsAsync(): List<ChatSession> = withContext(Dispatchers.IO) {
+        getAllSessions()
+    }
+
+    suspend fun getSessionCountAsync(): Int = withContext(Dispatchers.IO) {
+        getSessionCount()
+    }
+
+    private fun notifyHistoryChanged() {
+        _historyVersion.value = System.currentTimeMillis()
     }
 }

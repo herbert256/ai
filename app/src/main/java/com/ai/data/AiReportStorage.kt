@@ -6,6 +6,8 @@ import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.concurrent.withLock
 
 /**
@@ -280,6 +282,88 @@ object AiReportStorage {
             status = ReportStatus.STOPPED,
             errorMessage = "Stopped by user"
         )
+    }
+
+    suspend fun createReportAsync(
+        context: Context,
+        title: String,
+        prompt: String,
+        agents: List<AiReportAgent>,
+        rapportText: String? = null,
+        reportType: ReportType = ReportType.CLASSIC,
+        closeText: String? = null
+    ): AiReport = withContext(Dispatchers.IO) {
+        createReport(context, title, prompt, agents, rapportText, reportType, closeText)
+    }
+
+    suspend fun markAgentRunningAsync(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        requestHeaders: String? = null,
+        requestBody: String? = null
+    ) = withContext(Dispatchers.IO) {
+        markAgentRunning(context, reportId, agentId, requestHeaders, requestBody)
+    }
+
+    suspend fun markAgentSuccessAsync(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        httpStatus: Int,
+        responseHeaders: String?,
+        responseBody: String?,
+        tokenUsage: TokenUsage?,
+        cost: Double?,
+        citations: List<String>? = null,
+        searchResults: List<SearchResult>? = null,
+        relatedQuestions: List<String>? = null,
+        durationMs: Long? = null
+    ) = withContext(Dispatchers.IO) {
+        markAgentSuccess(
+            context = context,
+            reportId = reportId,
+            agentId = agentId,
+            httpStatus = httpStatus,
+            responseHeaders = responseHeaders,
+            responseBody = responseBody,
+            tokenUsage = tokenUsage,
+            cost = cost,
+            citations = citations,
+            searchResults = searchResults,
+            relatedQuestions = relatedQuestions,
+            durationMs = durationMs
+        )
+    }
+
+    suspend fun markAgentErrorAsync(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        httpStatus: Int?,
+        errorMessage: String?,
+        responseHeaders: String? = null,
+        responseBody: String? = null,
+        durationMs: Long? = null
+    ) = withContext(Dispatchers.IO) {
+        markAgentError(
+            context = context,
+            reportId = reportId,
+            agentId = agentId,
+            httpStatus = httpStatus,
+            errorMessage = errorMessage,
+            responseHeaders = responseHeaders,
+            responseBody = responseBody,
+            durationMs = durationMs
+        )
+    }
+
+    suspend fun markAgentStoppedAsync(
+        context: Context,
+        reportId: String,
+        agentId: String
+    ) = withContext(Dispatchers.IO) {
+        markAgentStopped(context, reportId, agentId)
     }
 
     /**

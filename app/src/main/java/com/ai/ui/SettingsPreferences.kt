@@ -7,6 +7,8 @@ import com.ai.data.createAiGson
 import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.lang.reflect.Type
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Helper class for managing all settings persistence via SharedPreferences.
@@ -521,6 +523,16 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             )
             saveUsageStats(stats)
         }
+    }
+
+    suspend fun updateUsageStatsAsync(
+        provider: com.ai.data.AiService,
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        totalTokens: Int = inputTokens + outputTokens
+    ) = withContext(Dispatchers.IO) {
+        updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens)
     }
 
     fun clearUsageStats() {

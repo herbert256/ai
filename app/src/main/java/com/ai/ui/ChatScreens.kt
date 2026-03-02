@@ -29,9 +29,11 @@ import com.ai.data.AiService
 import com.ai.data.ChatHistoryManager
 import com.ai.data.PricingCache
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -647,7 +649,9 @@ fun ChatSessionScreen(
                         totalInputTokens += inputTokensForThisRequest
 
                         // Save session with user message
-                        saveSession(messages)
+                        scope.launch(Dispatchers.IO) {
+                            saveSession(messages)
+                        }
 
                         // Use streaming if available, otherwise fall back to regular
                         if (onSendMessageStream != null) {
@@ -665,7 +669,9 @@ fun ChatSessionScreen(
                                             content = streamingContent
                                         )
                                         messages = messages + assistantMessage
-                                        saveSession(messages)
+                                        withContext(Dispatchers.IO) {
+                                            saveSession(messages)
+                                        }
 
                                         // Track output tokens and calculate cost
                                         val outputTokens = estimateTokens(streamingContent)
@@ -686,7 +692,9 @@ fun ChatSessionScreen(
                                             content = streamingContent + "\n\n[Stream interrupted]"
                                         )
                                         messages = messages + assistantMessage
-                                        saveSession(messages)
+                                        withContext(Dispatchers.IO) {
+                                            saveSession(messages)
+                                        }
                                     }
                                 } finally {
                                     isStreaming = false
@@ -700,7 +708,9 @@ fun ChatSessionScreen(
                                 try {
                                     val response = onSendMessage(messages, input)
                                     messages = messages + response
-                                    saveSession(messages)
+                                    withContext(Dispatchers.IO) {
+                                        saveSession(messages)
+                                    }
 
                                     // Track output tokens and calculate cost
                                     val outputTokens = estimateTokens(response.content)
@@ -846,7 +856,10 @@ fun ChatHistoryScreen(
 ) {
     BackHandler { onNavigateBack() }
 
-    var allSessions by remember { mutableStateOf(ChatHistoryManager.getAllSessions()) }
+    val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
+    val allSessions by produceState<List<ChatSession>>(initialValue = emptyList(), historyVersion) {
+        value = ChatHistoryManager.getAllSessionsAsync()
+    }
     var currentPage by rememberSaveable { mutableStateOf(0) }
 
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
@@ -1040,7 +1053,10 @@ fun AiChatsHubScreen(
     }
 
     // Check if there are any chat sessions
-    val hasChatHistory = remember { ChatHistoryManager.getSessionCount() > 0 }
+    val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
+    val hasChatHistory by produceState(initialValue = false, historyVersion) {
+        value = ChatHistoryManager.getSessionCountAsync() > 0
+    }
 
     Column(
         modifier = Modifier
@@ -1178,14 +1194,21 @@ fun ChatSearchScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ChatSearchResult>>(emptyList()) }
     var hasSearched by rememberSaveable { mutableStateOf(false) }
+    var isSearching by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()) }
     val focusRequester = remember { FocusRequester() }
+    val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
 
     // Auto-focus the search field and restore search results if query was saved
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
+    }
+
+    LaunchedEffect(historyVersion, searchQuery, hasSearched) {
         if (searchQuery.isNotBlank() && hasSearched) {
+            isSearching = true
             searchResults = searchInChats(searchQuery)
+            isSearching = false
         }
     }
 
@@ -1225,7 +1248,6 @@ fun ChatSearchScreen(
                     TextButton(
                         onClick = {
                             if (searchQuery.isNotBlank()) {
-                                searchResults = searchInChats(searchQuery)
                                 hasSearched = true
                             }
                         },
@@ -1248,6 +1270,13 @@ fun ChatSearchScreen(
                         text = "Enter a search term to find messages",
                         color = AiColors.TextTertiary
                     )
+                }
+            } else if (isSearching) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = AiColors.Blue)
                 }
             } else if (searchResults.isEmpty()) {
                 Box(
@@ -1338,39 +1367,34 @@ private data class ChatSearchResult(
     val messageTimestamp: Long
 )
 
-/**
- * Search in all chat sessions for a query.
- */
-private fun searchInChats(query: String): List<ChatSearchResult> {
+private suspend fun searchInChats(query: String): List<ChatSearchResult> = withContext(Dispatchers.IO) {
     val results = mutableListOf<ChatSearchResult>()
     val sessions = ChatHistoryManager.getAllSessions()
     val lowerQuery = query.lowercase()
 
     for (session in sessions) {
-        val fullSession = ChatHistoryManager.loadSession(session.id) ?: continue
-        for (message in fullSession.messages) {
-            if (message.content.lowercase().contains(lowerQuery)) {
-                // Create a preview with context around the match
-                val content = message.content
-                val matchIndex = content.lowercase().indexOf(lowerQuery)
+        for (message in session.messages) {
+            val lowerContent = message.content.lowercase()
+            if (lowerContent.contains(lowerQuery)) {
+                val matchIndex = lowerContent.indexOf(lowerQuery)
                 val start = (matchIndex - 40).coerceAtLeast(0)
-                val end = (matchIndex + query.length + 40).coerceAtMost(content.length)
+                val end = (matchIndex + query.length + 40).coerceAtMost(message.content.length)
                 val preview = (if (start > 0) "..." else "") +
-                        content.substring(start, end) +
-                        (if (end < content.length) "..." else "")
+                    message.content.substring(start, end) +
+                    (if (end < message.content.length) "..." else "")
 
                 results.add(
                     ChatSearchResult(
                         sessionId = session.id,
-                        sessionTitle = fullSession.preview.ifBlank { "Chat with ${session.provider.displayName}" },
+                        sessionTitle = session.preview.ifBlank { "Chat with ${session.provider.displayName}" },
                         messageRole = message.role,
                         messagePreview = preview,
-                        messageTimestamp = session.updatedAt
+                        messageTimestamp = message.timestamp
                     )
                 )
             }
         }
     }
 
-    return results.sortedByDescending { it.messageTimestamp }
+    results.sortedByDescending { it.messageTimestamp }
 }
