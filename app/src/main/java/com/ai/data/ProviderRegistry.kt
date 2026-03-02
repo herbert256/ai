@@ -2,13 +2,14 @@ package com.ai.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.ai.ui.AiConfigExport
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 
 /**
  * Mutable registry of AI service providers.
- * On first launch, loads from bundled assets/providers.json.
+ * On first launch, loads from bundled assets/setup.json.
  * Subsequent launches load from SharedPreferences.
  * Supports CRUD operations for fully data-driven provider management.
  */
@@ -24,7 +25,7 @@ object ProviderRegistry {
 
     /**
      * Initialize the registry. Must be called before any provider access.
-     * Loads from SharedPreferences if previously saved, otherwise from assets/providers.json.
+     * Loads from SharedPreferences if previously saved, otherwise from assets/setup.json.
      */
     fun init(context: Context) {
         if (initialized) return
@@ -60,12 +61,19 @@ object ProviderRegistry {
 
     private fun loadFromAssets(context: Context) {
         try {
-            val json = context.assets.open("providers.json").bufferedReader().use { it.readText() }
-            val list = parseProvidersJson(json)
+            val json = context.assets.open("setup.json").bufferedReader().use { it.readText() }
+            val gson = createAiGson()
+            val export = gson.fromJson(json, AiConfigExport::class.java)
+            val defs = export.providerDefinitions
+            if (defs.isNullOrEmpty()) {
+                android.util.Log.w("ProviderRegistry", "No providerDefinitions in setup.json")
+                return
+            }
+            val list = defs.map { it.toAiService() }
             providers.clear()
             providers.addAll(list)
             save()
-            android.util.Log.d("ProviderRegistry", "Loaded ${list.size} providers from assets/providers.json")
+            android.util.Log.d("ProviderRegistry", "Loaded ${list.size} providers from assets/setup.json")
         } catch (e: Exception) {
             android.util.Log.e("ProviderRegistry", "Error loading providers from assets: ${e.message}")
         }
@@ -150,7 +158,7 @@ object ProviderRegistry {
 
 /**
  * JSON-serializable representation of an AiService provider definition.
- * Used for providers.json and SharedPreferences storage.
+ * Used for setup.json and SharedPreferences storage.
  */
 data class ProviderDefinition(
     val id: String,

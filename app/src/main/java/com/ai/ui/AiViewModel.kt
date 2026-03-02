@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,12 +46,31 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         // Initialize AiReportStorage for tracking report generation
         AiReportStorage.init(application)
 
-        // Initialize ProviderRegistry (loads providers from SharedPreferences or assets/providers.json)
+        // Initialize ProviderRegistry (loads providers from SharedPreferences or assets/setup.json)
         com.ai.data.ProviderRegistry.init(application)
 
         // Load settings (models are now part of aiSettings via ProviderConfig.models)
-        val generalSettings = loadGeneralSettings()
-        val aiSettings = loadAiSettings()
+        var generalSettings = loadGeneralSettings()
+        var aiSettings = loadAiSettings()
+
+        // On first run, import full configuration from assets/setup.json
+        val setupImported = prefs.getBoolean("setup_imported", false)
+        if (!setupImported) {
+            val result = importAiConfigFromAsset(application, "setup.json", aiSettings)
+            if (result != null) {
+                aiSettings = result.aiSettings
+                saveAiSettings(aiSettings)
+                val updatedGs = generalSettings.copy(
+                    huggingFaceApiKey = result.huggingFaceApiKey ?: generalSettings.huggingFaceApiKey,
+                    openRouterApiKey = result.openRouterApiKey ?: generalSettings.openRouterApiKey
+                )
+                if (updatedGs != generalSettings) {
+                    generalSettings = updatedGs
+                    saveGeneralSettings(generalSettings)
+                }
+            }
+            prefs.edit().putBoolean("setup_imported", true).apply()
+        }
 
         _uiState.update { it.copy(
             generalSettings = generalSettings,
@@ -629,11 +649,18 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
      * Uses 24-hour cache per provider unless forceRefresh is true.
      */
     suspend fun refreshAllModelLists(settings: AiSettings, forceRefresh: Boolean = false, onProgress: ((String) -> Unit)? = null): Map<String, Int> {
-        val results = mutableMapOf<String, Int>()
+        val servicesToRefresh = AiService.entries.filter { service ->
+            settings.getModelSource(service) == ModelSource.API &&
+            settings.getApiKey(service).isNotBlank() &&
+            (forceRefresh || !settingsPrefs.isModelListCacheValid(service))
+        }
 
-        for (service in AiService.entries) {
-            if (settings.getModelSource(service) == ModelSource.API && settings.getApiKey(service).isNotBlank()) {
-                if (forceRefresh || !settingsPrefs.isModelListCacheValid(service)) {
+        if (servicesToRefresh.isEmpty()) return emptyMap()
+
+        val results = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        coroutineScope {
+            servicesToRefresh.map { service ->
+                async {
                     onProgress?.invoke(service.displayName)
                     try {
                         val models = aiAnalysisRepository.fetchModels(service, settings.getApiKey(service))
@@ -647,14 +674,14 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                         results[service.displayName] = -1
                     }
                 }
-            }
+            }.awaitAll()
         }
 
         if (results.isNotEmpty()) {
             android.util.Log.d("AiViewModel", "Model lists refreshed for ${results.size} providers")
         }
 
-        return results
+        return results.toMap()
     }
 
     /**

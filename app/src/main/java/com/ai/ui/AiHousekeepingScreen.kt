@@ -16,6 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 
 /**
@@ -305,36 +307,40 @@ fun HousekeepingScreen(
                             scope.launch {
                                 progressTitle = "Refresh All"
                                 isRefreshingAll = true
+                                progressText = "Provider state + model lists..."
 
-                                progressText = "Provider state..."
-                                val stateResults = mutableMapOf<String, String>()
-                                for (service in com.ai.data.AiService.entries) {
-                                    if (aiSettings.getProviderState(service) == "inactive") {
-                                        stateResults[service.displayName] = "inactive"
-                                        continue
+                                // Run provider state, model lists, and OpenRouter in parallel
+                                val stateJob = async {
+                                    val stateResults = java.util.concurrent.ConcurrentHashMap<String, String>()
+                                    val toTest = mutableListOf<AiService>()
+                                    for (service in com.ai.data.AiService.entries) {
+                                        if (aiSettings.getProviderState(service) == "inactive") {
+                                            stateResults[service.displayName] = "inactive"
+                                        } else if (aiSettings.getApiKey(service).isBlank()) {
+                                            onProviderStateChange(service, "not-used")
+                                            stateResults[service.displayName] = "not-used"
+                                        } else {
+                                            toTest.add(service)
+                                        }
                                     }
-                                    progressText = "State: ${service.displayName}"
-                                    val apiKey = aiSettings.getApiKey(service)
-                                    if (apiKey.isBlank()) {
-                                        onProviderStateChange(service, "not-used")
-                                        stateResults[service.displayName] = "not-used"
-                                    } else {
-                                        val model = aiSettings.getModel(service)
-                                        val error = onTestApiKey(service, apiKey, model)
-                                        val state = if (error == null) "ok" else "error"
-                                        onProviderStateChange(service, state)
-                                        stateResults[service.displayName] = state
+                                    toTest.map { service ->
+                                        async {
+                                            val error = onTestApiKey(service, aiSettings.getApiKey(service), aiSettings.getModel(service))
+                                            val state = if (error == null) "ok" else "error"
+                                            onProviderStateChange(service, state)
+                                            stateResults[service.displayName] = state
+                                        }
+                                    }.awaitAll()
+                                    stateResults.toMap()
+                                }
+
+                                val modelsJob = async {
+                                    onRefreshAllModels(aiSettings, true) { provider ->
+                                        progressText = "Models: $provider"
                                     }
                                 }
-                                providerStateResults = stateResults
 
-                                progressText = "Refreshing model lists..."
-                                refreshResults = onRefreshAllModels(aiSettings, true) { provider ->
-                                    progressText = "Models: $provider"
-                                }
-
-                                if (openRouterApiKey.isNotBlank()) {
-                                    progressText = "OpenRouter data..."
+                                val orJob = if (openRouterApiKey.isNotBlank()) async {
                                     var pricingCount = 0
                                     var specsPricing = 0
                                     var specsParams = 0
@@ -348,27 +354,35 @@ fun HousekeepingScreen(
                                         specsPricing = specsResult.first
                                         specsParams = specsResult.second
                                     }
-                                    openRouterResult = if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
-                                }
+                                    if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
+                                } else null
 
+                                providerStateResults = stateJob.await()
+                                refreshResults = modelsJob.await()
+                                openRouterResult = orJob?.await()
+
+                                // Default agents (depends on provider state results)
                                 progressText = "Default agents..."
-                                val genResults = mutableListOf<Pair<String, Boolean>>()
                                 val providersToTest = AiService.entries.filter { aiSettings.getApiKey(it).isNotBlank() }
-                                var updatedAgents = aiSettings.agents.toMutableList()
-                                for (provider in providersToTest) {
-                                    progressText = "Agents: ${provider.displayName}"
-                                    val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
-                                    val isWorking = testResult == null
-                                    if (isWorking) {
-                                        val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
-                                        if (idx >= 0) {
-                                            updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
-                                        } else {
-                                            updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                                val genResults = java.util.concurrent.CopyOnWriteArrayList<Pair<String, Boolean>>()
+                                val updatedAgents = java.util.concurrent.CopyOnWriteArrayList(aiSettings.agents)
+                                providersToTest.map { provider ->
+                                    async {
+                                        val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
+                                        val isWorking = testResult == null
+                                        if (isWorking) {
+                                            synchronized(updatedAgents) {
+                                                val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
+                                                if (idx >= 0) {
+                                                    updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
+                                                } else {
+                                                    updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                                                }
+                                            }
                                         }
+                                        genResults.add(provider.displayName to isWorking)
                                     }
-                                    genResults.add(provider.displayName to isWorking)
-                                }
+                                }.awaitAll()
                                 if (genResults.count { it.second } > 0) {
                                     val defaultAgentIds = updatedAgents.filter { agent -> AiService.entries.any { it.displayName == agent.name } }.map { it.id }
                                     val updatedFlocks = aiSettings.flocks.toMutableList()
@@ -378,9 +392,9 @@ fun HousekeepingScreen(
                                     } else {
                                         updatedFlocks.add(AiFlock(id = java.util.UUID.randomUUID().toString(), name = "default agents", agentIds = defaultAgentIds))
                                     }
-                                    onSave(aiSettings.copy(agents = updatedAgents, flocks = updatedFlocks))
+                                    onSave(aiSettings.copy(agents = updatedAgents.toList(), flocks = updatedFlocks))
                                 }
-                                generationResults = genResults
+                                generationResults = genResults.toList()
 
                                 isRefreshingAll = false
                                 progressTitle = ""
@@ -398,26 +412,30 @@ fun HousekeepingScreen(
                         onClick = {
                             scope.launch {
                                 progressTitle = "Refresh Provider State"
-                                val results = mutableMapOf<String, String>()
+                                progressText = "Testing providers..."
+                                val results = java.util.concurrent.ConcurrentHashMap<String, String>()
+                                // Separate immediate results from async tests
+                                val toTest = mutableListOf<AiService>()
                                 for (service in com.ai.data.AiService.entries) {
                                     if (aiSettings.getProviderState(service) == "inactive") {
                                         results[service.displayName] = "inactive"
-                                        continue
-                                    }
-                                    progressText = service.displayName
-                                    val apiKey = aiSettings.getApiKey(service)
-                                    if (apiKey.isBlank()) {
+                                    } else if (aiSettings.getApiKey(service).isBlank()) {
                                         onProviderStateChange(service, "not-used")
                                         results[service.displayName] = "not-used"
                                     } else {
-                                        val model = aiSettings.getModel(service)
-                                        val error = onTestApiKey(service, apiKey, model)
+                                        toTest.add(service)
+                                    }
+                                }
+                                // Test all providers with API keys in parallel
+                                toTest.map { service ->
+                                    async {
+                                        val error = onTestApiKey(service, aiSettings.getApiKey(service), aiSettings.getModel(service))
                                         val state = if (error == null) "ok" else "error"
                                         onProviderStateChange(service, state)
                                         results[service.displayName] = state
                                     }
-                                }
-                                providerStateResults = results
+                                }.awaitAll()
+                                providerStateResults = results.toMap()
                                 progressTitle = ""
                                 progressText = ""
                                 showProviderStateResultDialog = true
@@ -760,15 +778,16 @@ fun HousekeepingScreen(
                                     onProgress = { progressText = it }
                                 )
 
-                                // 2. Refresh model lists
-                                progressText = "Refreshing model lists..."
-                                refreshResults = onRefreshAllModels(aiSettings, true) { provider ->
-                                    progressText = "Models: $provider"
+                                // 2-4. Refresh model lists, OpenRouter, and provider state in parallel
+                                progressText = "Refreshing providers..."
+
+                                val modelsJob = async {
+                                    onRefreshAllModels(aiSettings, true) { provider ->
+                                        progressText = "Models: $provider"
+                                    }
                                 }
 
-                                // 3. Refresh OpenRouter data
-                                if (openRouterApiKey.isNotBlank()) {
-                                    progressText = "OpenRouter data..."
+                                val orJob = if (openRouterApiKey.isNotBlank()) async {
                                     var pricingCount = 0
                                     var specsPricing = 0
                                     var specsParams = 0
@@ -782,51 +801,59 @@ fun HousekeepingScreen(
                                         specsPricing = specsResult.first
                                         specsParams = specsResult.second
                                     }
-                                    openRouterResult = if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
-                                }
+                                    if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
+                                } else null
 
-                                // 4. Refresh provider state
-                                progressText = "Provider state..."
-                                val stateResults = mutableMapOf<String, String>()
-                                for (service in com.ai.data.AiService.entries) {
-                                    if (aiSettings.getProviderState(service) == "inactive") {
-                                        stateResults[service.displayName] = "inactive"
-                                        continue
-                                    }
-                                    progressText = "State: ${service.displayName}"
-                                    val apiKey = aiSettings.getApiKey(service)
-                                    if (apiKey.isBlank()) {
-                                        onProviderStateChange(service, "not-used")
-                                        stateResults[service.displayName] = "not-used"
-                                    } else {
-                                        val model = aiSettings.getModel(service)
-                                        val error = onTestApiKey(service, apiKey, model)
-                                        val state = if (error == null) "ok" else "error"
-                                        onProviderStateChange(service, state)
-                                        stateResults[service.displayName] = state
-                                    }
-                                }
-                                providerStateResults = stateResults
-
-                                // 5. Generate default agents
-                                progressText = "Default agents..."
-                                val genResults = mutableListOf<Pair<String, Boolean>>()
-                                val providersToTest = AiService.entries.filter { aiSettings.getApiKey(it).isNotBlank() }
-                                var updatedAgents = aiSettings.agents.toMutableList()
-                                for (provider in providersToTest) {
-                                    progressText = "Agents: ${provider.displayName}"
-                                    val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
-                                    val isWorking = testResult == null
-                                    if (isWorking) {
-                                        val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
-                                        if (idx >= 0) {
-                                            updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
+                                val stateJob = async {
+                                    val stateResults = java.util.concurrent.ConcurrentHashMap<String, String>()
+                                    val toTest = mutableListOf<AiService>()
+                                    for (service in com.ai.data.AiService.entries) {
+                                        if (aiSettings.getProviderState(service) == "inactive") {
+                                            stateResults[service.displayName] = "inactive"
+                                        } else if (aiSettings.getApiKey(service).isBlank()) {
+                                            onProviderStateChange(service, "not-used")
+                                            stateResults[service.displayName] = "not-used"
                                         } else {
-                                            updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                                            toTest.add(service)
                                         }
                                     }
-                                    genResults.add(provider.displayName to isWorking)
+                                    toTest.map { service ->
+                                        async {
+                                            val error = onTestApiKey(service, aiSettings.getApiKey(service), aiSettings.getModel(service))
+                                            val state = if (error == null) "ok" else "error"
+                                            onProviderStateChange(service, state)
+                                            stateResults[service.displayName] = state
+                                        }
+                                    }.awaitAll()
+                                    stateResults.toMap()
                                 }
+
+                                refreshResults = modelsJob.await()
+                                openRouterResult = orJob?.await()
+                                providerStateResults = stateJob.await()
+
+                                // 5. Generate default agents (parallel)
+                                progressText = "Default agents..."
+                                val providersToTest = AiService.entries.filter { aiSettings.getApiKey(it).isNotBlank() }
+                                val genResults = java.util.concurrent.CopyOnWriteArrayList<Pair<String, Boolean>>()
+                                val updatedAgents = java.util.concurrent.CopyOnWriteArrayList(aiSettings.agents)
+                                providersToTest.map { provider ->
+                                    async {
+                                        val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
+                                        val isWorking = testResult == null
+                                        if (isWorking) {
+                                            synchronized(updatedAgents) {
+                                                val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
+                                                if (idx >= 0) {
+                                                    updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
+                                                } else {
+                                                    updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
+                                                }
+                                            }
+                                        }
+                                        genResults.add(provider.displayName to isWorking)
+                                    }
+                                }.awaitAll()
                                 if (genResults.count { it.second } > 0) {
                                     val defaultAgentIds = updatedAgents.filter { agent -> AiService.entries.any { it.displayName == agent.name } }.map { it.id }
                                     val updatedFlocks = aiSettings.flocks.toMutableList()
@@ -836,9 +863,9 @@ fun HousekeepingScreen(
                                     } else {
                                         updatedFlocks.add(AiFlock(id = java.util.UUID.randomUUID().toString(), name = "default agents", agentIds = defaultAgentIds))
                                     }
-                                    onSave(aiSettings.copy(agents = updatedAgents, flocks = updatedFlocks))
+                                    onSave(aiSettings.copy(agents = updatedAgents.toList(), flocks = updatedFlocks))
                                 }
-                                generationResults = genResults
+                                generationResults = genResults.toList()
 
                                 progressTitle = ""
                                 progressText = ""

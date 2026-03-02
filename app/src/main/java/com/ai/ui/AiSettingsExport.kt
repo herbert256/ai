@@ -159,7 +159,8 @@ data class AiConfigExport(
     val manualPricing: List<ManualPricingExport>? = null,
     val providerEndpoints: List<ProviderEndpointsExport>? = null,
     val openRouterApiKey: String? = null,
-    val providerDefinitions: List<com.ai.data.ProviderDefinition>? = null
+    val providerDefinitions: List<com.ai.data.ProviderDefinition>? = null,
+    val providerStates: Map<String, String>? = null
 )
 
 /**
@@ -338,7 +339,8 @@ fun exportAiConfigToFile(context: Context, aiSettings: AiSettings, huggingFaceAp
         manualPricing = manualPricing.ifEmpty { null },
         providerEndpoints = providerEndpoints.ifEmpty { null },
         openRouterApiKey = openRouterApiKey.ifBlank { null },
-        providerDefinitions = providerDefinitions
+        providerDefinitions = providerDefinitions,
+        providerStates = aiSettings.providerStates.ifEmpty { null }
     )
 
     val gson = createAiGson(prettyPrint = true)
@@ -500,10 +502,11 @@ fun importApiKeysFromFile(context: Context, uri: Uri, currentSettings: AiSetting
  * Helper function to process imported AI configuration.
  * Contains the common logic shared between clipboard and file import.
  */
-private fun processImportedConfig(
+internal fun processImportedConfig(
     context: Context,
     export: AiConfigExport,
-    currentSettings: AiSettings
+    currentSettings: AiSettings,
+    silent: Boolean = false
 ): AiConfigImportResult {
     // Register provider definitions from import (creates missing providers in registry)
     // and update endpoint rules on existing providers
@@ -616,7 +619,8 @@ private fun processImportedConfig(
         swarms = swarms,
         parameters = parameters,
         systemPrompts = systemPrompts,
-        prompts = aiPrompts
+        prompts = aiPrompts,
+        providerStates = export.providerStates ?: currentSettings.providerStates
     )
 
     // Update all provider settings from export
@@ -670,13 +674,15 @@ private fun processImportedConfig(
         }
     }
 
-    // Show summary toast
-    val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-    val importedPricing = export.manualPricing?.size ?: 0
-    val importedEndpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
-    val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
-    val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
-    Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
+    // Show summary toast (unless silent mode for asset import)
+    if (!silent) {
+        val importedApiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
+        val importedPricing = export.manualPricing?.size ?: 0
+        val importedEndpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
+        val pricingMsg = if (importedPricing > 0) ", $importedPricing price overrides" else ""
+        val endpointsMsg = if (importedEndpoints > 0) ", $importedEndpoints endpoints" else ""
+        Toast.makeText(context, "Imported ${agents.size} agents, $importedApiKeys API keys$pricingMsg$endpointsMsg", Toast.LENGTH_SHORT).show()
+    }
 
     return AiConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey)
 }
@@ -715,6 +721,31 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
         null
     } catch (e: Exception) {
         Toast.makeText(context, "Error importing configuration: ${e.message}", Toast.LENGTH_SHORT).show()
+        null
+    }
+}
+
+/**
+ * Import AI configuration from a bundled asset file (e.g., setup.json on first run).
+ * Uses the same format as AI Configuration export/import.
+ * Returns AiConfigImportResult or null on error. Does not show toasts on error.
+ */
+fun importAiConfigFromAsset(context: Context, assetFileName: String, currentSettings: AiSettings): AiConfigImportResult? {
+    return try {
+        val json = context.assets.open(assetFileName).bufferedReader().use { it.readText() }
+        if (json.isBlank()) return null
+
+        val gson = createAiGson()
+        val export = gson.fromJson(json, AiConfigExport::class.java)
+
+        if (export.version !in 11..21) {
+            android.util.Log.w("AiSettingsExport", "Unsupported setup config version: ${export.version}")
+            return null
+        }
+
+        processImportedConfig(context, export, currentSettings, silent = true)
+    } catch (e: Exception) {
+        android.util.Log.e("AiSettingsExport", "Error importing config from asset $assetFileName: ${e.message}")
         null
     }
 }
