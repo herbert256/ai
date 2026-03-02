@@ -95,6 +95,13 @@ fun AiNavHost(
     externalInstructions: String? = null,
     onExternalIntentHandled: () -> Unit = {}
 ) {
+    // Safe back navigation - won't pop past the start destination
+    val safePopBack: () -> Unit = {
+        if (navController.previousBackStackEntry != null) {
+            navController.popBackStack()
+        }
+    }
+
     // Navigate to home, clearing the back stack
     val navigateHome: () -> Unit = {
         navController.navigate(NavRoutes.AI) {
@@ -201,7 +208,7 @@ fun AiNavHost(
         composable(NavRoutes.SETTINGS) {
             SettingsScreenNav(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { filename -> navController.navigate(NavRoutes.traceDetail(filename)) }
@@ -211,7 +218,7 @@ fun AiNavHost(
         composable(NavRoutes.AI_SETUP) {
             AiSetupScreenNav(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { filename -> navController.navigate(NavRoutes.traceDetail(filename)) }
@@ -227,14 +234,14 @@ fun AiNavHost(
 
         composable(NavRoutes.HELP) {
             HelpScreen(
-                onBack = { navController.popBackStack() },
+                onBack = safePopBack,
                 onNavigateHome = navigateHome
             )
         }
 
         composable(NavRoutes.TRACE_LIST) {
             TraceListScreen(
-                onBack = { navController.popBackStack() },
+                onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onSelectTrace = { filename ->
                     navController.navigate(NavRoutes.traceDetail(filename))
@@ -246,7 +253,7 @@ fun AiNavHost(
         composable(NavRoutes.TRACE_LIST_FOR_REPORT) { backStackEntry ->
             val reportId = backStackEntry.arguments?.getString("reportId") ?: ""
             TraceListScreen(
-                onBack = { navController.popBackStack() },
+                onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onSelectTrace = { filename ->
                     navController.navigate(NavRoutes.traceDetail(filename))
@@ -260,15 +267,18 @@ fun AiNavHost(
             val filename = backStackEntry.arguments?.getString("filename") ?: ""
             TraceDetailScreen(
                 filename = filename,
-                onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onEditRequest = {
+                    navController.navigate(NavRoutes.AI_API_TEST_EDIT)
+                }
             )
         }
 
         composable(NavRoutes.AI_HISTORY) {
             val uiState by viewModel.uiState.collectAsState()
             AiHistoryScreenNav(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 developerMode = uiState.generalSettings.developerMode
             )
@@ -276,7 +286,7 @@ fun AiNavHost(
 
         composable(NavRoutes.AI_REPORTS_HUB) {
             AiReportsHubScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
                 onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
@@ -287,7 +297,7 @@ fun AiNavHost(
         composable(NavRoutes.AI_NEW_REPORT) {
             AiNewReportScreen(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) }
             )
@@ -300,7 +310,7 @@ fun AiNavHost(
             val prompt = try { java.net.URLDecoder.decode(encodedPrompt, "UTF-8") } catch (e: Exception) { encodedPrompt }
             AiNewReportScreen(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToAiReports = { navController.navigate(NavRoutes.AI_REPORTS) },
                 initialTitle = title,
@@ -310,7 +320,7 @@ fun AiNavHost(
 
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onSelectEntry = { entry ->
                     navController.navigate(NavRoutes.aiNewReportWithParams(entry.title, entry.prompt))
@@ -322,7 +332,7 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             AiReportsScreenNav(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToTrace = { reportId ->
                     navController.navigate(NavRoutes.traceListForReport(reportId))
@@ -335,7 +345,7 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             AiUsageScreen(
                 openRouterApiKey = com.ai.data.AiService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
-                onBack = { navController.popBackStack() },
+                onBack = safePopBack,
                 onNavigateHome = navigateHome
             )
         }
@@ -345,7 +355,7 @@ fun AiNavHost(
             CostConfigurationScreen(
                 aiSettings = uiState.aiSettings,
                 developerMode = uiState.generalSettings.developerMode,
-                onBack = { navController.popBackStack() },
+                onBack = safePopBack,
                 onNavigateHome = navigateHome
             )
         }
@@ -356,7 +366,7 @@ fun AiNavHost(
                 aiSettings = uiState.aiSettings,
                 developerMode = uiState.generalSettings.developerMode,
                 loadingModelsFor = uiState.loadingModelsFor,
-                onBackToAiSetup = { navController.popBackStack() },
+                onBackToAiSetup = safePopBack,
                 onBackToHome = navigateHome,
                 onSaveAiSettings = { viewModel.updateAiSettings(it) },
                 onTestAiModel = { service, apiKey, model -> viewModel.testAiModel(service, apiKey, model) },
@@ -373,7 +383,7 @@ fun AiNavHost(
         // API Test screen (developer mode)
         composable(NavRoutes.AI_API_TEST) {
             ApiTestScreen(
-                onBackClick = { navController.popBackStack() },
+                onBackClick = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToEditRequest = {
                     navController.navigate(NavRoutes.AI_API_TEST_EDIT)
@@ -384,7 +394,7 @@ fun AiNavHost(
 
         composable(NavRoutes.AI_API_TEST_EDIT) {
             EditApiRequestScreen(
-                onBackClick = { navController.popBackStack() },
+                onBackClick = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToTraceDetail = { filename ->
                     navController.navigate(NavRoutes.traceDetail(filename))
@@ -409,7 +419,7 @@ fun AiNavHost(
                     openRouterApiKey = com.ai.data.AiService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
                     huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
                     aiSettings = uiState.aiSettings,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = safePopBack,
                     onNavigateHome = navigateHome
                 )
             }
@@ -420,7 +430,7 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             AiChatsHubScreen(
                 aiSettings = uiState.aiSettings,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToAgentSelect = { navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT) },
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
@@ -438,7 +448,7 @@ fun AiNavHost(
                 onSelectAgent = { agent ->
                     navController.navigate(NavRoutes.aiChatWithAgent(agent.id))
                 },
-                onBack = { navController.popBackStack() },
+                onBack = safePopBack,
                 onNavigateHome = navigateHome
             )
         }
@@ -478,7 +488,7 @@ fun AiNavHost(
                     model = effectiveModel,
                     parameters = chatParams,
                     userName = uiState.generalSettings.userName,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = safePopBack,
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
                         viewModel.sendChatMessage(agent.provider, effectiveApiKey, effectiveModel, messages)
@@ -493,7 +503,7 @@ fun AiNavHost(
             } else {
                 // Agent not found - navigate back
                 LaunchedEffect(Unit) {
-                    navController.popBackStack()
+                    safePopBack()
                 }
             }
         }
@@ -501,7 +511,7 @@ fun AiNavHost(
         // Chat search screen
         composable(NavRoutes.AI_CHAT_SEARCH) {
             ChatSearchScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onSelectSession = { sessionId ->
                     navController.navigate(NavRoutes.aiChatContinue(sessionId))
@@ -514,7 +524,7 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             ChatSelectProviderScreen(
                 aiSettings = uiState.aiSettings,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onSelectProvider = { provider ->
                     navController.navigate(NavRoutes.aiChatModel(provider.id))
@@ -535,7 +545,7 @@ fun AiNavHost(
                     onSelectModel = { model ->
                         navController.navigate(NavRoutes.aiChatParams(provider.id, model))
                     },
-                    onBack = { navController.popBackStack() },
+                    onBack = safePopBack,
                     onNavigateHome = navigateHome
                 )
             }
@@ -553,7 +563,7 @@ fun AiNavHost(
                     provider = provider,
                     model = model,
                     aiSettings = uiState.aiSettings,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = safePopBack,
                     onNavigateHome = navigateHome,
                     onStartChat = { params ->
                         // Store params in ViewModel and navigate to session
@@ -579,7 +589,7 @@ fun AiNavHost(
                     model = model,
                     parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = safePopBack,
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
                         viewModel.sendChatMessage(provider, apiKey, model, messages)
@@ -597,7 +607,7 @@ fun AiNavHost(
         // Chat history screen
         composable(NavRoutes.AI_CHAT_HISTORY) {
             ChatHistoryScreen(
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onSelectSession = { sessionId ->
                     navController.navigate(NavRoutes.aiChatContinue(sessionId))
@@ -610,7 +620,7 @@ fun AiNavHost(
             val uiState by viewModel.uiState.collectAsState()
             DualChatSetupScreen(
                 aiSettings = uiState.aiSettings,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onStartSession = { config ->
                     viewModel.setDualChatConfig(config)
@@ -625,7 +635,7 @@ fun AiNavHost(
             DualChatSessionScreen(
                 viewModel = viewModel,
                 aiSettings = uiState.aiSettings,
-                onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome
             )
         }
@@ -648,7 +658,7 @@ fun AiNavHost(
                     userName = uiState.generalSettings.userName,
                     initialMessages = session.messages,
                     sessionId = session.id,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = safePopBack,
                     onNavigateHome = navigateHome,
                     onSendMessage = { messages, _ ->
                         viewModel.sendChatMessage(session.provider, apiKey, session.model, messages)
@@ -663,7 +673,7 @@ fun AiNavHost(
             } else {
                 // Session not found - navigate back
                 LaunchedEffect(Unit) {
-                    navController.popBackStack()
+                    safePopBack()
                 }
             }
         }

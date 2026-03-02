@@ -1,5 +1,7 @@
 package com.ai.ui
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -36,6 +38,11 @@ fun AiHubScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // Prevent blank screen when pressing back on home - move app to background
+    BackHandler {
+        (context as? Activity)?.moveTaskToBack(true)
+    }
 
     // Check if at least one AI Agent is configured
     val hasAnyAgent = uiState.aiSettings.agents.isNotEmpty()

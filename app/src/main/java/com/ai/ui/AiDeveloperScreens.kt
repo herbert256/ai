@@ -724,34 +724,45 @@ fun EditApiRequestScreen(
     val responseFormatJson = remember { prefs.getBoolean("last_test_response_format_json", false) }
     val searchEnabled = remember { prefs.getBoolean("last_test_search_enabled", false) }
 
-    // Generate the JSON request body
+    // Use raw JSON from trace edit if available, otherwise generate from parameters
     val generatedJson = remember {
-        val gson = com.ai.data.createAiGson(prettyPrint = true)
-        val messages = buildList {
-            if (systemPrompt.isNotBlank()) {
-                add(mapOf("role" to "system", "content" to systemPrompt))
+        val rawJson = prefs.getString("last_test_raw_json", null)
+        if (rawJson != null) {
+            prefs.edit { remove("last_test_raw_json") }
+            // Pretty-print the raw JSON
+            try {
+                val gson = com.ai.data.createAiGson(prettyPrint = true)
+                val parsed = com.google.gson.JsonParser().parse(rawJson)
+                gson.toJson(parsed)
+            } catch (_: Exception) { rawJson }
+        } else {
+            val gson = com.ai.data.createAiGson(prettyPrint = true)
+            val messages = buildList {
+                if (systemPrompt.isNotBlank()) {
+                    add(mapOf("role" to "system", "content" to systemPrompt))
+                }
+                add(mapOf("role" to "user", "content" to prompt))
             }
-            add(mapOf("role" to "user", "content" to prompt))
+            val requestMap = mutableMapOf<String, Any?>(
+                "model" to model,
+                "messages" to messages
+            )
+            temperature?.let { requestMap["temperature"] = it }
+            maxTokens?.let { requestMap["max_tokens"] = it }
+            topP?.let { requestMap["top_p"] = it }
+            topK?.let { requestMap["top_k"] = it }
+            frequencyPenalty?.let { requestMap["frequency_penalty"] = it }
+            presencePenalty?.let { requestMap["presence_penalty"] = it }
+            seed?.let { requestMap["seed"] = it }
+            stopSequences?.let { requestMap["stop"] = it }
+            if (responseFormatJson) {
+                requestMap["response_format"] = mapOf("type" to "json_object")
+            }
+            if (searchEnabled) {
+                requestMap["search"] = true
+            }
+            gson.toJson(requestMap)
         }
-        val requestMap = mutableMapOf<String, Any?>(
-            "model" to model,
-            "messages" to messages
-        )
-        temperature?.let { requestMap["temperature"] = it }
-        maxTokens?.let { requestMap["max_tokens"] = it }
-        topP?.let { requestMap["top_p"] = it }
-        topK?.let { requestMap["top_k"] = it }
-        frequencyPenalty?.let { requestMap["frequency_penalty"] = it }
-        presencePenalty?.let { requestMap["presence_penalty"] = it }
-        seed?.let { requestMap["seed"] = it }
-        stopSequences?.let { requestMap["stop"] = it }
-        if (responseFormatJson) {
-            requestMap["response_format"] = mapOf("type" to "json_object")
-        }
-        if (searchEnabled) {
-            requestMap["search"] = true
-        }
-        gson.toJson(requestMap)
     }
 
     var editableJson by remember { mutableStateOf(generatedJson) }

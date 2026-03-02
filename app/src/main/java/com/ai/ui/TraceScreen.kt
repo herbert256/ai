@@ -31,6 +31,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import com.ai.data.AiService
 import com.ai.data.ApiTracer
 import com.ai.data.TraceFileInfo
 import com.google.gson.JsonArray
@@ -504,7 +505,8 @@ private fun TraceListItem(
 fun TraceDetailScreen(
     filename: String,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit = onBack
+    onNavigateHome: () -> Unit = onBack,
+    onEditRequest: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -732,6 +734,60 @@ fun TraceDetailScreen(
                 contentPadding = smallButtonPadding,
                 modifier = Modifier.weight(2f)
             ) { Text("Copy", fontSize = 12.sp) }
+            if (onEditRequest != null && hasRequestData) {
+                Button(
+                    onClick = {
+                        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+                        val traceUrl = trace.request.url
+                        // Detect auth format from trace headers
+                        val hasXApiKey = trace.request.headers.keys.any { it.equals("x-api-key", ignoreCase = true) }
+                        val hasUrlKeyParam = android.net.Uri.parse(traceUrl).getQueryParameter("key") != null
+                        // Find provider: try URL match first, then fall back to auth-format match
+                        val matchedProvider = AiService.entries.firstOrNull { service ->
+                            traceUrl.startsWith(service.baseUrl.trimEnd('/'))
+                        } ?: run {
+                            val targetFormat = when {
+                                hasXApiKey -> com.ai.data.ApiFormat.ANTHROPIC
+                                hasUrlKeyParam -> com.ai.data.ApiFormat.GOOGLE
+                                else -> com.ai.data.ApiFormat.OPENAI_COMPATIBLE
+                            }
+                            AiService.entries.firstOrNull { it.apiFormat == targetFormat }
+                                ?: AiService.entries.first()
+                        }
+                        // Extract API key from request headers
+                        val apiKey = trace.request.headers.entries.firstNotNullOfOrNull { (key, value) ->
+                            when {
+                                key.equals("Authorization", ignoreCase = true) && value.startsWith("Bearer ", ignoreCase = true) ->
+                                    value.removePrefix("Bearer ").removePrefix("bearer ").trim()
+                                key.equals("x-api-key", ignoreCase = true) -> value.trim()
+                                else -> null
+                            }
+                        } ?: run {
+                            // Check for ?key= query parameter (Google)
+                            val keyParam = android.net.Uri.parse(traceUrl).getQueryParameter("key")
+                            keyParam ?: ""
+                        }
+                        // Extract model from request body JSON
+                        val traceModel = try {
+                            val bodyJson = JsonParser().parse(trace.request.body ?: "{}") as? JsonObject
+                            bodyJson?.get("model")?.asString ?: ""
+                        } catch (_: Exception) { "" }
+
+                        prefs.edit().apply {
+                            putString("last_test_provider", matchedProvider.id)
+                            putString("last_test_api_url", traceUrl)
+                            putString("last_test_api_key", apiKey)
+                            putString("last_test_model", traceModel)
+                            putString("last_test_raw_json", trace.request.body ?: "")
+                            apply()
+                        }
+                        onEditRequest()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                    contentPadding = smallButtonPadding,
+                    modifier = Modifier.weight(2f)
+                ) { Text("Edit", fontSize = 12.sp) }
+            }
             Button(
                 onClick = {
                     try {

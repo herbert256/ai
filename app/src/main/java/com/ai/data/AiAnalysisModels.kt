@@ -79,22 +79,44 @@ suspend fun AiAnalysisRepository.testApiConnectionWithJson(
             .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
+        // Force stream:false since this is a synchronous test call
+        val effectiveJson = try {
+            @Suppress("DEPRECATION")
+            val jsonElement = com.google.gson.JsonParser().parse(jsonBody)
+            if (jsonElement.isJsonObject) {
+                jsonElement.asJsonObject.addProperty("stream", false)
+                com.google.gson.Gson().toJson(jsonElement)
+            } else jsonBody
+        } catch (_: Exception) { jsonBody }
+
         // Build the request
         val mediaType = "application/json; charset=utf-8".toMediaType()
-        val body = jsonBody.toRequestBody(mediaType)
+        val body = effectiveJson.toRequestBody(mediaType)
 
-        // Use appropriate auth header based on service
-        val authHeader = when (service.apiFormat) {
-            ApiFormat.ANTHROPIC -> apiKey  // Anthropic uses x-api-key
-            else -> "Bearer $apiKey"
+        // Build request with format-appropriate auth
+        val requestBuilder = okhttp3.Request.Builder()
+            .post(body)
+            .addHeader("Content-Type", "application/json")
+
+        when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> {
+                requestBuilder.url(baseUrl)
+                requestBuilder.addHeader("x-api-key", apiKey)
+                requestBuilder.addHeader("anthropic-version", "2023-06-01")
+            }
+            ApiFormat.GOOGLE -> {
+                // Add key as query parameter if not already in URL
+                val url = if (baseUrl.contains("key=")) baseUrl
+                    else "$baseUrl${if (baseUrl.contains("?")) "&" else "?"}key=$apiKey"
+                requestBuilder.url(url)
+            }
+            else -> {
+                requestBuilder.url(baseUrl)
+                requestBuilder.addHeader("Authorization", "Bearer $apiKey")
+            }
         }
 
-        val request = okhttp3.Request.Builder()
-            .url(baseUrl)
-            .post(body)
-            .addHeader("Authorization", authHeader)
-            .addHeader("Content-Type", "application/json")
-            .build()
+        val request = requestBuilder.build()
 
         val response = client.newCall(request).execute()
         response.use {
