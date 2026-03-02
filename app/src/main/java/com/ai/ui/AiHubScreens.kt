@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.core.content.edit
 import androidx.compose.ui.text.font.FontWeight
 import com.ai.R
 import androidx.compose.ui.unit.dp
@@ -301,10 +302,10 @@ fun AiNewReportScreen(
                         val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
 
                         // Save as last prompt (persistent) - include <user> block
-                        prefs.edit()
-                            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
-                            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt)
-                            .apply()
+                        prefs.edit {
+                            putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
+                            putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt)
+                        }
 
                         // Save to prompt history
                         val settingsPrefs = SettingsPreferences(prefs, context.filesDir)

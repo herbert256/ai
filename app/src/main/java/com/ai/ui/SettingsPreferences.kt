@@ -1,6 +1,7 @@
 package com.ai.ui
 
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.ai.data.AiService
 import com.ai.data.createAiGson
 import com.google.gson.Gson
@@ -32,14 +33,14 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun saveGeneralSettings(settings: GeneralSettings) {
-        prefs.edit()
-            .putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
-            .putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
-            .putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
-            .putBoolean(KEY_FULL_SCREEN_MODE, settings.fullScreenMode)
-            .putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
-            .putBoolean(KEY_POPUP_MODEL_SELECTION, settings.popupModelSelection)
-            .apply()
+        prefs.edit {
+            putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
+            putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
+            putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
+            putBoolean(KEY_FULL_SCREEN_MODE, settings.fullScreenMode)
+            putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
+            putBoolean(KEY_POPUP_MODEL_SELECTION, settings.popupModelSelection)
+        }
     }
 
     // ============================================================================
@@ -136,29 +137,27 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun saveAiSettings(settings: AiSettings) {
-        val editor = prefs.edit()
-        // Save per-provider config
-        for (service in AiService.entries) {
-            val key = service.prefsKey
-            val config = settings.providers[service] ?: defaultProviderConfig(service)
-            editor.putString("${key}_api_key", config.apiKey)
-            editor.putString("${key}_model", config.model)
-            editor.putString("${key}_model_source", config.modelSource.name)
-            editor.putString("${key}_manual_models", gson.toJson(config.models))
-            editor.putString("${key}_admin_url", config.adminUrl)
-            editor.putString("${key}_model_list_url", config.modelListUrl)
-            editor.putString("${key}_parameters_id", saveParametersIds(config.parametersIds))
+        prefs.edit {
+            for (service in AiService.entries) {
+                val key = service.prefsKey
+                val config = settings.providers[service] ?: defaultProviderConfig(service)
+                putString("${key}_api_key", config.apiKey)
+                putString("${key}_model", config.model)
+                putString("${key}_model_source", config.modelSource.name)
+                putString("${key}_manual_models", gson.toJson(config.models))
+                putString("${key}_admin_url", config.adminUrl)
+                putString("${key}_model_list_url", config.modelListUrl)
+                putString("${key}_parameters_id", saveParametersIds(config.parametersIds))
+            }
+            putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
+            putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
+            putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
+            putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
+            putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
+            putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
+            putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
+            putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
         }
-        // Save collections
-        editor.putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
-            .putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
-            .putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
-            .putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
-            .putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
-            .putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
-            .putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
-            .putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
-            .apply()
     }
 
     /**
@@ -166,9 +165,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
      */
     fun saveModelsForProvider(service: AiService, models: List<String>) {
         val key = service.prefsKey
-        prefs.edit()
-            .putString("${key}_manual_models", gson.toJson(models))
-            .apply()
+        prefs.edit {
+            putString("${key}_manual_models", gson.toJson(models))
+        }
     }
 
     // ============================================================================
@@ -183,7 +182,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             // Filter out agents with unknown providers; coalesce Gson null defaults
             list?.filter { AiService.findById(it.provider.id) != null }?.map { agent ->
                 agent.copy(
-                    paramsIds = agent.paramsIds ?: emptyList()
+                    paramsIds = agent.paramsIds
                 )
             } ?: emptyList()
         } catch (e: Exception) {
@@ -202,8 +201,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val list: List<AiFlock>? = gson.fromJson(json, type)
             list?.map { flock ->
                 flock.copy(
-                    agentIds = flock.agentIds ?: emptyList(),
-                    paramsIds = flock.paramsIds ?: emptyList()
+                    agentIds = flock.agentIds,
+                    paramsIds = flock.paramsIds
                 )
             } ?: emptyList()
         } catch (e: Exception) {
@@ -222,8 +221,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val list: List<AiSwarm>? = gson.fromJson(json, type)
             list?.map { swarm ->
                 swarm.copy(
-                    members = swarm.members ?: emptyList(),
-                    paramsIds = swarm.paramsIds ?: emptyList()
+                    members = swarm.members,
+                    paramsIds = swarm.paramsIds
                 )
             } ?: emptyList()
         } catch (e: Exception) {
@@ -314,7 +313,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun saveEndpoints(endpoints: Map<AiService, List<AiEndpoint>>) {
         // Convert to Map<String, List<AiEndpoint>> for storage
         val rawMap = endpoints.mapKeys { it.key.id }
-        prefs.edit().putString(KEY_AI_ENDPOINTS, gson.toJson(rawMap)).apply()
+        prefs.edit { putString(KEY_AI_ENDPOINTS, gson.toJson(rawMap)) }
     }
 
     // ============================================================================
@@ -375,17 +374,17 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun clearLastAiReportPrompt() {
-        prefs.edit()
-            .remove(KEY_LAST_AI_REPORT_TITLE)
-            .remove(KEY_LAST_AI_REPORT_PROMPT)
-            .apply()
+        prefs.edit {
+            remove(KEY_LAST_AI_REPORT_TITLE)
+            remove(KEY_LAST_AI_REPORT_PROMPT)
+        }
     }
 
     fun clearSelectedReportIds() {
-        prefs.edit()
-            .remove(KEY_SELECTED_SWARM_IDS)
-            .remove(KEY_SELECTED_FLOCK_IDS)
-            .apply()
+        prefs.edit {
+            remove(KEY_SELECTED_SWARM_IDS)
+            remove(KEY_SELECTED_FLOCK_IDS)
+        }
     }
 
     companion object {
@@ -465,7 +464,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun saveSelectedFlockIds(flockIds: Set<String>) {
         val json = gson.toJson(flockIds.toList())
-        prefs.edit().putString(KEY_SELECTED_FLOCK_IDS, json).apply()
+        prefs.edit { putString(KEY_SELECTED_FLOCK_IDS, json) }
     }
 
     // ============================================================================
@@ -485,7 +484,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun saveSelectedSwarmIds(swarmIds: Set<String>) {
         val json = gson.toJson(swarmIds.toList())
-        prefs.edit().putString(KEY_SELECTED_SWARM_IDS, json).apply()
+        prefs.edit { putString(KEY_SELECTED_SWARM_IDS, json) }
     }
 
     // ============================================================================
@@ -556,15 +555,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun updateModelListTimestamp(provider: com.ai.data.AiService) {
         val key = KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.id
-        prefs.edit().putLong(key, System.currentTimeMillis()).apply()
+        prefs.edit { putLong(key, System.currentTimeMillis()) }
     }
 
     fun clearModelListsCache() {
-        val editor = prefs.edit()
-        com.ai.data.AiService.entries.forEach { provider ->
-            editor.remove(KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.id)
+        prefs.edit {
+            com.ai.data.AiService.entries.forEach { provider ->
+                remove(KEY_MODEL_LIST_TIMESTAMP_PREFIX + provider.id)
+            }
         }
-        editor.apply()
         android.util.Log.d("SettingsPreferences", "All model list caches cleared")
     }
 }

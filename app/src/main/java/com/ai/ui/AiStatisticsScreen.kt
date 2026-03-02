@@ -22,22 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
 
-private fun formatNumber(value: Int): String {
-    return when {
-        value >= 1_000_000 -> String.format("%.1fM", value / 1_000_000.0)
-        value >= 1_000 -> String.format("%.1fK", value / 1_000.0)
-        else -> value.toString()
-    }
-}
-
-private fun formatTokens(value: Long): String {
-    return when {
-        value >= 1_000_000 -> String.format("%.1fM", value / 1_000_000.0)
-        value >= 1_000 -> String.format("%.1fK", value / 1_000.0)
-        else -> value.toString()
-    }
-}
-
 /**
  * Combined AI Usage screen showing both statistics and costs in one place.
  * Groups by provider with expandable cards showing per-model details.
@@ -460,9 +444,11 @@ data class StatWithCost(
     val pricingSource: String? = null
 )
 
-private fun formatCurrency(value: Double): String {
-    return String.format("$%.8f", value)
-}
+private fun formatNumber(value: Int): String = formatCompactNumber(value.toLong())
+
+private fun formatTokens(value: Long): String = formatCompactNumber(value)
+
+private fun formatCurrency(value: Double): String = formatUsd(value)
 
 /**
  * Cost Configuration Screen - CRUD for manual price overrides per model.
@@ -487,7 +473,7 @@ fun CostConfigurationScreen(
     var showAddScreen by remember { mutableStateOf(false) }
 
     // Force recomposition when manual pricing changes
-    var refreshTrigger by remember { mutableStateOf(0) }
+    var refreshTrigger by remember { mutableIntStateOf(0) }
 
     // Get manual pricing (reloads when refreshTrigger changes)
     val manualPricing = remember(refreshTrigger) {
@@ -574,8 +560,8 @@ fun CostConfigurationScreen(
                                     editingKey = manualKey
                                     val inputPerMillion = pricing.promptPrice * 1_000_000
                                     val outputPerMillion = pricing.completionPrice * 1_000_000
-                                    editInputPrice = if (inputPerMillion > 0) String.format("%.2f", inputPerMillion) else ""
-                                    editOutputPrice = if (outputPerMillion > 0) String.format("%.2f", outputPerMillion) else ""
+                                    editInputPrice = if (inputPerMillion > 0) formatDecimal(inputPerMillion) else ""
+                                    editOutputPrice = if (outputPerMillion > 0) formatDecimal(outputPerMillion) else ""
                                 },
                                 onSaveClick = {
                                     val inputPerToken = editInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
@@ -894,7 +880,7 @@ private fun CostConfigCard(
                                 Text("Input", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
                                 Text(
                                     text = if (currentInputPrice != null)
-                                        String.format("$%.2f", currentInputPrice * 1_000_000)
+                                        formatUsd(currentInputPrice * 1_000_000, decimals = 2)
                                     else "-",
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFFCCCCCC),
@@ -905,7 +891,7 @@ private fun CostConfigCard(
                                 Text("Output", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
                                 Text(
                                     text = if (currentOutputPrice != null)
-                                        String.format("$%.2f", currentOutputPrice * 1_000_000)
+                                        formatUsd(currentOutputPrice * 1_000_000, decimals = 2)
                                     else "-",
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFFCCCCCC),

@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.core.net.toUri
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1005,7 +1006,7 @@ fun AiServiceSettingsScreenTemplate(
                             Button(
                                 onClick = {
                                     try {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(adminUrl))
+                                        val intent = Intent(Intent.ACTION_VIEW, adminUrl.toUri())
                                         context.startActivity(intent)
                                     } catch (e: Exception) {
                                         // Invalid URL

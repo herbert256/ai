@@ -469,7 +469,7 @@ fun importApiKeysFromFile(context: Context, uri: Uri, currentSettings: AiSetting
         val gson = createAiGson()
         val export = gson.fromJson(json, ApiKeysExport::class.java)
 
-        if (export.type != "api_keys" || export.keys == null) {
+        if (export.type != "api_keys") {
             Toast.makeText(context, "Not an API keys file", Toast.LENGTH_SHORT).show()
             return null
         }

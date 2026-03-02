@@ -2,6 +2,7 @@ package com.ai.ui
 
 import android.app.Application
 import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
@@ -69,7 +70,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     saveGeneralSettings(generalSettings)
                 }
             }
-            prefs.edit().putBoolean("setup_imported", true).apply()
+            prefs.edit { putBoolean("setup_imported", true) }
         }
 
         _uiState.update { it.copy(
@@ -123,27 +124,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun saveAiReportAgents(agentIds: Set<String>) {
-        prefs.edit().putStringSet(AI_REPORT_AGENTS_KEY, agentIds).apply()
-    }
-
-    // ========== AI Reports Flock Selection ==========
-
-    fun loadAiReportFlocks(): Set<String> {
-        val stored = prefs.getStringSet(AI_REPORT_SWARMS_KEY, emptySet()) ?: emptySet()
-        return stored.toSet()
-    }
-
-    fun saveAiReportFlocks(flockIds: Set<String>) {
-        prefs.edit().putStringSet(AI_REPORT_SWARMS_KEY, flockIds).apply()
-    }
-
-    fun loadAiReportSwarms(): Set<String> {
-        val stored = prefs.getStringSet(AI_REPORT_FLOCKS_KEY, emptySet()) ?: emptySet()
-        return stored.toSet()
-    }
-
-    fun saveAiReportSwarms(swarmIds: Set<String>) {
-        prefs.edit().putStringSet(AI_REPORT_FLOCKS_KEY, swarmIds).apply()
+        prefs.edit { putStringSet(AI_REPORT_AGENTS_KEY, agentIds) }
     }
 
     // ========== AI Reports Direct Model Selection ==========
@@ -154,7 +135,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun saveAiReportModels(modelIds: Set<String>) {
-        prefs.edit().putStringSet(AI_REPORT_MODELS_KEY, modelIds).apply()
+        prefs.edit { putStringSet(AI_REPORT_MODELS_KEY, modelIds) }
     }
 
     // ========== Generic AI Reports ==========
@@ -388,7 +369,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             context = context,
                             reportId = reportId,
                             agentId = agent.id,
-                            httpStatus = 200,
+                            httpStatus = response.httpStatusCode ?: 200,
                             responseHeaders = response.httpHeaders,
                             responseBody = response.analysis,
                             tokenUsage = response.tokenUsage,
@@ -415,8 +396,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     if (response.error == null && response.tokenUsage != null) {
                         val usage = response.tokenUsage
                         settingsPrefs.updateUsageStats(
-                            provider = agent.provider,
-                            model = agent.model,
+                            provider = effectiveAgent.provider,
+                            model = effectiveAgent.model,
                             inputTokens = usage.inputTokens,
                             outputTokens = usage.outputTokens,
                             totalTokens = usage.totalTokens
@@ -502,7 +483,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                             context = context,
                             reportId = reportId,
                             agentId = syntheticId,
-                            httpStatus = 200,
+                            httpStatus = response.httpStatusCode ?: 200,
                             responseHeaders = response.httpHeaders,
                             responseBody = response.analysis,
                             tokenUsage = response.tokenUsage,
@@ -581,6 +562,12 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 agentId to existingResult
             } else {
                 val agent = currentState.aiSettings.getAgentById(agentId)
+                val service = agent?.provider ?: agentId
+                    .takeIf { it.startsWith("swarm:") }
+                    ?.removePrefix("swarm:")
+                    ?.substringBefore(':')
+                    ?.let { com.ai.data.AiService.findById(it) }
+                    ?: com.ai.data.AiService.entries.first()
 
                 // Mark as stopped in storage if we have a reportId
                 if (reportId != null) {
@@ -592,7 +579,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 agentId to AiAnalysisResponse(
-                    service = agent?.provider ?: com.ai.data.AiService.entries.first(),
+                    service = service,
                     analysis = "Not ready",
                     error = null
                 )
@@ -625,7 +612,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun continueReportInBackground() {
         reportRunningInBackground = true
-        dismissGenericAiReportsDialog()
+        _uiState.update { it.copy(showGenericAiReportsDialog = false) }
     }
 
     // ========== Model Fetching ==========
@@ -729,7 +716,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val traceFile = ApiTracer.getTraceFiles().firstOrNull()?.let {
                 if (ApiTracer.getTraceCount() > traceCountBefore) it.filename else null
             } ?: ApiTracer.getTraceFiles().firstOrNull()?.filename
-            val success = responseText != null && responseText.trim().equals("O", ignoreCase = true)
+            val success = responseText != null && responseText.trim().equals("OK", ignoreCase = true)
             Pair(success, traceFile)
         } catch (e: Exception) {
             val traceFile = ApiTracer.getTraceFiles().firstOrNull()?.filename
@@ -880,8 +867,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
 
         private const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
-        private const val AI_REPORT_SWARMS_KEY = "ai_report_swarms_v2"
-        private const val AI_REPORT_FLOCKS_KEY = "ai_report_flocks_v2"
         private const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
     }
 

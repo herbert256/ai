@@ -223,7 +223,7 @@ private fun jsonTreeItems(
                             JsonNodeType.NUMBER -> JsonNumberColor
                             JsonNodeType.BOOLEAN -> JsonBooleanColor
                             JsonNodeType.NULL -> JsonNullColor
-                            else -> JsonBraceColor
+                            JsonNodeType.OBJECT, JsonNodeType.ARRAY -> JsonBraceColor
                         }
                         withStyle(SpanStyle(color = valueColor)) {
                             if (node.type == JsonNodeType.STRING) {
@@ -769,4 +769,3 @@ fun TraceDetailScreen(
         }
     }
 }
-

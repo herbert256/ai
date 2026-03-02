@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 
 /**
  * Full-screen viewer for AI agent responses.
@@ -708,7 +709,7 @@ private fun CitationsSection(citations: List<String>) {
                     .padding(vertical = 4.dp)
                     .clickable {
                         try {
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
                             context.startActivity(intent)
                         } catch (e: Exception) {
                             // Ignore if URL can't be opened
@@ -760,7 +761,7 @@ private fun SearchResultsSection(searchResults: List<com.ai.data.SearchResult>) 
                         .padding(vertical = 6.dp)
                         .clickable {
                             try {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(result.url))
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, result.url.toUri())
                                 context.startActivity(intent)
                             } catch (e: Exception) {
                                 // Ignore if URL can't be opened
@@ -853,4 +854,3 @@ internal fun extractTagContent(text: String, tagName: String): String? {
     val pattern = Regex("<$tagName>(.*?)</$tagName>", RegexOption.DOT_MATCHES_ALL)
     return pattern.find(text)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
 }
-

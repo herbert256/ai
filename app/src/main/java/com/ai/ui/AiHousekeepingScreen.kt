@@ -28,7 +28,6 @@ fun HousekeepingScreen(
     aiSettings: AiSettings,
     huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
-    developerMode: Boolean = false,
     onBackToHome: () -> Unit,
     onSave: (AiSettings) -> Unit,
     onRefreshAllModels: suspend (AiSettings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
@@ -47,30 +46,22 @@ fun HousekeepingScreen(
 
     // State for refresh all
     var isRefreshingAll by remember { mutableStateOf(false) }
-    var refreshAllProgressText by remember { mutableStateOf("") }
 
     // State for refresh model lists
-    var isRefreshing by remember { mutableStateOf(false) }
     var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
     var showResultsDialog by remember { mutableStateOf(false) }
-    var refreshProgressText by remember { mutableStateOf("") }
 
     // State for generate default agents
-    var isGenerating by remember { mutableStateOf(false) }
     var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
     var showGenerationResultsDialog by remember { mutableStateOf(false) }
-    var generatingProgressText by remember { mutableStateOf("") }
 
     // State for refresh OpenRouter data (specs + pricing)
-    var isRefreshingOpenRouter by remember { mutableStateOf(false) }
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }  // (pricing, specs pricing, specs params)
     var showOpenRouterResultDialog by remember { mutableStateOf(false) }
 
     // State for refresh provider states
-    var isRefreshingProviderStates by remember { mutableStateOf(false) }
     var providerStateResults by remember { mutableStateOf<Map<String, String>?>(null) }  // provider name -> "ok"/"error"/"not-used"
     var showProviderStateResultDialog by remember { mutableStateOf(false) }
-    var providerStateProgressText by remember { mutableStateOf("") }
 
     // State for import model costs
     var importCostsResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }  // (imported, skipped)
@@ -596,8 +587,7 @@ fun HousekeepingScreen(
                         onClick = {
                             exportModelCostsToCsv(
                                 context = context,
-                                aiSettings = aiSettings,
-                                developerMode = developerMode
+                                aiSettings = aiSettings
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
@@ -1023,8 +1013,7 @@ fun HousekeepingScreen(
  */
 private fun exportModelCostsToCsv(
     context: android.content.Context,
-    aiSettings: AiSettings,
-    developerMode: Boolean
+    aiSettings: AiSettings
 ) {
     val pricingCache = com.ai.data.PricingCache
 
@@ -1151,11 +1140,9 @@ private fun importModelCostsFromCsv(context: android.content.Context, uri: andro
     var skipped = 0
 
     try {
-        val inputStream = context.contentResolver.openInputStream(uri)
-        val reader = inputStream?.bufferedReader() ?: return Pair(0, 0)
-
-        val lines = reader.readLines()
-        reader.close()
+        val lines = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+            reader.readLines()
+        } ?: return Pair(0, 0)
 
         if (lines.isEmpty()) return Pair(0, 0)
 

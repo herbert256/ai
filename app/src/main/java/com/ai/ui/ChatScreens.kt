@@ -398,7 +398,7 @@ fun ChatSessionScreen(
     // Cost tracking state
     var totalInputTokens by remember { mutableIntStateOf(0) }
     var totalOutputTokens by remember { mutableIntStateOf(0) }
-    var totalCost by remember { mutableStateOf(0.0) }
+    var totalCost by remember { mutableDoubleStateOf(0.0) }
 
     // Get pricing for this model
     val pricing = remember(provider, model) {
@@ -475,7 +475,7 @@ fun ChatSessionScreen(
             )
             if (totalCost > 0) {
                 Text(
-                    text = "${String.format("%.4f", totalCost * 100)} ¢",
+                    text = "${formatCents(totalCost)} ¢",
                     color = Color(0xFF4CAF50),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium

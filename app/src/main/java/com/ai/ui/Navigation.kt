@@ -221,7 +221,6 @@ fun AiNavHost(
         composable(NavRoutes.AI_HOUSEKEEPING) {
             HousekeepingScreenNav(
                 viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
         }
@@ -735,7 +734,6 @@ fun AiSetupScreenNav(
 @Composable
 fun HousekeepingScreenNav(
     viewModel: AiViewModel,
-    onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -743,7 +741,6 @@ fun HousekeepingScreenNav(
         aiSettings = uiState.aiSettings,
         huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
         openRouterApiKey = uiState.generalSettings.openRouterApiKey,
-        developerMode = uiState.generalSettings.developerMode,
         onBackToHome = onNavigateHome,
         onSave = { settings -> viewModel.updateAiSettings(settings) },
         onRefreshAllModels = { settings, forceRefresh, onProgress -> viewModel.refreshAllModelLists(settings, forceRefresh, onProgress) },

@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Context
+import androidx.core.content.edit
 import com.ai.data.AiService
 import com.ai.data.ApiTracer
 import com.ai.data.PricingCache
@@ -97,24 +98,24 @@ fun DualChatSetupScreen(
 
     // Save all values to prefs
     fun savePrefs() {
-        prefs.edit()
-            .putString(KEY_MODEL1_PROVIDER, model1Provider?.id)
-            .putString(KEY_MODEL1_NAME, model1Name)
-            .putString(KEY_MODEL1_PARAMS_IDS, gson.toJson(model1ParamsIds))
-            .putString(KEY_MODEL1_SYSTEM_PROMPT_ID, model1SystemPromptId)
-            .putString(KEY_MODEL2_PROVIDER, model2Provider?.id)
-            .putString(KEY_MODEL2_NAME, model2Name)
-            .putString(KEY_MODEL2_PARAMS_IDS, gson.toJson(model2ParamsIds))
-            .putString(KEY_MODEL2_SYSTEM_PROMPT_ID, model2SystemPromptId)
-            .putString(KEY_SUBJECT, subject)
-            .putString(KEY_INTERACTION_COUNT, interactionCount)
-            .putString(KEY_FIRST_PROMPT, firstPrompt)
-            .putString(KEY_SECOND_PROMPT, secondPrompt)
-            .apply()
+        prefs.edit {
+            putString(KEY_MODEL1_PROVIDER, model1Provider?.id)
+            putString(KEY_MODEL1_NAME, model1Name)
+            putString(KEY_MODEL1_PARAMS_IDS, gson.toJson(model1ParamsIds))
+            putString(KEY_MODEL1_SYSTEM_PROMPT_ID, model1SystemPromptId)
+            putString(KEY_MODEL2_PROVIDER, model2Provider?.id)
+            putString(KEY_MODEL2_NAME, model2Name)
+            putString(KEY_MODEL2_PARAMS_IDS, gson.toJson(model2ParamsIds))
+            putString(KEY_MODEL2_SYSTEM_PROMPT_ID, model2SystemPromptId)
+            putString(KEY_SUBJECT, subject)
+            putString(KEY_INTERACTION_COUNT, interactionCount)
+            putString(KEY_FIRST_PROMPT, firstPrompt)
+            putString(KEY_SECOND_PROMPT, secondPrompt)
+        }
     }
 
     // Full-screen overlay state: 0=none, 1=select model1, 2=select model2
-    var overlayMode by remember { mutableStateOf(0) }
+    var overlayMode by remember { mutableIntStateOf(0) }
 
     // Model selection overlays
     if (overlayMode == 1 || overlayMode == 2) {

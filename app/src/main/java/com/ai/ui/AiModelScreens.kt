@@ -594,10 +594,10 @@ fun ModelInfoScreen(
                 item {
                     ModelInfoSection(title = "Technical Specifications", source = "Source: OpenRouter") {
                         if (info.contextLength != null) {
-                            ModelInfoRow("Context Length", formatNumber(info.contextLength) + " tokens")
+                            ModelInfoRow("Context Length", formatCompactNumber(info.contextLength.toLong()) + " tokens")
                         }
                         if (info.maxCompletionTokens != null) {
-                            ModelInfoRow("Max Completion", formatNumber(info.maxCompletionTokens) + " tokens")
+                            ModelInfoRow("Max Completion", formatCompactNumber(info.maxCompletionTokens.toLong()) + " tokens")
                         }
                         if (info.modality != null) {
                             ModelInfoRow("Modality", info.modality)
@@ -646,10 +646,10 @@ fun ModelInfoScreen(
                                 ModelInfoRow("Author", info.huggingFaceAuthor)
                             }
                             if (info.huggingFaceDownloads != null) {
-                                ModelInfoRow("Downloads", formatNumber(info.huggingFaceDownloads))
+                                ModelInfoRow("Downloads", formatCompactNumber(info.huggingFaceDownloads.toLong()))
                             }
                             if (info.huggingFaceLikes != null) {
-                                ModelInfoRow("Likes", formatNumber(info.huggingFaceLikes))
+                                ModelInfoRow("Likes", formatCompactNumber(info.huggingFaceLikes.toLong()))
                             }
                             if (info.huggingFacePipelineTag != null) {
                                 ModelInfoRow("Pipeline", info.huggingFacePipelineTag)
@@ -802,22 +802,4 @@ private fun ModelInfoRow(label: String, value: String) {
     }
 }
 
-private fun formatNumber(number: Number): String {
-    val value = number.toLong()
-    return when {
-        value >= 1_000_000_000 -> String.format("%.1fB", value / 1_000_000_000.0)
-        value >= 1_000_000 -> String.format("%.1fM", value / 1_000_000.0)
-        value >= 1_000 -> String.format("%.1fK", value / 1_000.0)
-        else -> value.toString()
-    }
-}
-
-private fun formatPricing(pricePerToken: Double): String {
-    // Convert to price per million tokens
-    val pricePerMillion = pricePerToken * 1_000_000
-    return when {
-        pricePerMillion >= 1 -> String.format("$%.2f / 1M tokens", pricePerMillion)
-        pricePerMillion >= 0.01 -> String.format("$%.4f / 1M tokens", pricePerMillion)
-        else -> String.format("$%.6f / 1M tokens", pricePerMillion)
-    }
-}
+private fun formatPricing(pricePerToken: Double): String = formatTokenPricePerMillion(pricePerToken)

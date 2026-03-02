@@ -226,12 +226,12 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
     return if (response.isSuccessful) {
         val body = response.body()
         // Try multiple parsing strategies for content extraction
-        val content = body?.choices?.let { choices ->
-            choices.firstOrNull()?.message?.content
-                ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message.content }
-                ?: choices.firstNotNullOfOrNull { it.message?.reasoning_content }
-        }
+            val content = body?.choices?.let { choices ->
+                choices.firstOrNull()?.message?.content
+                    ?: choices.firstOrNull()?.message?.reasoning_content
+                    ?: choices.firstNotNullOfOrNull { it.message.content }
+                    ?: choices.firstNotNullOfOrNull { it.message.reasoning_content }
+            }
         val citations = body?.citations
         val searchResults = body?.search_results
         val relatedQuestions = body?.related_questions
@@ -255,4 +255,3 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
         AiAnalysisResponse(service, null, errorDetail, httpHeaders = headers, httpStatusCode = statusCode)
     }
 }
-

@@ -2,6 +2,7 @@ package com.ai.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.ai.ui.AiConfigExport
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -125,16 +126,16 @@ object ProviderRegistry {
         val defs = providers.map { ProviderDefinition.fromAiService(it) }
         val gson = GsonBuilder().create()
         val json = gson.toJson(defs)
-        sp.edit()
-            .putString(KEY_PROVIDERS, json)
-            .putBoolean(KEY_INITIALIZED, true)
-            .apply()
+        sp.edit {
+            putString(KEY_PROVIDERS, json)
+            putBoolean(KEY_INITIALIZED, true)
+        }
     }
 
     /** Re-initialize from assets (for reset/refresh). */
     fun resetToDefaults(context: Context) {
         initialized = false
-        prefs?.edit()?.clear()?.apply()
+        prefs?.edit { clear() }
         init(context)
     }
 

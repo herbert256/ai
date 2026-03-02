@@ -498,7 +498,7 @@ fun ProviderSettingsScreen(
                             label = { Text("API Format") },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .menuAnchor(),
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = defFormatExpanded) },
                             colors = OutlinedTextFieldDefaults.colors(

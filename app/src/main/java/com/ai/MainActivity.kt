@@ -1,9 +1,7 @@
 package com.ai
 
 import android.content.Intent
-import android.graphics.Color
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -35,10 +33,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        // Set system bars to black
-        window.statusBarColor = Color.BLACK
-        window.navigationBarColor = Color.BLACK
 
         // Handle initial intent
         handleIntent(intent)

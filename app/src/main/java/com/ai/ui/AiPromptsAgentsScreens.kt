@@ -379,7 +379,7 @@ internal fun AgentEditScreen(
     // Filter providers: must be active (status "ok"), always include current agent's provider when editing
     val availableProviders = AiService.entries.filter { provider ->
         // Always include current agent's provider when editing
-        if (isEditing && provider == agent?.provider) return@filter true
+        if (isEditing && provider == agent.provider) return@filter true
         aiSettings.isProviderActive(provider)
     }.sortedBy { it.displayName.lowercase() }
     val coroutineScope = rememberCoroutineScope()
@@ -436,7 +436,7 @@ internal fun AgentEditScreen(
         }
 
         // Reset endpoint when provider changes (unless editing and same provider)
-        if (!isEditing || agent?.provider != selectedProvider) {
+        if (!isEditing || agent.provider != selectedProvider) {
             selectedEndpointId = aiSettings.getDefaultEndpoint(selectedProvider)?.id
         }
     }
@@ -445,7 +445,7 @@ internal fun AgentEditScreen(
     val nameError = when {
         name.isBlank() -> "Name is required"
         !isEditing && existingNames.contains(name) -> "Name already exists"
-        isEditing && name != agent?.name && existingNames.contains(name) -> "Name already exists"
+        isEditing && name != agent.name && existingNames.contains(name) -> "Name already exists"
         else -> null
     }
 
@@ -883,4 +883,3 @@ internal fun AgentEditScreen(
     }
 
 }
-

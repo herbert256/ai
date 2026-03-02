@@ -107,7 +107,7 @@ fun AiPromptsScreen(
 
                     SettingsListItemCard(
                         title = prompt.name,
-                        subtitle = if (agentVisible) "Agent: ${agent?.name}" else "Agent not found",
+                        subtitle = agent?.takeIf { agentVisible }?.let { "Agent: ${it.name}" } ?: "Agent not found",
                         subtitleColor = if (agentVisible) AiColors.TextTertiary else AiColors.Red,
                         extraLine = prompt.promptText.take(50) + if (prompt.promptText.length > 50) "..." else "",
                         onClick = { onEditPrompt(prompt.id) },

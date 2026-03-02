@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import com.ai.data.*
 import kotlinx.coroutines.launch
 
@@ -551,24 +552,24 @@ fun ApiTestScreen(
             onClick = {
                 if (prompt.isNotBlank()) {
                     // Save all test configuration to persistent storage
-                    prefs.edit()
-                        .putString("last_test_provider", selectedProvider.id)
-                        .putString("last_test_api_url", apiUrl)
-                        .putString("last_test_api_key", apiKey)
-                        .putString("last_test_model", model)
-                        .putString("last_test_prompt", prompt)
-                        .putString("last_test_system_prompt", systemPrompt)
-                        .putString("last_test_temperature", temperature)
-                        .putString("last_test_max_tokens", maxTokens)
-                        .putString("last_test_top_p", topP)
-                        .putString("last_test_top_k", topK)
-                        .putString("last_test_frequency_penalty", frequencyPenalty)
-                        .putString("last_test_presence_penalty", presencePenalty)
-                        .putString("last_test_seed", seed)
-                        .putString("last_test_stop_sequences", stopSequences)
-                        .putBoolean("last_test_response_format_json", responseFormatJson)
-                        .putBoolean("last_test_search_enabled", searchEnabled)
-                        .apply()
+                    prefs.edit {
+                        putString("last_test_provider", selectedProvider.id)
+                        putString("last_test_api_url", apiUrl)
+                        putString("last_test_api_key", apiKey)
+                        putString("last_test_model", model)
+                        putString("last_test_prompt", prompt)
+                        putString("last_test_system_prompt", systemPrompt)
+                        putString("last_test_temperature", temperature)
+                        putString("last_test_max_tokens", maxTokens)
+                        putString("last_test_top_p", topP)
+                        putString("last_test_top_k", topK)
+                        putString("last_test_frequency_penalty", frequencyPenalty)
+                        putString("last_test_presence_penalty", presencePenalty)
+                        putString("last_test_seed", seed)
+                        putString("last_test_stop_sequences", stopSequences)
+                        putBoolean("last_test_response_format_json", responseFormatJson)
+                        putBoolean("last_test_search_enabled", searchEnabled)
+                    }
 
                     // Navigate to Edit API Request screen
                     onNavigateToEditRequest()

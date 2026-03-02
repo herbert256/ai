@@ -183,48 +183,6 @@ internal fun convertGenericAiReportsToHtml(context: android.content.Context, uiS
     return renderHtmlReport(data, appVersion)
 }
 
-// Helper functions for sharing/opening generic AI reports
-internal fun shareGenericAiReports(context: android.content.Context, uiState: AiUiState) {
-    try {
-        val appVersion = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
-        } catch (e: Exception) { "unknown" }
-        val html = convertGenericAiReportsToHtml(context, uiState, appVersion)
-
-        val cacheDir = java.io.File(context.cacheDir, "ai_analysis")
-        if (!cacheDir.exists()) {
-            cacheDir.mkdirs()
-        }
-
-        val title = uiState.genericAiPromptTitle
-        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-        val htmlFile = java.io.File(cacheDir, "ai_$timestamp.html")
-        htmlFile.writeText(html)
-
-        val contentUri = androidx.core.content.FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            htmlFile
-        )
-
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/html"
-            putExtra(Intent.EXTRA_SUBJECT, "AI Report - $title")
-            putExtra(Intent.EXTRA_TEXT, "AI analysis report: $title.\n\nOpen the attached HTML file in a browser to view the report.")
-            putExtra(Intent.EXTRA_STREAM, contentUri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        context.startActivity(Intent.createChooser(intent, "Share AI Report"))
-    } catch (e: Exception) {
-        android.widget.Toast.makeText(
-            context,
-            "Failed to share: ${e.message}",
-            android.widget.Toast.LENGTH_SHORT
-        ).show()
-    }
-}
-
 /**
  * Shares the AI-REPORT as JSON using the standard Android share mechanism.
  */

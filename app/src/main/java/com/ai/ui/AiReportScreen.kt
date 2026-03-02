@@ -31,6 +31,7 @@ fun AiReportsScreenNav(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
+    val initialModels = remember(aiSettings) { loadSavedReportModels(viewModel, aiSettings) }
 
     // Reset state when leaving the screen
     val handleDismiss = {
@@ -50,6 +51,7 @@ fun AiReportsScreenNav(
 
     AiReportsScreen(
         uiState = uiState,
+        initialModels = initialModels,
         onGenerate = { modelsList, paramsIds, reportType ->
             // Split models into agent-based and model-based
             val agentIds = modelsList.filter { it.agentId != null }.mapNotNull { it.agentId }.toSet()
@@ -59,13 +61,10 @@ fun AiReportsScreenNav(
             // Save for persistence
             viewModel.saveAiReportAgents(agentIds)
             viewModel.saveAiReportModels(directModelIds)
-            viewModel.saveAiReportFlocks(emptySet())
-            viewModel.saveAiReportSwarms(emptySet())
 
             viewModel.generateGenericAiReports(agentIds, emptySet(), directModelIds, paramsIds, reportType)
         },
         onStop = { viewModel.stopGenericAiReports() },
-        onShare = { shareGenericAiReports(context, uiState) },
         onOpenInBrowser = {
             val reportId = uiState.currentReportId
             if (reportId != null) {
@@ -106,13 +105,26 @@ internal fun formatPricingPerMillion(context: android.content.Context, provider:
     return FormattedPricing("${fmt(input)} / ${fmt(output)}", pricing.source == "DEFAULT")
 }
 
+private fun loadSavedReportModels(viewModel: AiViewModel, aiSettings: AiSettings): List<ReportModel> {
+    val savedAgents = viewModel.loadAiReportAgents()
+        .mapNotNull(aiSettings::getAgentById)
+        .mapNotNull { agent -> expandAgentToModel(agent, aiSettings) }
+    val savedDirectModels = viewModel.loadAiReportModels().mapNotNull { modelId ->
+        val parts = modelId.removePrefix("swarm:").split(":", limit = 2)
+        val providerId = parts.getOrNull(0) ?: return@mapNotNull null
+        val modelName = parts.getOrNull(1) ?: return@mapNotNull null
+        val provider = com.ai.data.AiService.findById(providerId) ?: return@mapNotNull null
+        toReportModel(provider, modelName)
+    }
+    return deduplicateModels(savedAgents + savedDirectModels)
+}
+
 @Composable
 fun AiReportsScreen(
     uiState: AiUiState,
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, com.ai.data.ReportType) -> Unit,  // models, paramsIds, reportType
     onStop: () -> Unit,
-    onShare: () -> Unit,
     onOpenInBrowser: () -> Unit,
     onDismiss: () -> Unit,
     onResetReports: () -> Unit = {},
@@ -739,11 +751,11 @@ fun AiReportsScreen(
                     totalIn += p.promptPrice * 1_000_000
                     totalOut += p.completionPrice * 1_000_000
                 }
-                fun fmtTotal(v: Double): String = when {
-                    v == 0.0 -> "0.00"
-                    v < 0.01 -> "0.01"
-                    else -> "%.2f".format(v)
-                }
+                            fun fmtTotal(v: Double): String = when {
+                                v == 0.0 -> "0.00"
+                                v < 0.01 -> "0.01"
+                                else -> formatDecimal(v)
+                            }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1093,7 +1105,7 @@ fun AiReportsScreen(
                             Spacer(modifier = Modifier.width(2.dp))
                             // Cost in cents (right-aligned, only show if available)
                             Text(
-                                text = if (cost != null) String.format("%.4f", cost * 100) else "",
+                                text = if (cost != null) formatCents(cost) else "",
                                 fontFamily = FontFamily.Monospace,
                                 color = Color(0xFF4CAF50),
                                 fontSize = 12.sp,
@@ -1178,7 +1190,7 @@ fun AiReportsScreen(
                                 Spacer(modifier = Modifier.width(2.dp))
                                 // Cost in cents
                                 Text(
-                                    text = if (cost != null) String.format("%.4f", cost * 100) else "",
+                                    text = if (cost != null) formatCents(cost) else "",
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFF4CAF50),
                                     fontSize = 12.sp,
@@ -1229,7 +1241,7 @@ fun AiReportsScreen(
                         )
                         Spacer(modifier = Modifier.width(2.dp))
                         Text(
-                            text = String.format("%.4f", totalCost * 100),
+                            text = formatCents(totalCost),
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF4CAF50),

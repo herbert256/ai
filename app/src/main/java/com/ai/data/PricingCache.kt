@@ -2,6 +2,7 @@ package com.ai.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -77,10 +78,10 @@ object PricingCache {
             openRouterTimestamp = System.currentTimeMillis()
 
             val prefs = getPrefs(context)
-            prefs.edit()
-                .putString(KEY_OPENROUTER_PRICING, gson.toJson(pricing))
-                .putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp)
-                .apply()
+            prefs.edit {
+                putString(KEY_OPENROUTER_PRICING, gson.toJson(pricing))
+                putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp)
+            }
 
             android.util.Log.d("PricingCache", "Saved ${pricing.size} OpenRouter prices")
         }
@@ -148,9 +149,9 @@ object PricingCache {
 
     private fun saveManualPricing(context: Context) {
         val prefs = getPrefs(context)
-        prefs.edit()
-            .putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing))
-            .apply()
+        prefs.edit {
+            putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing))
+        }
     }
 
     // Default pricing: $25.00 per 1M input tokens, $75.00 per 1M output tokens
@@ -316,10 +317,10 @@ object PricingCache {
         litellmTimestamp = System.currentTimeMillis()
 
         val prefs = getPrefs(context)
-        prefs.edit()
-            .putString(KEY_LITELLM_PRICING, gson.toJson(litellmPricing))
-            .putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
-            .apply()
+        prefs.edit {
+            putString(KEY_LITELLM_PRICING, gson.toJson(litellmPricing))
+            putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
+        }
 
         android.util.Log.d("PricingCache", "Loaded ${litellmPricing?.size ?: 0} LiteLLM prices")
     }
