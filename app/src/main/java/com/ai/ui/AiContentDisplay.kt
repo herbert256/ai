@@ -16,6 +16,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 
+private val conclusionTagRegex = Regex("<conclusion>.*?</conclusion>", RegexOption.DOT_MATCHES_ALL)
+private val motivationTagRegex = Regex("<motivation>.*?</motivation>", RegexOption.DOT_MATCHES_ALL)
+
 /**
  * Full-screen viewer for AI agent responses.
  * Shows buttons for each agent at the top, displays HTML-converted markdown content.
@@ -53,7 +56,7 @@ fun AiReportsViewerScreen(
             ) {
                 Text(
                     text = "Report not found",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 16.sp
                 )
             }
@@ -62,9 +65,11 @@ fun AiReportsViewerScreen(
     }
 
     // Get agents with successful results from the stored report
-    val agentsWithResults = report.agents
-        .filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS }
-        .sortedBy { it.agentName.lowercase() }
+    val agentsWithResults = remember(report) {
+        report.agents
+            .filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS }
+            .sortedBy { it.agentName.lowercase() }
+    }
 
     // Selected agent state
     var selectedAgentId by remember {
@@ -133,7 +138,7 @@ fun AiReportsViewerScreen(
                 Text(
                     text = "$providerDisplayName — ${selectedReportAgent.model}",
                     fontSize = 18.sp,
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
                 )
@@ -155,7 +160,7 @@ fun AiReportsViewerScreen(
                 ) {
                     Text(
                         text = "No successful reports to display",
-                        color = Color(0xFFAAAAAA),
+                        color = AiColors.TextSecondary,
                         fontSize = 16.sp
                     )
                 }
@@ -174,8 +179,8 @@ fun AiReportsViewerScreen(
                     // Strip tags from the body for main content rendering
                     val strippedBody = if (conclusion != null || motivation != null) {
                         rawBody
-                            .replace(Regex("<conclusion>.*?</conclusion>", RegexOption.DOT_MATCHES_ALL), "")
-                            .replace(Regex("<motivation>.*?</motivation>", RegexOption.DOT_MATCHES_ALL), "")
+                            .replace(conclusionTagRegex, "")
+                            .replace(motivationTagRegex, "")
                             .trim()
                     } else rawBody
 
@@ -184,7 +189,7 @@ fun AiReportsViewerScreen(
                         Text(
                             text = "Conclusion",
                             fontSize = 18.sp,
-                            color = Color(0xFF4CAF50),
+                            color = AiColors.Green,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -197,7 +202,7 @@ fun AiReportsViewerScreen(
                         Text(
                             text = "Motivation",
                             fontSize = 18.sp,
-                            color = Color(0xFF4CAF50),
+                            color = AiColors.Green,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -208,7 +213,7 @@ fun AiReportsViewerScreen(
                     // Remaining content rendered with think sections as collapsible blocks
                     if (strippedBody.isNotBlank()) {
                         if (conclusion != null || motivation != null) {
-                            HorizontalDivider(color = Color(0xFF333333), thickness = 1.dp)
+                            HorizontalDivider(color = AiColors.DividerDark, thickness = 1.dp)
                             Spacer(modifier = Modifier.height(12.dp))
                         }
                         ContentWithThinkSections(analysis = strippedBody)
@@ -245,12 +250,12 @@ fun AiReportsViewerScreen(
                                 Button(
                                     onClick = { activeSection = if (isActive) null else "prompt" },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isActive) Color(0xFF6B9BFF) else Color.Transparent
+                                        containerColor = if (isActive) AiColors.Blue else Color.Transparent
                                     ),
-                                    border = if (!isActive) BorderStroke(1.dp, Color(0xFF444444)) else null,
+                                    border = if (!isActive) BorderStroke(1.dp, AiColors.BorderUnfocused) else null,
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
-                                    Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else Color(0xFF6B9BFF))
+                                    Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else AiColors.Blue)
                                 }
                             }
                             if (hasCosts) {
@@ -258,12 +263,12 @@ fun AiReportsViewerScreen(
                                 Button(
                                     onClick = { activeSection = if (isActive) null else "costs" },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isActive) Color(0xFF6B9BFF) else Color.Transparent
+                                        containerColor = if (isActive) AiColors.Blue else Color.Transparent
                                     ),
-                                    border = if (!isActive) BorderStroke(1.dp, Color(0xFF444444)) else null,
+                                    border = if (!isActive) BorderStroke(1.dp, AiColors.BorderUnfocused) else null,
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
-                                    Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else Color(0xFF6B9BFF))
+                                    Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else AiColors.Blue)
                                 }
                             }
                         }
@@ -293,7 +298,7 @@ fun AiReportsViewerScreen(
                 ) {
                     Text(
                         text = "No analysis available",
-                        color = Color(0xFFAAAAAA),
+                        color = AiColors.TextSecondary,
                         fontSize = 16.sp
                     )
                 }
@@ -309,8 +314,10 @@ fun AiReportsViewerScreen(
 @Composable
 fun ReportCostTable(report: com.ai.data.AiReport) {
     val context = LocalContext.current
-    val agentsWithCosts = report.agents
-        .filter { it.tokenUsage != null && (it.reportStatus == com.ai.data.ReportStatus.SUCCESS || it.reportStatus == com.ai.data.ReportStatus.ERROR) }
+    val agentsWithCosts = remember(report) {
+        report.agents
+            .filter { it.tokenUsage != null && (it.reportStatus == com.ai.data.ReportStatus.SUCCESS || it.reportStatus == com.ai.data.ReportStatus.ERROR) }
+    }
 
     if (agentsWithCosts.isEmpty()) return
 
@@ -350,9 +357,9 @@ fun ReportCostTable(report: com.ai.data.AiReport) {
     fun fmtSecs(ms: Long?): String = if (ms != null) "%.1f".format(ms / 1000.0) else ""
     fun fmtTokens(n: Int): String = "%,d".format(n)
 
-    val headerColor = Color(0xFF6B9BFF)
-    val valueColor = Color(0xFFAAAAAA)
-    val totalColor = Color(0xFF6B9BFF)
+    val headerColor = AiColors.Blue
+    val valueColor = AiColors.TextSecondary
+    val totalColor = AiColors.Blue
     val headerSize = 11.sp
     val valueSize = 11.sp
 
@@ -377,7 +384,7 @@ fun ReportCostTable(report: com.ai.data.AiReport) {
                     Text("In ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
                     Text("Out ¢", fontSize = headerSize, color = headerColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End)
                 }
-                HorizontalDivider(color = Color(0xFF333333), thickness = 1.dp, modifier = Modifier.width(554.dp))
+                HorizontalDivider(color = AiColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(554.dp))
 
                 // Data rows
                 rows.forEach { r ->
@@ -394,7 +401,7 @@ fun ReportCostTable(report: com.ai.data.AiReport) {
                 }
 
                 // Total row
-                HorizontalDivider(color = Color(0xFF333333), thickness = 2.dp, modifier = Modifier.width(554.dp))
+                HorizontalDivider(color = AiColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(554.dp))
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
                     Text(fmtCents(totalInCents + totalOutCents), fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.End, fontFamily = FontFamily.Monospace)
                     Text("Total", fontSize = valueSize, color = totalColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(210.dp).padding(start = 8.dp))
@@ -469,7 +476,7 @@ private fun ThinkSection(content: String) {
         Button(
             onClick = { isExpanded = !isExpanded },
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF2A2A2A)
+                containerColor = AiColors.SurfaceDark
             ),
             border = BorderStroke(1.dp, Color(0xFF666666)),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -477,7 +484,7 @@ private fun ThinkSection(content: String) {
         ) {
             Text(
                 text = if (isExpanded) "Hide Think" else "Think",
-                color = Color(0xFFAAAAAA),
+                color = AiColors.TextSecondary,
                 fontSize = 13.sp
             )
         }
@@ -718,7 +725,7 @@ private fun CitationsSection(citations: List<String>) {
             ) {
                 Text(
                     text = "${index + 1}. ",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 14.sp
                 )
                 Text(
@@ -772,7 +779,7 @@ private fun SearchResultsSection(searchResults: List<com.ai.data.SearchResult>) 
                     Row {
                         Text(
                             text = "${index + 1}. ",
-                            color = Color(0xFFAAAAAA),
+                            color = AiColors.TextSecondary,
                             fontSize = 14.sp
                         )
                         Text(
@@ -787,7 +794,7 @@ private fun SearchResultsSection(searchResults: List<com.ai.data.SearchResult>) 
                     if (result.name != null && result.name != result.url) {
                         Text(
                             text = result.url,
-                            color = Color(0xFF888888),
+                            color = AiColors.TextTertiary,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(start = 16.dp, top = 2.dp)
                         )
@@ -822,7 +829,7 @@ private fun RelatedQuestionsSection(relatedQuestions: List<String>) {
             text = "Related Questions",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF4CAF50),
+            color = AiColors.Green,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
@@ -832,7 +839,7 @@ private fun RelatedQuestionsSection(relatedQuestions: List<String>) {
             ) {
                 Text(
                     text = "${index + 1}. ",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 14.sp
                 )
                 Text(

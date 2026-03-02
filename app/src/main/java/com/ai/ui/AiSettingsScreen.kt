@@ -156,7 +156,7 @@ fun AiSetupScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = Color(0xFF4CAF50),
+                        color = AiColors.Green,
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(12.dp))
@@ -196,7 +196,7 @@ fun AiSetupScreen(
                             filePickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
                     ) {
                         Text("Import AI Configuration", fontSize = 12.sp)
                     }
@@ -207,7 +207,7 @@ fun AiSetupScreen(
                             apiKeysPickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
                     ) {
                         Text("Import API Keys", fontSize = 12.sp)
                     }
@@ -360,7 +360,7 @@ internal fun AiSetupNavigationCard(
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) Color(0xFFAAAAAA) else Color(0xFF444444)
+                    color = if (enabled) AiColors.TextSecondary else AiColors.BorderUnfocused
                 )
             }
             Column(
@@ -369,12 +369,12 @@ internal fun AiSetupNavigationCard(
                 Text(
                     text = count,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) Color(0xFF00E676) else Color(0xFF444444)
+                    color = if (enabled) Color(0xFF00E676) else AiColors.BorderUnfocused
                 )
                 Text(
                     text = ">",
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (enabled) Color(0xFF888888) else Color(0xFF333333)
+                    color = if (enabled) AiColors.TextTertiary else AiColors.DividerDark
                 )
             }
         }
@@ -431,7 +431,7 @@ fun AiProvidersScreen(
         OutlinedButton(
             onClick = { newProviderName = ""; showAddDialog = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4CAF50))
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = AiColors.Green)
         ) {
             Text("+ Add Provider")
         }
@@ -581,8 +581,8 @@ fun ProviderDefinitionEditorScreen(
                 { Text("Uppercase letters, numbers, underscores only") }
             },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -594,8 +594,8 @@ fun ProviderDefinitionEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -608,8 +608,8 @@ fun ProviderDefinitionEditorScreen(
             singleLine = true,
             isError = baseUrl.isNotBlank() && !urlValid,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -621,8 +621,8 @@ fun ProviderDefinitionEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -638,8 +638,8 @@ fun ProviderDefinitionEditorScreen(
                     .clickable { formatExpanded = true },
                 readOnly = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
             DropdownMenu(
@@ -682,8 +682,8 @@ fun ProviderDefinitionEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -700,13 +700,13 @@ fun ProviderDefinitionEditorScreen(
                 singleLine = true,
                 enabled = !modelsPathNull,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("None", style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888))
+                Text("None", style = MaterialTheme.typography.bodySmall, color = AiColors.TextTertiary)
                 Switch(
                     checked = modelsPathNull,
                     onCheckedChange = { modelsPathNull = it }
@@ -722,8 +722,8 @@ fun ProviderDefinitionEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -736,8 +736,8 @@ fun ProviderDefinitionEditorScreen(
             singleLine = true,
             supportingText = { Text("Used for SharedPreferences storage") },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -758,8 +758,8 @@ fun ProviderDefinitionEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
 
@@ -770,8 +770,8 @@ fun ProviderDefinitionEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
 
@@ -783,8 +783,8 @@ fun ProviderDefinitionEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
 
@@ -795,8 +795,8 @@ fun ProviderDefinitionEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
 
@@ -812,8 +812,8 @@ fun ProviderDefinitionEditorScreen(
                         .clickable { listFormatExpanded = true },
                     readOnly = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
                 DropdownMenu(
@@ -865,7 +865,7 @@ fun ProviderDefinitionEditorScreen(
                 Text("Endpoint Rules", color = Color.White, fontWeight = FontWeight.Bold)
                 Button(
                     onClick = { editingRuleIndex = -1; showAddRuleDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Text("+ Add", fontSize = 12.sp)
@@ -873,25 +873,25 @@ fun ProviderDefinitionEditorScreen(
             }
             Text(
                 "Route models to different API endpoints by prefix",
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 fontSize = 12.sp
             )
             endpointRules.forEachIndexed { index, rule ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF2A2A2A), shape = MaterialTheme.shapes.small)
+                        .background(AiColors.SurfaceDark, shape = MaterialTheme.shapes.small)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("${rule.modelPrefix}*", color = Color(0xFF6B9BFF), fontSize = 14.sp)
-                        Text("→ ${rule.endpointType}", color = Color(0xFFAAAAAA), fontSize = 12.sp)
+                        Text("${rule.modelPrefix}*", color = AiColors.Blue, fontSize = 14.sp)
+                        Text("→ ${rule.endpointType}", color = AiColors.TextSecondary, fontSize = 12.sp)
                     }
                     Row {
                         IconButton(onClick = { editingRuleIndex = index; showAddRuleDialog = true }) {
-                            Text("✎", color = Color(0xFF888888))
+                            Text("✎", color = AiColors.TextTertiary)
                         }
                         IconButton(onClick = {
                             endpointRules = endpointRules.toMutableList().also { it.removeAt(index) }
@@ -987,8 +987,8 @@ fun ProviderDefinitionEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = canSave,
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF4CAF50),
-                disabledContainerColor = Color(0xFF333333)
+                containerColor = AiColors.Green,
+                disabledContainerColor = AiColors.DividerDark
             )
         ) {
             Text(if (isNew) "Add Provider" else "Save Changes")
@@ -1057,13 +1057,13 @@ fun ExternalServicesScreen(
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFFFF9800),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
                 Text(
                     text = "Used for fetching model info. Get your token at huggingface.co/settings/tokens",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
+                    color = AiColors.TextSecondary
                 )
 
                 OutlinedTextField(
@@ -1078,13 +1078,13 @@ fun ExternalServicesScreen(
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFFFF9800),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
                 Text(
                     text = "Used for AI Housekeeping. Get your key at openrouter.ai/settings/keys",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
+                    color = AiColors.TextSecondary
                 )
             }
         }

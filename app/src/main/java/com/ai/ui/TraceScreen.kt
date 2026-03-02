@@ -114,7 +114,7 @@ private val JsonKeyColor = Color(0xFF82AAFF)
 private val JsonStringColor = Color(0xFFC3E88D)
 private val JsonNumberColor = Color(0xFFF78C6C)
 private val JsonBooleanColor = Color(0xFFC792EA)
-private val JsonNullColor = Color(0xFF888888)
+private val JsonNullColor = AiColors.TextTertiary
 private val JsonBraceColor = Color(0xFFE0E0E0)
 
 @Composable
@@ -324,7 +324,7 @@ fun TraceListScreen(
                     enabled = currentPage > 0,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF3366BB),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     )
                 ) {
                     Text("◀ Prev")
@@ -341,7 +341,7 @@ fun TraceListScreen(
                     enabled = currentPage < totalPages - 1,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF3366BB),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     )
                 ) {
                     Text("Next ▶")
@@ -353,7 +353,7 @@ fun TraceListScreen(
         // Table header
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF2A2A2A)
+                containerColor = AiColors.SurfaceDark
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -365,14 +365,14 @@ fun TraceListScreen(
             ) {
                 Text(
                     text = "Hostname",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.weight(1.5f)
                 )
                 Text(
                     text = "Date/Time",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.weight(1.2f),
@@ -380,7 +380,7 @@ fun TraceListScreen(
                 )
                 Text(
                     text = "Status",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.weight(0.5f),
@@ -401,7 +401,7 @@ fun TraceListScreen(
             ) {
                 Text(
                     text = if (reportId != null) "No traces recorded for this report" else "No API traces recorded yet",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 16.sp
                 )
             }
@@ -410,7 +410,7 @@ fun TraceListScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(currentPageItems) { traceInfo ->
+                items(currentPageItems, key = { it.filename }) { traceInfo ->
                     TraceListItem(
                         traceInfo = traceInfo,
                         onClick = { onSelectTrace(traceInfo.filename) }
@@ -432,7 +432,7 @@ fun TraceListScreen(
                 enabled = traceFiles.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFCC3333),
-                    disabledContainerColor = Color(0xFF444444)
+                    disabledContainerColor = AiColors.BorderUnfocused
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -450,7 +450,7 @@ private fun TraceListItem(
 ) {
     val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm:ss", Locale.US) }
     val statusColor = when {
-        traceInfo.statusCode in 200..299 -> Color(0xFF4CAF50)  // Green for success
+        traceInfo.statusCode in 200..299 -> AiColors.Green  // Green for success
         traceInfo.statusCode in 400..499 -> Color(0xFFFF9800)  // Orange for client errors
         traceInfo.statusCode >= 500 -> Color(0xFFF44336)       // Red for server errors
         else -> Color.White
@@ -598,7 +598,7 @@ fun TraceDetailScreen(
         // Endpoint URL
         Text(
             text = trace.request.url,
-            color = Color(0xFFAAAAAA),
+            color = AiColors.TextSecondary,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace,
             maxLines = 1,
@@ -717,7 +717,7 @@ fun TraceDetailScreen(
                     enabled = hasPrevious,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF555555),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     ),
                     contentPadding = smallButtonPadding,
                     modifier = Modifier.weight(1f)
@@ -807,7 +807,7 @@ fun TraceDetailScreen(
                         Toast.makeText(context, "Failed to share: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                 contentPadding = smallButtonPadding,
                 modifier = Modifier.weight(2f)
             ) { Text("Share", fontSize = 12.sp) }
@@ -817,7 +817,7 @@ fun TraceDetailScreen(
                     enabled = hasNext,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF555555),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     ),
                     contentPadding = smallButtonPadding,
                     modifier = Modifier.weight(1f)

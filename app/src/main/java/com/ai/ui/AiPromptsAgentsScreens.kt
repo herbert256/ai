@@ -161,7 +161,7 @@ fun AiAgentsScreen(
                     onClick = { showAddScreen = true },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
+                        containerColor = AiColors.Green
                     )
                 ) {
                     Text("+ Add Agent")
@@ -175,13 +175,13 @@ fun AiAgentsScreen(
                     placeholder = { Text("Search agents...") },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     ),
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
-                                Text("✕", color = Color(0xFF888888))
+                                Text("✕", color = AiColors.TextTertiary)
                             }
                         }
                     }
@@ -215,12 +215,12 @@ fun AiAgentsScreen(
                             Text(
                                 text = "No agents configured",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFFAAAAAA)
+                                color = AiColors.TextSecondary
                             )
                             Text(
                                 text = "Add an agent to start using AI analysis",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF888888)
+                                color = AiColors.TextTertiary
                             )
                         }
                     }
@@ -239,7 +239,7 @@ fun AiAgentsScreen(
                             Text(
                                 text = "No agents match \"$searchQuery\"",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFFAAAAAA)
+                                color = AiColors.TextSecondary
                             )
                         }
                     }
@@ -320,7 +320,7 @@ private fun AgentListItem(
                 Text(
                     text = agent.model.ifBlank { agent.provider.defaultModel },
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF888888)
+                    color = AiColors.TextTertiary
                 )
             }
             Row(
@@ -330,7 +330,7 @@ private fun AgentListItem(
                     onClick = onEdit,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
-                    Text("Edit", color = Color(0xFF6B9BFF))
+                    Text("Edit", color = AiColors.Blue)
                 }
                 TextButton(
                     onClick = onCopy,
@@ -497,7 +497,7 @@ internal fun AgentEditScreen(
                 modifier = Modifier.weight(1f),
                 enabled = !isSaving && nameError == null,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
+                    containerColor = AiColors.Green
                 )
             ) {
                 if (isSaving) {
@@ -542,7 +542,7 @@ internal fun AgentEditScreen(
             Text(
                 text = "Provider",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
+                color = AiColors.TextSecondary
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -570,7 +570,7 @@ internal fun AgentEditScreen(
             Text(
                 text = "Model (optional - uses provider default if empty)",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
+                color = AiColors.TextSecondary
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -611,7 +611,7 @@ internal fun AgentEditScreen(
             Text(
                 text = "Endpoint (optional - uses provider default if empty)",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
+                color = AiColors.TextSecondary
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -657,7 +657,7 @@ internal fun AgentEditScreen(
                 // Only show Show/Hide button when API key field has content
                 if (apiKey.isNotBlank()) {
                     TextButton(onClick = { showKey = !showKey }) {
-                        Text(if (showKey) "Hide" else "Show", color = Color(0xFF6B9BFF))
+                        Text(if (showKey) "Hide" else "Show", color = AiColors.Blue)
                     }
                 }
             }
@@ -710,7 +710,7 @@ internal fun AgentEditScreen(
                 Text(
                     text = testResult ?: "",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (testSuccess) Color(0xFF4CAF50) else Color(0xFFF44336)
+                    color = if (testSuccess) AiColors.Green else Color(0xFFF44336)
                 )
             }
 
@@ -772,7 +772,7 @@ internal fun AgentEditScreen(
                 modifier = Modifier.weight(1f),
                 enabled = !isSaving && nameError == null,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
+                    containerColor = AiColors.Green
                 )
             ) {
                 if (isSaving) {
@@ -862,7 +862,7 @@ internal fun AgentEditScreen(
                                             Text(
                                                 "DEFAULT",
                                                 fontSize = 10.sp,
-                                                color = Color(0xFF4CAF50),
+                                                color = AiColors.Green,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }

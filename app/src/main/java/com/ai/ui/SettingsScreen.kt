@@ -612,8 +612,8 @@ private fun SettingsMainScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -628,8 +628,8 @@ private fun SettingsMainScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -664,7 +664,7 @@ private fun SettingsMainScreen(
                         Text(
                             text = "Hide the system status bar",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFAAAAAA)
+                            color = AiColors.TextSecondary
                         )
                     }
                     Switch(
@@ -687,7 +687,7 @@ private fun SettingsMainScreen(
                         Text(
                             text = if (popupModelSelection) "Popup" else "Full screen",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFAAAAAA)
+                            color = AiColors.TextSecondary
                         )
                     }
                     Switch(

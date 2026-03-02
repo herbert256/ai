@@ -4,9 +4,9 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.ai.data.AiService
 import com.ai.data.createAiGson
-import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import java.lang.reflect.Type
 
 /**
  * Helper class for managing all settings persistence via SharedPreferences.
@@ -15,6 +15,21 @@ import java.io.File
 class SettingsPreferences(private val prefs: SharedPreferences, private val filesDir: File? = null) {
 
     private val gson = createAiGson()
+
+    // Cached TypeToken types to avoid repeated anonymous class allocations
+    private object TypeTokens {
+        val listStringType: Type = object : TypeToken<List<String>>() {}.type
+        val listAgentType: Type = object : TypeToken<List<AiAgent>>() {}.type
+        val listFlockType: Type = object : TypeToken<List<AiFlock>>() {}.type
+        val listSwarmType: Type = object : TypeToken<List<AiSwarm>>() {}.type
+        val listParametersType: Type = object : TypeToken<List<AiParameters>>() {}.type
+        val listSystemPromptType: Type = object : TypeToken<List<AiSystemPrompt>>() {}.type
+        val listPromptType: Type = object : TypeToken<List<AiPrompt>>() {}.type
+        val mapEndpointsType: Type = object : TypeToken<Map<String, List<AiEndpoint>>>() {}.type
+        val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
+        val listPromptHistoryType: Type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
+        val listUsageStatsType: Type = object : TypeToken<List<AiUsageStats>>() {}.type
+    }
 
     // ============================================================================
     // General Settings
@@ -98,8 +113,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadManualModels(key: String): List<String> {
         val json = prefs.getString(key, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            gson.fromJson(json, TypeTokens.listStringType) ?: emptyList()
         } catch (e: Exception) {
             android.util.Log.w("SettingsPreferences", "Failed to load manual models for $key: ${e.message}")
             emptyList()
@@ -109,8 +123,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadManualModelsWithDefault(key: String, default: List<String>): List<String> {
         val json = prefs.getString(key, null) ?: return default
         return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            gson.fromJson(json, type) ?: default
+            gson.fromJson(json, TypeTokens.listStringType) ?: default
         } catch (e: Exception) {
             android.util.Log.w("SettingsPreferences", "Failed to load manual models with default for $key: ${e.message}")
             default
@@ -120,8 +133,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadParametersIds(key: String): List<String> {
         val raw = prefs.getString(key, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            gson.fromJson<List<String>>(raw, type) ?: emptyList()
+            gson.fromJson<List<String>>(raw, TypeTokens.listStringType) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -177,8 +189,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadAgents(): List<AiAgent> {
         val json = prefs.getString(KEY_AI_AGENTS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiAgent>>() {}.type
-            val list: List<AiAgent>? = gson.fromJson(json, type)
+            val list: List<AiAgent>? = gson.fromJson(json, TypeTokens.listAgentType)
             // Filter out agents with unknown providers; coalesce Gson null defaults
             list?.filter { AiService.findById(it.provider.id) != null } ?: emptyList()
         } catch (e: Exception) {
@@ -193,8 +204,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadFlocks(): List<AiFlock> {
         val json = prefs.getString(KEY_AI_FLOCKS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiFlock>>() {}.type
-            val list: List<AiFlock>? = gson.fromJson(json, type)
+            val list: List<AiFlock>? = gson.fromJson(json, TypeTokens.listFlockType)
             list ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -208,8 +218,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadSwarms(): List<AiSwarm> {
         val json = prefs.getString(KEY_AI_SWARMS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiSwarm>>() {}.type
-            val list: List<AiSwarm>? = gson.fromJson(json, type)
+            val list: List<AiSwarm>? = gson.fromJson(json, TypeTokens.listSwarmType)
             list ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -223,8 +232,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadParameters(): List<AiParameters> {
         val json = prefs.getString(KEY_AI_PARAMETERS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiParameters>>() {}.type
-            val list: List<AiParameters>? = gson.fromJson(json, type)
+            val list: List<AiParameters>? = gson.fromJson(json, TypeTokens.listParametersType)
             list?.map { params ->
                 params.copy(
                     stopSequences = params.stopSequences
@@ -242,8 +250,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadSystemPrompts(): List<AiSystemPrompt> {
         val json = prefs.getString(KEY_AI_SYSTEM_PROMPTS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiSystemPrompt>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            gson.fromJson(json, TypeTokens.listSystemPromptType) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -256,8 +263,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadPrompts(): List<AiPrompt> {
         val json = prefs.getString(KEY_AI_PROMPTS, null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<AiPrompt>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            gson.fromJson(json, TypeTokens.listPromptType) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -271,8 +277,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val json = prefs.getString(KEY_AI_ENDPOINTS, null) ?: return emptyMap()
         return try {
             // Stored as Map<String, List<AiEndpoint>> where key is provider name
-            val type = object : TypeToken<Map<String, List<AiEndpoint>>>() {}.type
-            val rawMap: Map<String, List<AiEndpoint>>? = gson.fromJson(json, type)
+            val rawMap: Map<String, List<AiEndpoint>>? = gson.fromJson(json, TypeTokens.mapEndpointsType)
             rawMap?.mapKeys { entry -> AiService.findById(entry.key) }
                 ?.entries?.mapNotNull { (k, v) -> k?.let { it to v } }?.toMap() ?: emptyMap()
         } catch (e: Exception) {
@@ -288,8 +293,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     private fun loadProviderStates(): Map<String, String> {
         val json = prefs.getString(KEY_PROVIDER_STATES, null) ?: return emptyMap()
         return try {
-            val type = object : TypeToken<Map<String, String>>() {}.type
-            gson.fromJson(json, type) ?: emptyMap()
+            gson.fromJson(json, TypeTokens.mapStringStringType) ?: emptyMap()
         } catch (e: Exception) {
             android.util.Log.w("SettingsPreferences", "Failed to load provider states: ${e.message}")
             emptyMap()
@@ -311,8 +315,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         if (!file.exists()) return emptyList()
         return try {
             val json = file.readText()
-            val type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            gson.fromJson(json, TypeTokens.listPromptHistoryType) ?: emptyList()
         } catch (e: Exception) {
             android.util.Log.w("SettingsPreferences", "Failed to load prompt history: ${e.message}")
             emptyList()
@@ -443,8 +446,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun loadSelectedFlockIds(): Set<String> {
         val json = prefs.getString(KEY_SELECTED_FLOCK_IDS, null) ?: return emptySet()
         return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            val list: List<String>? = gson.fromJson(json, type)
+            val list: List<String>? = gson.fromJson(json, TypeTokens.listStringType)
             list?.toSet() ?: emptySet()
         } catch (e: Exception) {
             emptySet()
@@ -463,8 +465,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun loadSelectedSwarmIds(): Set<String> {
         val json = prefs.getString(KEY_SELECTED_SWARM_IDS, null) ?: return emptySet()
         return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            val list: List<String>? = gson.fromJson(json, type)
+            val list: List<String>? = gson.fromJson(json, TypeTokens.listStringType)
             list?.toSet() ?: emptySet()
         } catch (e: Exception) {
             emptySet()
@@ -485,8 +486,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         if (!file.exists()) return emptyMap()
         return try {
             val json = file.readText()
-            val type = object : TypeToken<List<AiUsageStats>>() {}.type
-            val list: List<AiUsageStats>? = gson.fromJson(json, type)
+            val list: List<AiUsageStats>? = gson.fromJson(json, TypeTokens.listUsageStatsType)
             list?.associateBy { it.key } ?: emptyMap()
         } catch (e: Exception) {
             android.util.Log.e("SettingsPreferences", "Failed to load usage stats: ${e.message}")

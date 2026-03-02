@@ -564,7 +564,7 @@ fun ParametersSelector(
             Text(
                 text = "No parameter presets assigned",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF888888)
+                color = AiColors.TextTertiary
             )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

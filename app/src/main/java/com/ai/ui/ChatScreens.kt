@@ -69,18 +69,18 @@ fun ChatSelectProviderScreen(
 
         if (configuredProviders.isEmpty()) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = "No AI providers configured. Please add API keys in Settings > AI Setup.",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     modifier = Modifier.padding(16.dp)
                 )
             }
         } else {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
@@ -100,12 +100,12 @@ fun ChatSelectProviderScreen(
                             )
                             Text(
                                 text = ">",
-                                color = Color(0xFF6B9BFF),
+                                color = AiColors.Blue,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         if (index < configuredProviders.size - 1) {
-                            HorizontalDivider(color = Color(0xFF444444))
+                            HorizontalDivider(color = AiColors.BorderUnfocused)
                         }
                     }
                 }
@@ -161,12 +161,12 @@ fun ChatParametersScreen(
 
         Text(
             text = "Provider: ${provider.displayName}",
-            color = Color(0xFF6B9BFF),
+            color = AiColors.Blue,
             fontSize = 14.sp
         )
         Text(
             text = "Model: $model",
-            color = Color(0xFFAAAAAA),
+            color = AiColors.TextSecondary,
             fontSize = 12.sp
         )
 
@@ -258,8 +258,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -274,8 +274,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -290,8 +290,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -305,8 +305,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -320,8 +320,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -335,8 +335,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -350,8 +350,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -401,8 +401,8 @@ fun ChatParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
@@ -520,13 +520,13 @@ fun ChatSessionScreen(
         ) {
             Text(
                 text = "${provider.displayName} / $model",
-                color = Color(0xFF6B9BFF),
+                color = AiColors.Blue,
                 fontSize = 14.sp
             )
             if (totalCost > 0) {
                 Text(
                     text = "${formatCents(totalCost)} ¢",
-                    color = Color(0xFF4CAF50),
+                    color = AiColors.Green,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -584,13 +584,13 @@ fun ChatSessionScreen(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(24.dp),
-                                    color = Color(0xFF6B9BFF),
+                                    color = AiColors.Blue,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Thinking...",
-                                    color = Color(0xFF888888),
+                                    color = AiColors.TextTertiary,
                                     fontSize = 14.sp
                                 )
                             }
@@ -608,13 +608,13 @@ fun ChatSessionScreen(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(24.dp),
-                                    color = Color(0xFF6B9BFF),
+                                    color = AiColors.Blue,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Thinking...",
-                                    color = Color(0xFF888888),
+                                    color = AiColors.TextTertiary,
                                     fontSize = 14.sp
                                 )
                             }
@@ -651,8 +651,8 @@ fun ChatSessionScreen(
                 minLines = 1,
                 maxLines = 4,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
 
@@ -758,7 +758,7 @@ fun ChatSessionScreen(
 @Composable
 private fun StreamingMessageBubble(content: String) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+        colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -768,7 +768,7 @@ private fun StreamingMessageBubble(content: String) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "Assistant",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -776,7 +776,7 @@ private fun StreamingMessageBubble(content: String) {
                 // Typing indicator
                 CircularProgressIndicator(
                     modifier = Modifier.size(10.dp),
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     strokeWidth = 1.dp
                 )
             }
@@ -834,7 +834,7 @@ private fun AnimatedTextLines(content: String) {
 @Composable
 private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
     val isUser = message.role == "user"
-    val backgroundColor = if (isUser) Color(0xFF8B5CF6) else Color(0xFF2A2A2A)
+    val backgroundColor = if (isUser) Color(0xFF8B5CF6) else AiColors.SurfaceDark
 
     Card(
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
@@ -846,7 +846,7 @@ private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
         ) {
             Text(
                 text = if (isUser) userName else "Assistant",
-                color = if (isUser) Color.White.copy(alpha = 0.7f) else Color(0xFF6B9BFF),
+                color = if (isUser) Color.White.copy(alpha = 0.7f) else AiColors.Blue,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -918,12 +918,12 @@ fun ChatHistoryScreen(
 
         if (allSessions.isEmpty()) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = "No chat history yet. Start a new chat to begin.",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     modifier = Modifier.padding(16.dp)
                 )
             }
@@ -938,7 +938,7 @@ fun ChatHistoryScreen(
             ) {
                 Text(
                     text = "Page ${currentPage + 1} of $totalPages (${allSessions.size} chats)",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 12.sp
                 )
 
@@ -947,21 +947,21 @@ fun ChatHistoryScreen(
                         onClick = { if (currentPage > 0) currentPage-- },
                         enabled = currentPage > 0
                     ) {
-                        Text("< Previous", color = if (currentPage > 0) Color(0xFF6B9BFF) else Color(0xFF555555))
+                        Text("< Previous", color = if (currentPage > 0) AiColors.Blue else Color(0xFF555555))
                     }
 
                     TextButton(
                         onClick = { if (currentPage < totalPages - 1) currentPage++ },
                         enabled = currentPage < totalPages - 1
                     ) {
-                        Text("Next >", color = if (currentPage < totalPages - 1) Color(0xFF6B9BFF) else Color(0xFF555555))
+                        Text("Next >", color = if (currentPage < totalPages - 1) AiColors.Blue else Color(0xFF555555))
                     }
                 }
             }
 
             // Chat sessions list
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+                colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark),
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -986,12 +986,12 @@ fun ChatHistoryScreen(
                                 Row {
                                     Text(
                                         text = session.provider.displayName,
-                                        color = Color(0xFF6B9BFF),
+                                        color = AiColors.Blue,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         text = " • ${session.model}",
-                                        color = Color(0xFF888888),
+                                        color = AiColors.TextTertiary,
                                         fontSize = 12.sp
                                     )
                                 }
@@ -1003,11 +1003,11 @@ fun ChatHistoryScreen(
                             }
                             Text(
                                 text = ">",
-                                color = Color(0xFF6B9BFF),
+                                color = AiColors.Blue,
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        HorizontalDivider(color = Color(0xFF444444))
+                        HorizontalDivider(color = AiColors.BorderUnfocused)
                     }
                 }
             }
@@ -1022,7 +1022,7 @@ fun ChatHistoryScreen(
             ) {
                 Text(
                     text = "Showing ${startIndex + 1}-$endIndex",
-                    color = Color(0xFF888888),
+                    color = AiColors.TextTertiary,
                     fontSize = 12.sp
                 )
 
@@ -1031,14 +1031,14 @@ fun ChatHistoryScreen(
                         onClick = { if (currentPage > 0) currentPage-- },
                         enabled = currentPage > 0
                     ) {
-                        Text("< Previous", color = if (currentPage > 0) Color(0xFF6B9BFF) else Color(0xFF555555))
+                        Text("< Previous", color = if (currentPage > 0) AiColors.Blue else Color(0xFF555555))
                     }
 
                     TextButton(
                         onClick = { if (currentPage < totalPages - 1) currentPage++ },
                         enabled = currentPage < totalPages - 1
                     ) {
-                        Text("Next >", color = if (currentPage < totalPages - 1) Color(0xFF6B9BFF) else Color(0xFF555555))
+                        Text("Next >", color = if (currentPage < totalPages - 1) AiColors.Blue else Color(0xFF555555))
                     }
                 }
             }
@@ -1173,18 +1173,18 @@ private fun ChatHubCard(
                     text = title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (enabled) Color.White else Color(0xFF888888)
+                    color = if (enabled) Color.White else AiColors.TextTertiary
                 )
                 Text(
                     text = description,
                     fontSize = 13.sp,
-                    color = if (enabled) Color(0xFFAAAAAA) else Color(0xFF666666)
+                    color = if (enabled) AiColors.TextSecondary else Color(0xFF666666)
                 )
             }
             if (enabled) {
                 Text(
                     text = ">",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -1239,14 +1239,14 @@ fun ChatSearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester),
-                placeholder = { Text("Search in messages...", color = Color(0xFF888888)) },
+                placeholder = { Text("Search in messages...", color = AiColors.TextTertiary) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF6B9BFF),
+                    focusedBorderColor = AiColors.Blue,
                     unfocusedBorderColor = Color(0xFF555555),
-                    cursorColor = Color(0xFF6B9BFF)
+                    cursorColor = AiColors.Blue
                 ),
                 trailingIcon = {
                     TextButton(
@@ -1258,7 +1258,7 @@ fun ChatSearchScreen(
                         },
                         enabled = searchQuery.isNotBlank()
                     ) {
-                        Text("Search", color = if (searchQuery.isNotBlank()) Color(0xFF6B9BFF) else Color(0xFF555555))
+                        Text("Search", color = if (searchQuery.isNotBlank()) AiColors.Blue else Color(0xFF555555))
                     }
                 }
             )
@@ -1273,7 +1273,7 @@ fun ChatSearchScreen(
                 ) {
                     Text(
                         text = "Enter a search term to find messages",
-                        color = Color(0xFF888888)
+                        color = AiColors.TextTertiary
                     )
                 }
             } else if (searchResults.isEmpty()) {
@@ -1283,13 +1283,13 @@ fun ChatSearchScreen(
                 ) {
                     Text(
                         text = "No matches found for \"$searchQuery\"",
-                        color = Color(0xFF888888)
+                        color = AiColors.TextTertiary
                     )
                 }
             } else {
                 Text(
                     text = "${searchResults.size} match${if (searchResults.size != 1) "es" else ""} found",
-                    color = Color(0xFF888888),
+                    color = AiColors.TextTertiary,
                     fontSize = 12.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1334,14 +1334,14 @@ fun ChatSearchScreen(
                                 // Message role
                                 Text(
                                     text = result.messageRole.replaceFirstChar { it.uppercase() },
-                                    color = if (result.messageRole == "user") Color(0xFF6B9BFF) else Color(0xFF4CAF50),
+                                    color = if (result.messageRole == "user") AiColors.Blue else AiColors.Green,
                                     fontSize = 12.sp
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 // Message preview with highlighted search term
                                 Text(
                                     text = result.messagePreview,
-                                    color = Color(0xFFAAAAAA),
+                                    color = AiColors.TextSecondary,
                                     fontSize = 13.sp,
                                     maxLines = 3
                                 )

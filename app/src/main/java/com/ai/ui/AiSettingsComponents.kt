@@ -71,13 +71,13 @@ fun CollapsibleCard(
                     Text(
                         text = summary,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF888888),
+                        color = AiColors.TextTertiary,
                         modifier = Modifier.padding(end = 8.dp)
                     )
                 }
                 Text(
                     text = if (expanded) "▾" else "▸",
-                    color = Color(0xFF888888),
+                    color = AiColors.TextTertiary,
                     fontSize = 16.sp
                 )
             }
@@ -146,7 +146,7 @@ fun SelectModelScreen(
         Text(
             text = "${provider.displayName} — ${allModels.size} models",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888),
+            color = AiColors.TextTertiary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -158,15 +158,15 @@ fun SelectModelScreen(
             placeholder = { Text("Search models...") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444),
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Text("✕", color = Color(0xFF888888))
+                        Text("✕", color = AiColors.TextTertiary)
                     }
                 }
             }
@@ -184,26 +184,26 @@ fun SelectModelScreen(
             Text(
                 text = "Model",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "In $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
             Text(
                 text = "Out $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
         }
 
-        HorizontalDivider(color = Color(0xFF444444))
+        HorizontalDivider(color = AiColors.BorderUnfocused)
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -228,7 +228,7 @@ fun SelectModelScreen(
                             Text(
                                 text = "Default (use provider setting)",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFF6B9BFF),
+                                color = AiColors.Blue,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
@@ -238,7 +238,7 @@ fun SelectModelScreen(
                             )
                         }
                     }
-                    HorizontalDivider(color = Color(0xFF333333))
+                    HorizontalDivider(color = AiColors.DividerDark)
                 }
             }
 
@@ -285,7 +285,7 @@ fun SelectModelScreen(
                         modifier = Modifier.width(70.dp)
                     )
                 }
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = AiColors.DividerDark)
             }
         }
     }
@@ -322,7 +322,7 @@ fun SelectProviderScreen(
         Text(
             text = "${allProviders.size} providers",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888),
+            color = AiColors.TextTertiary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -333,15 +333,15 @@ fun SelectProviderScreen(
             placeholder = { Text("Search providers...") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444),
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Text("✕", color = Color(0xFF888888))
+                        Text("✕", color = AiColors.TextTertiary)
                     }
                 }
             }
@@ -359,12 +359,12 @@ fun SelectProviderScreen(
             Text(
                 text = "Provider",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 modifier = Modifier.weight(1f)
             )
         }
 
-        HorizontalDivider(color = Color(0xFF444444))
+        HorizontalDivider(color = AiColors.BorderUnfocused)
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -401,7 +401,7 @@ fun SelectProviderScreen(
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = AiColors.DividerDark)
             }
         }
     }
@@ -444,7 +444,7 @@ fun SelectAgentScreen(
         Text(
             text = "${allAgents.size} agents",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888),
+            color = AiColors.TextTertiary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -455,15 +455,15 @@ fun SelectAgentScreen(
             placeholder = { Text("Search agents...") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444),
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Text("✕", color = Color(0xFF888888))
+                        Text("✕", color = AiColors.TextTertiary)
                     }
                 }
             }
@@ -481,26 +481,26 @@ fun SelectAgentScreen(
             Text(
                 text = "Agent",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "In $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
             Text(
                 text = "Out $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
         }
 
-        HorizontalDivider(color = Color(0xFF444444))
+        HorizontalDivider(color = AiColors.BorderUnfocused)
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -530,7 +530,7 @@ fun SelectAgentScreen(
                         Text(
                             text = "${agent.provider.displayName} · $effectiveModel",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF888888),
+                            color = AiColors.TextTertiary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -552,7 +552,7 @@ fun SelectAgentScreen(
                         modifier = Modifier.width(70.dp)
                     )
                 }
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = AiColors.DividerDark)
             }
         }
     }
@@ -590,7 +590,7 @@ fun SelectSwarmScreen(
         Text(
             text = "${allSwarms.size} swarms",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888),
+            color = AiColors.TextTertiary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -601,15 +601,15 @@ fun SelectSwarmScreen(
             placeholder = { Text("Search swarms...") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444),
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Text("✕", color = Color(0xFF888888))
+                        Text("✕", color = AiColors.TextTertiary)
                     }
                 }
             }
@@ -627,26 +627,26 @@ fun SelectSwarmScreen(
             Text(
                 text = "Swarm",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "In $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
             Text(
                 text = "Out $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
         }
 
-        HorizontalDivider(color = Color(0xFF444444))
+        HorizontalDivider(color = AiColors.BorderUnfocused)
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -682,7 +682,7 @@ fun SelectSwarmScreen(
                         Text(
                             text = "${swarm.members.size} members",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF888888)
+                            color = AiColors.TextTertiary
                         )
                     }
                     Text(
@@ -702,7 +702,7 @@ fun SelectSwarmScreen(
                         modifier = Modifier.width(70.dp)
                     )
                 }
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = AiColors.DividerDark)
             }
         }
     }
@@ -740,7 +740,7 @@ fun SelectFlockScreen(
         Text(
             text = "${allFlocks.size} flocks",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888),
+            color = AiColors.TextTertiary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -751,15 +751,15 @@ fun SelectFlockScreen(
             placeholder = { Text("Search flocks...") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444),
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Text("✕", color = Color(0xFF888888))
+                        Text("✕", color = AiColors.TextTertiary)
                     }
                 }
             }
@@ -777,26 +777,26 @@ fun SelectFlockScreen(
             Text(
                 text = "Flock",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "In $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
             Text(
                 text = "Out $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
         }
 
-        HorizontalDivider(color = Color(0xFF444444))
+        HorizontalDivider(color = AiColors.BorderUnfocused)
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -834,7 +834,7 @@ fun SelectFlockScreen(
                         Text(
                             text = "${agents.size} agents",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF888888)
+                            color = AiColors.TextTertiary
                         )
                     }
                     Text(
@@ -854,7 +854,7 @@ fun SelectFlockScreen(
                         modifier = Modifier.width(70.dp)
                     )
                 }
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = AiColors.DividerDark)
             }
         }
     }
@@ -897,9 +897,9 @@ fun AiServiceNavigationCard(
             // Provider state indicator (only shown when viewing all providers)
             if (showStateDetails) {
                 val stateColor = when (providerState) {
-                    "ok" -> Color(0xFF4CAF50)
+                    "ok" -> AiColors.Green
                     "error" -> Color(0xFFFF5252)
-                    "inactive" -> Color(0xFF888888)
+                    "inactive" -> AiColors.TextTertiary
                     else -> Color(0xFF555555)
                 }
                 Text(
@@ -1013,7 +1013,7 @@ fun AiServiceSettingsScreenTemplate(
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF6B9BFF)
+                                    containerColor = AiColors.Blue
                                 )
                             ) {
                                 Text("Open")
@@ -1140,7 +1140,7 @@ fun ApiKeyInputSection(
                     if (testResult != null) {
                         Text(
                             text = testResult ?: "",
-                            color = if (testSuccess) Color(0xFF4CAF50) else Color(0xFFEF5350),
+                            color = if (testSuccess) AiColors.Green else Color(0xFFEF5350),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f)
                         )
@@ -1195,7 +1195,7 @@ fun ModelsSection(
         Text(
             text = "Default model used for API key testing and new agents",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFAAAAAA)
+            color = AiColors.TextSecondary
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1245,7 +1245,7 @@ fun ModelsSection(
             Text(
                 text = "Default: $defaultModelListUrl",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF888888)
+                color = AiColors.TextTertiary
             )
         }
 
@@ -1261,13 +1261,13 @@ fun ModelsSection(
                 singleLine = true,
                 enabled = !modelsPathNull,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("None", style = MaterialTheme.typography.bodySmall, color = Color(0xFF888888))
+                Text("None", style = MaterialTheme.typography.bodySmall, color = AiColors.TextTertiary)
                 Switch(checked = modelsPathNull, onCheckedChange = onModelsPathNullChange)
             }
         }
@@ -1280,8 +1280,8 @@ fun ModelsSection(
             singleLine = true,
             supportingText = { Text("Only models matching this regex are shown") },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -1292,8 +1292,8 @@ fun ModelsSection(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444)
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -1309,8 +1309,8 @@ fun ModelsSection(
                     .clickable { listFormatExpanded = true },
                 readOnly = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF6B9BFF),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    focusedBorderColor = AiColors.Blue,
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
             DropdownMenu(
@@ -1377,7 +1377,7 @@ fun ModelsSection(
                 }
             }
             if (modelSource == ModelSource.API) {
-                Text("Active", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Active", color = AiColors.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -1409,7 +1409,7 @@ fun ModelsSection(
                             val traceFile = result.second
                             Text(
                                 text = if (result.first) "\u2714" else "\u2716",
-                                color = if (result.first) Color(0xFF4CAF50) else Color(0xFFFF5252),
+                                color = if (result.first) AiColors.Green else Color(0xFFFF5252),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = if (traceFile != null && onNavigateToTrace != null) {
@@ -1462,7 +1462,7 @@ fun ModelsSection(
                 }
             }
             if (modelSource == ModelSource.MANUAL) {
-                Text("Active", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Active", color = AiColors.Green, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -1490,7 +1490,7 @@ fun ModelsSection(
                             val traceFile = result.second
                             Text(
                                 text = if (result.first) "\u2714" else "\u2716",
-                                color = if (result.first) Color(0xFF4CAF50) else Color(0xFFFF5252),
+                                color = if (result.first) AiColors.Green else Color(0xFFFF5252),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = if (traceFile != null && onNavigateToTrace != null) {
@@ -1502,7 +1502,7 @@ fun ModelsSection(
                         IconButton(
                             onClick = { editingModel = model; newModelName = model; showAddDialog = true },
                             modifier = Modifier.size(32.dp)
-                        ) { Text("\u270E", color = Color(0xFFAAAAAA)) }
+                        ) { Text("\u270E", color = AiColors.TextSecondary) }
                         IconButton(
                             onClick = { onModelsChange(models.filter { it != model }) },
                             modifier = Modifier.size(32.dp)
@@ -1588,7 +1588,7 @@ fun EndpointsSection(
             Text(
                 text = "Configure custom API endpoints for this provider",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
+                color = AiColors.TextSecondary
             )
 
             // Add endpoint button
@@ -1623,7 +1623,7 @@ fun EndpointsSection(
                         if (endpoint.isDefault) {
                             Text(
                                 text = "★",
-                                color = Color(0xFF4CAF50),
+                                color = AiColors.Green,
                                 fontSize = 14.sp
                             )
                         }
@@ -1639,7 +1639,7 @@ fun EndpointsSection(
                             )
                             Text(
                                 text = endpoint.url,
-                                color = Color(0xFFAAAAAA),
+                                color = AiColors.TextSecondary,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -1655,7 +1655,7 @@ fun EndpointsSection(
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {
-                                    Text("☆", color = Color(0xFFAAAAAA))
+                                    Text("☆", color = AiColors.TextSecondary)
                                 }
                             }
 
@@ -1669,7 +1669,7 @@ fun EndpointsSection(
                                 },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Text("✎", color = Color(0xFFAAAAAA))
+                                Text("✎", color = AiColors.TextSecondary)
                             }
 
                             // Delete button (only if more than one endpoint or not the only one)
@@ -1836,7 +1836,7 @@ fun SelectAllModelsScreen(
             else
                 "${sortedModels.size} of ${allProviderModels.size} models",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888),
+            color = AiColors.TextTertiary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -1846,14 +1846,14 @@ fun SelectAllModelsScreen(
                 onClick = { providerDropdownExpanded = true },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFF444444))
+                border = BorderStroke(1.dp, AiColors.BorderUnfocused)
             ) {
                 Text(
                     text = selectedProvider?.displayName ?: "All Providers",
                     modifier = Modifier.weight(1f),
-                    color = if (selectedProvider != null) Color.White else Color(0xFF888888)
+                    color = if (selectedProvider != null) Color.White else AiColors.TextTertiary
                 )
-                Text("\u25BE", color = Color(0xFF888888))
+                Text("\u25BE", color = AiColors.TextTertiary)
             }
             DropdownMenu(
                 expanded = providerDropdownExpanded,
@@ -1861,13 +1861,13 @@ fun SelectAllModelsScreen(
                 modifier = Modifier.background(Color(0xFF2D2D2D))
             ) {
                 DropdownMenuItem(
-                    text = { Text("All Providers", color = if (selectedProvider == null) Color(0xFF6B9BFF) else Color.White) },
+                    text = { Text("All Providers", color = if (selectedProvider == null) AiColors.Blue else Color.White) },
                     onClick = { selectedProvider = null; providerDropdownExpanded = false }
                 )
                 activeServices.sortedBy { it.displayName.lowercase() }.forEach { provider ->
                     val modelCount = aiSettings.getModels(provider).size
                     DropdownMenuItem(
-                        text = { Text("${provider.displayName} ($modelCount)", color = if (selectedProvider == provider) Color(0xFF6B9BFF) else Color.White) },
+                        text = { Text("${provider.displayName} ($modelCount)", color = if (selectedProvider == provider) AiColors.Blue else Color.White) },
                         onClick = { selectedProvider = provider; providerDropdownExpanded = false }
                     )
                 }
@@ -1883,15 +1883,15 @@ fun SelectAllModelsScreen(
             placeholder = { Text("Search models...") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF6B9BFF),
-                unfocusedBorderColor = Color(0xFF444444),
+                focusedBorderColor = AiColors.Blue,
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Text("\u2715", color = Color(0xFF888888))
+                        Text("\u2715", color = AiColors.TextTertiary)
                     }
                 }
             }
@@ -1915,9 +1915,9 @@ fun SelectAllModelsScreen(
                 onCheckedChange = { freeOnly = it },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF6B9BFF),
-                    uncheckedThumbColor = Color(0xFF888888),
-                    uncheckedTrackColor = Color(0xFF444444)
+                    checkedTrackColor = AiColors.Blue,
+                    uncheckedThumbColor = AiColors.TextTertiary,
+                    uncheckedTrackColor = AiColors.BorderUnfocused
                 )
             )
         }
@@ -1932,26 +1932,26 @@ fun SelectAllModelsScreen(
             Text(
                 text = "Model",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = "In $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
             Text(
                 text = "Out $/M",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 textAlign = TextAlign.End,
                 modifier = Modifier.width(70.dp)
             )
         }
 
-        HorizontalDivider(color = Color(0xFF444444))
+        HorizontalDivider(color = AiColors.BorderUnfocused)
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -1981,7 +1981,7 @@ fun SelectAllModelsScreen(
                             Text(
                                 text = provider.displayName,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF888888),
+                                color = AiColors.TextTertiary,
                                 maxLines = 1
                             )
                         }
@@ -2003,7 +2003,7 @@ fun SelectAllModelsScreen(
                         modifier = Modifier.width(70.dp)
                     )
                 }
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = AiColors.DividerDark)
             }
         }
     }

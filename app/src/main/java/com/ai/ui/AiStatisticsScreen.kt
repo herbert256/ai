@@ -109,16 +109,16 @@ fun AiUsageScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color(0xFF4CAF50))
+                        CircularProgressIndicator(color = AiColors.Green)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Loading pricing data...", color = Color(0xFFAAAAAA))
+                        Text("Loading pricing data...", color = AiColors.TextSecondary)
                     }
                 }
             }
             stats.isEmpty() -> {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+                    colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(24.dp),
@@ -128,7 +128,7 @@ fun AiUsageScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("No usage data yet", style = MaterialTheme.typography.titleMedium, color = Color.White)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Generate AI reports or chat to start tracking usage.", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFAAAAAA))
+                        Text("Generate AI reports or chat to start tracking usage.", style = MaterialTheme.typography.bodyMedium, color = AiColors.TextSecondary)
                     }
                 }
             }
@@ -166,7 +166,7 @@ fun AiUsageScreen(
                                 text = "Total Usage",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF6B9BFF)
+                                color = AiColors.Blue
                             )
                             // Refresh button
                             TextButton(
@@ -184,7 +184,7 @@ fun AiUsageScreen(
                                 if (isRefreshing) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(14.dp),
-                                        color = Color(0xFF4CAF50),
+                                        color = AiColors.Green,
                                         strokeWidth = 2.dp
                                     )
                                 } else {
@@ -198,7 +198,7 @@ fun AiUsageScreen(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF4CAF50)
+                            color = AiColors.Green
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         // Token and cost breakdown
@@ -207,21 +207,21 @@ fun AiUsageScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Calls", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text("Calls", style = MaterialTheme.typography.labelSmall, color = AiColors.TextSecondary)
                                 Text(formatNumber(totalCalls), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             Column {
-                                Text("Input", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text("Input", style = MaterialTheme.typography.labelSmall, color = AiColors.TextSecondary)
                                 Text(formatTokens(totalInput), color = Color(0xFFCCCCCC), fontSize = 10.sp)
                                 Text(formatCurrency(totalInputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                             Column {
-                                Text("Output", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text("Output", style = MaterialTheme.typography.labelSmall, color = AiColors.TextSecondary)
                                 Text(formatTokens(totalOutput), color = Color(0xFFCCCCCC), fontSize = 10.sp)
                                 Text(formatCurrency(totalOutputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                             Column {
-                                Text("Models", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text("Models", style = MaterialTheme.typography.labelSmall, color = AiColors.TextSecondary)
                                 Text("${statsWithCosts.size}", color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                         }
@@ -264,7 +264,7 @@ fun AiUsageScreen(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(groupedByProvider) { (provider, group) ->
+                    items(groupedByProvider, key = { it.first.id }) { (provider, group) ->
                         UsageProviderCard(
                             provider = provider,
                             group = group,
@@ -304,7 +304,7 @@ private fun UsageProviderCard(
     onModelClick: (AiUsageStats) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+        colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark),
         shape = RoundedCornerShape(6.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -324,7 +324,7 @@ private fun UsageProviderCard(
                 ) {
                     Text(
                         text = if (isExpanded) "\u25BC" else "\u25B6",
-                        color = Color(0xFF888888),
+                        color = AiColors.TextTertiary,
                         fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -332,13 +332,13 @@ private fun UsageProviderCard(
                         text = provider.displayName,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6B9BFF)
+                        color = AiColors.Blue
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "${group.totalCalls} calls",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF888888)
+                        color = AiColors.TextTertiary
                     )
                 }
                 Text(
@@ -346,7 +346,7 @@ private fun UsageProviderCard(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4CAF50)
+                    color = AiColors.Green
                 )
             }
 
@@ -392,9 +392,9 @@ private fun UsageModelRow(statWithCost: StatWithCost, onClick: () -> Unit) {
                 color = Color.White
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("${stat.callCount} calls", style = MaterialTheme.typography.labelSmall, color = Color(0xFF888888))
-                Text("In: ${formatTokens(stat.inputTokens)}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF888888))
-                Text("Out: ${formatTokens(stat.outputTokens)}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF888888))
+                Text("${stat.callCount} calls", style = MaterialTheme.typography.labelSmall, color = AiColors.TextTertiary)
+                Text("In: ${formatTokens(stat.inputTokens)}", style = MaterialTheme.typography.labelSmall, color = AiColors.TextTertiary)
+                Text("Out: ${formatTokens(stat.outputTokens)}", style = MaterialTheme.typography.labelSmall, color = AiColors.TextTertiary)
             }
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -404,13 +404,13 @@ private fun UsageModelRow(statWithCost: StatWithCost, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4CAF50)
+                    color = AiColors.Green
                 )
                 val sourceColor = when (statWithCost.pricingSource) {
                     "openrouter" -> Color(0xFF64B5F6)
                     "litellm" -> Color(0xFFBA68C8)
                     "fallback" -> Color(0xFFFFB74D)
-                    else -> Color(0xFF888888)
+                    else -> AiColors.TextTertiary
                 }
                 Text(
                     text = statWithCost.pricingSource ?: "",
@@ -498,7 +498,7 @@ fun CostConfigurationScreen(
         Button(
             onClick = { showAddScreen = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
         ) {
             Text("+ Add Manual Override")
         }
@@ -508,7 +508,7 @@ fun CostConfigurationScreen(
         Text(
             text = "Manual price overrides (per 1M tokens): ${manualPricing.size}",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFAAAAAA)
+            color = AiColors.TextSecondary
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -516,7 +516,7 @@ fun CostConfigurationScreen(
         if (manualPricing.isEmpty()) {
             Text(
                 text = "No manual price overrides configured.\nTap '+ Add Manual Override' to add one.",
-                color = Color(0xFF888888)
+                color = AiColors.TextTertiary
             )
         } else {
             LazyColumn(
@@ -688,14 +688,14 @@ private fun AddManualOverrideScreen(
                     enabled = model.isNotBlank() &&
                             inputPrice.toDoubleOrNull() != null &&
                             outputPrice.toDoubleOrNull() != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
                 ) {
                     Text("Save")
                 }
             }
 
             // Provider selection
-            Text("Provider", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+            Text("Provider", style = MaterialTheme.typography.bodySmall, color = AiColors.TextSecondary)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -722,7 +722,7 @@ private fun AddManualOverrideScreen(
             }
 
             // Model input + Select button
-            Text("Model", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+            Text("Model", style = MaterialTheme.typography.bodySmall, color = AiColors.TextSecondary)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -749,7 +749,7 @@ private fun AddManualOverrideScreen(
             }
 
             // Prices
-            Text("Prices (per 1M tokens)", style = MaterialTheme.typography.bodySmall, color = Color(0xFFAAAAAA))
+            Text("Prices (per 1M tokens)", style = MaterialTheme.typography.bodySmall, color = AiColors.TextSecondary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = inputPrice,
@@ -810,7 +810,7 @@ private fun CostConfigCard(
                 Text(
                     text = provider.displayName,
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF6B9BFF)
+                    color = AiColors.Blue
                 )
                 Text(
                     text = model,
@@ -835,8 +835,8 @@ private fun CostConfigCard(
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
                     OutlinedTextField(
@@ -846,8 +846,8 @@ private fun CostConfigCard(
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
                 }
@@ -857,12 +857,12 @@ private fun CostConfigCard(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onCancelClick) {
-                        Text("Cancel", color = Color(0xFFAAAAAA))
+                        Text("Cancel", color = AiColors.TextSecondary)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = onSaveClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
                     ) {
                         Text("Save")
                     }
@@ -877,7 +877,7 @@ private fun CostConfigCard(
                     Column {
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Column {
-                                Text("Input", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text("Input", style = MaterialTheme.typography.labelSmall, color = AiColors.TextSecondary)
                                 Text(
                                     text = if (currentInputPrice != null)
                                         formatUsd(currentInputPrice * 1_000_000, decimals = 2)
@@ -888,7 +888,7 @@ private fun CostConfigCard(
                                 )
                             }
                             Column {
-                                Text("Output", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text("Output", style = MaterialTheme.typography.labelSmall, color = AiColors.TextSecondary)
                                 Text(
                                     text = if (currentOutputPrice != null)
                                         formatUsd(currentOutputPrice * 1_000_000, decimals = 2)

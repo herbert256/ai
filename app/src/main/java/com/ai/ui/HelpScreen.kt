@@ -695,7 +695,7 @@ private fun HelpSection(
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A2A)
+            containerColor = AiColors.SurfaceDark
         ),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
@@ -717,7 +717,7 @@ private fun HelpSection(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF6B9BFF)
+                    color = AiColors.Blue
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))

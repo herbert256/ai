@@ -230,7 +230,7 @@ fun DualChatSetupScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF6B9BFF),
+                        focusedBorderColor = AiColors.Blue,
                         unfocusedBorderColor = Color(0xFF555555)
                     )
                 )
@@ -244,7 +244,7 @@ fun DualChatSetupScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF6B9BFF),
+                        focusedBorderColor = AiColors.Blue,
                         unfocusedBorderColor = Color(0xFF555555)
                     )
                 )
@@ -318,7 +318,7 @@ fun DualChatSetupScreen(
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF4488CC),
-                disabledContainerColor = Color(0xFF333333)
+                disabledContainerColor = AiColors.DividerDark
             )
         ) {
             Text("Go", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -646,12 +646,12 @@ fun DualChatSessionScreen(
             Text(
                 "Interaction $currentInteraction / $targetInteractions",
                 fontSize = 13.sp,
-                color = Color(0xFFAAAAAA)
+                color = AiColors.TextSecondary
             )
             Text(
                 "Subject: ${config.subject}",
                 fontSize = 13.sp,
-                color = Color(0xFF888888),
+                color = AiColors.TextTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 12.dp),
@@ -740,7 +740,7 @@ fun DualChatSessionScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFF6B9BFF),
+                        focusedBorderColor = AiColors.Blue,
                         unfocusedBorderColor = Color(0xFF555555)
                     )
                 )
@@ -757,7 +757,7 @@ fun DualChatSessionScreen(
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4488CC),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     )
                 ) {
                     Text("Chat $extraCount more", fontWeight = FontWeight.Bold)

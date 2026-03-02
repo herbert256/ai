@@ -48,7 +48,7 @@ fun DeveloperOptionsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onNavigateToApiTest),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+            colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark)
         ) {
             Row(
                 modifier = Modifier
@@ -71,7 +71,7 @@ fun DeveloperOptionsScreen(
                     Text(
                         text = "Test API calls with custom settings",
                         fontSize = 12.sp,
-                        color = Color(0xFF888888)
+                        color = AiColors.TextTertiary
                     )
                 }
             }
@@ -82,7 +82,7 @@ fun DeveloperOptionsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onNavigateToTraces),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+            colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark)
         ) {
             Row(
                 modifier = Modifier
@@ -105,7 +105,7 @@ fun DeveloperOptionsScreen(
                     Text(
                         text = "View logged API requests and responses",
                         fontSize = 12.sp,
-                        color = Color(0xFF888888)
+                        color = AiColors.TextTertiary
                     )
                 }
             }
@@ -237,7 +237,7 @@ fun ApiTestScreen(
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
             Button(
@@ -258,7 +258,7 @@ fun ApiTestScreen(
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444)
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -276,7 +276,7 @@ fun ApiTestScreen(
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF8B5CF6),
-                    unfocusedBorderColor = Color(0xFF444444)
+                    unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
             Button(
@@ -328,7 +328,7 @@ fun ApiTestScreen(
                 .height(150.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444)
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 
@@ -370,7 +370,7 @@ fun ApiTestScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF8B5CF6),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         ),
                         minLines = 2,
                         maxLines = 4
@@ -392,7 +392,7 @@ fun ApiTestScreen(
                             placeholder = { Text("0.0-2.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF444444)
+                                unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
                         OutlinedTextField(
@@ -404,7 +404,7 @@ fun ApiTestScreen(
                             placeholder = { Text("e.g. 1024", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF444444)
+                                unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
                     }
@@ -425,7 +425,7 @@ fun ApiTestScreen(
                             placeholder = { Text("0.0-1.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF444444)
+                                unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
                         OutlinedTextField(
@@ -437,7 +437,7 @@ fun ApiTestScreen(
                             placeholder = { Text("e.g. 40", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF444444)
+                                unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
                     }
@@ -458,7 +458,7 @@ fun ApiTestScreen(
                             placeholder = { Text("-2.0 to 2.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF444444)
+                                unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
                         OutlinedTextField(
@@ -470,7 +470,7 @@ fun ApiTestScreen(
                             placeholder = { Text("-2.0 to 2.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8B5CF6),
-                                unfocusedBorderColor = Color(0xFF444444)
+                                unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
                     }
@@ -487,7 +487,7 @@ fun ApiTestScreen(
                         placeholder = { Text("For reproducibility", color = Color.Gray) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF8B5CF6),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -503,7 +503,7 @@ fun ApiTestScreen(
                         placeholder = { Text("Comma-separated", color = Color.Gray) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF8B5CF6),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -622,7 +622,7 @@ fun ApiTestScreen(
                                         Text(
                                             "DEFAULT",
                                             fontSize = 10.sp,
-                                            color = Color(0xFF4CAF50),
+                                            color = AiColors.Green,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -820,7 +820,7 @@ fun EditApiRequestScreen(
             ),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444)
+                unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
 

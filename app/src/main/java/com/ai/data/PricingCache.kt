@@ -3,8 +3,8 @@ package com.ai.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.lang.reflect.Type
 
 /**
  * Cached model pricing data for cost calculations.
@@ -22,8 +22,14 @@ object PricingCache {
 
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000  // 7 days in milliseconds
 
-    private val gson = Gson()
+    private val gson = createAiGson()
     private val lock = Any()
+
+    // Cached TypeToken types to avoid repeated anonymous class allocations
+    private val mapModelPricingType: Type = object : TypeToken<Map<String, ModelPricing>>() {}.type
+    private val mutableMapModelPricingType: Type = object : TypeToken<MutableMap<String, ModelPricing>>() {}.type
+    private val mapStringMapType: Type = object : TypeToken<Map<String, Map<String, Any>>>() {}.type
+    private val listSupportedParamsType: Type = object : TypeToken<List<ModelSupportedParametersEntry>>() {}.type
 
     // In-memory cache for quick access
     @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
@@ -376,8 +382,7 @@ object PricingCache {
                 val litellmJson = prefs.getString(KEY_LITELLM_PRICING, null)
                 if (litellmJson != null) {
                     try {
-                        val type = object : TypeToken<Map<String, ModelPricing>>() {}.type
-                        litellmPricing = gson.fromJson(litellmJson, type)
+                        litellmPricing = gson.fromJson(litellmJson, mapModelPricingType)
                         litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0)
                     } catch (e: Exception) {
                         android.util.Log.w("PricingCache", "Failed to load LiteLLM cache: ${e.message}")
@@ -400,8 +405,7 @@ object PricingCache {
 
         if (openRouterJson != null) {
             try {
-                val type = object : TypeToken<Map<String, ModelPricing>>() {}.type
-                openRouterPricing = gson.fromJson(openRouterJson, type)
+                openRouterPricing = gson.fromJson(openRouterJson, mapModelPricingType)
                 android.util.Log.d("PricingCache", "Loaded ${openRouterPricing?.size ?: 0} cached OpenRouter prices")
             } catch (e: Exception) {
                 android.util.Log.w("PricingCache", "Failed to load OpenRouter cache: ${e.message}")
@@ -417,8 +421,7 @@ object PricingCache {
         val manualJson = prefs.getString(KEY_MANUAL_PRICING, null)
         if (manualJson != null) {
             try {
-                val type = object : TypeToken<MutableMap<String, ModelPricing>>() {}.type
-                manualPricing = gson.fromJson(manualJson, type)
+                manualPricing = gson.fromJson(manualJson, mutableMapModelPricingType)
                 android.util.Log.d("PricingCache", "Loaded ${manualPricing?.size ?: 0} manual prices")
             } catch (e: Exception) {
                 android.util.Log.w("PricingCache", "Failed to load manual pricing: ${e.message}")
@@ -432,8 +435,7 @@ object PricingCache {
     private fun parseLiteLLMPricing(context: Context): Map<String, ModelPricing> {
         return try {
             val json = context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
-            val type = object : TypeToken<Map<String, Map<String, Any>>>() {}.type
-            val data: Map<String, Map<String, Any>> = gson.fromJson(json, type)
+            val data: Map<String, Map<String, Any>> = gson.fromJson(json, mapStringMapType)
 
             data.mapNotNull { (modelId, info) ->
                 val inputCost = (info["input_cost_per_token"] as? Number)?.toDouble()
@@ -698,8 +700,7 @@ object PricingCache {
 
         try {
             val json = file.readText()
-            val type = object : TypeToken<List<ModelSupportedParametersEntry>>() {}.type
-            val entries: List<ModelSupportedParametersEntry> = gson.fromJson(json, type)
+            val entries: List<ModelSupportedParametersEntry> = gson.fromJson(json, listSupportedParamsType)
 
             // Build lookup map: "PROVIDER:model" -> List<String>
             supportedParametersCache = entries

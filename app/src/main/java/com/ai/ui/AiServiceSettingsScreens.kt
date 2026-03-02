@@ -361,7 +361,7 @@ fun ProviderSettingsScreen(
                     Text(
                         text = if (isTesting) "testing..." else providerState,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFAAAAAA)
+                        color = AiColors.TextSecondary
                     )
                 }
                 if (isTesting) {
@@ -374,7 +374,7 @@ fun ProviderSettingsScreen(
                     Text(
                         text = if (providerState == "inactive") "activate" else "mark inactive",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF888888),
+                        color = AiColors.TextTertiary,
                         modifier = Modifier.padding(end = 8.dp)
                     )
                     Switch(
@@ -469,8 +469,8 @@ fun ProviderSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -481,8 +481,8 @@ fun ProviderSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -502,8 +502,8 @@ fun ProviderSettingsScreen(
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = defFormatExpanded) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF6B9BFF),
-                                unfocusedBorderColor = Color(0xFF444444)
+                                focusedBorderColor = AiColors.Blue,
+                                unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
                         ExposedDropdownMenu(
@@ -545,8 +545,8 @@ fun ProviderSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -558,8 +558,8 @@ fun ProviderSettingsScreen(
                         singleLine = true,
                         supportingText = { Text("Used for SharedPreferences storage") },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -571,8 +571,8 @@ fun ProviderSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -583,8 +583,8 @@ fun ProviderSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444)
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
 
@@ -624,7 +624,7 @@ fun ProviderSettingsScreen(
                         Text("Endpoint Rules", color = Color.White, fontWeight = FontWeight.Bold)
                         Button(
                             onClick = { defEditingRuleIndex = -1; showDefAddRuleDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text("+ Add", fontSize = 12.sp)
@@ -632,25 +632,25 @@ fun ProviderSettingsScreen(
                     }
                     Text(
                         "Route models to different API endpoints by prefix",
-                        color = Color(0xFF888888),
+                        color = AiColors.TextTertiary,
                         fontSize = 12.sp
                     )
                     defEndpointRules.forEachIndexed { index, rule ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF2A2A2A), shape = MaterialTheme.shapes.small)
+                                .background(AiColors.SurfaceDark, shape = MaterialTheme.shapes.small)
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("${rule.modelPrefix}*", color = Color(0xFF6B9BFF), fontSize = 14.sp)
-                                Text("\u2192 ${rule.endpointType}", color = Color(0xFFAAAAAA), fontSize = 12.sp)
+                                Text("${rule.modelPrefix}*", color = AiColors.Blue, fontSize = 14.sp)
+                                Text("\u2192 ${rule.endpointType}", color = AiColors.TextSecondary, fontSize = 12.sp)
                             }
                             Row {
                                 IconButton(onClick = { defEditingRuleIndex = index; showDefAddRuleDialog = true }) {
-                                    Text("\u270E", color = Color(0xFF888888))
+                                    Text("\u270E", color = AiColors.TextTertiary)
                                 }
                                 IconButton(onClick = {
                                     defEndpointRules = defEndpointRules.toMutableList().also { it.removeAt(index) }

@@ -119,15 +119,15 @@ fun HousekeepingScreen(
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = Color(0xFF4CAF50),
+                        color = AiColors.Green,
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(progressText.ifEmpty { "Working..." }, color = Color(0xFFAAAAAA))
+                    Text(progressText.ifEmpty { "Working..." }, color = AiColors.TextSecondary)
                 }
             },
             confirmButton = { },
-            containerColor = Color(0xFF2A2A2A)
+            containerColor = AiColors.SurfaceDark
         )
     }
 
@@ -273,7 +273,7 @@ fun HousekeepingScreen(
         // Refresh card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+            colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -392,7 +392,7 @@ fun HousekeepingScreen(
                             }
                         },
                         enabled = !isAnyRunning,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("All", fontSize = 12.sp)
@@ -431,7 +431,7 @@ fun HousekeepingScreen(
                             }
                         },
                         enabled = !isAnyRunning,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Provider state", fontSize = 12.sp)
@@ -450,7 +450,7 @@ fun HousekeepingScreen(
                             }
                         },
                         enabled = !isAnyRunning,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Model lists", fontSize = 12.sp)
@@ -481,7 +481,7 @@ fun HousekeepingScreen(
                             }
                         },
                         enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("OpenRouter data", fontSize = 12.sp)
@@ -526,7 +526,7 @@ fun HousekeepingScreen(
                             }
                         },
                         enabled = !isAnyRunning,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Default agents", fontSize = 12.sp)
@@ -545,7 +545,7 @@ fun HousekeepingScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+            colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -568,7 +568,7 @@ fun HousekeepingScreen(
                             exportAiConfigToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
                         },
                         enabled = canExportConfig,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("AI configuration", fontSize = 12.sp)
@@ -578,7 +578,7 @@ fun HousekeepingScreen(
                             exportApiKeysToFile(context, aiSettings, huggingFaceApiKey, openRouterApiKey)
                         },
                         enabled = hasApiKeyForExport,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("API keys", fontSize = 12.sp)
@@ -590,7 +590,7 @@ fun HousekeepingScreen(
                                 aiSettings = aiSettings
                             )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Model costs", fontSize = 12.sp)
@@ -602,7 +602,7 @@ fun HousekeepingScreen(
         // Import card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+            colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -624,7 +624,7 @@ fun HousekeepingScreen(
                         onClick = {
                             filePickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("AI configuration", fontSize = 12.sp)
@@ -633,7 +633,7 @@ fun HousekeepingScreen(
                         onClick = {
                             apiKeysPickerLauncher.launch(arrayOf("application/json", "*/*"))
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("API keys", fontSize = 12.sp)
@@ -642,7 +642,7 @@ fun HousekeepingScreen(
                         onClick = {
                             costsCsvPickerLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "*/*"))
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Model costs", fontSize = 12.sp)
@@ -662,7 +662,7 @@ fun HousekeepingScreen(
                     Text(
                         "Imported $imported model price overrides.\n" +
                         if (skipped > 0) "Skipped $skipped rows (empty or invalid)." else "",
-                        color = Color(0xFFAAAAAA)
+                        color = AiColors.TextSecondary
                     )
                 },
                 confirmButton = {
@@ -670,7 +670,7 @@ fun HousekeepingScreen(
                         Text("OK")
                     }
                 },
-                containerColor = Color(0xFF2A2A2A)
+                containerColor = AiColors.SurfaceDark
             )
         }
 
@@ -680,7 +680,7 @@ fun HousekeepingScreen(
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
+            colors = CardDefaults.cardColors(containerColor = AiColors.SurfaceDark)
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -805,14 +805,14 @@ fun HousekeepingScreen(
                         if (cleanupType == "statistics") {
                             Text(
                                 "Statistics don't have timestamps. Enter 0 to clear all statistics.",
-                                color = Color(0xFFAAAAAA),
+                                color = AiColors.TextSecondary,
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         Text(
                             "Delete data older than how many days?",
-                            color = Color(0xFFAAAAAA)
+                            color = AiColors.TextSecondary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
@@ -907,10 +907,10 @@ fun HousekeepingScreen(
                             cleanupDaysInput = "30"
                         }
                     ) {
-                        Text("Cancel", color = Color(0xFF6B9BFF))
+                        Text("Cancel", color = AiColors.Blue)
                     }
                 },
-                containerColor = Color(0xFF2A2A2A)
+                containerColor = AiColors.SurfaceDark
             )
         }
     }

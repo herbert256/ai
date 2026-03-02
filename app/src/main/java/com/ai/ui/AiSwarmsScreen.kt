@@ -350,7 +350,7 @@ fun SwarmEditScreen(
                         val pricing = formatPricingPerMillion(context, member.provider, member.model)
                         Text(
                             text = pricing.text,
-                            color = if (pricing.isDefault) Color(0xFF2A2A2A) else AiColors.Red,
+                            color = if (pricing.isDefault) AiColors.SurfaceDark else AiColors.Red,
                             fontSize = 10.sp,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             maxLines = 1,

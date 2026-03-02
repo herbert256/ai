@@ -94,20 +94,20 @@ fun PromptHistoryScreen(
         OutlinedTextField(
             value = searchText,
             onValueChange = { searchText = it },
-            placeholder = { Text("Search in title or prompt...", color = Color(0xFF888888)) },
+            placeholder = { Text("Search in title or prompt...", color = AiColors.TextTertiary) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
-                focusedBorderColor = Color(0xFF6B9BFF),
+                focusedBorderColor = AiColors.Blue,
                 unfocusedBorderColor = Color(0xFF555555),
-                cursorColor = Color(0xFF6B9BFF)
+                cursorColor = AiColors.Blue
             ),
             trailingIcon = {
                 if (searchText.isNotEmpty()) {
                     IconButton(onClick = { searchText = "" }) {
-                        Text("✕", color = Color(0xFF888888))
+                        Text("✕", color = AiColors.TextTertiary)
                     }
                 }
             }
@@ -127,7 +127,7 @@ fun PromptHistoryScreen(
                     enabled = currentPage > 0,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF3366BB),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     )
                 ) {
                     Text("◀ Prev")
@@ -144,7 +144,7 @@ fun PromptHistoryScreen(
                     enabled = currentPage < totalPages - 1,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF3366BB),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     )
                 ) {
                     Text("Next ▶")
@@ -156,7 +156,7 @@ fun PromptHistoryScreen(
         // Table header
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF2A2A2A)
+                containerColor = AiColors.SurfaceDark
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -168,14 +168,14 @@ fun PromptHistoryScreen(
             ) {
                 Text(
                     text = "Title",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.weight(1.5f)
                 )
                 Text(
                     text = "Date/Time",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.weight(1f),
@@ -196,7 +196,7 @@ fun PromptHistoryScreen(
             ) {
                 Text(
                     text = if (allHistoryEntries.value.isEmpty()) "No prompt history yet" else "No matches found",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 16.sp
                 )
             }
@@ -205,7 +205,7 @@ fun PromptHistoryScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(currentPageEntries) { entry ->
+                items(currentPageEntries, key = { it.timestamp }) { entry ->
                     PromptHistoryRow(
                         entry = entry,
                         onClick = { onSelectEntry(entry) }
@@ -227,7 +227,7 @@ fun PromptHistoryScreen(
             enabled = allHistoryEntries.value.isNotEmpty(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFCC3333),
-                disabledContainerColor = Color(0xFF444444)
+                disabledContainerColor = AiColors.BorderUnfocused
             ),
             modifier = Modifier.fillMaxWidth()
         ) {

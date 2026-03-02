@@ -28,6 +28,7 @@ object AiColors {
     val Orange = Color(0xFFFF9800)          // Warnings, variable hints
 
     // Card and surface colors
+    val SurfaceDark = Color(0xFF2A2A2A)     // Dark neutral surface / card background
     val CardBackground = Color(0xFF2A2A3A)  // Card backgrounds
     val CardBackgroundAlt = Color(0xFF2A3A4A) // Alt card background (info cards)
     val DisabledBackground = Color(0xFF1A1A1A) // Disabled card
@@ -41,6 +42,9 @@ object AiColors {
     val TextDisabled = Color(0xFF555555)
     val TextVeryDim = Color(0xFF444444)
     val TextDarkest = Color(0xFF333333)
+
+    // Divider colors
+    val DividerDark = Color(0xFF333333)     // Dark dividers and separators
 
     // Border colors
     val BorderFocused = Purple

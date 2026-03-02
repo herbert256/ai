@@ -98,7 +98,7 @@ fun AiHistoryScreenNav(
                 onClick = { searchExpanded = true },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6B9BFF)
+                    containerColor = AiColors.Blue
                 )
             ) {
                 Text(if (isSearchActive) "Search (active)" else "Search")
@@ -107,7 +107,7 @@ fun AiHistoryScreenNav(
             // Expanded: show search fields
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF2A2A2A)
+                    containerColor = AiColors.SurfaceDark
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -122,9 +122,9 @@ fun AiHistoryScreenNav(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444),
-                            focusedLabelColor = Color(0xFF6B9BFF),
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused,
+                            focusedLabelColor = AiColors.Blue,
                             unfocusedLabelColor = Color.Gray,
                             cursorColor = Color.White
                         )
@@ -136,9 +136,9 @@ fun AiHistoryScreenNav(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444),
-                            focusedLabelColor = Color(0xFF6B9BFF),
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused,
+                            focusedLabelColor = AiColors.Blue,
                             unfocusedLabelColor = Color.Gray,
                             cursorColor = Color.White
                         )
@@ -150,9 +150,9 @@ fun AiHistoryScreenNav(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF6B9BFF),
-                            unfocusedBorderColor = Color(0xFF444444),
-                            focusedLabelColor = Color(0xFF6B9BFF),
+                            focusedBorderColor = AiColors.Blue,
+                            unfocusedBorderColor = AiColors.BorderUnfocused,
+                            focusedLabelColor = AiColors.Blue,
                             unfocusedLabelColor = Color.Gray,
                             cursorColor = Color.White
                         )
@@ -172,7 +172,7 @@ fun AiHistoryScreenNav(
                             },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF6B9BFF)
+                                containerColor = AiColors.Blue
                             )
                         ) {
                             Text("Search")
@@ -210,7 +210,7 @@ fun AiHistoryScreenNav(
                     enabled = currentPage > 0,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF3366BB),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     )
                 ) {
                     Text("◀ Prev")
@@ -227,7 +227,7 @@ fun AiHistoryScreenNav(
                     enabled = currentPage < totalPages - 1,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF3366BB),
-                        disabledContainerColor = Color(0xFF333333)
+                        disabledContainerColor = AiColors.DividerDark
                     )
                 ) {
                     Text("Next ▶")
@@ -239,7 +239,7 @@ fun AiHistoryScreenNav(
         // Table header
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF2A2A2A)
+                containerColor = AiColors.SurfaceDark
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -251,14 +251,14 @@ fun AiHistoryScreenNav(
             ) {
                 Text(
                     text = "Title",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.weight(1.5f)
                 )
                 Text(
                     text = "Date/Time",
-                    color = Color(0xFF6B9BFF),
+                    color = AiColors.Blue,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.weight(1f),
@@ -279,7 +279,7 @@ fun AiHistoryScreenNav(
             ) {
                 Text(
                     text = if (allReports.isEmpty()) "No AI reports yet" else "No matching reports",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 16.sp
                 )
             }
@@ -288,7 +288,7 @@ fun AiHistoryScreenNav(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(currentPageReports) { report ->
+                items(currentPageReports, key = { it.id }) { report ->
                     AiHistoryReportRow(
                         report = report,
                         context = context,
@@ -321,7 +321,7 @@ fun AiHistoryScreenNav(
             enabled = allReports.isNotEmpty(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFCC3333),
-                disabledContainerColor = Color(0xFF444444)
+                disabledContainerColor = AiColors.BorderUnfocused
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -395,7 +395,7 @@ private fun AiHistoryReportRow(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Choose format to share:", color = Color(0xFFAAAAAA))
+                    Text("Choose format to share:", color = AiColors.TextSecondary)
                 }
             },
             confirmButton = {
@@ -408,7 +408,7 @@ private fun AiHistoryReportRow(
                             shareAiReportAsJson(context, report.id)
                         }
                     ) {
-                        Text("JSON", color = Color(0xFF6B9BFF))
+                        Text("JSON", color = AiColors.Blue)
                     }
                     TextButton(
                         onClick = {
@@ -416,16 +416,16 @@ private fun AiHistoryReportRow(
                             shareAiReportAsHtml(context, report.id, developerMode)
                         }
                     ) {
-                        Text("HTML", color = Color(0xFF4CAF50))
+                        Text("HTML", color = AiColors.Green)
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showShareDialog = false }) {
-                    Text("Cancel", color = Color(0xFF888888))
+                    Text("Cancel", color = AiColors.TextTertiary)
                 }
             },
-            containerColor = Color(0xFF2A2A2A),
+            containerColor = AiColors.SurfaceDark,
             titleContentColor = Color.White,
             textContentColor = Color.White
         )
@@ -453,10 +453,10 @@ private fun AiHistoryReportRow(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel", color = Color(0xFF888888))
+                    Text("Cancel", color = AiColors.TextTertiary)
                 }
             },
-            containerColor = Color(0xFF2A2A2A),
+            containerColor = AiColors.SurfaceDark,
             titleContentColor = Color.White,
             textContentColor = Color.White
         )
@@ -519,7 +519,7 @@ private fun AiHistoryReportRow(
                     Button(
                         onClick = { showShareDialog = true },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
+                            containerColor = AiColors.Green
                         ),
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)

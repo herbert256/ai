@@ -64,7 +64,7 @@ fun ModelSearchScreen(
             text = {
                 Text(
                     text = "What would you like to do with this model?",
-                    color = Color(0xFFAAAAAA)
+                    color = AiColors.TextSecondary
                 )
             },
             confirmButton = {},
@@ -89,7 +89,7 @@ fun ModelSearchScreen(
                         ) {
                             Text("💬", fontSize = 20.sp)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Start AI Chat", color = Color(0xFF6B9BFF))
+                            Text("Start AI Chat", color = AiColors.Blue)
                         }
                     }
                     // Create AI Agent
@@ -106,7 +106,7 @@ fun ModelSearchScreen(
                         ) {
                             Text("🤖", fontSize = 20.sp)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Create AI Agent", color = Color(0xFF6B9BFF))
+                            Text("Create AI Agent", color = AiColors.Blue)
                         }
                     }
                     // Model Info
@@ -125,12 +125,12 @@ fun ModelSearchScreen(
                         ) {
                             Text("ℹ️", fontSize = 20.sp)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("Model Info", color = Color(0xFF6B9BFF))
+                            Text("Model Info", color = AiColors.Blue)
                         }
                     }
                 }
             },
-            containerColor = Color(0xFF2A2A2A)
+            containerColor = AiColors.SurfaceDark
         )
     }
 
@@ -244,7 +244,7 @@ fun ModelSearchScreen(
             Text(
                 text = "${filteredModels.size} models found",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFAAAAAA)
+                color = AiColors.TextSecondary
             )
         }
 
@@ -254,7 +254,7 @@ fun ModelSearchScreen(
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(filteredModels) { item ->
+            items(filteredModels, key = { "${it.provider.id}:${it.modelName}" }) { item ->
                 ModelSearchResultCard(
                     item = item,
                     onClick = {
@@ -328,7 +328,7 @@ private fun ModelSearchResultCard(
             val pricing = formatPricingPerMillion(context, item.provider, item.modelName)
             Text(
                 text = pricing.text,
-                color = if (pricing.isDefault) Color(0xFF2A2A2A) else Color(0xFFFF6B6B),
+                color = if (pricing.isDefault) AiColors.SurfaceDark else Color(0xFFFF6B6B),
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 maxLines = 1,
@@ -525,7 +525,7 @@ fun ModelInfoScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Fetching model information...",
-                        color = Color(0xFFAAAAAA)
+                        color = AiColors.TextSecondary
                     )
                 }
             }
@@ -559,13 +559,13 @@ fun ModelInfoScreen(
                             Text(
                                 text = "Provider: ${info.provider.displayName}",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFFAAAAAA)
+                                color = AiColors.TextSecondary
                             )
                             if (info.openRouterName != null && info.openRouterName != info.modelName) {
                                 Text(
                                     text = "Name: ${info.openRouterName}",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFFAAAAAA)
+                                    color = AiColors.TextSecondary
                                 )
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -714,7 +714,7 @@ fun ModelInfoScreen(
                                 Text(
                                     text = "Generating...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFFAAAAAA)
+                                    color = AiColors.TextSecondary
                                 )
                             }
                         }
@@ -738,7 +738,7 @@ fun ModelInfoScreen(
                                 text = "No additional information found for this model in OpenRouter or Hugging Face databases.",
                                 modifier = Modifier.padding(16.dp),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFFAAAAAA)
+                                color = AiColors.TextSecondary
                             )
                         }
                     }
@@ -793,7 +793,7 @@ private fun ModelInfoRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFFAAAAAA)
+            color = AiColors.TextSecondary
         )
         Text(
             text = value,

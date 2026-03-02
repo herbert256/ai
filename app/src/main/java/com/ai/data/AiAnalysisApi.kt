@@ -129,10 +129,18 @@ class AiServiceAdapter : JsonDeserializer<AiService>, JsonSerializer<AiService> 
  * Create a Gson instance with AiService type adapter registered.
  * Use this instead of Gson() when serializing/deserializing objects that contain AiService.
  */
-fun createAiGson(prettyPrint: Boolean = false): Gson = GsonBuilder()
-    .registerTypeAdapter(AiService::class.java, AiServiceAdapter())
-    .apply { if (prettyPrint) setPrettyPrinting() }
-    .create()
+private val aiGson: Gson by lazy {
+    GsonBuilder()
+        .registerTypeAdapter(AiService::class.java, AiServiceAdapter())
+        .create()
+}
+private val aiGsonPretty: Gson by lazy {
+    GsonBuilder()
+        .registerTypeAdapter(AiService::class.java, AiServiceAdapter())
+        .setPrettyPrinting()
+        .create()
+}
+fun createAiGson(prettyPrint: Boolean = false): Gson = if (prettyPrint) aiGsonPretty else aiGson
 
 // OpenAI models
 data class OpenAiMessage(
@@ -497,6 +505,7 @@ interface OpenAiCompatibleStreamApi {
  */
 object AiApiFactory {
     private val retrofitCache = ConcurrentHashMap<String, Retrofit>()
+    private val gsonConverterFactory = GsonConverterFactory.create()
 
     // OkHttpClient with extended timeouts for AI API calls
     private val okHttpClient = OkHttpClient.Builder()
@@ -513,7 +522,7 @@ object AiApiFactory {
             Retrofit.Builder()
                 .baseUrl(normalizedUrl)
                 .client(okHttpClient)
-                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(gsonConverterFactory)
                 .build()
         }
     }

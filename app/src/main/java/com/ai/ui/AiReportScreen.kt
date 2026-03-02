@@ -195,7 +195,7 @@ fun AiReportsScreen(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Choose format to share:", color = Color(0xFFAAAAAA))
+                    Text("Choose format to share:", color = AiColors.TextSecondary)
                 }
             },
             confirmButton = {
@@ -208,7 +208,7 @@ fun AiReportsScreen(
                             shareAiReportAsJson(context, currentReportId)
                         }
                     ) {
-                        Text("JSON", color = Color(0xFF6B9BFF))
+                        Text("JSON", color = AiColors.Blue)
                     }
                     TextButton(
                         onClick = {
@@ -216,16 +216,16 @@ fun AiReportsScreen(
                             shareAiReportAsHtml(context, currentReportId, uiState.generalSettings.developerMode)
                         }
                     ) {
-                        Text("HTML", color = Color(0xFF4CAF50))
+                        Text("HTML", color = AiColors.Green)
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showShareDialog = false }) {
-                    Text("Cancel", color = Color(0xFF888888))
+                    Text("Cancel", color = AiColors.TextTertiary)
                 }
             },
-            containerColor = Color(0xFF2A2A2A),
+            containerColor = AiColors.SurfaceDark,
             titleContentColor = Color.White,
             textContentColor = Color.White
         )
@@ -258,17 +258,17 @@ fun AiReportsScreen(
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
-                            color = Color(0xFF6B9BFF),
+                            color = AiColors.Blue,
                             strokeWidth = 2.dp
                         )
-                        Text("Sending to $emailAddress", color = Color(0xFFAAAAAA))
+                        Text("Sending to $emailAddress", color = AiColors.TextSecondary)
                     }
                 } else {
-                    Text("Report emailed to $emailAddress", color = Color(0xFF4CAF50))
+                    Text("Report emailed to $emailAddress", color = AiColors.Green)
                 }
             },
             confirmButton = { },
-            containerColor = Color(0xFF2A2A2A),
+            containerColor = AiColors.SurfaceDark,
             titleContentColor = Color.White,
             textContentColor = Color.White
         )
@@ -631,7 +631,7 @@ fun AiReportsScreen(
                     enabled = models.isNotEmpty(),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
+                        containerColor = AiColors.Green
                     )
                 ) {
                     Text("Next", fontSize = 13.sp, maxLines = 1)
@@ -677,10 +677,10 @@ fun AiReportsScreen(
                         confirmButton = {},
                         dismissButton = {
                             TextButton(onClick = { showReportTypeDialog = false }) {
-                                Text("Cancel", color = Color(0xFF888888))
+                                Text("Cancel", color = AiColors.TextTertiary)
                             }
                         },
-                        containerColor = Color(0xFF2A2A2A),
+                        containerColor = AiColors.SurfaceDark,
                         titleContentColor = Color.White,
                         textContentColor = Color.White
                     )
@@ -710,7 +710,7 @@ fun AiReportsScreen(
                             onClick = { showSelectFlock = true },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
+                            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Blue)
                         ) {
                             Text("Flocks", fontSize = 13.sp)
                         }
@@ -718,7 +718,7 @@ fun AiReportsScreen(
                             onClick = { showSelectAgent = true },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
+                            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Blue)
                         ) {
                             Text("Agents", fontSize = 13.sp)
                         }
@@ -726,7 +726,7 @@ fun AiReportsScreen(
                             onClick = { showSelectSwarm = true },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
+                            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Blue)
                         ) {
                             Text("Swarms", fontSize = 13.sp)
                         }
@@ -734,7 +734,7 @@ fun AiReportsScreen(
                             onClick = { showSelectAllModels = true },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6B9BFF))
+                            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Blue)
                         ) {
                             Text("Models", fontSize = 13.sp)
                         }
@@ -765,7 +765,7 @@ fun AiReportsScreen(
                     Text(
                         text = "Models selected: ${models.size}",
                         fontSize = 12.sp,
-                        color = Color(0xFFAAAAAA)
+                        color = AiColors.TextSecondary
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
@@ -793,7 +793,7 @@ fun AiReportsScreen(
                     ) {
                         Text(
                             text = "No models added yet.\nUse the buttons above to add models.",
-                            color = Color(0xFFAAAAAA),
+                            color = AiColors.TextSecondary,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -824,7 +824,7 @@ fun AiReportsScreen(
                                     Text(
                                         text = entry.provider.displayName,
                                         fontSize = 11.sp,
-                                        color = Color(0xFFAAAAAA),
+                                        color = AiColors.TextSecondary,
                                         maxLines = 1
                                     )
                                     Text(
@@ -837,7 +837,7 @@ fun AiReportsScreen(
                                 }
                                 Text(
                                     text = pricing.text,
-                                    color = if (pricing.isDefault) Color(0xFF2A2A2A) else Color(0xFFFF6B6B),
+                                    color = if (pricing.isDefault) AiColors.SurfaceDark else Color(0xFFFF6B6B),
                                     fontSize = 10.sp,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     maxLines = 1,
@@ -899,7 +899,7 @@ fun AiReportsScreen(
                         onClick = { showShareDialog = true },
                         contentPadding = compactButtonPadding,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
+                            containerColor = AiColors.Green
                         )
                     ) {
                         Text("Share")
@@ -1012,14 +1012,14 @@ fun AiReportsScreen(
                         Text(
                             text = "Agent",
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF888888),
+                            color = AiColors.TextTertiary,
                             fontSize = 11.sp,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
                             text = "Input",
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF888888),
+                            color = AiColors.TextTertiary,
                             fontSize = 11.sp,
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
@@ -1028,7 +1028,7 @@ fun AiReportsScreen(
                         Text(
                             text = "Output",
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF888888),
+                            color = AiColors.TextTertiary,
                             fontSize = 11.sp,
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
@@ -1037,7 +1037,7 @@ fun AiReportsScreen(
                         Text(
                             text = "Cents",
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF888888),
+                            color = AiColors.TextTertiary,
                             fontSize = 11.sp,
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(70.dp)
@@ -1067,7 +1067,7 @@ fun AiReportsScreen(
                                         )
                                     }
                                     result.isSuccess -> {
-                                        Text("\u2713", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("\u2713", color = AiColors.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     }
                                     else -> {
                                         Text("\u2717", color = Color(0xFFF44336), fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -1087,7 +1087,7 @@ fun AiReportsScreen(
                             Text(
                                 text = tokenUsage?.inputTokens?.toString() ?: "",
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFAAAAAA),
+                                color = AiColors.TextSecondary,
                                 fontSize = 11.sp,
                                 textAlign = TextAlign.End,
                                 modifier = Modifier.width(50.dp)
@@ -1097,7 +1097,7 @@ fun AiReportsScreen(
                             Text(
                                 text = tokenUsage?.outputTokens?.toString() ?: "",
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFAAAAAA),
+                                color = AiColors.TextSecondary,
                                 fontSize = 11.sp,
                                 textAlign = TextAlign.End,
                                 modifier = Modifier.width(50.dp)
@@ -1107,7 +1107,7 @@ fun AiReportsScreen(
                             Text(
                                 text = if (cost != null) formatCents(cost) else "",
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF4CAF50),
+                                color = AiColors.Green,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.End,
                                 modifier = Modifier.width(70.dp)
@@ -1144,7 +1144,7 @@ fun AiReportsScreen(
                                             )
                                         }
                                         result.isSuccess -> {
-                                            Text("\u2713", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text("\u2713", color = AiColors.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                         }
                                         else -> {
                                             Text("\u2717", color = Color(0xFFF44336), fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -1156,7 +1156,7 @@ fun AiReportsScreen(
                                 Row(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "${provider?.displayName ?: providerName} ",
-                                        color = Color(0xFFAAAAAA),
+                                        color = AiColors.TextSecondary,
                                         fontSize = 11.sp
                                     )
                                     Text(
@@ -1172,7 +1172,7 @@ fun AiReportsScreen(
                                 Text(
                                     text = tokenUsage?.inputTokens?.toString() ?: "",
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFAAAAAA),
+                                    color = AiColors.TextSecondary,
                                     fontSize = 11.sp,
                                     textAlign = TextAlign.End,
                                     modifier = Modifier.width(50.dp)
@@ -1182,7 +1182,7 @@ fun AiReportsScreen(
                                 Text(
                                     text = tokenUsage?.outputTokens?.toString() ?: "",
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFAAAAAA),
+                                    color = AiColors.TextSecondary,
                                     fontSize = 11.sp,
                                     textAlign = TextAlign.End,
                                     modifier = Modifier.width(50.dp)
@@ -1192,7 +1192,7 @@ fun AiReportsScreen(
                                 Text(
                                     text = if (cost != null) formatCents(cost) else "",
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF4CAF50),
+                                    color = AiColors.Green,
                                     fontSize = 12.sp,
                                     textAlign = TextAlign.End,
                                     modifier = Modifier.width(70.dp)
@@ -1223,7 +1223,7 @@ fun AiReportsScreen(
                             text = if (totalInputTokens > 0) totalInputTokens.toString() else "",
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFAAAAAA),
+                            color = AiColors.TextSecondary,
                             fontSize = 11.sp,
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
@@ -1234,7 +1234,7 @@ fun AiReportsScreen(
                             text = if (totalOutputTokens > 0) totalOutputTokens.toString() else "",
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFAAAAAA),
+                            color = AiColors.TextSecondary,
                             fontSize = 11.sp,
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(50.dp)
@@ -1244,7 +1244,7 @@ fun AiReportsScreen(
                             text = formatCents(totalCost),
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4CAF50),
+                            color = AiColors.Green,
                             fontSize = 12.sp,
                             textAlign = TextAlign.End,
                             modifier = Modifier.width(70.dp)

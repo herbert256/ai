@@ -230,6 +230,8 @@ fun AiReportsHubScreen(
     }
 }
 
+private val userTagRegex = Regex("""<user>.*?</user>""", RegexOption.DOT_MATCHES_ALL)
+
 /**
  * New AI Report screen for entering a custom prompt.
  * Used as a navigation destination.
@@ -255,7 +257,6 @@ fun AiNewReportScreen(
         mutableStateOf(initialTitle.ifEmpty { lastTitle })
     }
     // Extract and preserve <user>...</user> block separately from display prompt
-    val userTagRegex = Regex("""<user>.*?</user>""", RegexOption.DOT_MATCHES_ALL)
     val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
     val userTagBlock = remember { userTagRegex.find(rawPrompt)?.value ?: "" }
     var prompt by remember {
@@ -343,7 +344,7 @@ fun AiNewReportScreen(
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444),
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedLabelColor = Color(0xFF8B5CF6),
                 unfocusedLabelColor = Color.Gray,
                 cursorColor = Color.White
@@ -364,7 +365,7 @@ fun AiNewReportScreen(
             minLines = 10,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF8B5CF6),
-                unfocusedBorderColor = Color(0xFF444444),
+                unfocusedBorderColor = AiColors.BorderUnfocused,
                 focusedLabelColor = Color(0xFF8B5CF6),
                 unfocusedLabelColor = Color.Gray,
                 cursorColor = Color.White

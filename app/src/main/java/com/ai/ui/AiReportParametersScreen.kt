@@ -78,7 +78,7 @@ fun ReportAdvancedParametersScreen(
                 },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
+                    containerColor = AiColors.Green
                 )
             ) {
                 Text("Apply")
@@ -124,7 +124,7 @@ fun ReportAdvancedParametersScreen(
             ) {
                 Text(
                     text = "These parameters override individual agent settings for this report only.",
-                    color = Color(0xFFAAAAAA),
+                    color = AiColors.TextSecondary,
                     fontSize = 12.sp
                 )
 
@@ -138,8 +138,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -151,8 +151,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -164,8 +164,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -177,8 +177,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -190,8 +190,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -203,8 +203,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -216,8 +216,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -230,8 +230,8 @@ fun ReportAdvancedParametersScreen(
                     minLines = 3,
                     maxLines = 5,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
 
@@ -275,8 +275,8 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF6B9BFF),
-                        unfocusedBorderColor = Color(0xFF444444)
+                        focusedBorderColor = AiColors.Blue,
+                        unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
             }
