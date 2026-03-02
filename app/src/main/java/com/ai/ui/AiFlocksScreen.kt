@@ -150,7 +150,7 @@ fun FlockEditScreen(
         configuredAgents.filter { agent ->
             agent.name.contains(searchQuery, ignoreCase = true) ||
             agent.provider.displayName.contains(searchQuery, ignoreCase = true) ||
-            agent.model.contains(searchQuery, ignoreCase = true)
+            aiSettings.getEffectiveModelForAgent(agent).contains(searchQuery, ignoreCase = true)
         }
     }
 
@@ -223,14 +223,28 @@ fun FlockEditScreen(
             ) {
                 Text(if (isEditing) "Save" else "Create", fontSize = 13.sp, maxLines = 1)
             }
+        }
+
+        // System prompt + Parameters row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                SystemPromptSelector(
+                    aiSettings = aiSettings,
+                    selectedSystemPromptId = selectedSystemPromptId,
+                    onSystemPromptSelected = { id -> selectedSystemPromptId = id }
+                )
+            }
             Button(
                 onClick = { showParamsDialog = true },
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo)
             ) {
                 Text(
                     if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
-                    fontSize = 13.sp, maxLines = 1
+                    fontSize = 14.sp, maxLines = 1
                 )
             }
         }
@@ -245,13 +259,6 @@ fun FlockEditScreen(
                 onDismiss = { showParamsDialog = false }
             )
         }
-
-        // System prompt selector
-        SystemPromptSelector(
-            aiSettings = aiSettings,
-            selectedSystemPromptId = selectedSystemPromptId,
-            onSystemPromptSelected = { id -> selectedSystemPromptId = id }
-        )
 
         if (configuredAgents.isEmpty()) {
             Text(
@@ -334,7 +341,8 @@ fun FlockEditScreen(
                             maxLines = 1,
                             modifier = Modifier.weight(1f)
                         )
-                        val pricing = formatPricingPerMillion(context, agent.provider, agent.model)
+                        val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
+                        val pricing = formatPricingPerMillion(context, agent.provider, effectiveModel)
                         Text(
                             text = pricing.text,
                             color = if (pricing.isDefault) Color(0xFF2A2A2A) else AiColors.Red,

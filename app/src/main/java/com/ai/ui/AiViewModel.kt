@@ -717,7 +717,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val traceFile = ApiTracer.getTraceFiles().firstOrNull()?.let {
                 if (ApiTracer.getTraceCount() > traceCountBefore) it.filename else null
             } ?: ApiTracer.getTraceFiles().firstOrNull()?.filename
-            val success = responseText != null && responseText.trim().equals("OK", ignoreCase = true)
+            val success = responseText != null && responseText.isNotBlank()
             Pair(success, traceFile)
         } catch (e: Exception) {
             val traceFile = ApiTracer.getTraceFiles().firstOrNull()?.filename

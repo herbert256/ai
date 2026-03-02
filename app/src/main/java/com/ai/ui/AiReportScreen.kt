@@ -979,7 +979,7 @@ fun AiReportsScreen(
                     val agent = uiState.aiSettings.getAgentById(agentId) ?: return@mapNotNull null
                     // Priority: API cost > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT
                     val cost = tokenUsage.apiCost ?: run {
-                        val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, agent.model)
+                        val pricing = com.ai.data.PricingCache.getPricing(context, agent.provider, uiState.aiSettings.getEffectiveModelForAgent(agent))
                         val inputCost = tokenUsage.inputTokens * pricing.promptPrice
                         val outputCost = tokenUsage.outputTokens * pricing.completionPrice
                         inputCost + outputCost

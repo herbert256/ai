@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,8 +31,8 @@ fun PromptHistoryScreen(
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
     val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
     val allHistoryEntries = remember { mutableStateOf(settingsPrefs.loadPromptHistory()) }
-    var searchText by remember { mutableStateOf("") }
-    var currentPage by remember { mutableIntStateOf(0) }
+    var searchText by rememberSaveable { mutableStateOf("") }
+    var currentPage by rememberSaveable { mutableStateOf(0) }
 
     // Filter entries based on search text
     val filteredEntries = remember(allHistoryEntries.value, searchText) {

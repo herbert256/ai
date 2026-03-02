@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -121,6 +122,7 @@ fun ChatSelectProviderScreen(
 fun ChatParametersScreen(
     provider: AiService,
     model: String,
+    aiSettings: AiSettings = AiSettings(),
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onStartChat: (ChatParameters) -> Unit
@@ -131,6 +133,8 @@ fun ChatParametersScreen(
 
     // Parameter state
     var systemPrompt by remember { mutableStateOf("") }
+    var selectedSystemPromptId by remember { mutableStateOf<String?>(null) }
+    var selectedParametersIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var temperature by remember { mutableStateOf("") }
     var maxTokens by remember { mutableStateOf("") }
     var topP by remember { mutableStateOf("") }
@@ -171,17 +175,27 @@ fun ChatParametersScreen(
         // Start Chat button at top
         Button(
             onClick = {
+                // Resolve system prompt: selected preset overrides manual text
+                val effectiveSystemPrompt = selectedSystemPromptId?.let {
+                    aiSettings.getSystemPromptById(it)?.prompt
+                } ?: systemPrompt
+
+                // Resolve parameter presets and merge with manual overrides
+                val presetParams = aiSettings.mergeParameters(selectedParametersIds)
+
                 onStartChat(ChatParameters(
-                    systemPrompt = systemPrompt,
-                    temperature = temperature.toFloatOrNull(),
-                    maxTokens = maxTokens.toIntOrNull(),
-                    topP = topP.toFloatOrNull(),
-                    topK = topK.toIntOrNull(),
-                    frequencyPenalty = frequencyPenalty.toFloatOrNull(),
-                    presencePenalty = presencePenalty.toFloatOrNull(),
-                    searchEnabled = searchEnabled,
+                    systemPrompt = effectiveSystemPrompt.ifBlank {
+                        presetParams?.systemPrompt ?: ""
+                    },
+                    temperature = temperature.toFloatOrNull() ?: presetParams?.temperature,
+                    maxTokens = maxTokens.toIntOrNull() ?: presetParams?.maxTokens,
+                    topP = topP.toFloatOrNull() ?: presetParams?.topP,
+                    topK = topK.toIntOrNull() ?: presetParams?.topK,
+                    frequencyPenalty = frequencyPenalty.toFloatOrNull() ?: presetParams?.frequencyPenalty,
+                    presencePenalty = presencePenalty.toFloatOrNull() ?: presetParams?.presencePenalty,
+                    searchEnabled = searchEnabled || (presetParams?.searchEnabled == true),
                     returnCitations = returnCitations,
-                    searchRecency = searchRecency.ifBlank { null }
+                    searchRecency = searchRecency.ifBlank { presetParams?.searchRecency }
                 ))
             },
             modifier = Modifier.fillMaxWidth(),
@@ -190,7 +204,43 @@ fun ChatParametersScreen(
             Text("Start Chat")
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // System prompt + Parameters selectors
+        var showParamsDialog by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                SystemPromptSelector(
+                    aiSettings = aiSettings,
+                    selectedSystemPromptId = selectedSystemPromptId,
+                    onSystemPromptSelected = { id -> selectedSystemPromptId = id }
+                )
+            }
+            Button(
+                onClick = { showParamsDialog = true },
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo)
+            ) {
+                Text(
+                    if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
+                    fontSize = 14.sp, maxLines = 1
+                )
+            }
+        }
+        if (showParamsDialog) {
+            ParametersSelectorDialog(
+                aiSettings = aiSettings,
+                selectedParametersIds = selectedParametersIds,
+                onParamsSelected = { ids ->
+                    selectedParametersIds = ids
+                    showParamsDialog = false
+                },
+                onDismiss = { showParamsDialog = false }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(
             modifier = Modifier
@@ -203,7 +253,7 @@ fun ChatParametersScreen(
                 OutlinedTextField(
                     value = systemPrompt,
                     onValueChange = { systemPrompt = it },
-                    label = { Text("System Prompt") },
+                    label = { Text("System Prompt (manual override)") },
                     placeholder = { Text("Optional instructions for the AI...") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
@@ -824,7 +874,7 @@ fun ChatHistoryScreen(
     BackHandler { onNavigateBack() }
 
     var allSessions by remember { mutableStateOf(ChatHistoryManager.getAllSessions()) }
-    var currentPage by remember { mutableIntStateOf(0) }
+    var currentPage by rememberSaveable { mutableStateOf(0) }
 
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
 
@@ -1039,7 +1089,7 @@ fun AiChatsHubScreen(
             // New chat based on an AI Agent
             ChatHubCard(
                 icon = "\uD83E\uDD16",
-                title = "New chat based on an AI Agent",
+                title = "New chat - start with an AI Agent",
                 description = "Start a chat using a pre-configured agent",
                 onClick = onNavigateToAgentSelect,
                 enabled = hasAgents
@@ -1152,15 +1202,18 @@ fun ChatSearchScreen(
     onNavigateHome: () -> Unit,
     onSelectSession: (String) -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ChatSearchResult>>(emptyList()) }
-    var hasSearched by remember { mutableStateOf(false) }
+    var hasSearched by rememberSaveable { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()) }
     val focusRequester = remember { FocusRequester() }
 
-    // Auto-focus the search field
+    // Auto-focus the search field and restore search results if query was saved
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
+        if (searchQuery.isNotBlank() && hasSearched) {
+            searchResults = searchInChats(searchQuery)
+        }
     }
 
     Column(

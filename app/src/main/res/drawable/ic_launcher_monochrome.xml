@@ -20,20 +20,20 @@
         android:fillColor="#FFFFFF"
         android:pathData="M78,24 a4,4 0 1,0 0.01,0 z"/>
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M35,81 a3,3 0 1,0 0.01,0 z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,83 a3,3 0 1,0 0.01,0 z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M73,81 a3,3 0 1,0 0.01,0 z"/>
-    <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="1.5"
         android:pathData="M30,28 L43,35 M54,24 L43,35 M78,28 L48,35"/>
     <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="1.5"
-        android:pathData="M35,81 L43,75 M54,83 L54,75 M73,81 L66,75"/>
+        android:pathData="M66,75 L33,83 M66,75 L55,87 M66,75 L81,83"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,80 a4,4 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,84 a4,4 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,80 a4,4 0 1,0 0.01,0 z"/>
 </vector>

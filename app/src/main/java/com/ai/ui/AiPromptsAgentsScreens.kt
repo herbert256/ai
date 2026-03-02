@@ -198,7 +198,7 @@ fun AiAgentsScreen(
                     baseAgents.filter { agent ->
                         agent.name.lowercase().contains(query) ||
                         agent.provider.displayName.lowercase().contains(query) ||
-                        agent.model.lowercase().contains(query)
+                        aiSettings.getEffectiveModelForAgent(agent).lowercase().contains(query)
                     }
                 }
                 if (baseAgents.isEmpty()) {

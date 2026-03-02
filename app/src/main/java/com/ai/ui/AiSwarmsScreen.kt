@@ -229,14 +229,28 @@ fun SwarmEditScreen(
             ) {
                 Text(if (isEditing) "Save" else "Create", fontSize = 13.sp, maxLines = 1)
             }
+        }
+
+        // System prompt + Parameters row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                SystemPromptSelector(
+                    aiSettings = aiSettings,
+                    selectedSystemPromptId = selectedSystemPromptId,
+                    onSystemPromptSelected = { id -> selectedSystemPromptId = id }
+                )
+            }
             Button(
                 onClick = { showParamsDialog = true },
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Green)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo)
             ) {
                 Text(
                     if (selectedParametersIds.isNotEmpty()) "⚙ Parameters" else "Parameters",
-                    fontSize = 13.sp, maxLines = 1
+                    fontSize = 14.sp, maxLines = 1
                 )
             }
         }
@@ -251,13 +265,6 @@ fun SwarmEditScreen(
                 onDismiss = { showParamsDialog = false }
             )
         }
-
-        // System prompt selector
-        SystemPromptSelector(
-            aiSettings = aiSettings,
-            selectedSystemPromptId = selectedSystemPromptId,
-            onSystemPromptSelected = { id -> selectedSystemPromptId = id }
-        )
 
         if (allProviderModels.isEmpty()) {
             Text(

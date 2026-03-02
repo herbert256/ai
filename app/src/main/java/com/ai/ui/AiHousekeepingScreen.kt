@@ -704,7 +704,7 @@ fun HousekeepingScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
-                        Text("Clean up", fontSize = 12.sp)
+                        Text("All", fontSize = 12.sp)
                     }
                     Button(
                         onClick = { showCleanupDaysDialog = "chats" },
@@ -749,9 +749,9 @@ fun HousekeepingScreen(
         if (showStartCleanConfirm) {
             AlertDialog(
                 onDismissRequest = { showStartCleanConfirm = false },
-                title = { Text("Clean Up", fontWeight = FontWeight.Bold) },
+                title = { Text("Clean Up All", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("This will delete all chats, reports, statistics, and API traces, then refresh all providers and generate default agents.\n\nThis cannot be undone.")
+                    Text("This will delete all chats, reports, statistics, prompt history, and API traces.\n\nThis cannot be undone.")
                 },
                 confirmButton = {
                     Button(
@@ -760,100 +760,10 @@ fun HousekeepingScreen(
                             scope.launch {
                                 progressTitle = "Clean Up"
 
-                                // 1. Delete all data
                                 performStartClean(
                                     context = context,
                                     onProgress = { progressText = it }
                                 )
-
-                                // 2-4. Refresh model lists, OpenRouter, and provider state in parallel
-                                progressText = "Refreshing providers..."
-
-                                val modelsJob = async {
-                                    onRefreshAllModels(aiSettings, true) { provider ->
-                                        progressText = "Models: $provider"
-                                    }
-                                }
-
-                                val orJob = if (openRouterApiKey.isNotBlank()) async {
-                                    var pricingCount = 0
-                                    var specsPricing = 0
-                                    var specsParams = 0
-                                    val pricing = com.ai.data.PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                                    if (pricing.isNotEmpty()) {
-                                        com.ai.data.PricingCache.saveOpenRouterPricing(context, pricing)
-                                        pricingCount = pricing.size
-                                    }
-                                    val specsResult = com.ai.data.PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
-                                    if (specsResult != null) {
-                                        specsPricing = specsResult.first
-                                        specsParams = specsResult.second
-                                    }
-                                    if (pricingCount > 0 || specsPricing > 0) Triple(pricingCount, specsPricing, specsParams) else null
-                                } else null
-
-                                val stateJob = async {
-                                    val stateResults = java.util.concurrent.ConcurrentHashMap<String, String>()
-                                    val toTest = mutableListOf<AiService>()
-                                    for (service in com.ai.data.AiService.entries) {
-                                        if (aiSettings.getProviderState(service) == "inactive") {
-                                            stateResults[service.displayName] = "inactive"
-                                        } else if (aiSettings.getApiKey(service).isBlank()) {
-                                            onProviderStateChange(service, "not-used")
-                                            stateResults[service.displayName] = "not-used"
-                                        } else {
-                                            toTest.add(service)
-                                        }
-                                    }
-                                    toTest.map { service ->
-                                        async {
-                                            val error = onTestApiKey(service, aiSettings.getApiKey(service), aiSettings.getModel(service))
-                                            val state = if (error == null) "ok" else "error"
-                                            onProviderStateChange(service, state)
-                                            stateResults[service.displayName] = state
-                                        }
-                                    }.awaitAll()
-                                    stateResults.toMap()
-                                }
-
-                                refreshResults = modelsJob.await()
-                                openRouterResult = orJob?.await()
-                                providerStateResults = stateJob.await()
-
-                                // 5. Generate default agents (parallel)
-                                progressText = "Default agents..."
-                                val providersToTest = AiService.entries.filter { aiSettings.getApiKey(it).isNotBlank() }
-                                val genResults = java.util.concurrent.CopyOnWriteArrayList<Pair<String, Boolean>>()
-                                val updatedAgents = java.util.concurrent.CopyOnWriteArrayList(aiSettings.agents)
-                                providersToTest.map { provider ->
-                                    async {
-                                        val testResult = onTestApiKey(provider, aiSettings.getApiKey(provider), provider.defaultModel)
-                                        val isWorking = testResult == null
-                                        if (isWorking) {
-                                            synchronized(updatedAgents) {
-                                                val idx = updatedAgents.indexOfFirst { it.name == provider.displayName }
-                                                if (idx >= 0) {
-                                                    updatedAgents[idx] = updatedAgents[idx].copy(model = "", apiKey = "", provider = provider, endpointId = null)
-                                                } else {
-                                                    updatedAgents.add(AiAgent(id = java.util.UUID.randomUUID().toString(), name = provider.displayName, provider = provider, model = "", apiKey = "", endpointId = null))
-                                                }
-                                            }
-                                        }
-                                        genResults.add(provider.displayName to isWorking)
-                                    }
-                                }.awaitAll()
-                                if (genResults.count { it.second } > 0) {
-                                    val defaultAgentIds = updatedAgents.filter { agent -> AiService.entries.any { it.displayName == agent.name } }.map { it.id }
-                                    val updatedFlocks = aiSettings.flocks.toMutableList()
-                                    val flockIdx = updatedFlocks.indexOfFirst { it.name == "default agents" }
-                                    if (flockIdx >= 0) {
-                                        updatedFlocks[flockIdx] = updatedFlocks[flockIdx].copy(agentIds = defaultAgentIds)
-                                    } else {
-                                        updatedFlocks.add(AiFlock(id = java.util.UUID.randomUUID().toString(), name = "default agents", agentIds = defaultAgentIds))
-                                    }
-                                    onSave(aiSettings.copy(agents = updatedAgents.toList(), flocks = updatedFlocks))
-                                }
-                                generationResults = genResults.toList()
 
                                 progressTitle = ""
                                 progressText = ""
@@ -862,7 +772,7 @@ fun HousekeepingScreen(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
                     ) {
-                        Text("Clean Up")
+                        Text("All")
                     }
                 },
                 dismissButton = {

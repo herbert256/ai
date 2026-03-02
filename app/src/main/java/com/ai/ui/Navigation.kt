@@ -542,6 +542,7 @@ fun AiNavHost(
         }
 
         composable(NavRoutes.AI_CHAT_PARAMS) { backStackEntry ->
+            val uiState by viewModel.uiState.collectAsState()
             val providerName = backStackEntry.arguments?.getString("provider") ?: ""
             val encodedModel = backStackEntry.arguments?.getString("model") ?: ""
             val model = try { java.net.URLDecoder.decode(encodedModel, "UTF-8") } catch (e: Exception) { encodedModel }
@@ -551,6 +552,7 @@ fun AiNavHost(
                 ChatParametersScreen(
                     provider = provider,
                     model = model,
+                    aiSettings = uiState.aiSettings,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateHome = navigateHome,
                     onStartChat = { params ->

@@ -16,7 +16,7 @@
         android:fillColor="#6B9BFF"
         android:pathData="M62,35 L70,35 L70,75 L62,75 Z"/>
 
-    <!-- Neural network nodes - top (drawn as circles using arc paths) -->
+    <!-- Neural network nodes - top (converging to letter A) -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M30,24 a4,4 0 1,0 0.01,0 z"/>
@@ -27,24 +27,26 @@
         android:fillColor="#FFFFFF"
         android:pathData="M78,24 a4,4 0 1,0 0.01,0 z"/>
 
-    <!-- Neural network nodes - bottom -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M35,81 a3,3 0 1,0 0.01,0 z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,83 a3,3 0 1,0 0.01,0 z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M73,81 a3,3 0 1,0 0.01,0 z"/>
-
-    <!-- Connection lines -->
+    <!-- Connection lines - top nodes to letter A (drawn after top circles = on top) -->
     <path
         android:strokeColor="#4A7ACC"
         android:strokeWidth="1.5"
         android:pathData="M30,28 L43,35 M54,24 L43,35 M78,28 L48,35"/>
+
+    <!-- Connection lines - bottom nodes from letter I (drawn before bottom circles = behind balls) -->
     <path
         android:strokeColor="#4A7ACC"
         android:strokeWidth="1.5"
-        android:pathData="M35,81 L43,75 M54,83 L54,75 M73,81 L66,75"/>
+        android:pathData="M66,75 L33,83 M66,75 L55,87 M66,75 L81,83"/>
+
+    <!-- Neural network nodes - bottom (drawn last = on top of lines) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,80 a4,4 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,84 a4,4 0 1,0 0.01,0 z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,80 a4,4 0 1,0 0.01,0 z"/>
 </vector>
