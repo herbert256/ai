@@ -174,10 +174,7 @@ fun AiAgentsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Search agents...") },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    ),
+                    colors = AiColors.outlinedFieldColors(),
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
@@ -244,7 +241,8 @@ fun AiAgentsScreen(
                         }
                     }
                 } else {
-                    visibleAgents.sortedBy { it.name.lowercase() }.forEach { agent ->
+                    val sortedAgents = remember(visibleAgents) { visibleAgents.sortedBy { it.name.lowercase() } }
+                    sortedAgents.forEach { agent ->
                         AgentListItem(
                             agent = agent,
                             onEdit = { editingAgent = agent },
@@ -269,7 +267,7 @@ fun AiAgentsScreen(
                             onSave(aiSettings.removeAgent(agent.id))
                             showDeleteConfirm = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.RedDark)
                     ) {
                         Text("Delete")
                     }
@@ -342,7 +340,7 @@ private fun AgentListItem(
                     onClick = onDelete,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
-                    Text("Delete", color = Color(0xFFF44336))
+                    Text("Delete", color = AiColors.RedDark)
                 }
             }
         }
@@ -533,7 +531,7 @@ internal fun AgentEditScreen(
                 onValueChange = { name = it },
                 label = { Text("Agent Name") },
                 isError = nameError != null,
-                supportingText = nameError?.let { { Text(it, color = Color(0xFFF44336)) } },
+                supportingText = nameError?.let { { Text(it, color = AiColors.RedDark) } },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
@@ -559,7 +557,7 @@ internal fun AgentEditScreen(
                 Button(
                     onClick = { onNavigateToSelectProvider?.invoke() },
                     enabled = onNavigateToSelectProvider != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text("Select", fontSize = 12.sp)
@@ -583,7 +581,7 @@ internal fun AgentEditScreen(
                         model = it
                         testResult = null
                     },
-                    placeholder = { Text("Default: ${aiSettings.getModel(selectedProvider)}", color = Color(0xFF666666)) },
+                    placeholder = { Text("Default: ${aiSettings.getModel(selectedProvider)}", color = AiColors.TextDim) },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -592,7 +590,7 @@ internal fun AgentEditScreen(
                         onNavigateToSelectModel?.invoke(selectedProvider)
                     },
                     enabled = onNavigateToSelectModel != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text("Select", fontSize = 12.sp)
@@ -621,14 +619,14 @@ internal fun AgentEditScreen(
                 OutlinedTextField(
                     value = displayEndpointUrl,
                     onValueChange = { /* Read-only - use Select button */ },
-                    placeholder = { Text("Default: $defaultEndpointUrl", color = Color(0xFF666666)) },
+                    placeholder = { Text("Default: $defaultEndpointUrl", color = AiColors.TextDim) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     readOnly = true
                 )
                 Button(
                     onClick = { showEndpointDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text("Select", fontSize = 12.sp)
@@ -649,7 +647,7 @@ internal fun AgentEditScreen(
                         testResult = null
                     },
                     label = { Text("API Key (optional - uses provider key if empty)") },
-                    placeholder = { Text("Uses provider API key", color = Color(0xFF666666)) },
+                    placeholder = { Text("Uses provider API key", color = AiColors.TextDim) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation()
@@ -710,7 +708,7 @@ internal fun AgentEditScreen(
                 Text(
                     text = testResult ?: "",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (testSuccess) AiColors.Green else Color(0xFFF44336)
+                    color = if (testSuccess) AiColors.Green else AiColors.RedDark
                 )
             }
 
@@ -733,7 +731,7 @@ internal fun AgentEditScreen(
                 Text(
                     text = "Save Failed: $saveError",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFF44336)
+                    color = AiColors.RedDark
                 )
             }
         }
@@ -820,7 +818,7 @@ internal fun AgentEditScreen(
                                 testResult = null
                             },
                         colors = CardDefaults.cardColors(
-                            containerColor = if (selectedEndpointId == null) Color(0xFF6366F1).copy(alpha = 0.3f)
+                            containerColor = if (selectedEndpointId == null) AiColors.Indigo.copy(alpha = 0.3f)
                             else MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) {
@@ -848,7 +846,7 @@ internal fun AgentEditScreen(
                                         testResult = null
                                     },
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (selectedEndpointId == endpoint.id) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                    containerColor = if (selectedEndpointId == endpoint.id) AiColors.Indigo.copy(alpha = 0.3f)
                                     else MaterialTheme.colorScheme.surfaceVariant
                                 )
                             ) {

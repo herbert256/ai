@@ -451,8 +451,8 @@ private fun TraceListItem(
     val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm:ss", Locale.US) }
     val statusColor = when {
         traceInfo.statusCode in 200..299 -> AiColors.Green  // Green for success
-        traceInfo.statusCode in 400..499 -> Color(0xFFFF9800)  // Orange for client errors
-        traceInfo.statusCode >= 500 -> Color(0xFFF44336)       // Red for server errors
+        traceInfo.statusCode in 400..499 -> AiColors.Orange  // Orange for client errors
+        traceInfo.statusCode >= 500 -> AiColors.RedDark       // Red for server errors
         else -> Color.White
     }
 
@@ -573,7 +573,7 @@ fun TraceDetailScreen(
     }
     val lines = remember(currentContent) { currentContent.split("\n") }
 
-    val activeButtonColor = Color(0xFF666666)  // Gray for active
+    val activeButtonColor = AiColors.TextDim  // Gray for active
     val inactiveButtonColor = Color(0xFF3366BB)  // Blue for inactive
 
     // Determine background color based on status code
@@ -671,7 +671,7 @@ fun TraceDetailScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .background(Color(0xFF1A1A1A))
+                .background(AiColors.DisabledBackground)
         ) {
             val treeNodes = when (currentView) {
                 TraceContentView.REQUEST_DATA -> requestTreeNodes
@@ -716,12 +716,12 @@ fun TraceDetailScreen(
                     onClick = { if (hasPrevious) currentFilename = traceFiles[currentIndex - 1] },
                     enabled = hasPrevious,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF555555),
+                        containerColor = AiColors.TextDisabled,
                         disabledContainerColor = AiColors.DividerDark
                     ),
                     contentPadding = smallButtonPadding,
                     modifier = Modifier.weight(1f)
-                ) { Text("<", fontSize = 12.sp, color = if (hasPrevious) Color.White else Color(0xFF666666)) }
+                ) { Text("<", fontSize = 12.sp, color = if (hasPrevious) Color.White else AiColors.TextDim) }
             }
             Button(
                 onClick = {
@@ -783,7 +783,7 @@ fun TraceDetailScreen(
                         }
                         onEditRequest()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple),
                     contentPadding = smallButtonPadding,
                     modifier = Modifier.weight(2f)
                 ) { Text("Edit", fontSize = 12.sp) }
@@ -816,12 +816,12 @@ fun TraceDetailScreen(
                     onClick = { if (hasNext) currentFilename = traceFiles[currentIndex + 1] },
                     enabled = hasNext,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF555555),
+                        containerColor = AiColors.TextDisabled,
                         disabledContainerColor = AiColors.DividerDark
                     ),
                     contentPadding = smallButtonPadding,
                     modifier = Modifier.weight(1f)
-                ) { Text(">", fontSize = 12.sp, color = if (hasNext) Color.White else Color(0xFF666666)) }
+                ) { Text(">", fontSize = 12.sp, color = if (hasNext) Color.White else AiColors.TextDim) }
             }
         }
     }

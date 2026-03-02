@@ -117,7 +117,7 @@ fun AiReportsViewerScreen(
                     Button(
                         onClick = { selectedAgentId = agent.agentId },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF3A3A4A)
+                            containerColor = if (isSelected) AiColors.Purple else Color(0xFF3A3A4A)
                         ),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                         modifier = Modifier.height(32.dp)
@@ -255,7 +255,7 @@ fun AiReportsViewerScreen(
                                     border = if (!isActive) BorderStroke(1.dp, AiColors.BorderUnfocused) else null,
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
-                                    Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else AiColors.Blue)
+                                    Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AiColors.DisabledBackground else AiColors.Blue)
                                 }
                             }
                             if (hasCosts) {
@@ -268,7 +268,7 @@ fun AiReportsViewerScreen(
                                     border = if (!isActive) BorderStroke(1.dp, AiColors.BorderUnfocused) else null,
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
-                                    Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF1a1a1a) else AiColors.Blue)
+                                    Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AiColors.DisabledBackground else AiColors.Blue)
                                 }
                             }
                         }
@@ -478,7 +478,7 @@ private fun ThinkSection(content: String) {
             colors = ButtonDefaults.buttonColors(
                 containerColor = AiColors.SurfaceDark
             ),
-            border = BorderStroke(1.dp, Color(0xFF666666)),
+            border = BorderStroke(1.dp, AiColors.TextDim),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             modifier = Modifier.padding(vertical = 8.dp)
         ) {
@@ -500,7 +500,7 @@ private fun ThinkSection(content: String) {
                     modifier = Modifier
                         .width(3.dp)
                         .fillMaxHeight()
-                        .background(Color(0xFF555555))
+                        .background(AiColors.TextDisabled)
                 )
                 // Content
                 Text(
@@ -706,7 +706,7 @@ private fun CitationsSection(citations: List<String>) {
             text = "Sources",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFF8B5CF6),
+            color = AiColors.Purple,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
@@ -757,7 +757,7 @@ private fun SearchResultsSection(searchResults: List<com.ai.data.SearchResult>) 
             text = "Search Results",
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = Color(0xFFFF9800),
+            color = AiColors.Orange,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 

@@ -137,7 +137,7 @@ private fun HubCard(
             .fillMaxWidth()
             .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(
-            containerColor = if (enabled) Color(0xFF2A3A4A) else Color(0xFF1A2A3A)
+            containerColor = if (enabled) AiColors.CardBackgroundAlt else Color(0xFF1A2A3A)
         )
     ) {
         Row(
@@ -156,7 +156,7 @@ private fun HubCard(
                 text = title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (enabled) Color.White else Color(0xFF666666)
+                color = if (enabled) Color.White else AiColors.TextDim
             )
         }
     }
@@ -325,7 +325,7 @@ fun AiNewReportScreen(
                 enabled = title.isNotBlank() && prompt.isNotBlank(),
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF8B5CF6)
+                    containerColor = AiColors.Purple
                 )
             ) {
                 Text("Next", fontSize = 16.sp)
@@ -343,9 +343,9 @@ fun AiNewReportScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
+                focusedBorderColor = AiColors.Purple,
                 unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedLabelColor = Color(0xFF8B5CF6),
+                focusedLabelColor = AiColors.Purple,
                 unfocusedLabelColor = Color.Gray,
                 cursorColor = Color.White
             )
@@ -364,9 +364,9 @@ fun AiNewReportScreen(
                 .weight(1f),
             minLines = 10,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
+                focusedBorderColor = AiColors.Purple,
                 unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedLabelColor = Color(0xFF8B5CF6),
+                focusedLabelColor = AiColors.Purple,
                 unfocusedLabelColor = Color.Gray,
                 cursorColor = Color.White
             )

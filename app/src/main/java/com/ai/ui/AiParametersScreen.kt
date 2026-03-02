@@ -74,7 +74,8 @@ fun AiParametersListScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                aiSettings.parameters.sortedBy { it.name.lowercase() }.forEach { params ->
+                val sortedParams = remember(aiSettings.parameters) { aiSettings.parameters.sortedBy { it.name.lowercase() } }
+                sortedParams.forEach { params ->
                     val configuredCount = listOfNotNull(
                         params.temperature, params.maxTokens, params.topP, params.topK,
                         params.frequencyPenalty, params.presencePenalty,
@@ -579,7 +580,7 @@ fun ParametersSelector(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                            .background(AiColors.CardBackgroundAlt, shape = MaterialTheme.shapes.small)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -698,7 +699,8 @@ fun ParametersSelectorDialog(
                 }
 
                 if (aiSettings.parameters.isNotEmpty()) {
-                    aiSettings.parameters.sortedBy { it.name.lowercase() }.forEach { params ->
+                    val sortedParams2 = remember(aiSettings.parameters) { aiSettings.parameters.sortedBy { it.name.lowercase() } }
+                    sortedParams2.forEach { params ->
                         val configuredCount = listOfNotNull(
                             params.temperature,
                             params.maxTokens,

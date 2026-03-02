@@ -770,7 +770,7 @@ fun HousekeepingScreen(
                                 android.widget.Toast.makeText(context, "Clean up completed", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                        colors = ButtonDefaults.buttonColors(containerColor = AiColors.RedDark)
                     ) {
                         Text("All")
                     }
@@ -826,9 +826,9 @@ fun HousekeepingScreen(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFFF9800),
-                                unfocusedBorderColor = Color(0xFF555555),
-                                focusedLabelColor = Color(0xFFFF9800)
+                                focusedBorderColor = AiColors.Orange,
+                                unfocusedBorderColor = AiColors.TextDisabled,
+                                focusedLabelColor = AiColors.Orange
                             )
                         )
                     }
@@ -897,7 +897,7 @@ fun HousekeepingScreen(
                             cleanupDaysInput = "30"
                         }
                     ) {
-                        Text("Delete", color = Color(0xFFFF6B6B))
+                        Text("Delete", color = AiColors.Red)
                     }
                 },
                 dismissButton = {

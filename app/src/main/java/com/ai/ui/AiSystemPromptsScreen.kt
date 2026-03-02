@@ -73,7 +73,8 @@ fun AiSystemPromptsListScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                aiSettings.systemPrompts.sortedBy { it.name.lowercase() }.forEach { sp ->
+                val sortedSystemPrompts = remember(aiSettings.systemPrompts) { aiSettings.systemPrompts.sortedBy { it.name.lowercase() } }
+                sortedSystemPrompts.forEach { sp ->
                     SettingsListItemCard(
                         title = sp.name,
                         subtitle = sp.prompt.take(80) + if (sp.prompt.length > 80) "..." else "",
@@ -287,7 +288,8 @@ fun SystemPromptSelectorDialog(
                 }
 
                 if (aiSettings.systemPrompts.isNotEmpty()) {
-                    aiSettings.systemPrompts.sortedBy { it.name.lowercase() }.forEach { sp ->
+                    val sortedSPs = remember(aiSettings.systemPrompts) { aiSettings.systemPrompts.sortedBy { it.name.lowercase() } }
+                    sortedSPs.forEach { sp ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

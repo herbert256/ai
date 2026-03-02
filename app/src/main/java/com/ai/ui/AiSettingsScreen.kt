@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 import com.ai.data.AiService
 import com.ai.data.ApiFormat
 
+private val idSanitizeRegex = Regex("[^A-Z0-9_]")
+private val prefsKeySanitizeRegex = Regex("[^a-z0-9_]")
 
 /**
  * AI Setup hub screen with navigation cards for Providers, Prompts, and Agents.
@@ -332,7 +334,7 @@ internal fun AiSetupNavigationCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (enabled) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF1A1A1A)
+            containerColor = if (enabled) MaterialTheme.colorScheme.surfaceVariant else AiColors.DisabledBackground
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -348,14 +350,14 @@ internal fun AiSetupNavigationCard(
             Text(
                 text = icon,
                 style = MaterialTheme.typography.headlineMedium,
-                color = if (enabled) Color.Unspecified else Color(0xFF555555)
+                color = if (enabled) Color.Unspecified else AiColors.TextDisabled
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (enabled) Color.White else Color(0xFF555555)
+                    color = if (enabled) Color.White else AiColors.TextDisabled
                 )
                 Text(
                     text = description,
@@ -369,7 +371,7 @@ internal fun AiSetupNavigationCard(
                 Text(
                     text = count,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) Color(0xFF00E676) else AiColors.BorderUnfocused
+                    color = if (enabled) AiColors.CountGreen else AiColors.BorderUnfocused
                 )
                 Text(
                     text = ">",
@@ -478,8 +480,8 @@ fun AiProvidersScreen(
                 TextButton(
                     onClick = {
                         if (newProviderName.isNotBlank()) {
-                            val id = newProviderName.trim().uppercase().replace(Regex("[^A-Z0-9]"), "_")
-                            val prefsKey = newProviderName.trim().lowercase().replace(Regex("[^a-z0-9]"), "_")
+                            val id = newProviderName.trim().uppercase().replace(idSanitizeRegex, "_")
+                            val prefsKey = newProviderName.trim().lowercase().replace(prefsKeySanitizeRegex, "_")
                             val newService = AiService(
                                 id = id,
                                 displayName = newProviderName.trim(),
@@ -564,7 +566,7 @@ fun ProviderDefinitionEditorScreen(
         OutlinedTextField(
             value = id,
             onValueChange = {
-                id = it.uppercase().replace(Regex("[^A-Z0-9_]"), "")
+                id = it.uppercase().replace(idSanitizeRegex, "")
                 if (prefsKey.isBlank() || prefsKey == id.lowercase().dropLast(1)) {
                     prefsKey = id.lowercase()
                 }
@@ -580,10 +582,7 @@ fun ProviderDefinitionEditorScreen(
             } else {
                 { Text("Uppercase letters, numbers, underscores only") }
             },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         OutlinedTextField(
@@ -593,10 +592,7 @@ fun ProviderDefinitionEditorScreen(
             placeholder = { Text("My Provider") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         OutlinedTextField(
@@ -607,10 +603,7 @@ fun ProviderDefinitionEditorScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             isError = baseUrl.isNotBlank() && !urlValid,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         OutlinedTextField(
@@ -620,10 +613,7 @@ fun ProviderDefinitionEditorScreen(
             placeholder = { Text("model-name") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         // API Format dropdown
@@ -637,10 +627,7 @@ fun ProviderDefinitionEditorScreen(
                     .fillMaxWidth()
                     .clickable { formatExpanded = true },
                 readOnly = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
             DropdownMenu(
                 expanded = formatExpanded,
@@ -681,10 +668,7 @@ fun ProviderDefinitionEditorScreen(
             placeholder = { Text("v1/chat/completions") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         Row(
@@ -699,10 +683,7 @@ fun ProviderDefinitionEditorScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 enabled = !modelsPathNull,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -721,24 +702,18 @@ fun ProviderDefinitionEditorScreen(
             placeholder = { Text("https://platform.example.com/usage") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         OutlinedTextField(
             value = prefsKey,
-            onValueChange = { prefsKey = it.lowercase().replace(Regex("[^a-z0-9_]"), "") },
+            onValueChange = { prefsKey = it.lowercase().replace(prefsKeySanitizeRegex, "") },
             label = { Text("Preferences Key") },
             placeholder = { Text("my_provider") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             supportingText = { Text("Used for SharedPreferences storage") },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         // Advanced section
@@ -757,10 +732,7 @@ fun ProviderDefinitionEditorScreen(
                 placeholder = { Text("provider-prefix") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
 
             OutlinedTextField(
@@ -769,10 +741,7 @@ fun ProviderDefinitionEditorScreen(
                 label = { Text("Seed Field Name") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
 
             OutlinedTextField(
@@ -782,10 +751,7 @@ fun ProviderDefinitionEditorScreen(
                 placeholder = { Text("gpt|o1|o3") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
 
             OutlinedTextField(
@@ -794,10 +760,7 @@ fun ProviderDefinitionEditorScreen(
                 label = { Text("LiteLLM Prefix (optional)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
 
             // Model list format
@@ -811,10 +774,7 @@ fun ProviderDefinitionEditorScreen(
                         .fillMaxWidth()
                         .clickable { listFormatExpanded = true },
                     readOnly = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
                 DropdownMenu(
                     expanded = listFormatExpanded,
@@ -1056,7 +1016,7 @@ fun ExternalServicesScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFFF9800),
+                        focusedBorderColor = AiColors.Orange,
                         unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )
@@ -1077,7 +1037,7 @@ fun ExternalServicesScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFFF9800),
+                        focusedBorderColor = AiColors.Orange,
                         unfocusedBorderColor = AiColors.BorderUnfocused
                     )
                 )

@@ -418,7 +418,7 @@ private fun UsageModelRow(statWithCost: StatWithCost, onClick: () -> Unit) {
                     color = sourceColor
                 )
             } else {
-                Text("No pricing", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9800))
+                Text("No pricing", style = MaterialTheme.typography.bodySmall, color = AiColors.Orange)
             }
         }
     }
@@ -714,7 +714,7 @@ private fun AddManualOverrideScreen(
                 )
                 Button(
                     onClick = { showProviderSelect = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text("Select", fontSize = 12.sp)
@@ -731,7 +731,7 @@ private fun AddManualOverrideScreen(
                 OutlinedTextField(
                     value = model,
                     onValueChange = { model = it },
-                    placeholder = { Text("Model name", color = Color(0xFF666666)) },
+                    placeholder = { Text("Model name", color = AiColors.TextDim) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -741,7 +741,7 @@ private fun AddManualOverrideScreen(
                 )
                 Button(
                     onClick = { showModelSelect = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text("Select", fontSize = 12.sp)
@@ -834,10 +834,7 @@ private fun CostConfigCard(
                         label = { Text("Input $/1M") },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
                     OutlinedTextField(
                         value = editOutputPrice,
@@ -845,10 +842,7 @@ private fun CostConfigCard(
                         label = { Text("Output $/1M") },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -902,7 +896,7 @@ private fun CostConfigCard(
                     }
                     Row {
                         TextButton(onClick = onRemoveClick) {
-                            Text("Remove", color = Color(0xFFFF5252), fontSize = 12.sp)
+                            Text("Remove", color = AiColors.RedBright, fontSize = 12.sp)
                         }
                         TextButton(onClick = onEditClick) {
                             Text("Edit", color = Color(0xFF64B5F6), fontSize = 12.sp)

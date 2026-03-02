@@ -594,7 +594,7 @@ fun AiReportsScreen(
                     onClick = { showParamsDialog = true },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF8B5CF6)
+                        containerColor = AiColors.Purple
                     )
                 ) {
                     Text(
@@ -667,7 +667,7 @@ fun AiReportsScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF8B5CF6)
+                                        containerColor = AiColors.Purple
                                     )
                                 ) {
                                     Text("Table")
@@ -772,7 +772,7 @@ fun AiReportsScreen(
                         text = "${fmtTotal(totalIn)} / ${fmtTotal(totalOut)}",
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFFFF6B6B)
+                        color = AiColors.Red
                     )
                 }
             }
@@ -837,11 +837,11 @@ fun AiReportsScreen(
                                 }
                                 Text(
                                     text = pricing.text,
-                                    color = if (pricing.isDefault) AiColors.SurfaceDark else Color(0xFFFF6B6B),
+                                    color = if (pricing.isDefault) AiColors.SurfaceDark else AiColors.Red,
                                     fontSize = 10.sp,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     maxLines = 1,
-                                    modifier = if (pricing.isDefault) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                                    modifier = if (pricing.isDefault) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                                 )
                             }
                         }
@@ -908,7 +908,7 @@ fun AiReportsScreen(
                         onClick = onOpenInBrowser,
                         contentPadding = compactButtonPadding,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF8B5CF6)
+                            containerColor = AiColors.Purple
                         )
                     ) {
                         Text("Browser")
@@ -931,7 +931,7 @@ fun AiReportsScreen(
                             onClick = { onNavigateToTrace(currentReportId) },
                             contentPadding = compactButtonPadding,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFF9800)
+                                containerColor = AiColors.Orange
                             )
                         ) {
                             Text("Trace")
@@ -1046,9 +1046,12 @@ fun AiReportsScreen(
                     HorizontalDivider(color = Color(0xFF404040))
 
                     // Show all selected agents with their status
-                    reportsSelectedAgents.mapNotNull { agentId ->
-                        uiState.aiSettings.getAgentById(agentId)
-                    }.sortedBy { it.name.lowercase() }.forEach { agent ->
+                    val sortedAgents = remember(reportsSelectedAgents, uiState.aiSettings) {
+                        reportsSelectedAgents.mapNotNull { agentId ->
+                            uiState.aiSettings.getAgentById(agentId)
+                        }.sortedBy { it.name.lowercase() }
+                    }
+                    sortedAgents.forEach { agent ->
                         val result = reportsAgentResults[agent.id]
                         val cost = agentCosts[agent.id]
                         val tokenUsage = result?.tokenUsage
@@ -1070,7 +1073,7 @@ fun AiReportsScreen(
                                         Text("\u2713", color = AiColors.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     }
                                     else -> {
-                                        Text("\u2717", color = Color(0xFFF44336), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text("\u2717", color = AiColors.RedDark, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     }
                                 }
                             }
@@ -1147,7 +1150,7 @@ fun AiReportsScreen(
                                             Text("\u2713", color = AiColors.Green, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                         }
                                         else -> {
-                                            Text("\u2717", color = Color(0xFFF44336), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text("\u2717", color = AiColors.RedDark, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                         }
                                     }
                                 }

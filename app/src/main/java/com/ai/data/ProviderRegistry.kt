@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.ai.ui.AiConfigExport
-import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 
@@ -81,7 +80,7 @@ object ProviderRegistry {
     }
 
     private fun parseProvidersJson(json: String): List<AiService> {
-        val gson = Gson()
+        val gson = createAiGson()
         val listType = object : TypeToken<List<ProviderDefinition>>() {}.type
         val defs: List<ProviderDefinition> = gson.fromJson(json, listType)
         return defs.map { it.toAiService() }

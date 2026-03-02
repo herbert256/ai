@@ -611,10 +611,7 @@ private fun SettingsMainScreen(
                     placeholder = { Text("user") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 OutlinedTextField(
@@ -627,10 +624,7 @@ private fun SettingsMainScreen(
                     placeholder = { Text("name@example.com") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
             }
         }

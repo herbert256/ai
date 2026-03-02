@@ -211,7 +211,8 @@ fun ApiTestScreen(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                com.ai.data.AiService.entries.sortedBy { it.displayName.lowercase() }.forEach { provider ->
+                val sortedProviders = remember { com.ai.data.AiService.entries.sortedBy { it.displayName.lowercase() } }
+                sortedProviders.forEach { provider ->
                     DropdownMenuItem(
                         text = { Text(provider.displayName) },
                         onClick = {
@@ -236,13 +237,13 @@ fun ApiTestScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
                     unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
             Button(
                 onClick = { showEndpointDialog = true },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text("Select", fontSize = 12.sp)
@@ -257,7 +258,7 @@ fun ApiTestScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
+                focusedBorderColor = AiColors.Purple,
                 unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
@@ -275,7 +276,7 @@ fun ApiTestScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF8B5CF6),
+                    focusedBorderColor = AiColors.Purple,
                     unfocusedBorderColor = AiColors.BorderUnfocused
                 )
             )
@@ -303,7 +304,7 @@ fun ApiTestScreen(
                     }
                 },
                 enabled = !isLoadingModels,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+                colors = ButtonDefaults.buttonColors(containerColor = AiColors.Indigo),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 if (isLoadingModels) {
@@ -327,7 +328,7 @@ fun ApiTestScreen(
                 .fillMaxWidth()
                 .height(150.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
+                focusedBorderColor = AiColors.Purple,
                 unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
@@ -355,7 +356,7 @@ fun ApiTestScreen(
                     )
                     Text(
                         text = if (showParameters) "▲" else "▼",
-                        color = Color(0xFF8B5CF6)
+                        color = AiColors.Purple
                     )
                 }
 
@@ -369,7 +370,7 @@ fun ApiTestScreen(
                         label = { Text("System Prompt") },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF8B5CF6),
+                            focusedBorderColor = AiColors.Purple,
                             unfocusedBorderColor = AiColors.BorderUnfocused
                         ),
                         minLines = 2,
@@ -391,7 +392,7 @@ fun ApiTestScreen(
                             singleLine = true,
                             placeholder = { Text("0.0-2.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF8B5CF6),
+                                focusedBorderColor = AiColors.Purple,
                                 unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
@@ -403,7 +404,7 @@ fun ApiTestScreen(
                             singleLine = true,
                             placeholder = { Text("e.g. 1024", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF8B5CF6),
+                                focusedBorderColor = AiColors.Purple,
                                 unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
@@ -424,7 +425,7 @@ fun ApiTestScreen(
                             singleLine = true,
                             placeholder = { Text("0.0-1.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF8B5CF6),
+                                focusedBorderColor = AiColors.Purple,
                                 unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
@@ -436,7 +437,7 @@ fun ApiTestScreen(
                             singleLine = true,
                             placeholder = { Text("e.g. 40", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF8B5CF6),
+                                focusedBorderColor = AiColors.Purple,
                                 unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
@@ -457,7 +458,7 @@ fun ApiTestScreen(
                             singleLine = true,
                             placeholder = { Text("-2.0 to 2.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF8B5CF6),
+                                focusedBorderColor = AiColors.Purple,
                                 unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
@@ -469,7 +470,7 @@ fun ApiTestScreen(
                             singleLine = true,
                             placeholder = { Text("-2.0 to 2.0", color = Color.Gray) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF8B5CF6),
+                                focusedBorderColor = AiColors.Purple,
                                 unfocusedBorderColor = AiColors.BorderUnfocused
                             )
                         )
@@ -486,7 +487,7 @@ fun ApiTestScreen(
                         singleLine = true,
                         placeholder = { Text("For reproducibility", color = Color.Gray) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF8B5CF6),
+                            focusedBorderColor = AiColors.Purple,
                             unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
@@ -502,7 +503,7 @@ fun ApiTestScreen(
                         singleLine = true,
                         placeholder = { Text("Comma-separated", color = Color.Gray) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF8B5CF6),
+                            focusedBorderColor = AiColors.Purple,
                             unfocusedBorderColor = AiColors.BorderUnfocused
                         )
                     )
@@ -522,7 +523,7 @@ fun ApiTestScreen(
                                 checked = responseFormatJson,
                                 onCheckedChange = { responseFormatJson = it },
                                 colors = CheckboxDefaults.colors(
-                                    checkedColor = Color(0xFF8B5CF6)
+                                    checkedColor = AiColors.Purple
                                 )
                             )
                             Text("JSON Mode", color = Color.White, fontSize = 14.sp)
@@ -535,7 +536,7 @@ fun ApiTestScreen(
                                 checked = searchEnabled,
                                 onCheckedChange = { searchEnabled = it },
                                 colors = CheckboxDefaults.colors(
-                                    checkedColor = Color(0xFF8B5CF6)
+                                    checkedColor = AiColors.Purple
                                 )
                             )
                             Text("Web Search", color = Color.White, fontSize = 14.sp)
@@ -577,7 +578,7 @@ fun ApiTestScreen(
             },
             enabled = prompt.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             Text("Submit")
         }
@@ -608,7 +609,7 @@ fun ApiTestScreen(
                                     showEndpointDialog = false
                                 },
                             colors = CardDefaults.cardColors(
-                                containerColor = if (apiUrl == endpoint.url) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                containerColor = if (apiUrl == endpoint.url) AiColors.Indigo.copy(alpha = 0.3f)
                                 else MaterialTheme.colorScheme.surfaceVariant
                             )
                         ) {
@@ -663,7 +664,7 @@ fun ApiTestScreen(
                                     showModelDialog = false
                                 },
                             colors = CardDefaults.cardColors(
-                                containerColor = if (model == modelName) Color(0xFF6366F1).copy(alpha = 0.3f)
+                                containerColor = if (model == modelName) AiColors.Indigo.copy(alpha = 0.3f)
                                 else MaterialTheme.colorScheme.surfaceVariant
                             )
                         ) {
@@ -819,7 +820,7 @@ fun EditApiRequestScreen(
                 color = Color.White
             ),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF8B5CF6),
+                focusedBorderColor = AiColors.Purple,
                 unfocusedBorderColor = AiColors.BorderUnfocused
             )
         )
@@ -879,7 +880,7 @@ fun EditApiRequestScreen(
             },
             enabled = !isLoading && editableJson.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+            colors = ButtonDefaults.buttonColors(containerColor = AiColors.Purple)
         ) {
             if (isLoading) {
                 CircularProgressIndicator(

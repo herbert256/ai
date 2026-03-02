@@ -100,7 +100,8 @@ fun AiPromptsScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                aiSettings.prompts.sortedBy { it.name.lowercase() }.forEach { prompt ->
+                val sortedPrompts = remember(aiSettings.prompts) { aiSettings.prompts.sortedBy { it.name.lowercase() } }
+                sortedPrompts.forEach { prompt ->
                     // Get the agent for this prompt (filter to active providers)
                     val agent = aiSettings.getAgentForPrompt(prompt)
                     val agentVisible = agent != null && aiSettings.isProviderActive(agent.provider)

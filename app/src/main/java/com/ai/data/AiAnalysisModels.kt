@@ -85,7 +85,7 @@ suspend fun AiAnalysisRepository.testApiConnectionWithJson(
             val jsonElement = com.google.gson.JsonParser().parse(jsonBody)
             if (jsonElement.isJsonObject) {
                 jsonElement.asJsonObject.addProperty("stream", false)
-                com.google.gson.Gson().toJson(jsonElement)
+                createAiGson().toJson(jsonElement)
             } else jsonBody
         } catch (_: Exception) { jsonBody }
 
@@ -125,7 +125,7 @@ suspend fun AiAnalysisRepository.testApiConnectionWithJson(
 
             if (response.isSuccessful) {
                 val responseBody = response.body?.string()
-                val gson = com.google.gson.Gson()
+                val gson = createAiGson()
                 try {
                     val openAiResponse = gson.fromJson(responseBody, OpenAiResponse::class.java)
                     val content = openAiResponse?.choices?.firstOrNull()?.message?.content

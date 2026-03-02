@@ -25,7 +25,7 @@ import androidx.core.content.edit
 import com.ai.data.AiService
 import com.ai.data.ApiTracer
 import com.ai.data.PricingCache
-import com.google.gson.Gson
+import com.ai.data.createAiGson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -46,7 +46,7 @@ private const val KEY_SECOND_PROMPT = "second_prompt"
 private const val DEFAULT_FIRST_PROMPT = "Let's talk about %subject%"
 private const val DEFAULT_SECOND_PROMPT = "What do you think about: %answer%"
 
-private val gson = Gson()
+private val gson = createAiGson()
 
 private fun loadStringList(prefs: android.content.SharedPreferences, key: String): List<String> {
     val json = prefs.getString(key, null) ?: return emptyList()
@@ -197,7 +197,7 @@ fun DualChatSetupScreen(
                         model2SystemPromptId = tmpSystemPromptId
                         savePrefs()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF555555)),
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.TextDisabled),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)
                 ) {
                     Text("⇅ Swap", fontSize = 12.sp, color = Color.White)
@@ -231,7 +231,7 @@ fun DualChatSetupScreen(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                         focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = Color(0xFF555555)
+                        unfocusedBorderColor = AiColors.TextDisabled
                     )
                 )
                 OutlinedTextField(
@@ -245,7 +245,7 @@ fun DualChatSetupScreen(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                         focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = Color(0xFF555555)
+                        unfocusedBorderColor = AiColors.TextDisabled
                     )
                 )
             }
@@ -261,7 +261,7 @@ fun DualChatSetupScreen(
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
                     focusedBorderColor = Color(0xFF4488CC),
-                    unfocusedBorderColor = Color(0xFF555555)
+                    unfocusedBorderColor = AiColors.TextDisabled
                 )
             )
 
@@ -276,14 +276,14 @@ fun DualChatSetupScreen(
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
                     focusedBorderColor = Color(0xFF44AA66),
-                    unfocusedBorderColor = Color(0xFF555555)
+                    unfocusedBorderColor = AiColors.TextDisabled
                 )
             )
 
             Text(
                 "From 3rd on: previous response is sent directly",
                 fontSize = 11.sp,
-                color = Color(0xFF666666)
+                color = AiColors.TextDim
             )
         }
 
@@ -344,7 +344,7 @@ private fun ModelSelectionCard(
     val cardColor = Color(0xFF4488CC)
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A3A4A))
+        colors = CardDefaults.cardColors(containerColor = AiColors.CardBackgroundAlt)
     ) {
         Column(
             modifier = Modifier
@@ -391,7 +391,7 @@ private fun ModelSelectionCard(
                     onClick = { showParamsDialog = true },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (paramsIds.isNotEmpty()) Color(0xFF8B5CF6) else cardColor.copy(alpha = 0.5f)
+                        containerColor = if (paramsIds.isNotEmpty()) AiColors.Purple else cardColor.copy(alpha = 0.5f)
                     ),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                 ) {
@@ -741,7 +741,7 @@ fun DualChatSessionScreen(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
                         focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = Color(0xFF555555)
+                        unfocusedBorderColor = AiColors.TextDisabled
                     )
                 )
                 val extraCount = extraChatsText.toIntOrNull() ?: 0

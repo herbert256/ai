@@ -128,8 +128,10 @@ fun SelectModelScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     val allModels = aiSettings.getModels(provider)
-    val filteredModels = if (searchQuery.isBlank()) allModels
-    else allModels.filter { it.lowercase().contains(searchQuery.lowercase()) }
+    val filteredModels = remember(searchQuery, allModels) {
+        if (searchQuery.isBlank()) allModels
+        else allModels.filter { it.lowercase().contains(searchQuery.lowercase()) }
+    }
 
     Column(
         modifier = Modifier
@@ -157,12 +159,7 @@ fun SelectModelScreen(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search models...") },
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            ),
+            colors = AiColors.outlinedFieldColors(),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -217,7 +214,7 @@ fun SelectModelScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                if (isSelected) Color(0xFF6366F1).copy(alpha = 0.2f)
+                                if (isSelected) AiColors.Indigo.copy(alpha = 0.2f)
                                 else Color.Transparent
                             )
                             .clickable { onSelectModel("") }
@@ -234,7 +231,7 @@ fun SelectModelScreen(
                             Text(
                                 text = aiSettings.getModel(provider),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF666666)
+                                color = AiColors.TextDim
                             )
                         }
                     }
@@ -247,13 +244,13 @@ fun SelectModelScreen(
                 val pricing = PricingCache.getPricing(context, provider, modelName)
                 val isSelected = modelName == currentModel
                 val isDefaultSource = pricing.source == "default"
-                val priceColor = if (isDefaultSource) Color(0xFF666666) else Color(0xFFFF6B6B)
+                val priceColor = if (isDefaultSource) AiColors.TextDim else AiColors.Red
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            if (isSelected) Color(0xFF6366F1).copy(alpha = 0.2f)
+                            if (isSelected) AiColors.Indigo.copy(alpha = 0.2f)
                             else Color.Transparent
                         )
                         .clickable { onSelectModel(modelName) }
@@ -332,12 +329,7 @@ fun SelectProviderScreen(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search providers...") },
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            ),
+            colors = AiColors.outlinedFieldColors(),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -454,12 +446,7 @@ fun SelectAgentScreen(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search agents...") },
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            ),
+            colors = AiColors.outlinedFieldColors(),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -510,7 +497,7 @@ fun SelectAgentScreen(
                 val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
                 val pricing = PricingCache.getPricing(context, agent.provider, effectiveModel)
                 val isDefaultSource = pricing.source == "default"
-                val priceColor = if (isDefaultSource) Color(0xFF666666) else Color(0xFFFF6B6B)
+                val priceColor = if (isDefaultSource) AiColors.TextDim else AiColors.Red
 
                 Row(
                     modifier = Modifier
@@ -600,12 +587,7 @@ fun SelectSwarmScreen(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search swarms...") },
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            ),
+            colors = AiColors.outlinedFieldColors(),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -662,7 +644,7 @@ fun SelectSwarmScreen(
                     totalOutPerMillion += pricing.completionPrice * 1_000_000
                     if (pricing.source != "default") hasRealPricing = true
                 }
-                val priceColor = if (hasRealPricing) Color(0xFFFF6B6B) else Color(0xFF666666)
+                val priceColor = if (hasRealPricing) AiColors.Red else AiColors.TextDim
 
                 Row(
                     modifier = Modifier
@@ -750,12 +732,7 @@ fun SelectFlockScreen(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search flocks...") },
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            ),
+            colors = AiColors.outlinedFieldColors(),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -814,7 +791,7 @@ fun SelectFlockScreen(
                     totalOutPerMillion += pricing.completionPrice * 1_000_000
                     if (pricing.source != "default") hasRealPricing = true
                 }
-                val priceColor = if (hasRealPricing) Color(0xFFFF6B6B) else Color(0xFF666666)
+                val priceColor = if (hasRealPricing) AiColors.Red else AiColors.TextDim
 
                 Row(
                     modifier = Modifier
@@ -898,9 +875,9 @@ fun AiServiceNavigationCard(
             if (showStateDetails) {
                 val stateColor = when (providerState) {
                     "ok" -> AiColors.Green
-                    "error" -> Color(0xFFFF5252)
+                    "error" -> AiColors.RedBright
                     "inactive" -> AiColors.TextTertiary
-                    else -> Color(0xFF555555)
+                    else -> AiColors.TextDisabled
                 }
                 Text(
                     text = providerState,
@@ -1216,7 +1193,7 @@ fun ModelsSection(
                 Button(
                     onClick = onSelectDefaultModel,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF6366F1)
+                        containerColor = AiColors.Indigo
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
@@ -1260,10 +1237,7 @@ fun ModelsSection(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 enabled = !modelsPathNull,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1279,10 +1253,7 @@ fun ModelsSection(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             supportingText = { Text("Only models matching this regex are shown") },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         OutlinedTextField(
@@ -1291,10 +1262,7 @@ fun ModelsSection(
             label = { Text("LiteLLM Prefix") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused
-            )
+            colors = AiColors.outlinedFieldColors()
         )
 
         // Model list format dropdown
@@ -1308,10 +1276,7 @@ fun ModelsSection(
                     .fillMaxWidth()
                     .clickable { listFormatExpanded = true },
                 readOnly = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AiColors.Blue,
-                    unfocusedBorderColor = AiColors.BorderUnfocused
-                )
+                colors = AiColors.outlinedFieldColors()
             )
             DropdownMenu(
                 expanded = listFormatExpanded,
@@ -1371,7 +1336,7 @@ fun ModelsSection(
                         }
                     },
                     enabled = !isTesting,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Orange)
                 ) {
                     Text("Test")
                 }
@@ -1387,7 +1352,7 @@ fun ModelsSection(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                            .background(AiColors.CardBackgroundAlt, shape = MaterialTheme.shapes.small)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1400,7 +1365,7 @@ fun ModelsSection(
                         if (model in testingModels) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
-                                color = Color(0xFFFF9800),
+                                color = AiColors.Orange,
                                 strokeWidth = 2.dp
                             )
                         }
@@ -1409,7 +1374,7 @@ fun ModelsSection(
                             val traceFile = result.second
                             Text(
                                 text = if (result.first) "\u2714" else "\u2716",
-                                color = if (result.first) AiColors.Green else Color(0xFFFF5252),
+                                color = if (result.first) AiColors.Green else AiColors.RedBright,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = if (traceFile != null && onNavigateToTrace != null) {
@@ -1456,7 +1421,7 @@ fun ModelsSection(
                         }
                     },
                     enabled = !isTesting,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                    colors = ButtonDefaults.buttonColors(containerColor = AiColors.Orange)
                 ) {
                     Text("Test")
                 }
@@ -1472,7 +1437,7 @@ fun ModelsSection(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF2A3A4A), shape = MaterialTheme.shapes.small)
+                            .background(AiColors.CardBackgroundAlt, shape = MaterialTheme.shapes.small)
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1480,7 +1445,7 @@ fun ModelsSection(
                         if (model in testingModels) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
-                                color = Color(0xFFFF9800),
+                                color = AiColors.Orange,
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -1490,7 +1455,7 @@ fun ModelsSection(
                             val traceFile = result.second
                             Text(
                                 text = if (result.first) "\u2714" else "\u2716",
-                                color = if (result.first) AiColors.Green else Color(0xFFFF5252),
+                                color = if (result.first) AiColors.Green else AiColors.RedBright,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = if (traceFile != null && onNavigateToTrace != null) {
@@ -1612,7 +1577,7 @@ fun EndpointsSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                if (endpoint.isDefault) Color(0xFF2A4A3A) else Color(0xFF2A3A4A),
+                                if (endpoint.isDefault) Color(0xFF2A4A3A) else AiColors.CardBackgroundAlt,
                                 shape = MaterialTheme.shapes.small
                             )
                             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1793,30 +1758,37 @@ fun SelectAllModelsScreen(
     var providerDropdownExpanded by remember { mutableStateOf(false) }
     var freeOnly by remember { mutableStateOf(false) }
 
-    val allProviderModels = activeServices
-        .flatMap { provider ->
-            aiSettings.getModels(provider).map { model -> provider to model }
+    val sortedModels = remember(activeServices, aiSettings, selectedProvider, searchQuery, freeOnly) {
+        val allProviderModels = activeServices
+            .flatMap { provider ->
+                aiSettings.getModels(provider).map { model -> provider to model }
+            }
+
+        val providerFiltered = if (selectedProvider != null) {
+            allProviderModels.filter { it.first == selectedProvider }
+        } else allProviderModels
+
+        val searchFiltered = if (searchQuery.isBlank()) providerFiltered
+        else providerFiltered.filter { (provider, model) ->
+            provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
+                model.lowercase().contains(searchQuery.lowercase())
         }
 
-    val providerFiltered = if (selectedProvider != null) {
-        allProviderModels.filter { it.first == selectedProvider }
-    } else allProviderModels
+        val finalFiltered = if (freeOnly) {
+            searchFiltered.filter { (provider, model) ->
+                val pricing = PricingCache.getPricing(context, provider, model)
+                pricing.promptPrice == 0.0 && pricing.completionPrice == 0.0
+            }
+        } else searchFiltered
 
-    val searchFiltered = if (searchQuery.isBlank()) providerFiltered
-    else providerFiltered.filter { (provider, model) ->
-        provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
-            model.lowercase().contains(searchQuery.lowercase())
+        finalFiltered.sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
     }
 
-    val filteredModels = if (freeOnly) {
-        searchFiltered.filter { (provider, model) ->
-            val pricing = PricingCache.getPricing(context, provider, model)
-            pricing.promptPrice == 0.0 && pricing.completionPrice == 0.0
+    val allProviderModels = remember(activeServices, aiSettings) {
+        activeServices.flatMap { provider ->
+            aiSettings.getModels(provider).map { model -> provider to model }
         }
-    } else searchFiltered
-
-    val sortedModels = filteredModels
-        .sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
+    }
 
     Column(
         modifier = Modifier
@@ -1864,7 +1836,8 @@ fun SelectAllModelsScreen(
                     text = { Text("All Providers", color = if (selectedProvider == null) AiColors.Blue else Color.White) },
                     onClick = { selectedProvider = null; providerDropdownExpanded = false }
                 )
-                activeServices.sortedBy { it.displayName.lowercase() }.forEach { provider ->
+                val sortedServices = remember(activeServices) { activeServices.sortedBy { it.displayName.lowercase() } }
+                sortedServices.forEach { provider ->
                     val modelCount = aiSettings.getModels(provider).size
                     DropdownMenuItem(
                         text = { Text("${provider.displayName} ($modelCount)", color = if (selectedProvider == provider) AiColors.Blue else Color.White) },
@@ -1882,12 +1855,7 @@ fun SelectAllModelsScreen(
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search models...") },
             singleLine = true,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = AiColors.BorderUnfocused,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            ),
+            colors = AiColors.outlinedFieldColors(),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
@@ -1960,7 +1928,7 @@ fun SelectAllModelsScreen(
             items(sortedModels, key = { "${it.first.id}:${it.second}" }) { (provider, model) ->
                 val pricing = PricingCache.getPricing(context, provider, model)
                 val isDefaultSource = pricing.source == "default"
-                val priceColor = if (isDefaultSource) Color(0xFF666666) else Color(0xFFFF6B6B)
+                val priceColor = if (isDefaultSource) AiColors.TextDim else AiColors.Red
 
                 Row(
                     modifier = Modifier

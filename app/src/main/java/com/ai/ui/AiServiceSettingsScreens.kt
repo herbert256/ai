@@ -16,6 +16,8 @@ import com.ai.data.ApiFormat
 import com.ai.data.EndpointRule
 import kotlinx.coroutines.launch
 
+private val prefsKeySanitizeRegex = Regex("[^a-z0-9_]")
+
 /**
  * Returns the default endpoints for a provider, or an empty list if no defaults.
  */
@@ -468,10 +470,7 @@ fun ProviderSettingsScreen(
                         label = { Text("Display Name") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
 
                     OutlinedTextField(
@@ -480,10 +479,7 @@ fun ProviderSettingsScreen(
                         label = { Text("Base URL") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
 
                     // API Format dropdown
@@ -501,10 +497,7 @@ fun ProviderSettingsScreen(
                                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = defFormatExpanded) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = AiColors.Blue,
-                                unfocusedBorderColor = AiColors.BorderUnfocused
-                            )
+                            colors = AiColors.outlinedFieldColors()
                         )
                         ExposedDropdownMenu(
                             expanded = defFormatExpanded,
@@ -544,23 +537,17 @@ fun ProviderSettingsScreen(
                         label = { Text("Chat Path") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
 
                     OutlinedTextField(
                         value = defPrefsKey,
-                        onValueChange = { defPrefsKey = it.lowercase().replace(Regex("[^a-z0-9_]"), "") },
+                        onValueChange = { defPrefsKey = it.lowercase().replace(prefsKeySanitizeRegex, "") },
                         label = { Text("Preferences Key") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         supportingText = { Text("Used for SharedPreferences storage") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
 
                     // Advanced fields
@@ -570,10 +557,7 @@ fun ProviderSettingsScreen(
                         label = { Text("OpenRouter Name") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
 
                     OutlinedTextField(
@@ -582,10 +566,7 @@ fun ProviderSettingsScreen(
                         label = { Text("Seed Field Name") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
 
                     // Boolean toggles
@@ -720,7 +701,7 @@ fun ProviderSettingsScreen(
             onClick = { showDeleteConfirm = true },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFFF5252)
+                containerColor = AiColors.RedBright
             )
         ) {
             Text("Delete Provider")
@@ -738,7 +719,7 @@ fun ProviderSettingsScreen(
                             showDeleteConfirm = false
                             onDeleteProvider(service)
                         },
-                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF5252))
+                        colors = ButtonDefaults.textButtonColors(contentColor = AiColors.RedBright)
                     ) { Text("Delete") }
                 },
                 dismissButton = {

@@ -101,7 +101,7 @@ fun PromptHistoryScreen(
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
                 focusedBorderColor = AiColors.Blue,
-                unfocusedBorderColor = Color(0xFF555555),
+                unfocusedBorderColor = AiColors.TextDisabled,
                 cursorColor = AiColors.Blue
             ),
             trailingIcon = {

@@ -137,10 +137,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Temperature (0.0 - 2.0)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 // Max Tokens
@@ -150,10 +147,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Max tokens") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 // Top P
@@ -163,10 +157,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Top P (0.0 - 1.0)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 // Top K
@@ -176,10 +167,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Top K") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 // Frequency Penalty
@@ -189,10 +177,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Frequency penalty (-2.0 - 2.0)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 // Presence Penalty
@@ -202,10 +187,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Presence penalty (-2.0 - 2.0)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 // Seed
@@ -215,10 +197,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Seed (for reproducibility)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 // System Prompt
@@ -229,10 +208,7 @@ fun ReportAdvancedParametersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     maxLines = 5,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -274,10 +250,7 @@ fun ReportAdvancedParametersScreen(
                     label = { Text("Search recency (day, week, month, year)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AiColors.Blue,
-                        unfocusedBorderColor = AiColors.BorderUnfocused
-                    )
+                    colors = AiColors.outlinedFieldColors()
                 )
             }
         }

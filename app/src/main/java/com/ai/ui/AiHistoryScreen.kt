@@ -121,13 +121,7 @@ fun AiHistoryScreenNav(
                         label = { Text("Title", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused,
-                            focusedLabelColor = AiColors.Blue,
-                            unfocusedLabelColor = Color.Gray,
-                            cursorColor = Color.White
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
                     OutlinedTextField(
                         value = searchPrompt,
@@ -135,13 +129,7 @@ fun AiHistoryScreenNav(
                         label = { Text("Prompt", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused,
-                            focusedLabelColor = AiColors.Blue,
-                            unfocusedLabelColor = Color.Gray,
-                            cursorColor = Color.White
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
                     OutlinedTextField(
                         value = searchReport,
@@ -149,13 +137,7 @@ fun AiHistoryScreenNav(
                         label = { Text("Report", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AiColors.Blue,
-                            unfocusedBorderColor = AiColors.BorderUnfocused,
-                            focusedLabelColor = AiColors.Blue,
-                            unfocusedLabelColor = Color.Gray,
-                            cursorColor = Color.White
-                        )
+                        colors = AiColors.outlinedFieldColors()
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -448,7 +430,7 @@ private fun AiHistoryReportRow(
                         onDeleteReport()
                     }
                 ) {
-                    Text("Delete", color = Color(0xFFFF6B6B))
+                    Text("Delete", color = AiColors.Red)
                 }
             },
             dismissButton = {
@@ -529,7 +511,7 @@ private fun AiHistoryReportRow(
                     Button(
                         onClick = { openAiReportInChrome(context, report.id, developerMode) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF8B5CF6)
+                            containerColor = AiColors.Purple
                         ),
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)

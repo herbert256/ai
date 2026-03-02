@@ -76,7 +76,8 @@ fun AiFlocksScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { flock ->
+                val sortedFlocks = remember(aiSettings.flocks) { aiSettings.flocks.sortedBy { it.name.lowercase() } }
+                sortedFlocks.forEach { flock ->
                     // Filter to agents with active providers
                     val flockAgents = aiSettings.getAgentsForFlock(flock).filter { agent ->
                         aiSettings.isProviderActive(agent.provider)

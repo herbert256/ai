@@ -15,10 +15,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ai.data.AiService
 import com.ai.data.createAiGson
-import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import java.io.BufferedReader
 import java.io.InputStreamReader
+
+private val gson = createAiGson()
 
 /**
  * Data class for provider settings in JSON export/import.
@@ -399,7 +400,6 @@ fun exportApiKeysToClipboard(context: Context, aiSettings: AiSettings) {
         if (apiKey.isNotBlank()) ApiKeyEntry(service.displayName, apiKey) else null
     }
 
-    val gson = createAiGson()
     val json = gson.toJson(keys)
 
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -475,7 +475,6 @@ fun importApiKeysFromFile(context: Context, uri: Uri, currentSettings: AiSetting
             return null
         }
 
-        val gson = createAiGson()
         val export = gson.fromJson(json, ApiKeysExport::class.java)
 
         if (export.type != "api_keys") {
@@ -716,7 +715,6 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: AiSettin
             return null
         }
 
-        val gson = createAiGson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
         if (export.version !in 11..21) {
@@ -744,7 +742,6 @@ fun importAiConfigFromAsset(context: Context, assetFileName: String, currentSett
         val json = context.assets.open(assetFileName).bufferedReader().use { it.readText() }
         if (json.isBlank()) return null
 
-        val gson = createAiGson()
         val export = gson.fromJson(json, AiConfigExport::class.java)
 
         if (export.version !in 11..21) {

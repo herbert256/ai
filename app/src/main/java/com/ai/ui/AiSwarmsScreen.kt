@@ -75,7 +75,8 @@ fun AiSwarmsScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { swarm ->
+                val sortedSwarms = remember(aiSettings.swarms) { aiSettings.swarms.sortedBy { it.name.lowercase() } }
+                sortedSwarms.forEach { swarm ->
                     // Filter to members with active providers
                     val swarmMembers = swarm.members.filter { member ->
                         aiSettings.isProviderActive(member.provider)

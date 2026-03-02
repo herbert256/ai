@@ -26,7 +26,7 @@ fun HelpScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1A1A1A))
+            .background(AiColors.DisabledBackground)
             .padding(16.dp)
     ) {
         AiTitleBar(

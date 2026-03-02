@@ -47,7 +47,7 @@ internal fun ReportSelectFlockDialog(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AiColors.Blue, unfocusedBorderColor = AiColors.BorderUnfocused, focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    colors = AiColors.outlinedFieldColors(),
                     trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AiColors.TextTertiary, fontSize = 12.sp) } })
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyColumn(modifier = Modifier.weight(1f)) {
@@ -62,9 +62,9 @@ internal fun ReportSelectFlockDialog(
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectFlock(flock) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(flock.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             Text("${agents.size}", fontSize = 11.sp, color = AiColors.TextTertiary, modifier = Modifier.padding(end = 6.dp))
-                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AiColors.Red else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
-                        HorizontalDivider(color = Color(0xFF555555), thickness = 1.dp)
+                        HorizontalDivider(color = AiColors.TextDisabled, thickness = 1.dp)
                     }
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AiColors.Blue) }
@@ -93,7 +93,7 @@ internal fun ReportSelectAgentDialog(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AiColors.Blue, unfocusedBorderColor = AiColors.BorderUnfocused, focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    colors = AiColors.outlinedFieldColors(),
                     trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AiColors.TextTertiary, fontSize = 12.sp) } })
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyColumn(modifier = Modifier.weight(1f)) {
@@ -106,9 +106,9 @@ internal fun ReportSelectAgentDialog(
                                 Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text("${agent.provider.displayName} \u00B7 $model", fontSize = 11.sp, color = AiColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AiColors.Red else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
-                        HorizontalDivider(color = Color(0xFF555555), thickness = 1.dp)
+                        HorizontalDivider(color = AiColors.TextDisabled, thickness = 1.dp)
                     }
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AiColors.Blue) }
@@ -135,7 +135,7 @@ internal fun ReportSelectSwarmDialog(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AiColors.Blue, unfocusedBorderColor = AiColors.BorderUnfocused, focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    colors = AiColors.outlinedFieldColors(),
                     trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AiColors.TextTertiary, fontSize = 12.sp) } })
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyColumn(modifier = Modifier.weight(1f)) {
@@ -149,9 +149,9 @@ internal fun ReportSelectSwarmDialog(
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectSwarm(swarm) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(swarm.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             Text("${swarm.members.size}", fontSize = 11.sp, color = AiColors.TextTertiary, modifier = Modifier.padding(end = 6.dp))
-                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AiColors.Red else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
-                        HorizontalDivider(color = Color(0xFF555555), thickness = 1.dp)
+                        HorizontalDivider(color = AiColors.TextDisabled, thickness = 1.dp)
                     }
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AiColors.Blue) }
@@ -177,7 +177,7 @@ internal fun ReportSelectProviderDialog(
                 activeProviders.forEach { provider ->
                     Text(provider.displayName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1,
                         modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }.padding(vertical = 8.dp, horizontal = 4.dp))
-                    HorizontalDivider(color = Color(0xFF555555), thickness = 1.dp)
+                    HorizontalDivider(color = AiColors.TextDisabled, thickness = 1.dp)
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AiColors.Blue) }
             }
@@ -204,7 +204,7 @@ internal fun ReportSelectModelDialog(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AiColors.Blue, unfocusedBorderColor = AiColors.BorderUnfocused, focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    colors = AiColors.outlinedFieldColors(),
                     trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AiColors.TextTertiary, fontSize = 12.sp) } })
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyColumn(modifier = Modifier.weight(1f)) {
@@ -213,9 +213,9 @@ internal fun ReportSelectModelDialog(
                         val real = p.source != "DEFAULT"
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AiColors.Red else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
-                        HorizontalDivider(color = Color(0xFF555555), thickness = 1.dp)
+                        HorizontalDivider(color = AiColors.TextDisabled, thickness = 1.dp)
                     }
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AiColors.Blue) }
@@ -266,7 +266,8 @@ internal fun ReportSelectAllModelsDialog(
                         DropdownMenuItem(
                             text = { Text("All Providers", color = if (selectedProvider == null) AiColors.Blue else Color.White, fontSize = 13.sp) },
                             onClick = { selectedProvider = null; providerDropdownExpanded = false })
-                        activeServices.sortedBy { it.displayName.lowercase() }.forEach { provider ->
+                        val sortedServices = remember(activeServices) { activeServices.sortedBy { it.displayName.lowercase() } }
+                        sortedServices.forEach { provider ->
                             val modelCount = aiSettings.getModels(provider).size
                             DropdownMenuItem(
                                 text = { Text("${provider.displayName} ($modelCount)", color = if (selectedProvider == provider) AiColors.Blue else Color.White, fontSize = 13.sp) },
@@ -276,7 +277,7 @@ internal fun ReportSelectAllModelsDialog(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AiColors.Blue, unfocusedBorderColor = AiColors.BorderUnfocused, focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                    colors = AiColors.outlinedFieldColors(),
                     trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AiColors.TextTertiary, fontSize = 12.sp) } })
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyColumn(modifier = Modifier.weight(1f)) {
@@ -290,9 +291,9 @@ internal fun ReportSelectAllModelsDialog(
                                     Text(provider.displayName, fontSize = 11.sp, color = AiColors.TextTertiary, maxLines = 1)
                                 }
                             }
-                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) Color(0xFFFF6B6B) else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AiColors.Red else AiColors.SurfaceDark, modifier = if (!real) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
-                        HorizontalDivider(color = Color(0xFF555555), thickness = 1.dp)
+                        HorizontalDivider(color = AiColors.TextDisabled, thickness = 1.dp)
                     }
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AiColors.Blue) }

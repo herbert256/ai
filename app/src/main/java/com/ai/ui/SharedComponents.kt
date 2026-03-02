@@ -65,6 +65,18 @@ object AiColors {
 
     // Success count
     val CountGreen = Color(0xFF00E676)
+
+    /** Shared OutlinedTextField color configuration used across ~57 call sites. */
+    @Composable
+    fun outlinedFieldColors() = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = Blue,
+        unfocusedBorderColor = BorderUnfocused,
+        focusedTextColor = Color.White,
+        unfocusedTextColor = Color.White,
+        cursorColor = Color.White,
+        focusedLabelColor = Blue,
+        unfocusedLabelColor = Color.Gray
+    )
 }
 
 /**

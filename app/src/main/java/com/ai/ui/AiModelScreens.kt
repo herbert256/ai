@@ -215,9 +215,9 @@ fun ModelSearchScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFFFF9800),
-                unfocusedBorderColor = Color(0xFF555555),
-                focusedLabelColor = Color(0xFFFF9800)
+                focusedBorderColor = AiColors.Orange,
+                unfocusedBorderColor = AiColors.TextDisabled,
+                focusedLabelColor = AiColors.Orange
             )
         )
 
@@ -232,12 +232,12 @@ fun ModelSearchScreen(
                 CircularProgressIndicator(
                     modifier = Modifier.size(16.dp),
                     strokeWidth = 2.dp,
-                    color = Color(0xFFFF9800)
+                    color = AiColors.Orange
                 )
                 Text(
                     text = "Loading models from API...",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFFF9800)
+                    color = AiColors.Orange
                 )
             }
         } else {
@@ -328,11 +328,11 @@ private fun ModelSearchResultCard(
             val pricing = formatPricingPerMillion(context, item.provider, item.modelName)
             Text(
                 text = pricing.text,
-                color = if (pricing.isDefault) AiColors.SurfaceDark else Color(0xFFFF6B6B),
+                color = if (pricing.isDefault) AiColors.SurfaceDark else AiColors.Red,
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 maxLines = 1,
-                modifier = if (pricing.isDefault) Modifier.background(Color(0xFF666666), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                modifier = if (pricing.isDefault) Modifier.background(AiColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
             )
         }
     }
@@ -521,7 +521,7 @@ fun ModelInfoScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = Color(0xFFFF9800))
+                    CircularProgressIndicator(color = AiColors.Orange)
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Fetching model information...",
@@ -532,7 +532,7 @@ fun ModelInfoScreen(
         } else if (errorMessage != null) {
             Text(
                 text = errorMessage ?: "",
-                color = Color(0xFFFF6B6B)
+                color = AiColors.Red
             )
         } else if (modelInfo != null) {
             val info = modelInfo ?: return
@@ -544,7 +544,7 @@ fun ModelInfoScreen(
                 item {
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF2A3A4A)
+                            containerColor = AiColors.CardBackgroundAlt
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -572,7 +572,7 @@ fun ModelInfoScreen(
                             Text(
                                 text = "Source: ${info.provider.displayName}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF666666)
+                                color = AiColors.TextDim
                             )
                         }
                     }
@@ -708,7 +708,7 @@ fun ModelInfoScreen(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = Color(0xFFFF9800),
+                                    color = AiColors.Orange,
                                     strokeWidth = 2.dp
                                 )
                                 Text(
@@ -766,7 +766,7 @@ private fun ModelInfoSection(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color(0xFFFF9800)
+                color = AiColors.Orange
             )
             Spacer(modifier = Modifier.height(8.dp))
             content()
@@ -775,7 +775,7 @@ private fun ModelInfoSection(
                 Text(
                     text = source,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF666666)
+                    color = AiColors.TextDim
                 )
             }
         }
