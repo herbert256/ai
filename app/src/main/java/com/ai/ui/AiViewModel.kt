@@ -86,6 +86,13 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        reportGenerationJob?.cancel()
+        reportGenerationJob = null
+        ApiTracer.currentReportId = null
+    }
+
     // ========== Settings Management ==========
 
     fun updateGeneralSettings(settings: GeneralSettings) {
@@ -819,10 +826,6 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setReportAdvancedParameters(params: AiAgentParameters?) {
         _uiState.update { it.copy(reportAdvancedParameters = params) }
-    }
-
-    fun clearReportAdvancedParameters() {
-        _uiState.update { it.copy(reportAdvancedParameters = null) }
     }
 
     suspend fun sendChatMessage(

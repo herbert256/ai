@@ -260,18 +260,20 @@ fun AiUsageScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Group stats by provider, sorted by total cost descending
-                val groupedByProvider = statsWithCosts.groupBy { it.stat.provider }
-                    .mapValues { (_, models) ->
-                        ProviderCostGroup(
-                            models = models.sortedByDescending { it.totalCost ?: 0.0 },
-                            totalCost = models.mapNotNull { it.totalCost }.sum(),
-                            totalInputCost = models.mapNotNull { it.inputCost }.sum(),
-                            totalOutputCost = models.mapNotNull { it.outputCost }.sum(),
-                            totalCalls = models.sumOf { it.stat.callCount }
-                        )
-                    }
-                    .toList()
-                    .sortedByDescending { it.second.totalCost }
+                val groupedByProvider = remember(statsWithCosts) {
+                    statsWithCosts.groupBy { it.stat.provider }
+                        .mapValues { (_, models) ->
+                            ProviderCostGroup(
+                                models = models.sortedByDescending { it.totalCost ?: 0.0 },
+                                totalCost = models.mapNotNull { it.totalCost }.sum(),
+                                totalInputCost = models.mapNotNull { it.inputCost }.sum(),
+                                totalOutputCost = models.mapNotNull { it.outputCost }.sum(),
+                                totalCalls = models.sumOf { it.stat.callCount }
+                            )
+                        }
+                        .toList()
+                        .sortedByDescending { it.second.totalCost }
+                }
 
                 var expandedProviders by remember { mutableStateOf(setOf<com.ai.data.AiService>()) }
 

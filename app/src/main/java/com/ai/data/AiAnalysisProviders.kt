@@ -1,6 +1,5 @@
 package com.ai.data
 
-import com.ai.ui.AiAgentParameters
 
 /**
  * Unified analysis method for OpenAI-format providers that support the Responses API.
@@ -45,7 +44,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithChatGptResponsesApi(service
             AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        val errorBody = response.errorBody()?.string()
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         val errorDetail = if (errorBody != null) "API error: ${response.code()} ${response.message()} - $errorBody" else "API error: ${response.code()} ${response.message()}"
         AiAnalysisResponse(service, null, errorDetail, httpHeaders = headers, httpStatusCode = statusCode)
     }
@@ -92,7 +91,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithClaude(service: AiService, 
             AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        val errorBody = response.errorBody()?.string()
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         val errorMsg = if (errorBody != null) "API error: ${response.code()} ${response.message()} - $errorBody" else "API error: ${response.code()} ${response.message()}"
         AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
     }
@@ -160,7 +159,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithGemini(service: AiService, 
             AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        val errorBody = response.errorBody()?.string()
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         android.util.Log.e("GeminiAPI", "Error body: $errorBody")
         AiAnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
     }
@@ -251,7 +250,7 @@ internal suspend fun AiAnalysisRepository.analyzeWithOpenAiCompatible(
             AiAnalysisResponse(service, null, errorMsg, httpHeaders = headers, httpStatusCode = statusCode)
         }
     } else {
-        val errorBody = response.errorBody()?.string()
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         val errorDetail = if (errorBody != null) "API error: ${response.code()} ${response.message()} - $errorBody" else "API error: ${response.code()} ${response.message()}"
         AiAnalysisResponse(service, null, errorDetail, httpHeaders = headers, httpStatusCode = statusCode)
     }

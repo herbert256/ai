@@ -72,16 +72,18 @@ object PricingCache {
      * Save OpenRouter pricing data to cache.
      */
     fun saveOpenRouterPricing(context: Context, pricing: Map<String, ModelPricing>) {
-        openRouterPricing = pricing
-        openRouterTimestamp = System.currentTimeMillis()
+        synchronized(lock) {
+            openRouterPricing = pricing
+            openRouterTimestamp = System.currentTimeMillis()
 
-        val prefs = getPrefs(context)
-        prefs.edit()
-            .putString(KEY_OPENROUTER_PRICING, gson.toJson(pricing))
-            .putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp)
-            .apply()
+            val prefs = getPrefs(context)
+            prefs.edit()
+                .putString(KEY_OPENROUTER_PRICING, gson.toJson(pricing))
+                .putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp)
+                .apply()
 
-        android.util.Log.d("PricingCache", "Saved ${pricing.size} OpenRouter prices")
+            android.util.Log.d("PricingCache", "Saved ${pricing.size} OpenRouter prices")
+        }
     }
 
     // ============================================================================
@@ -661,7 +663,7 @@ object PricingCache {
     }
 
     // In-memory cache for supported parameters
-    private var supportedParametersCache: Map<String, List<String>>? = null
+    @Volatile private var supportedParametersCache: Map<String, List<String>>? = null
 
     /**
      * Get supported parameters for a specific provider/model combination.

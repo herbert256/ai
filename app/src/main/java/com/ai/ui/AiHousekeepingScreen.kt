@@ -78,8 +78,6 @@ fun HousekeepingScreen(
 
     // State for Start clean
     var showStartCleanConfirm by remember { mutableStateOf(false) }
-    var isStartingClean by remember { mutableStateOf(false) }
-    var startCleanProgressText by remember { mutableStateOf("") }
 
     // File picker launcher for importing model costs CSV
     val costsCsvPickerLauncher = rememberLauncherForActivityResult(

@@ -1,9 +1,6 @@
 package com.ai.data
 
 import android.content.Context
-import com.ai.ui.ChatMessage
-import com.ai.ui.ChatParameters
-import com.ai.ui.ChatSession
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -24,9 +21,12 @@ object ChatHistoryManager {
      * Must be called before using any other methods.
      */
     fun init(context: Context) {
-        historyDir = File(context.filesDir, HISTORY_DIR).also { dir ->
-            if (!dir.exists()) {
-                dir.mkdirs()
+        lock.withLock {
+            if (historyDir != null) return
+            historyDir = File(context.filesDir, HISTORY_DIR).also { dir ->
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
             }
         }
     }

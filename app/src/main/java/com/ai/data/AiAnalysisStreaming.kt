@@ -17,8 +17,8 @@ fun AiAnalysisRepository.sendChatMessageStream(
     service: AiService,
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters,
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters,
     baseUrl: String? = null
 ): Flow<String> = flow {
     // Use custom URL or fall back to provider default
@@ -208,8 +208,8 @@ internal fun AiAnalysisRepository.parseGeminiSseStream(responseBody: ResponseBod
 internal fun AiAnalysisRepository.streamChatClaude(
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters,
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters,
     baseUrl: String
 ): Flow<String> = flow {
     val claudeMessages = messages
@@ -249,8 +249,8 @@ internal fun AiAnalysisRepository.streamChatClaude(
 internal fun AiAnalysisRepository.streamChatGemini(
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters,
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters,
     baseUrl: String
 ): Flow<String> = flow {
     val contents = messages
@@ -301,8 +301,8 @@ internal fun AiAnalysisRepository.streamChatOpenAiCompatible(
     service: AiService,
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters,
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters,
     baseUrl: String
 ): Flow<String> = flow {
     if (usesResponsesApi(service, model)) {

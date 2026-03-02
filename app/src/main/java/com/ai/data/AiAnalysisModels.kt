@@ -1,6 +1,5 @@
 package com.ai.data
 
-import com.ai.ui.AiAgentParameters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -228,9 +227,8 @@ suspend fun AiAnalysisRepository.fetchModelsOpenAiCompatible(service: AiService,
             }
         }
 
-        // Apply provider-specific model filter from modelFilter regex
-        val filtered = service.modelFilter?.let { filter ->
-            val regex = filter.toRegex(RegexOption.IGNORE_CASE)
+        // Apply provider-specific model filter from cached regex
+        val filtered = service.modelFilterRegex?.let { regex ->
             modelIds.filter { id -> regex.containsMatchIn(id) }
         } ?: modelIds
 

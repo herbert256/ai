@@ -11,8 +11,8 @@ suspend fun AiAnalysisRepository.sendChatMessage(
     service: AiService,
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters
 ): String = withContext(Dispatchers.IO) {
     when (service.apiFormat) {
         ApiFormat.ANTHROPIC -> sendChatMessageClaude(service, apiKey, model, messages, params)
@@ -21,7 +21,7 @@ suspend fun AiAnalysisRepository.sendChatMessage(
     }
 }
 
-internal fun AiAnalysisRepository.convertToOpenAiMessages(messages: List<com.ai.ui.ChatMessage>): List<OpenAiMessage> {
+internal fun AiAnalysisRepository.convertToOpenAiMessages(messages: List<com.ai.data.ChatMessage>): List<OpenAiMessage> {
     return messages.map { msg -> OpenAiMessage(role = msg.role, content = msg.content) }
 }
 
@@ -33,8 +33,8 @@ internal suspend fun AiAnalysisRepository.sendChatMessageOpenAiCompatible(
     service: AiService,
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters
 ): String {
     // Check if this model uses the Responses API (OpenAI gpt-5.x, o3, o4)
     if (usesResponsesApi(service, model)) {
@@ -77,8 +77,8 @@ internal suspend fun AiAnalysisRepository.sendChatMessageResponsesApi(
     service: AiService,
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters
 ): String {
     val api = AiApiFactory.createOpenAiApiWithBaseUrl(service.baseUrl)
     val systemPrompt = messages.find { it.role == "system" }?.content
@@ -117,7 +117,7 @@ internal suspend fun AiAnalysisRepository.sendChatMessageResponsesApi(
         }
         return content ?: throw Exception("No response content")
     } else {
-        val errorBody = response.errorBody()?.string()
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
     }
 }
@@ -126,8 +126,8 @@ internal suspend fun AiAnalysisRepository.sendChatMessageClaude(
     service: AiService,
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters
 ): String {
     val claudeApi = AiApiFactory.createClaudeApiWithBaseUrl(service.baseUrl)
     val claudeMessages = messages
@@ -158,8 +158,8 @@ internal suspend fun AiAnalysisRepository.sendChatMessageGemini(
     service: AiService,
     apiKey: String,
     model: String,
-    messages: List<com.ai.ui.ChatMessage>,
-    params: com.ai.ui.ChatParameters
+    messages: List<com.ai.data.ChatMessage>,
+    params: com.ai.data.ChatParameters
 ): String {
     val geminiApi = AiApiFactory.createGeminiApiWithBaseUrl(service.baseUrl)
     val contents = messages

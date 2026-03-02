@@ -5,11 +5,10 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Keep Stockfish JNI
--keep class com.chessreplay.stockfish.** { *; }
-
-# Keep Retrofit models
--keep class com.chessreplay.data.** { *; }
+# Keep API models (Retrofit/Gson serialization)
+-keep class com.ai.data.** { *; }
+-keep class com.ai.ui.*Export { *; }
+-keep class com.ai.ui.*Export$* { *; }
 
 # Keep Gson serialization
 -keepattributes Signature

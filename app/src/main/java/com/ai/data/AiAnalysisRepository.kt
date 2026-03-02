@@ -1,7 +1,6 @@
 package com.ai.data
 
 import android.content.Context
-import com.ai.ui.AiAgentParameters
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -168,11 +167,11 @@ class AiAnalysisRepository {
      * Override parameters take precedence for non-null values.
      */
     private fun mergeParameters(
-        agentParams: com.ai.ui.AiAgentParameters,
-        overrideParams: com.ai.ui.AiAgentParameters?
-    ): com.ai.ui.AiAgentParameters {
+        agentParams: AiAgentParameters,
+        overrideParams: AiAgentParameters?
+    ): AiAgentParameters {
         if (overrideParams == null) return agentParams
-        return com.ai.ui.AiAgentParameters(
+        return AiAgentParameters(
             temperature = overrideParams.temperature ?: agentParams.temperature,
             maxTokens = overrideParams.maxTokens ?: agentParams.maxTokens,
             topP = overrideParams.topP ?: agentParams.topP,
@@ -198,15 +197,15 @@ class AiAnalysisRepository {
      * @return Filtered parameters with unsupported parameters set to null/default
      */
     private fun filterParametersBySupported(
-        params: com.ai.ui.AiAgentParameters,
+        params: AiAgentParameters,
         supportedParams: List<String>?
-    ): com.ai.ui.AiAgentParameters {
+    ): AiAgentParameters {
         // If no supported params info, return original (use all parameters)
         if (supportedParams == null) return params
 
         // Map our parameter names to OpenRouter parameter names
         // OpenRouter uses: max_tokens, temperature, top_p, top_k, frequency_penalty, presence_penalty, stop, seed, etc.
-        return com.ai.ui.AiAgentParameters(
+        return AiAgentParameters(
             temperature = if ("temperature" in supportedParams) params.temperature else null,
             maxTokens = if ("max_tokens" in supportedParams) params.maxTokens else null,
             topP = if ("top_p" in supportedParams) params.topP else null,
@@ -233,8 +232,8 @@ class AiAnalysisRepository {
         agent: com.ai.ui.AiAgent,
         content: String,
         prompt: String,
-        agentResolvedParams: com.ai.ui.AiAgentParameters = com.ai.ui.AiAgentParameters(),
-        overrideParams: com.ai.ui.AiAgentParameters? = null,
+        agentResolvedParams: AiAgentParameters = AiAgentParameters(),
+        overrideParams: AiAgentParameters? = null,
         context: Context? = null
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (agent.apiKey.isBlank()) {
@@ -286,7 +285,7 @@ class AiAnalysisRepository {
     suspend fun analyzePlayerWithAgent(
         agent: com.ai.ui.AiAgent,
         prompt: String,
-        agentResolvedParams: com.ai.ui.AiAgentParameters = com.ai.ui.AiAgentParameters()
+        agentResolvedParams: AiAgentParameters = AiAgentParameters()
     ): AiAnalysisResponse = withContext(Dispatchers.IO) {
         if (agent.apiKey.isBlank()) {
             return@withContext AiAnalysisResponse(
@@ -358,7 +357,7 @@ class AiAnalysisRepository {
     /**
      * Clamp parameter values to valid API ranges.
      */
-    internal fun validateParams(params: com.ai.ui.AiAgentParameters): com.ai.ui.AiAgentParameters {
+    internal fun validateParams(params: AiAgentParameters): AiAgentParameters {
         return params.copy(
             temperature = params.temperature?.coerceIn(0f, 2f),
             topP = params.topP?.coerceIn(0f, 1f),

@@ -77,24 +77,8 @@ enum class AiParameter {
  */
 val ALL_AGENT_PARAMETERS: Set<AiParameter> = AiParameter.entries.toSet()
 
-/**
- * Configuration for AI agent parameters with defaults.
- */
-data class AiAgentParameters(
-    val temperature: Float? = null,           // null means use provider default
-    val maxTokens: Int? = null,
-    val topP: Float? = null,
-    val topK: Int? = null,
-    val frequencyPenalty: Float? = null,
-    val presencePenalty: Float? = null,
-    val systemPrompt: String? = null,
-    val stopSequences: List<String>? = null,
-    val seed: Int? = null,
-    val responseFormatJson: Boolean = false,
-    val searchEnabled: Boolean = false,
-    val returnCitations: Boolean = true,
-    val searchRecency: String? = null         // "day", "week", "month", "year"
-)
+// These model classes are defined in com.ai.data.AiDataModels and re-exported here for compatibility
+typealias AiAgentParameters = com.ai.data.AiAgentParameters
 
 /**
  * Built-in default endpoints for providers with multiple or custom endpoints.
@@ -696,62 +680,8 @@ data class AiUsageStats(
     val key: String get() = "${provider.id}::$model"
 }
 
-/**
- * A single message in a chat conversation.
- */
-data class ChatMessage(
-    val role: String,      // "system", "user", or "assistant"
-    val content: String,
-    val timestamp: Long = System.currentTimeMillis()
-)
-
-/**
- * A saved chat session with all messages.
- */
-data class ChatSession(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val provider: com.ai.data.AiService,
-    val model: String,
-    val messages: List<ChatMessage>,
-    val parameters: ChatParameters = ChatParameters(),
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
-) {
-    // Preview text from first user message
-    val preview: String
-        get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"
-}
-
-/**
- * Parameters for a chat session (subset of AiAgentParameters used for chat).
- */
-data class ChatParameters(
-    val systemPrompt: String = "",
-    val temperature: Float? = null,
-    val maxTokens: Int? = null,
-    val topP: Float? = null,
-    val topK: Int? = null,
-    val frequencyPenalty: Float? = null,
-    val presencePenalty: Float? = null,
-    val searchEnabled: Boolean = false,
-    val returnCitations: Boolean = true,
-    val searchRecency: String? = null
-)
-
-/**
- * Configuration for a dual-chat session where two AI models converse with each other.
- */
-data class DualChatConfig(
-    val model1Provider: com.ai.data.AiService,
-    val model1Name: String,
-    val model1SystemPrompt: String = "",
-    val model1Params: ChatParameters = ChatParameters(),
-    val model2Provider: com.ai.data.AiService,
-    val model2Name: String,
-    val model2SystemPrompt: String = "",
-    val model2Params: ChatParameters = ChatParameters(),
-    val subject: String,
-    val interactionCount: Int = 10,
-    val firstPrompt: String = "Let's talk about %subject%",
-    val secondPrompt: String = "What do you think about: %answer%"
-)
+// These model classes are defined in com.ai.data.AiDataModels and re-exported here for compatibility
+typealias ChatMessage = com.ai.data.ChatMessage
+typealias ChatParameters = com.ai.data.ChatParameters
+typealias ChatSession = com.ai.data.ChatSession
+typealias DualChatConfig = com.ai.data.DualChatConfig

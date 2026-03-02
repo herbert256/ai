@@ -91,6 +91,9 @@ class AiService(
     val defaultModelSource: String? = null,
     val endpointRules: List<EndpointRule> = emptyList()
 ) {
+    /** Cached compiled regex for modelFilter. */
+    val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
+
     override fun equals(other: Any?): Boolean = other is AiService && other.id == id
     override fun hashCode(): Int = id.hashCode()
     override fun toString(): String = id
