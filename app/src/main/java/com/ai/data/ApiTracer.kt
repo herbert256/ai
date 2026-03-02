@@ -38,6 +38,7 @@ data class ApiTrace(
     val timestamp: Long,
     val hostname: String,
     val reportId: String? = null,
+    val model: String? = null,
     val request: TraceRequest,
     val response: TraceResponse
 )
@@ -50,7 +51,8 @@ data class TraceFileInfo(
     val hostname: String,
     val timestamp: Long,
     val statusCode: Int,
-    val reportId: String? = null
+    val reportId: String? = null,
+    val model: String? = null
 )
 
 /**
@@ -126,7 +128,8 @@ object ApiTracer {
                         hostname = trace.hostname,
                         timestamp = trace.timestamp,
                         statusCode = trace.response.statusCode,
-                        reportId = trace.reportId
+                        reportId = trace.reportId,
+                        model = trace.model
                     )
                 } catch (e: Exception) {
                     null
@@ -303,11 +306,20 @@ class TracingInterceptor : Interceptor {
             body = responseBody
         )
 
+        // Extract model from request body
+        val model = requestBody?.let { body ->
+            try {
+                val json = com.google.gson.JsonParser().parse(body).asJsonObject
+                json.get("model")?.asString
+            } catch (_: Exception) { null }
+        }
+
         // Create and save the trace
         val trace = ApiTrace(
             timestamp = timestamp,
             hostname = hostname,
             reportId = ApiTracer.currentReportId,
+            model = model,
             request = traceRequest,
             response = traceResponse
         )

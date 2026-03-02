@@ -22,223 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AiService
 
-/**
- * Screen displaying AI usage statistics per provider and model combination.
- */
-@Composable
-fun AiStatisticsScreen(
-    onBack: () -> Unit,
-    onNavigateHome: () -> Unit = onBack
-) {
-    BackHandler { onBack() }
-
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
-
-    var stats by remember { mutableStateOf(settingsPrefs.loadUsageStats()) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp)
-    ) {
-        AiTitleBar(
-            title = "AI Statistics",
-            onBackClick = onBack,
-            onAiClick = onNavigateHome
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (stats.isEmpty()) {
-            // No statistics yet
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF2A2A2A)
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "\uD83D\uDCCA",
-                        fontSize = 48.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "No statistics yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Generate AI reports to start tracking usage statistics.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFAAAAAA)
-                    )
-                }
-            }
-        } else {
-            // Summary card
-            val totalCalls = stats.values.sumOf { it.callCount }
-            val totalInput = stats.values.sumOf { it.inputTokens }
-            val totalOutput = stats.values.sumOf { it.outputTokens }
-            val totalTokens = stats.values.sumOf { it.totalTokens }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF2A3A4A)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Total Usage",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6B9BFF)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        StatValue(label = "Calls", value = formatNumber(totalCalls))
-                        StatValue(label = "Input", value = formatTokens(totalInput))
-                        StatValue(label = "Output", value = formatTokens(totalOutput))
-                        StatValue(label = "Total", value = formatTokens(totalTokens))
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Clear button
-            OutlinedButton(
-                onClick = {
-                    settingsPrefs.clearUsageStats()
-                    stats = emptyMap()
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Clear Statistics")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // List of provider+model stats
-            val sortedStats = stats.values.sortedWith(
-                compareBy({ it.provider.displayName }, { it.model })
-            )
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(sortedStats) { stat ->
-                    StatisticsCard(stat = stat)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatValue(label: String, value: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFAAAAAA)
-        )
-    }
-}
-
-@Composable
-private fun StatisticsCard(stat: AiUsageStats) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A2A)
-        ),
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            // Provider and model
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = stat.provider.displayName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6B9BFF)
-                    )
-                    Text(
-                        text = stat.model,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFAAAAAA)
-                    )
-                }
-                Text(
-                    text = "${stat.callCount} calls",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Token usage
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                TokenStat(label = "Input", value = stat.inputTokens)
-                TokenStat(label = "Output", value = stat.outputTokens)
-                TokenStat(label = "Total", value = stat.totalTokens)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TokenStat(label: String, value: Long) {
-    Column {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888)
-        )
-        Text(
-            text = formatTokens(value),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFFCCCCCC)
-        )
-    }
-}
-
 private fun formatNumber(value: Int): String {
     return when {
         value >= 1_000_000 -> String.format("%.1fM", value / 1_000_000.0)
@@ -256,11 +39,11 @@ private fun formatTokens(value: Long): String {
 }
 
 /**
- * Screen displaying AI usage costs based on multi-source pricing.
- * Uses PricingCache for weekly-cached OpenRouter pricing data.
+ * Combined AI Usage screen showing both statistics and costs in one place.
+ * Groups by provider with expandable cards showing per-model details.
  */
 @Composable
-fun AiCostsScreen(
+fun AiUsageScreen(
     openRouterApiKey: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack
@@ -272,23 +55,20 @@ fun AiCostsScreen(
     val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
     val scope = rememberCoroutineScope()
 
-    val stats = remember {
-        settingsPrefs.loadUsageStats()
-    }
+    var stats by remember { mutableStateOf(settingsPrefs.loadUsageStats()) }
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
-    var pricingSource by remember { mutableStateOf("") }
-    var cacheAge by remember { mutableStateOf("") }
     var pricingReady by remember { mutableStateOf(false) }
 
-    // Function to load/refresh pricing
+    // Trace overlay state
+    var showTraceHostname by remember { mutableStateOf<String?>(null) }
+    var showTraceModel by remember { mutableStateOf<String?>(null) }
+    var showTraceDetail by remember { mutableStateOf<String?>(null) }
+
+    // Pricing load/refresh function
     suspend fun loadPricing(forceRefresh: Boolean = false) {
         val pricingCache = com.ai.data.PricingCache
-
-        // Ensure LiteLLM pricing is loaded
         pricingCache.refreshLiteLLMPricing(context)
-
-        // Check if we need to refresh OpenRouter pricing
         if (forceRefresh || pricingCache.needsOpenRouterRefresh(context)) {
             if (openRouterApiKey.isNotBlank()) {
                 val pricing = pricingCache.fetchOpenRouterPricing(openRouterApiKey)
@@ -297,17 +77,33 @@ fun AiCostsScreen(
                 }
             }
         }
-
-        // Update UI state
-        pricingSource = pricingCache.getPricingStats(context)
-        cacheAge = pricingCache.getOpenRouterCacheAge(context)
         pricingReady = true
     }
 
-    // Load pricing data on first launch
     LaunchedEffect(Unit) {
         loadPricing()
         isLoading = false
+    }
+
+    // Trace overlays
+    if (showTraceDetail != null) {
+        TraceDetailScreen(
+            filename = showTraceDetail!!,
+            onBack = { showTraceDetail = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (showTraceHostname != null) {
+        TraceListScreen(
+            onBack = { showTraceHostname = null; showTraceModel = null },
+            onNavigateHome = onNavigateHome,
+            onSelectTrace = { filename -> showTraceDetail = filename },
+            onClearTraces = { },
+            hostnameFilter = showTraceHostname,
+            modelFilter = showTraceModel
+        )
+        return
     }
 
     Column(
@@ -317,7 +113,7 @@ fun AiCostsScreen(
             .padding(16.dp)
     ) {
         AiTitleBar(
-            title = "AI Costs",
+            title = "AI Usage",
             onBackClick = onBack,
             onAiClick = onNavigateHome
         )
@@ -331,10 +127,7 @@ fun AiCostsScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = Color(0xFF4CAF50))
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Loading pricing data...",
-                            color = Color(0xFFAAAAAA)
-                        )
+                        Text("Loading pricing data...", color = Color(0xFFAAAAAA))
                     }
                 }
             }
@@ -344,45 +137,37 @@ fun AiCostsScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A))
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(text = "💰", fontSize = 48.sp)
+                        Text(text = "\uD83D\uDCCA", fontSize = 48.sp)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No usage data",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White
-                        )
+                        Text("No usage data yet", style = MaterialTheme.typography.titleMedium, color = Color.White)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Generate AI reports to start tracking costs.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFFAAAAAA)
-                        )
+                        Text("Generate AI reports or chat to start tracking usage.", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFAAAAAA))
                     }
                 }
             }
             pricingReady -> {
                 val pricingCache = com.ai.data.PricingCache
 
-                // Calculate costs for each stat using cached pricing (always returns a value)
+                // Calculate costs for all stats
                 val statsWithCosts = stats.values.map { stat ->
                     val pricing = pricingCache.getPricing(context, stat.provider, stat.model)
                     val inputCost = stat.inputTokens * pricing.promptPrice
                     val outputCost = stat.outputTokens * pricing.completionPrice
-                    val totalCost = inputCost + outputCost
-                    StatWithCost(stat, inputCost, outputCost, totalCost, true, pricing.source)
+                    StatWithCost(stat, inputCost, outputCost, inputCost + outputCost, true, pricing.source)
                 }
 
+                // Totals
+                val totalCalls = stats.values.sumOf { it.callCount }
+                val totalInput = stats.values.sumOf { it.inputTokens }
+                val totalOutput = stats.values.sumOf { it.outputTokens }
                 val totalCost = statsWithCosts.sumOf { it.totalCost ?: 0.0 }
                 val totalInputCost = statsWithCosts.sumOf { it.inputCost ?: 0.0 }
                 val totalOutputCost = statsWithCosts.sumOf { it.outputCost ?: 0.0 }
-                val pricedCount = statsWithCosts.size
 
-                // Summary card
+                // Summary card with both tokens and cost
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF2A4A3A))
@@ -394,10 +179,10 @@ fun AiCostsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Total Estimated Cost",
+                                text = "Total Usage",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF4CAF50)
+                                color = Color(0xFF6B9BFF)
                             )
                             // Refresh button
                             TextButton(
@@ -419,39 +204,60 @@ fun AiCostsScreen(
                                         strokeWidth = 2.dp
                                     )
                                 } else {
-                                    Text("↻ Refresh", color = Color(0xFF64B5F6), fontSize = 11.sp)
+                                    Text("\u21BB Refresh", color = Color(0xFF64B5F6), fontSize = 11.sp)
                                 }
                             }
                         }
+                        // Cost total
                         Text(
                             text = formatCurrency(totalCost),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
-                            color = Color.White
+                            color = Color(0xFF4CAF50)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
+                        // Token and cost breakdown
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
+                                Text("Calls", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text(formatNumber(totalCalls), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Column {
                                 Text("Input", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text(formatTokens(totalInput), color = Color(0xFFCCCCCC), fontSize = 10.sp)
                                 Text(formatCurrency(totalInputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                             Column {
                                 Text("Output", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
+                                Text(formatTokens(totalOutput), color = Color(0xFFCCCCCC), fontSize = 10.sp)
                                 Text(formatCurrency(totalOutputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                             Column {
                                 Text("Models", style = MaterialTheme.typography.labelSmall, color = Color(0xFFAAAAAA))
-                                Text("$pricedCount priced", color = Color(0xFFCCCCCC), fontSize = 10.sp)
+                                Text("${statsWithCosts.size}", color = Color(0xFFCCCCCC), fontSize = 10.sp)
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Clear button
+                OutlinedButton(
+                    onClick = {
+                        settingsPrefs.clearUsageStats()
+                        stats = emptyMap()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Clear Statistics")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Group stats by provider, sorted by total cost descending
                 val groupedByProvider = statsWithCosts.groupBy { it.stat.provider }
@@ -467,14 +273,13 @@ fun AiCostsScreen(
                     .toList()
                     .sortedByDescending { it.second.totalCost }
 
-                // Track expanded providers
                 var expandedProviders by remember { mutableStateOf(setOf<com.ai.data.AiService>()) }
 
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(groupedByProvider) { (provider, group) ->
-                        ProviderCostCard(
+                        UsageProviderCard(
                             provider = provider,
                             group = group,
                             isExpanded = provider in expandedProviders,
@@ -483,6 +288,13 @@ fun AiCostsScreen(
                                     expandedProviders - provider
                                 } else {
                                     expandedProviders + provider
+                                }
+                            },
+                            onModelClick = { stat ->
+                                val hostname = try { java.net.URL(stat.provider.baseUrl).host } catch (_: Exception) { null }
+                                hostname?.let {
+                                    showTraceHostname = it
+                                    showTraceModel = stat.model
                                 }
                             }
                         )
@@ -494,35 +306,24 @@ fun AiCostsScreen(
 }
 
 /**
- * Group of costs for a provider.
- */
-data class ProviderCostGroup(
-    val models: List<StatWithCost>,
-    val totalCost: Double,
-    val totalInputCost: Double,
-    val totalOutputCost: Double,
-    val totalCalls: Int
-)
-
-/**
- * Expandable card showing provider costs.
+ * Expandable provider card for the combined Usage screen.
+ * Shows provider total cost + calls in header, per-model details when expanded.
  */
 @Composable
-private fun ProviderCostCard(
+private fun UsageProviderCard(
     provider: com.ai.data.AiService,
     group: ProviderCostGroup,
     isExpanded: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onModelClick: (AiUsageStats) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2A2A)
-        ),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
         shape = RoundedCornerShape(6.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column {
-            // Header row (always visible) - only provider name and cost
+            // Header row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -536,7 +337,7 @@ private fun ProviderCostCard(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = if (isExpanded) "▼" else "▶",
+                        text = if (isExpanded) "\u25BC" else "\u25B6",
                         color = Color(0xFF888888),
                         fontSize = 12.sp
                     )
@@ -546,6 +347,12 @@ private fun ProviderCostCard(
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF6B9BFF)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${group.totalCalls} calls",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF888888)
                     )
                 }
                 Text(
@@ -565,7 +372,10 @@ private fun ProviderCostCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     group.models.forEach { statWithCost ->
-                        CompactModelCostRow(statWithCost = statWithCost)
+                        UsageModelRow(
+                            statWithCost = statWithCost,
+                            onClick = { onModelClick(statWithCost.stat) }
+                        )
                     }
                 }
             }
@@ -574,15 +384,17 @@ private fun ProviderCostCard(
 }
 
 /**
- * Compact row showing model cost within expanded provider.
+ * Row showing model usage details within expanded provider card.
+ * Clickable to show API traces for that model.
  */
 @Composable
-private fun CompactModelCostRow(statWithCost: StatWithCost) {
+private fun UsageModelRow(statWithCost: StatWithCost, onClick: () -> Unit) {
     val stat = statWithCost.stat
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -593,24 +405,10 @@ private fun CompactModelCostRow(statWithCost: StatWithCost) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "${stat.callCount} calls",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF888888)
-                )
-                Text(
-                    text = "In: ${formatTokens(stat.inputTokens)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF888888)
-                )
-                Text(
-                    text = "Out: ${formatTokens(stat.outputTokens)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF888888)
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("${stat.callCount} calls", style = MaterialTheme.typography.labelSmall, color = Color(0xFF888888))
+                Text("In: ${formatTokens(stat.inputTokens)}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF888888))
+                Text("Out: ${formatTokens(stat.outputTokens)}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF888888))
             }
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -634,17 +432,22 @@ private fun CompactModelCostRow(statWithCost: StatWithCost) {
                     color = sourceColor
                 )
             } else {
-                Text(
-                    text = "No pricing",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFFF9800)
-                )
+                Text("No pricing", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9800))
             }
         }
     }
 }
 
-// Pricing lookup is now handled by com.ai.data.PricingCache
+/**
+ * Group of costs for a provider.
+ */
+data class ProviderCostGroup(
+    val models: List<StatWithCost>,
+    val totalCost: Double,
+    val totalInputCost: Double,
+    val totalOutputCost: Double,
+    val totalCalls: Int
+)
 
 data class StatWithCost(
     val stat: AiUsageStats,

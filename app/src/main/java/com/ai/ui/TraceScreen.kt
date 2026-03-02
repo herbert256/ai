@@ -250,12 +250,19 @@ fun TraceListScreen(
     onNavigateHome: () -> Unit = onBack,
     onSelectTrace: (String) -> Unit,
     onClearTraces: () -> Unit,
-    reportId: String? = null
+    reportId: String? = null,
+    hostnameFilter: String? = null,
+    modelFilter: String? = null
 ) {
-    var traceFiles by remember(reportId) {
+    var traceFiles by remember(reportId, hostnameFilter, modelFilter) {
         mutableStateOf(
-            if (reportId != null) ApiTracer.getTraceFilesForReport(reportId)
-            else ApiTracer.getTraceFiles()
+            when {
+                reportId != null -> ApiTracer.getTraceFilesForReport(reportId)
+                hostnameFilter != null -> ApiTracer.getTraceFiles().filter {
+                    it.hostname == hostnameFilter && (modelFilter == null || it.model == modelFilter)
+                }
+                else -> ApiTracer.getTraceFiles()
+            }
         )
     }
     var currentPage by remember { mutableIntStateOf(0) }
@@ -291,7 +298,12 @@ fun TraceListScreen(
 
         Column(modifier = Modifier.fillMaxSize()) {
             AiTitleBar(
-                title = if (reportId != null) "Report Traces" else "API Trace Log",
+                title = when {
+                    reportId != null -> "Report Traces"
+                    modelFilter != null -> "Traces: $modelFilter"
+                    hostnameFilter != null -> "Traces: $hostnameFilter"
+                    else -> "API Trace Log"
+                },
                 onBackClick = onBack,
                 onAiClick = onNavigateHome
             )

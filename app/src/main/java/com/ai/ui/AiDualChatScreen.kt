@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Context
 import com.ai.data.AiService
+import com.ai.data.ApiTracer
 import com.ai.data.PricingCache
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
@@ -449,6 +450,31 @@ fun DualChatSessionScreen(
 ) {
     val config = viewModel.uiState.collectAsState().value.dualChatConfig ?: return
 
+    val sessionId = remember { "dualchat_${System.currentTimeMillis()}" }
+
+    // Trace overlay state
+    var showTraceList by remember { mutableStateOf(false) }
+    var showTraceDetail by remember { mutableStateOf<String?>(null) }
+
+    if (showTraceDetail != null) {
+        TraceDetailScreen(
+            filename = showTraceDetail!!,
+            onBack = { showTraceDetail = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (showTraceList) {
+        TraceListScreen(
+            onBack = { showTraceList = false },
+            onNavigateHome = onNavigateHome,
+            onSelectTrace = { filename -> showTraceDetail = filename },
+            onClearTraces = { viewModel.clearTraces() },
+            reportId = sessionId
+        )
+        return
+    }
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -499,6 +525,7 @@ fun DualChatSessionScreen(
             isRunning = true
             isStopped = false
             errorMessage = null
+            ApiTracer.currentReportId = sessionId
 
             try {
                 while (currentInteraction < targetInteractions) {
@@ -558,6 +585,7 @@ fun DualChatSessionScreen(
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Unknown error"
             } finally {
+                ApiTracer.currentReportId = null
                 thinkingModel = null
                 isRunning = false
                 isStopped = true
@@ -685,6 +713,7 @@ fun DualChatSessionScreen(
                 Button(
                     onClick = {
                         chatJob?.cancel()
+                        ApiTracer.currentReportId = null
                         isRunning = false
                         isStopped = true
                         thinkingModel = null
@@ -725,6 +754,13 @@ fun DualChatSessionScreen(
                     )
                 ) {
                     Text("Chat $extraCount more", fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = { showTraceList = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC8800)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("Trace", fontWeight = FontWeight.Bold)
                 }
             }
         }

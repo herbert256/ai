@@ -28,8 +28,7 @@ object NavRoutes {
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_REPORTS = "ai_reports"
-    const val AI_STATISTICS = "ai_statistics"
-    const val AI_COSTS = "ai_costs"
+    const val AI_USAGE = "ai_usage"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
@@ -187,11 +186,10 @@ fun AiNavHost(
         composable(NavRoutes.AI) {
             AiHubScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
-                onNavigateToDeveloperOptions = { navController.navigate(NavRoutes.DEVELOPER_OPTIONS) },
+                onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
-                onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
-                onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS) },
+                onNavigateToUsage = { navController.navigate(NavRoutes.AI_USAGE) },
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
@@ -225,14 +223,6 @@ fun AiNavHost(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
-            )
-        }
-
-        composable(NavRoutes.DEVELOPER_OPTIONS) {
-            DeveloperOptionsScreen(
-                onBackToHome = navigateHome,
-                onNavigateToApiTest = { navController.navigate(NavRoutes.AI_API_TEST) },
-                onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) }
             )
         }
 
@@ -342,16 +332,9 @@ fun AiNavHost(
             )
         }
 
-        composable(NavRoutes.AI_STATISTICS) {
-            AiStatisticsScreen(
-                onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
-            )
-        }
-
-        composable(NavRoutes.AI_COSTS) {
+        composable(NavRoutes.AI_USAGE) {
             val uiState by viewModel.uiState.collectAsState()
-            AiCostsScreen(
+            AiUsageScreen(
                 openRouterApiKey = com.ai.data.AiService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome

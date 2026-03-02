@@ -38,7 +38,7 @@ fun AiPromptsScreen(
             .padding(16.dp)
     ) {
         AiTitleBar(
-            title = "AI Prompts",
+            title = "Internal Prompts",
             onBackClick = onBackToAiSetup,
             onAiClick = onBackToHome
         )

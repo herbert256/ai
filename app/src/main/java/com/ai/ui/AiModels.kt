@@ -5,7 +5,7 @@ import com.ai.data.AiAnalysisResponse
 // General app settings
 data class GeneralSettings(
     val userName: String = "user",
-    val developerMode: Boolean = false,
+    val developerMode: Boolean = true,
     val huggingFaceApiKey: String = "",
     val openRouterApiKey: String = "",
     val fullScreenMode: Boolean = false,

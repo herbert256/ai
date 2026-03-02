@@ -23,11 +23,10 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AiHubScreen(
     onNavigateToSettings: () -> Unit,
-    onNavigateToDeveloperOptions: () -> Unit,
+    onNavigateToTraces: () -> Unit,
     onNavigateToHelp: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
-    onNavigateToStatistics: () -> Unit,
-    onNavigateToCosts: () -> Unit,
+    onNavigateToUsage: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
@@ -55,10 +54,8 @@ fun AiHubScreen(
     val cardSpacing = 12.dp
 
     // Count cards that will be shown (all cards always shown, some may be disabled)
-    var cardCount = 9  // AI Reports, AI Chat, AI Models, AI Statistics, AI Costs, AI Setup, AI Housekeeping, Settings, Help
-    val extraSpacing = if (uiState.generalSettings.developerMode) 64.dp else 32.dp  // 32dp before Settings + 32dp before Developer Options
-
-    if (uiState.generalSettings.developerMode) cardCount += 1  // Developer Options
+    val cardCount = 9  // AI Reports, AI Chat, AI Models, AI Usage, AI API Traces, AI Setup, AI Housekeeping, Settings, Help
+    val extraSpacing = 32.dp  // 32dp before Settings
 
     // Calculate total height needed for cards
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + extraSpacing
@@ -97,9 +94,9 @@ fun AiHubScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Cards that require statistics data (shown grayed out if no data)
-            HubCard(icon = "\uD83D\uDCCA", title = "AI Statistics", onClick = onNavigateToStatistics, enabled = hasStatisticsData)
+            HubCard(icon = "\uD83D\uDCC8", title = "AI Usage", onClick = onNavigateToUsage, enabled = hasStatisticsData)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCB0", title = "AI Costs", onClick = onNavigateToCosts, enabled = hasStatisticsData)
+            HubCard(icon = "🐞", title = "AI API Traces", onClick = onNavigateToTraces)
             Spacer(modifier = Modifier.height(12.dp))
 
             // AI Setup always shown and enabled
@@ -113,12 +110,6 @@ fun AiHubScreen(
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
-
-            // Developer Options card (developer mode only)
-            if (uiState.generalSettings.developerMode) {
-                Spacer(modifier = Modifier.height(32.dp))
-                HubCard(icon = "\uD83D\uDC1E", title = "Developer Options", onClick = onNavigateToDeveloperOptions)
-            }
         }
     }
 }

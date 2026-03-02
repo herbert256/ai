@@ -722,18 +722,18 @@ fun HousekeepingScreen(
                         Text("Statistics", fontSize = 12.sp)
                     }
                     Button(
-                        onClick = { showCleanupDaysDialog = "traces" },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text("API Trace", fontSize = 12.sp)
-                    }
-                    Button(
                         onClick = { showCleanupDaysDialog = "prompts" },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text("Prompts", fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { showCleanupDaysDialog = "traces" },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B0000)),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text("API Trace", fontSize = 12.sp)
                     }
                 }
             }

@@ -28,6 +28,7 @@ import com.ai.data.ApiFormat
 fun AiSetupScreen(
     aiSettings: AiSettings,
     developerMode: Boolean = false,
+    huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
@@ -282,6 +283,16 @@ fun AiSetupScreen(
             onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) }
         )
 
+        // Internal Prompts card
+        val configuredPrompts = aiSettings.prompts.size
+        AiSetupNavigationCard(
+            title = "Internal Prompts",
+            description = "Internal prompts for AI-powered features",
+            icon = "📝",
+            count = "$configuredPrompts configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
+        )
+
         // Costs card
         val manualPricingCount = remember(aiSettings) {
             com.ai.data.PricingCache.getAllManualPricing(context).size
@@ -292,6 +303,16 @@ fun AiSetupScreen(
             icon = "💰",
             count = "$manualPricingCount configured",
             onClick = onNavigateToCostConfig
+        )
+
+        // External Services card
+        val externalCount = listOf(huggingFaceApiKey, openRouterApiKey).count { it.isNotBlank() }
+        AiSetupNavigationCard(
+            title = "External Services",
+            description = "Hugging Face and OpenRouter API keys",
+            icon = "🔑",
+            count = "$externalCount configured",
+            onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) }
         )
 
     }
@@ -982,5 +1003,90 @@ fun ProviderDefinitionEditorScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+/**
+ * External Services screen for Hugging Face and OpenRouter API keys.
+ */
+@Composable
+fun ExternalServicesScreen(
+    huggingFaceApiKey: String,
+    openRouterApiKey: String,
+    onSaveHuggingFaceApiKey: (String) -> Unit,
+    onSaveOpenRouterApiKey: (String) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var hfKey by remember { mutableStateOf(huggingFaceApiKey) }
+    var orKey by remember { mutableStateOf(openRouterApiKey) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AiTitleBar(
+            title = "External Services",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = hfKey,
+                    onValueChange = {
+                        hfKey = it
+                        onSaveHuggingFaceApiKey(it)
+                    },
+                    label = { Text("Hugging Face API Key") },
+                    placeholder = { Text("hf_...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFF9800),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+                Text(
+                    text = "Used for fetching model info. Get your token at huggingface.co/settings/tokens",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFAAAAAA)
+                )
+
+                OutlinedTextField(
+                    value = orKey,
+                    onValueChange = {
+                        orKey = it
+                        onSaveOpenRouterApiKey(it)
+                    },
+                    label = { Text("OpenRouter API Key") },
+                    placeholder = { Text("sk-or-...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFF9800),
+                        unfocusedBorderColor = Color(0xFF444444)
+                    )
+                )
+                Text(
+                    text = "Used for AI Housekeeping. Get your key at openrouter.ai/settings/keys",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFAAAAAA)
+                )
+            }
+        }
     }
 }

@@ -757,9 +757,6 @@ fun performStartClean(
         }
     }
 
-    onProgress?.invoke("Deleting API traces...")
-    com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
-
     onProgress?.invoke("Clearing prompts...")
     settingsPrefs.clearPromptHistory()
     settingsPrefs.clearLastAiReportPrompt()
@@ -767,4 +764,7 @@ fun performStartClean(
 
     onProgress?.invoke("Clearing statistics...")
     settingsPrefs.clearUsageStats()
+
+    onProgress?.invoke("Deleting API traces...")
+    com.ai.data.ApiTracer.deleteTracesOlderThan(cutoffTime)
 }

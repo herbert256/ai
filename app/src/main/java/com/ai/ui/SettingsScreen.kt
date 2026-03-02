@@ -39,7 +39,8 @@ enum class SettingsSubScreen {
     AI_EDIT_PARAMETERS, // Edit existing parameters
     AI_SYSTEM_PROMPTS,      // AI System Prompts CRUD
     AI_ADD_SYSTEM_PROMPT,   // Add new system prompt
-    AI_EDIT_SYSTEM_PROMPT   // Edit existing system prompt
+    AI_EDIT_SYSTEM_PROMPT,  // Edit existing system prompt
+    AI_EXTERNAL_SERVICES    // External Services (HuggingFace, OpenRouter)
 }
 
 /**
@@ -122,9 +123,9 @@ fun SettingsScreen(
             SettingsSubScreen.AI_FLOCKS -> {
                 currentSubScreen = SettingsSubScreen.AI_SETUP
             }
-            // AI Prompts goes back to MAIN (General Settings)
+            // AI Prompts goes back to AI_SETUP
             SettingsSubScreen.AI_PROMPTS -> {
-                currentSubScreen = SettingsSubScreen.MAIN
+                currentSubScreen = SettingsSubScreen.AI_SETUP
             }
             // AI Parameters goes back to AI_SETUP
             SettingsSubScreen.AI_PARAMETERS -> {
@@ -153,6 +154,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SYSTEM_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_ADD_SYSTEM_PROMPT,
             SettingsSubScreen.AI_EDIT_SYSTEM_PROMPT -> currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+            SettingsSubScreen.AI_EXTERNAL_SERVICES -> currentSubScreen = SettingsSubScreen.AI_SETUP
             else -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
@@ -199,6 +201,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_SETUP -> AiSetupScreen(
             aiSettings = aiSettings,
             developerMode = generalSettings.developerMode,
+            huggingFaceApiKey = generalSettings.huggingFaceApiKey,
             openRouterApiKey = generalSettings.openRouterApiKey,
             onBackToSettings = {
                 // If AI_SETUP is the initial screen (accessed from home), go home
@@ -520,6 +523,16 @@ fun SettingsScreen(
                 onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.AI_EXTERNAL_SERVICES -> {
+            ExternalServicesScreen(
+                huggingFaceApiKey = generalSettings.huggingFaceApiKey,
+                openRouterApiKey = generalSettings.openRouterApiKey,
+                onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
+                onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+                onBack = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+                onNavigateHome = onNavigateHome
+            )
+        }
     }
 }
 
@@ -536,7 +549,6 @@ private fun SettingsMainScreen(
     onNavigate: (SettingsSubScreen) -> Unit = {}
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
-    var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
     var huggingFaceApiKey by remember { mutableStateOf(generalSettings.huggingFaceApiKey) }
     var openRouterApiKey by remember { mutableStateOf(generalSettings.openRouterApiKey) }
     var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
@@ -546,7 +558,6 @@ private fun SettingsMainScreen(
     fun saveSettings() {
         onSave(generalSettings.copy(
             userName = userName.ifBlank { "user" },
-            developerMode = developerMode,
             huggingFaceApiKey = huggingFaceApiKey,
             openRouterApiKey = openRouterApiKey,
             fullScreenMode = fullScreenMode,
@@ -624,68 +635,6 @@ private fun SettingsMainScreen(
             }
         }
 
-        // External Services card
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "External Services",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-
-                OutlinedTextField(
-                    value = huggingFaceApiKey,
-                    onValueChange = {
-                        huggingFaceApiKey = it
-                        saveSettings()
-                    },
-                    label = { Text("Hugging Face API Key") },
-                    placeholder = { Text("hf_...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFFF9800),
-                        unfocusedBorderColor = Color(0xFF444444)
-                    )
-                )
-                Text(
-                    text = "Used for fetching model info. Get your token at huggingface.co/settings/tokens",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
-                )
-
-                OutlinedTextField(
-                    value = openRouterApiKey,
-                    onValueChange = {
-                        openRouterApiKey = it
-                        saveSettings()
-                    },
-                    label = { Text("OpenRouter API Key") },
-                    placeholder = { Text("sk-or-...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFFF9800),
-                        unfocusedBorderColor = Color(0xFF444444)
-                    )
-                )
-                Text(
-                    text = "Used for AI Housekeeping. Get your key at openrouter.ai/settings/keys",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFAAAAAA)
-                )
-            }
-        }
-
         // Display settings card
         Card(
             colors = CardDefaults.cardColors(
@@ -750,40 +699,9 @@ private fun SettingsMainScreen(
                     )
                 }
 
-                // Developer mode toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Developer mode", color = Color.White)
-                        Text(
-                            text = "Enable developer features",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFAAAAAA)
-                        )
-                    }
-                    Switch(
-                        checked = developerMode,
-                        onCheckedChange = {
-                            developerMode = it
-                            saveSettings()
-                        }
-                    )
-                }
             }
         }
 
-        // Prompts card
-        val configuredPrompts = aiSettings.prompts.size
-        AiSetupNavigationCard(
-            title = "Prompts",
-            description = "Internal prompts for AI-powered features",
-            icon = "📝",
-            count = "$configuredPrompts configured",
-            onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) }
-        )
     }
 }
 

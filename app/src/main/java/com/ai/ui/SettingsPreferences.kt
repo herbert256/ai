@@ -22,7 +22,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun loadGeneralSettings(): GeneralSettings {
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
-            developerMode = prefs.getBoolean(KEY_DEVELOPER_MODE, false),
+            developerMode = true,
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
             fullScreenMode = prefs.getBoolean(KEY_FULL_SCREEN_MODE, false),
@@ -34,7 +34,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun saveGeneralSettings(settings: GeneralSettings) {
         prefs.edit()
             .putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
-            .putBoolean(KEY_DEVELOPER_MODE, settings.developerMode)
             .putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
             .putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
             .putBoolean(KEY_FULL_SCREEN_MODE, settings.fullScreenMode)
