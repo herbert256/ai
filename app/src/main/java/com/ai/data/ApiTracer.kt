@@ -11,6 +11,9 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Data class representing a traced API request
@@ -65,6 +68,8 @@ object ApiTracer {
     private val gson = createAiGson(prettyPrint = true)
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US)
         .withZone(ZoneId.systemDefault())
+    private val lock = ReentrantLock()
+    private val fileSequence = AtomicLong(0)
     @Volatile
     var isTracingEnabled: Boolean = false
 
@@ -76,9 +81,11 @@ object ApiTracer {
      * Must be called before using any other methods.
      */
     fun init(context: Context) {
-        traceDir = File(context.filesDir, TRACE_DIR).also { dir ->
-            if (!dir.exists()) {
-                dir.mkdirs()
+        lock.withLock {
+            traceDir = File(context.filesDir, TRACE_DIR).also { dir ->
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
             }
         }
     }
@@ -89,19 +96,22 @@ object ApiTracer {
     fun saveTrace(trace: ApiTrace) {
         if (!isTracingEnabled) return
 
-        val dir = traceDir ?: return
-        if (!dir.exists()) {
-            dir.mkdirs()
-        }
+        lock.withLock {
+            val dir = traceDir ?: return
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
 
-        val timestamp = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
-        val filename = "${trace.hostname}_$timestamp.json"
-        val file = File(dir, filename)
+            val timestamp = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
+            val sequence = fileSequence.incrementAndGet().toString(36)
+            val filename = "${trace.hostname}_${timestamp}_${sequence}.json"
+            val file = File(dir, filename)
 
-        try {
-            file.writeText(gson.toJson(trace))
-        } catch (e: Exception) {
-            android.util.Log.e("ApiTracer", "Failed to save trace: ${e.message}", e)
+            try {
+                file.writeText(gson.toJson(trace))
+            } catch (e: Exception) {
+                android.util.Log.e("ApiTracer", "Failed to save trace: ${e.message}", e)
+            }
         }
     }
 
@@ -109,28 +119,30 @@ object ApiTracer {
      * Get list of all trace files, sorted by timestamp (most recent first).
      */
     fun getTraceFiles(): List<TraceFileInfo> {
-        val dir = traceDir ?: return emptyList()
-        if (!dir.exists()) return emptyList()
+        return lock.withLock {
+            val dir = traceDir ?: return emptyList()
+            if (!dir.exists()) return emptyList()
 
-        return dir.listFiles()
-            ?.filter { it.extension == "json" }
-            ?.mapNotNull { file ->
-                try {
-                    val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
-                    TraceFileInfo(
-                        filename = file.name,
-                        hostname = trace.hostname,
-                        timestamp = trace.timestamp,
-                        statusCode = trace.response.statusCode,
-                        reportId = trace.reportId,
-                        model = trace.model
-                    )
-                } catch (e: Exception) {
-                    null
+            dir.listFiles()
+                ?.filter { it.extension == "json" }
+                ?.mapNotNull { file ->
+                    try {
+                        val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
+                        TraceFileInfo(
+                            filename = file.name,
+                            hostname = trace.hostname,
+                            timestamp = trace.timestamp,
+                            statusCode = trace.response.statusCode,
+                            reportId = trace.reportId,
+                            model = trace.model
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
-            }
-            ?.sortedByDescending { it.timestamp }
-            ?: emptyList()
+                ?.sortedByDescending { it.timestamp }
+                ?: emptyList()
+        }
     }
 
     /**
@@ -144,14 +156,16 @@ object ApiTracer {
      * Read a specific trace file by filename.
      */
     fun readTraceFile(filename: String): ApiTrace? {
-        val dir = traceDir ?: return null
-        val file = File(dir, filename)
-        if (!file.exists()) return null
+        return lock.withLock {
+            val dir = traceDir ?: return null
+            val file = File(dir, filename)
+            if (!file.exists()) return null
 
-        return try {
-            gson.fromJson(file.readText(), ApiTrace::class.java)
-        } catch (e: Exception) {
-            null
+            try {
+                gson.fromJson(file.readText(), ApiTrace::class.java)
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 
@@ -159,14 +173,16 @@ object ApiTracer {
      * Get raw JSON content of a trace file.
      */
     fun readTraceFileRaw(filename: String): String? {
-        val dir = traceDir ?: return null
-        val file = File(dir, filename)
-        if (!file.exists()) return null
+        return lock.withLock {
+            val dir = traceDir ?: return null
+            val file = File(dir, filename)
+            if (!file.exists()) return null
 
-        return try {
-            file.readText()
-        } catch (e: Exception) {
-            null
+            try {
+                file.readText()
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 
@@ -174,12 +190,14 @@ object ApiTracer {
      * Clear all trace files.
      */
     fun clearTraces() {
-        val dir = traceDir ?: return
-        if (!dir.exists()) return
+        lock.withLock {
+            val dir = traceDir ?: return
+            if (!dir.exists()) return
 
-        dir.listFiles()?.forEach { file ->
-            if (file.extension == "json") {
-                file.delete()
+            dir.listFiles()?.forEach { file ->
+                if (file.extension == "json") {
+                    file.delete()
+                }
             }
         }
     }
@@ -189,35 +207,39 @@ object ApiTracer {
      * Returns the number of traces deleted.
      */
     fun deleteTracesOlderThan(cutoffTimestamp: Long): Int {
-        val dir = traceDir ?: return 0
-        if (!dir.exists()) return 0
+        return lock.withLock {
+            val dir = traceDir ?: return 0
+            if (!dir.exists()) return 0
 
-        var deletedCount = 0
-        dir.listFiles()?.forEach { file ->
-            if (file.extension == "json") {
-                try {
-                    val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
-                    if (trace.timestamp < cutoffTimestamp) {
-                        if (file.delete()) {
-                            deletedCount++
+            var deletedCount = 0
+            dir.listFiles()?.forEach { file ->
+                if (file.extension == "json") {
+                    try {
+                        val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
+                        if (trace.timestamp < cutoffTimestamp) {
+                            if (file.delete()) {
+                                deletedCount++
+                            }
                         }
+                    } catch (e: Exception) {
+                        // Skip files that can't be parsed
                     }
-                } catch (e: Exception) {
-                    // Skip files that can't be parsed
                 }
             }
+            deletedCount
         }
-        return deletedCount
     }
 
     /**
      * Get count of trace files.
      */
     fun getTraceCount(): Int {
-        val dir = traceDir ?: return 0
-        if (!dir.exists()) return 0
+        return lock.withLock {
+            val dir = traceDir ?: return 0
+            if (!dir.exists()) return 0
 
-        return dir.listFiles()?.count { it.extension == "json" } ?: 0
+            dir.listFiles()?.count { it.extension == "json" } ?: 0
+        }
     }
 
     /**

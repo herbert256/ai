@@ -57,12 +57,24 @@ fun AiReportsScreenNav(
             val agentIds = modelsList.filter { it.agentId != null }.mapNotNull { it.agentId }.toSet()
             val directModelIds = modelsList.filter { it.agentId == null }
                 .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val selectionParamsById = modelsList
+                .groupBy { it.agentId ?: "swarm:${it.provider.id}:${it.model}" }
+                .mapValues { (_, models) ->
+                    models.flatMap { it.paramsIds }.distinct()
+                }
 
             // Save for persistence
             viewModel.saveAiReportAgents(agentIds)
             viewModel.saveAiReportModels(directModelIds)
 
-            viewModel.generateGenericAiReports(agentIds, emptySet(), directModelIds, paramsIds, reportType)
+            viewModel.generateGenericAiReports(
+                selectedAgentIds = agentIds,
+                selectedSwarmIds = emptySet(),
+                directModelIds = directModelIds,
+                parametersIds = paramsIds,
+                selectionParamsById = selectionParamsById,
+                reportType = reportType
+            )
         },
         onStop = { viewModel.stopGenericAiReports() },
         onOpenInBrowser = {
@@ -746,10 +758,14 @@ fun AiReportsScreen(
             if (models.isNotEmpty()) {
                 var totalIn = 0.0
                 var totalOut = 0.0
+                var inheritedPresetCount = 0
                 models.forEach { entry ->
                     val p = com.ai.data.PricingCache.getPricing(context, entry.provider, entry.model)
                     totalIn += p.promptPrice * 1_000_000
                     totalOut += p.completionPrice * 1_000_000
+                    if (entry.paramsIds.isNotEmpty() && (entry.sourceType == "flock" || entry.sourceType == "swarm")) {
+                        inheritedPresetCount++
+                    }
                 }
                             fun fmtTotal(v: Double): String = when {
                                 v == 0.0 -> "0.00"
@@ -767,6 +783,14 @@ fun AiReportsScreen(
                         fontSize = 12.sp,
                         color = AiColors.TextSecondary
                     )
+                    if (inheritedPresetCount > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Inherited presets: $inheritedPresetCount",
+                            fontSize = 11.sp,
+                            color = AiColors.Purple
+                        )
+                    }
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = "${fmtTotal(totalIn)} / ${fmtTotal(totalOut)}",
@@ -805,6 +829,23 @@ fun AiReportsScreen(
                         items(models.size, key = { index -> "${models[index].deduplicationKey}:$index" }) { index ->
                             val entry = models[index]
                             val pricing = formatPricingPerMillion(context, entry.provider, entry.model)
+                            val inheritedPresetNames = remember(entry.paramsIds, uiState.aiSettings.parameters) {
+                                entry.paramsIds.mapNotNull { id ->
+                                    uiState.aiSettings.parameters.find { it.id == id }?.name
+                                }
+                            }
+                            val inheritedPresetLabel = when {
+                                inheritedPresetNames.isEmpty() -> null
+                                entry.sourceType == "flock" -> {
+                                    val source = entry.sourceName.ifBlank { "flock" }
+                                    "Inherits ${inheritedPresetNames.joinToString()} from $source"
+                                }
+                                entry.sourceType == "swarm" -> {
+                                    val source = entry.sourceName.ifBlank { "swarm" }
+                                    "Inherits ${inheritedPresetNames.joinToString()} from $source"
+                                }
+                                else -> null
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -834,6 +875,15 @@ fun AiReportsScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    if (inheritedPresetLabel != null) {
+                                        Text(
+                                            text = inheritedPresetLabel,
+                                            fontSize = 10.sp,
+                                            color = AiColors.Purple,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                                 Text(
                                     text = pricing.text,

@@ -213,7 +213,14 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             }
     }
 
-    fun generateGenericAiReports(selectedAgentIds: Set<String>, selectedSwarmIds: Set<String> = emptySet(), directModelIds: Set<String> = emptySet(), parametersIds: List<String> = emptyList(), reportType: com.ai.data.ReportType = com.ai.data.ReportType.CLASSIC) {
+    fun generateGenericAiReports(
+        selectedAgentIds: Set<String>,
+        selectedSwarmIds: Set<String> = emptySet(),
+        directModelIds: Set<String> = emptySet(),
+        parametersIds: List<String> = emptyList(),
+        selectionParamsById: Map<String, List<String>> = emptyMap(),
+        reportType: com.ai.data.ReportType = com.ai.data.ReportType.CLASSIC
+    ) {
         reportGenerationJob?.cancel()
         reportGenerationJob = viewModelScope.launch(Dispatchers.IO) {
             val context = getApplication<Application>()
@@ -259,6 +266,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 aiSettings = aiSettings,
                 agents = agents,
                 modelMembers = allModelMembers,
+                selectionParamsById = selectionParamsById,
                 externalSystemPrompt = externalSystemPrompt
             )
 
@@ -335,6 +343,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         aiSettings: AiSettings,
         agents: List<AiAgent>,
         modelMembers: List<AiSwarmMember>,
+        selectionParamsById: Map<String, List<String>>,
         externalSystemPrompt: String?
     ): List<ReportTask> {
         val agentTasks = agents.map { agent ->
@@ -343,7 +352,8 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                 model = aiSettings.getEffectiveModelForAgent(agent)
             )
 
-            var agentParams = aiSettings.resolveAgentParameters(agent)
+            val selectionParams = aiSettings.mergeParameters(selectionParamsById[agent.id] ?: emptyList())
+            var agentParams = selectionParams ?: aiSettings.resolveAgentParameters(agent)
             val flockSpId = findFlockSystemPromptIdForAgent(aiSettings, agent.id)
             val spText = resolveSystemPromptText(aiSettings, agent.systemPromptId, flockSpId) ?: externalSystemPrompt
             if (spText != null) {
@@ -368,6 +378,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             val syntheticId = "swarm:${member.provider.id}:${member.model}"
             val swarmSpId = findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)
             val swarmSpText = swarmSpId?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: externalSystemPrompt
+            val modelParams = aiSettings.mergeParameters(selectionParamsById[syntheticId] ?: emptyList()) ?: AiAgentParameters()
 
             ReportTask(
                 resultId = syntheticId,
@@ -385,7 +396,11 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                     model = member.model,
                     apiKey = aiSettings.getApiKey(member.provider)
                 ),
-                resolvedParams = swarmSpText?.let { AiAgentParameters(systemPrompt = it) } ?: AiAgentParameters()
+                resolvedParams = if (swarmSpText != null) {
+                    modelParams.copy(systemPrompt = swarmSpText)
+                } else {
+                    modelParams
+                }
             )
         }
 
