@@ -559,6 +559,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         prefs.edit { putLong(key, System.currentTimeMillis()) }
     }
 
+    fun updateModelListTimestamps(providers: List<com.ai.data.AiService>) {
+        val now = System.currentTimeMillis()
+        prefs.edit {
+            providers.forEach { putLong(KEY_MODEL_LIST_TIMESTAMP_PREFIX + it.id, now) }
+        }
+    }
+
     fun clearModelListsCache() {
         prefs.edit {
             com.ai.data.AiService.entries.forEach { provider ->

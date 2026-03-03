@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.ai.ui.AiConfigExport
-import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 
 /**
@@ -22,6 +21,7 @@ object ProviderRegistry {
     private var initialized = false
     private var prefs: SharedPreferences? = null
     private val lock = Any()
+    private val providerListType = object : TypeToken<List<ProviderDefinition>>() {}.type
 
     /**
      * Initialize the registry. Must be called before any provider access.
@@ -81,8 +81,7 @@ object ProviderRegistry {
 
     private fun parseProvidersJson(json: String): List<AiService> {
         val gson = createAiGson()
-        val listType = object : TypeToken<List<ProviderDefinition>>() {}.type
-        val defs: List<ProviderDefinition> = gson.fromJson(json, listType)
+        val defs: List<ProviderDefinition> = gson.fromJson(json, providerListType)
         return defs.map { it.toAiService() }
     }
 
@@ -123,7 +122,7 @@ object ProviderRegistry {
     fun save() {
         val sp = prefs ?: return
         val defs = providers.map { ProviderDefinition.fromAiService(it) }
-        val gson = GsonBuilder().create()
+        val gson = createAiGson()
         val json = gson.toJson(defs)
         sp.edit {
             putString(KEY_PROVIDERS, json)

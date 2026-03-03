@@ -45,11 +45,15 @@ fun AiHubScreen(
     }
 
     // Check if at least one AI Agent is configured
-    val hasAnyAgent = uiState.aiSettings.agents.isNotEmpty()
+    val hasAnyAgent = remember(uiState.aiSettings.agents) {
+        uiState.aiSettings.agents.isNotEmpty()
+    }
 
     // Check if at least one AI Provider has an API key configured
-    val hasAnyProviderApiKey = com.ai.data.AiService.entries
-        .any { uiState.aiSettings.getApiKey(it).isNotBlank() }
+    val hasAnyProviderApiKey = remember(uiState.aiSettings) {
+        com.ai.data.AiService.entries
+            .any { uiState.aiSettings.getApiKey(it).isNotBlank() }
+    }
 
     // Check if there is any statistics data
     val hasStatisticsData = remember {

@@ -658,9 +658,11 @@ fun ChatSessionScreen(
                             scope.launch {
                                 isStreaming = true
                                 streamingContent = ""
+                                val streamBuilder = StringBuilder()
                                 try {
                                     onSendMessageStream(messages).collect { chunk ->
-                                        streamingContent += chunk
+                                        streamBuilder.append(chunk)
+                                        streamingContent = streamBuilder.toString()
                                     }
                                     // Stream complete - add final message
                                     if (streamingContent.isNotEmpty()) {

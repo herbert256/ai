@@ -65,17 +65,11 @@ object ApiTracer {
     private val gson = createAiGson(prettyPrint = true)
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US)
         .withZone(ZoneId.systemDefault())
-    private val tracingLock = Any()
-
     @Volatile
     var isTracingEnabled: Boolean = false
-        get() = synchronized(tracingLock) { field }
-        set(value) = synchronized(tracingLock) { field = value }
 
     @Volatile
     var currentReportId: String? = null
-        get() = synchronized(tracingLock) { field }
-        set(value) = synchronized(tracingLock) { field = value }
 
     /**
      * Initialize the tracer with the app context.

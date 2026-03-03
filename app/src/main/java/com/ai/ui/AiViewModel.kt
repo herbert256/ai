@@ -275,8 +275,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
             // Extract <user>...</user> content from prompt if present
             // Content inside tags goes to HTML export, tags are stripped from AI prompt
             // Falls back to externalOpenHtml (from <open> tag in <edit> mode)
-            val userTagRegex = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)
-            val userMatch = userTagRegex.find(prompt)
+            val userMatch = USER_TAG_REGEX.find(prompt)
             val rapportText = userMatch?.groupValues?.get(1)?.trim() ?: _uiState.value.externalOpenHtml
             val aiPrompt = if (userMatch != null) {
                 prompt.replace(userMatch.value, "").trim()
@@ -618,20 +617,27 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
                                 state.copy(aiSettings = state.aiSettings.withModels(service, models))
                             }
                             settingsPrefs.saveModelsForProvider(service, models)
-                            settingsPrefs.updateModelListTimestamp(service)
-                            service.displayName to models.size
+                            service to models.size
                         } catch (e: Exception) {
-                            service.displayName to -1
+                            service to -1
                         }
                     }
-                }.awaitAll().toMap()
+                }.awaitAll()
             }
 
-            if (results.isNotEmpty()) {
-                android.util.Log.d("AiViewModel", "Model lists refreshed for ${results.size} providers")
+            // Batch-write timestamps for successful providers (1 disk write instead of N)
+            val successfulProviders = results.filter { it.second > 0 }.map { it.first }
+            if (successfulProviders.isNotEmpty()) {
+                settingsPrefs.updateModelListTimestamps(successfulProviders)
             }
 
-            results
+            val resultMap = results.associate { it.first.displayName to it.second }
+
+            if (resultMap.isNotEmpty()) {
+                android.util.Log.d("AiViewModel", "Model lists refreshed for ${resultMap.size} providers")
+            }
+
+            resultMap
         }
     }
 
@@ -828,6 +834,7 @@ class AiViewModel(application: Application) : AndroidViewModel(application) {
         private const val REPORT_CONCURRENCY_LIMIT = 4
         private const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         private const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
+        private val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)
     }
 
     /**

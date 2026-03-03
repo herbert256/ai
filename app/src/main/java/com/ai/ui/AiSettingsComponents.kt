@@ -130,7 +130,10 @@ fun SelectModelScreen(
     val allModels = aiSettings.getModels(provider)
     val filteredModels = remember(searchQuery, allModels) {
         if (searchQuery.isBlank()) allModels
-        else allModels.filter { it.lowercase().contains(searchQuery.lowercase()) }
+        else {
+            val lq = searchQuery.lowercase()
+            allModels.filter { it.lowercase().contains(lq) }
+        }
     }
 
     Column(
@@ -301,8 +304,13 @@ fun SelectProviderScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     val allProviders = AiService.entries
-    val filteredProviders = if (searchQuery.isBlank()) allProviders
-    else allProviders.filter { it.displayName.lowercase().contains(searchQuery.lowercase()) }
+    val filteredProviders = remember(searchQuery, allProviders) {
+        if (searchQuery.isBlank()) allProviders
+        else {
+            val lq = searchQuery.lowercase()
+            allProviders.filter { it.displayName.lowercase().contains(lq) }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -413,12 +421,17 @@ fun SelectAgentScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     val allAgents = aiSettings.agents
-    val filteredAgents = if (searchQuery.isBlank()) allAgents
-    else allAgents.filter { agent ->
-        val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
-        agent.name.lowercase().contains(searchQuery.lowercase()) ||
-            agent.provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
-            effectiveModel.lowercase().contains(searchQuery.lowercase())
+    val filteredAgents = remember(searchQuery, allAgents) {
+        if (searchQuery.isBlank()) allAgents
+        else {
+            val lq = searchQuery.lowercase()
+            allAgents.filter { agent ->
+                val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
+                agent.name.lowercase().contains(lq) ||
+                    agent.provider.displayName.lowercase().contains(lq) ||
+                    effectiveModel.lowercase().contains(lq)
+            }
+        }
     }
 
     Column(
@@ -559,8 +572,13 @@ fun SelectSwarmScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     val allSwarms = aiSettings.swarms
-    val filteredSwarms = if (searchQuery.isBlank()) allSwarms
-    else allSwarms.filter { it.name.lowercase().contains(searchQuery.lowercase()) }
+    val filteredSwarms = remember(searchQuery, allSwarms) {
+        if (searchQuery.isBlank()) allSwarms
+        else {
+            val lq = searchQuery.lowercase()
+            allSwarms.filter { it.name.lowercase().contains(lq) }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -704,8 +722,13 @@ fun SelectFlockScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     val allFlocks = aiSettings.flocks
-    val filteredFlocks = if (searchQuery.isBlank()) allFlocks
-    else allFlocks.filter { it.name.lowercase().contains(searchQuery.lowercase()) }
+    val filteredFlocks = remember(searchQuery, allFlocks) {
+        if (searchQuery.isBlank()) allFlocks
+        else {
+            val lq = searchQuery.lowercase()
+            allFlocks.filter { it.name.lowercase().contains(lq) }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1769,9 +1792,12 @@ fun SelectAllModelsScreen(
         } else allProviderModels
 
         val searchFiltered = if (searchQuery.isBlank()) providerFiltered
-        else providerFiltered.filter { (provider, model) ->
-            provider.displayName.lowercase().contains(searchQuery.lowercase()) ||
-                model.lowercase().contains(searchQuery.lowercase())
+        else {
+            val lq = searchQuery.lowercase()
+            providerFiltered.filter { (provider, model) ->
+                provider.displayName.lowercase().contains(lq) ||
+                    model.lowercase().contains(lq)
+            }
         }
 
         val finalFiltered = if (freeOnly) {
