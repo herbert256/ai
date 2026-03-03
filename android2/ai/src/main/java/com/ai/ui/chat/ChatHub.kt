@@ -1,0 +1,115 @@
+package com.ai.ui.chat
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.ChatHistoryManager
+import com.ai.model.Settings
+import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.TitleBar
+
+@Composable
+fun ChatsHubScreen(
+    aiSettings: Settings,
+    onNavigateBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToAgentSelect: () -> Unit,
+    onNavigateToNewChat: () -> Unit,
+    onNavigateToChatHistory: () -> Unit,
+    onNavigateToChatSearch: () -> Unit,
+    onNavigateToDualChat: () -> Unit
+) {
+    BackHandler { onNavigateBack() }
+
+    val hasAgents = remember(aiSettings.agents) {
+        aiSettings.agents.any {
+            aiSettings.getEffectiveApiKeyForAgent(it).isNotBlank() && aiSettings.isProviderActive(it.provider)
+        }
+    }
+    val historyVersion by ChatHistoryManager.historyVersion.collectAsState()
+    val hasChatHistory by produceState(initialValue = false, historyVersion) {
+        value = ChatHistoryManager.getSessionCountAsync() > 0
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "AI Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        ChatHubCard(
+            icon = "\uD83E\uDD16", title = "New Chat with Agent",
+            description = "Start a chat using a configured agent",
+            onClick = onNavigateToAgentSelect, enabled = hasAgents
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ChatHubCard(
+            icon = "\uD83D\uDCAC", title = "New Chat \u2013 Configure On The Fly",
+            description = "Choose provider, model and parameters",
+            onClick = onNavigateToNewChat
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ChatHubCard(
+            icon = "\uD83D\uDCDA", title = "Continue Existing Chat",
+            description = "Resume a previous chat session",
+            onClick = onNavigateToChatHistory, enabled = hasChatHistory
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ChatHubCard(
+            icon = "\uD83D\uDD0D", title = "Search Chats",
+            description = "Search across all chat messages",
+            onClick = onNavigateToChatSearch, enabled = hasChatHistory
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ChatHubCard(
+            icon = "\uD83E\uDD1C\uD83E\uDD1B", title = "Dual AI Chat",
+            description = "Two AI models discuss a topic",
+            onClick = onNavigateToDualChat
+        )
+    }
+}
+
+@Composable
+private fun ChatHubCard(
+    icon: String,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF3A3A3A))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = icon, fontSize = 32.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.5f))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                    color = if (enabled) Color.White else AppColors.TextDim
+                )
+                Text(
+                    text = description, fontSize = 13.sp,
+                    color = if (enabled) AppColors.TextSecondary else AppColors.TextVeryDim
+                )
+            }
+            if (enabled) {
+                Text(text = ">", fontSize = 18.sp, color = AppColors.Blue, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+}

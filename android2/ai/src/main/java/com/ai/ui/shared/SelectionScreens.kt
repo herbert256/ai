@@ -1,0 +1,280 @@
+package com.ai.ui.shared
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.AppService
+import com.ai.data.PricingCache
+import com.ai.model.Agent
+import com.ai.model.Settings
+
+private fun formatPrice(pricePerToken: Double): String {
+    val perMillion = pricePerToken * 1_000_000
+    return when {
+        perMillion == 0.0 -> "0.00"
+        perMillion < 0.01 -> "<0.01"
+        else -> "%.2f".format(perMillion)
+    }
+}
+
+/**
+ * Full-screen model selection screen with pricing columns.
+ */
+@Composable
+fun SelectModelScreen(
+    provider: AppService,
+    aiSettings: Settings,
+    currentModel: String,
+    showDefaultOption: Boolean = false,
+    onSelectModel: (String) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allModels = aiSettings.getModels(provider)
+    val filteredModels = remember(searchQuery, allModels) {
+        if (searchQuery.isBlank()) allModels
+        else { val lq = searchQuery.lowercase(); allModels.filter { it.lowercase().contains(lq) } }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "Select Model", onBackClick = onBack, onAiClick = onNavigateHome)
+
+        Text(
+            text = "${provider.displayName} — ${allModels.size} models",
+            style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery, onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search models...") },
+            singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) { Text("\u2715", color = AppColors.TextTertiary) }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Model", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+            Text("In $/M", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+            Text("Out $/M", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+        }
+        HorizontalDivider(color = AppColors.BorderUnfocused)
+
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            if (showDefaultOption) {
+                item(key = "__default__") {
+                    val isSelected = currentModel.isBlank()
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
+                            .clickable { onSelectModel("") }.padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Default (use provider setting)", style = MaterialTheme.typography.bodyMedium, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                            Text(aiSettings.getModel(provider), style = MaterialTheme.typography.bodySmall, color = AppColors.TextDim)
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
+                }
+            }
+
+            items(filteredModels, key = { it }) { modelName ->
+                val pricing = PricingCache.getPricing(context, provider, modelName)
+                val isSelected = modelName == currentModel
+                val priceColor = if (pricing.source == "default") AppColors.TextDim else AppColors.Red
+
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
+                        .clickable { onSelectModel(modelName) }.padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(modelName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                    Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                }
+                HorizontalDivider(color = AppColors.DividerDark)
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen provider selection screen.
+ */
+@Composable
+fun SelectProviderScreen(
+    aiSettings: Settings,
+    onSelectProvider: (AppService) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    val allProviders = AppService.entries
+    val filteredProviders = remember(searchQuery, allProviders) {
+        if (searchQuery.isBlank()) allProviders
+        else { val lq = searchQuery.lowercase(); allProviders.filter { it.displayName.lowercase().contains(lq) } }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "Select Provider", onBackClick = onBack, onAiClick = onNavigateHome)
+
+        Text(
+            text = "${allProviders.size} providers",
+            style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery, onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search providers...") },
+            singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) { Text("\u2715", color = AppColors.TextTertiary) }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(color = AppColors.BorderUnfocused)
+
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(filteredProviders, key = { it.id }) { provider ->
+                val state = aiSettings.getProviderState(provider)
+                val stateEmoji = when (state) {
+                    "ok" -> "\uD83D\uDD11"
+                    "error" -> "\u274C"
+                    "inactive" -> "\uD83D\uDCA4"
+                    else -> "\u2B55"
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(provider.displayName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(stateEmoji, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+                }
+                HorizontalDivider(color = AppColors.DividerDark)
+            }
+        }
+    }
+}
+
+/**
+ * Full-screen agent selection screen with pricing columns.
+ */
+@Composable
+fun SelectAgentScreen(
+    aiSettings: Settings,
+    onSelectAgent: (Agent) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+
+    val allAgents = aiSettings.agents
+    val filteredAgents = remember(searchQuery, allAgents) {
+        if (searchQuery.isBlank()) allAgents
+        else {
+            val lq = searchQuery.lowercase()
+            allAgents.filter { agent ->
+                agent.name.lowercase().contains(lq) ||
+                    agent.provider.displayName.lowercase().contains(lq) ||
+                    aiSettings.getEffectiveModelForAgent(agent).lowercase().contains(lq)
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "Select Agent", onBackClick = onBack, onAiClick = onNavigateHome)
+
+        Text(
+            text = "${allAgents.size} agents",
+            style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = searchQuery, onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(), placeholder = { Text("Search agents...") },
+            singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) { Text("\u2715", color = AppColors.TextTertiary) }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Agent", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+            Text("In $/M", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+            Text("Out $/M", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+        }
+        HorizontalDivider(color = AppColors.BorderUnfocused)
+
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(filteredAgents, key = { it.id }) { agent ->
+                val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
+                val pricing = PricingCache.getPricing(context, agent.provider, effectiveModel)
+                val priceColor = if (pricing.source == "default") AppColors.TextDim else AppColors.Red
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${agent.provider.displayName} \u00B7 $effectiveModel", style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                    Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                }
+                HorizontalDivider(color = AppColors.DividerDark)
+            }
+        }
+    }
+}

@@ -1,0 +1,51 @@
+package com.ai.ui.navigation
+
+import java.net.URLEncoder
+
+object NavRoutes {
+    const val AI = "ai"
+    const val SETTINGS = "settings"
+    const val HELP = "help"
+    const val TRACE_LIST = "trace_list"
+    const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
+    const val TRACE_DETAIL = "trace_detail/{filename}"
+    const val AI_HISTORY = "ai_history"
+    const val AI_REPORTS_HUB = "ai_reports_hub"
+    const val AI_NEW_REPORT = "ai_new_report"
+    const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
+    const val AI_PROMPT_HISTORY = "ai_prompt_history"
+    const val AI_REPORTS = "ai_reports"
+    const val AI_USAGE = "ai_usage"
+    const val AI_COST_CONFIG = "ai_cost_config"
+    const val AI_SETUP = "ai_setup"
+    const val AI_HOUSEKEEPING = "ai_housekeeping"
+    const val AI_CHATS_HUB = "ai_chats_hub"
+    const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
+    const val AI_CHAT_WITH_AGENT = "ai_chat_with_agent/{agentId}"
+    const val AI_CHAT_SEARCH = "ai_chat_search"
+    const val AI_CHAT_PROVIDER = "ai_chat_provider"
+    const val AI_CHAT_MODEL = "ai_chat_model/{provider}"
+    const val AI_CHAT_PARAMS = "ai_chat_params/{provider}/{model}"
+    const val AI_CHAT_SESSION = "ai_chat_session/{provider}/{model}"
+    const val AI_CHAT_HISTORY = "ai_chat_history"
+    const val AI_CHAT_CONTINUE = "ai_chat_continue/{sessionId}"
+    const val AI_MODEL_SEARCH = "ai_model_search"
+    const val AI_MODEL_INFO = "ai_model_info/{provider}/{model}"
+    const val AI_API_TEST = "ai_api_test"
+    const val AI_API_TEST_EDIT = "ai_api_test_edit"
+    const val AI_DUAL_CHAT_SETUP = "ai_dual_chat_setup"
+    const val AI_DUAL_CHAT_SESSION = "ai_dual_chat_session"
+    const val DEVELOPER_OPTIONS = "developer_options"
+
+    private fun encode(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+
+    fun traceDetail(filename: String) = "trace_detail/$filename"
+    fun traceListForReport(reportId: String) = "trace_list/$reportId"
+    fun aiModelInfo(provider: String, model: String) = "ai_model_info/$provider/${encode(model)}"
+    fun aiChatContinue(sessionId: String) = "ai_chat_continue/$sessionId"
+    fun aiChatWithAgent(agentId: String) = "ai_chat_with_agent/$agentId"
+    fun aiChatModel(provider: String) = "ai_chat_model/$provider"
+    fun aiChatParams(provider: String, model: String) = "ai_chat_params/$provider/${encode(model)}"
+    fun aiChatSession(provider: String, model: String) = "ai_chat_session/$provider/${encode(model)}"
+    fun aiNewReportWithParams(title: String, prompt: String) = "ai_new_report/${encode(title)}/${encode(prompt)}"
+}
