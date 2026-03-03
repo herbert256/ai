@@ -14,7 +14,7 @@ Android and macOS apps for AI-powered reports and conversations using 31 differe
 - **HTML Reports** with cost tables, think sections, citations, markdown rendering
 - **Configuration Export/Import** for backup and restore
 - **Developer Mode** with API tracing, trace viewer, and API test tool
-- **External App Integration** via Intent (see `CALL_AI.md`)
+- **External App Integration** via Intent (Android only, see [`android/CALL_AI.md`](android/CALL_AI.md))
 
 ## Requirements
 
@@ -40,15 +40,15 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 Build from source:
 
 ```bash
-cd mac && xcodegen generate
-xcodebuild -project mac/macAI.xcodeproj -scheme macAI -configuration Debug build
+cd macOS && xcodegen generate
+xcodebuild -project macOS/macAI.xcodeproj -scheme macAI -configuration Debug build
 ```
 
 ## Documentation
 
 - **[MANUAL.md](MANUAL.md)** — User guide: setup, features, supported services, troubleshooting
-- **[DEVELOP.md](DEVELOP.md)** — Developer guide: architecture, building, internals, data formats
-- **[CALL_AI.md](CALL_AI.md)** — External app integration
+- **[android/DEVELOP.md](android/DEVELOP.md)** — Android developer guide: architecture, building, internals, data formats
+- **[android/CALL_AI.md](android/CALL_AI.md)** — Android external app integration via Intents
 
 ## Privacy & Security
 
@@ -65,5 +65,6 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 - **AI Services**: OpenAI, Anthropic, Google, xAI, Groq, DeepSeek, Mistral, Perplexity, Together AI, OpenRouter, SiliconFlow, Z.AI, Moonshot, Cohere, AI21, DashScope, Fireworks, Cerebras, SambaNova, Baichuan, StepFun, MiniMax, NVIDIA, Replicate, Hugging Face, Lambda, Lepton, 01.AI, Doubao, Reka, Writer
 - **Model Data**: OpenRouter API, Hugging Face API, LiteLLM pricing data
-- **UI Framework**: Jetpack Compose, Material 3
-- **Networking**: Retrofit, OkHttp, Gson
+- **Android UI**: Jetpack Compose, Material 3
+- **Android Networking**: Retrofit, OkHttp, Gson
+- **macOS UI**: SwiftUI, native macOS components

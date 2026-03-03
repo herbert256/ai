@@ -46,19 +46,30 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 
 ```bash
 # Generate Xcode project (after changing project.yml)
-cd mac && xcodegen generate
+cd macOS && xcodegen generate
 
 # Build
-xcodebuild -project mac/macAI.xcodeproj -scheme macAI -configuration Debug build
+xcodebuild -project macOS/macAI.xcodeproj -scheme macAI -configuration Debug build
+
+# Run
+open macOS/build/Build/Products/Debug/macAI.app
 ```
 
 ## Project Summary
 
-Android app for AI-powered reports and chat using 31 AI services. Kotlin 2.2.10, Jetpack Compose (BOM 2026.01.01), Material 3 dark theme. MVVM with StateFlow. Retrofit + OkHttp for networking. SSE streaming via Kotlin Flow. SharedPreferences + file storage for persistence. Namespace: `com.ai`, minSdk 26, targetSdk 36. Build: AGP 9.0.1, Gradle 9.1.0, Java 17.
+Multi-platform AI-powered reports and chat using 31 AI services. Two native apps sharing the same architecture, data formats, and provider ecosystem.
+
+### Android
+Kotlin 2.2.10, Jetpack Compose (BOM 2026.01.01), Material 3 dark theme. MVVM with StateFlow. Retrofit + OkHttp for networking. SSE streaming via Kotlin Flow. SharedPreferences + file storage for persistence. Namespace: `com.ai`, minSdk 26, targetSdk 36. Build: AGP 9.0.1, Gradle 9.1.0, Java 17. ~28,700 lines across 47 Kotlin files.
+
+### macOS
+Swift 5.9, SwiftUI with NavigationSplitView, dark theme. MVVM with `@Observable`. URLSession for networking. SSE streaming via AsyncSequence. UserDefaults + file storage for persistence. Bundle ID: `com.ai.macAI`, macOS 14.0+. Build: XcodeGen + Xcode 16.0. ~11,800 lines across 49 Swift files.
 
 ## Package Structure
 
-Android source lives under `android/app/src/main/java/com/ai/`:
+### Android
+
+Source lives under `android/app/src/main/java/com/ai/`:
 
 ```
 com.ai/
@@ -114,28 +125,112 @@ com.ai/
     └── theme/Theme.kt                # Material3 dark theme
 ```
 
+### macOS
+
+Source lives under `macOS/macAI/`:
+
+```
+macAI/
+├── macAIApp.swift                     # App entry point (@main)
+├── Data/                              # Data layer (14 files)
+│   ├── AppService.swift              # Provider data class + ProviderDefinition
+│   ├── ApiModels.swift               # Request/response models
+│   ├── ApiClient.swift               # URLSession-based HTTP client
+│   ├── AnalysisRepository.swift      # Repository facade
+│   ├── AnalysisProviders.swift       # Analysis methods (format-specific dispatch)
+│   ├── AnalysisStreaming.swift       # SSE streaming parsers
+│   ├── AnalysisChat.swift            # Chat methods
+│   ├── AnalysisModels.swift          # Model fetching + API testing
+│   ├── DataModels.swift              # Chat/agent models
+│   ├── ReportStorage.swift           # Report persistence
+│   ├── ChatHistoryManager.swift      # Chat session storage
+│   ├── PricingCache.swift            # Six-tier pricing cache
+│   ├── ProviderRegistry.swift        # Provider definitions (actor, loaded from setup.json)
+│   └── ApiTracer.swift               # API request/response logging (actor)
+└── UI/                                # UI layer (35 files)
+    ├── AppViewModel.swift            # Central state (@Observable)
+    ├── Models.swift                  # UiState, GeneralSettings, SidebarSection/Group
+    ├── SettingsModels.swift          # Settings, ProviderConfig, Agent, Flock, Swarm, Parameters
+    ├── ContentView.swift             # Root NavigationSplitView + sidebar
+    ├── Reports/
+    │   ├── ReportScreen.swift        # Report creation + progress
+    │   ├── ReportSelectionDialogs.swift
+    │   ├── ReportParametersScreen.swift
+    │   ├── ContentDisplay.swift      # Response rendering
+    │   └── ReportExport.swift        # HTML report generation
+    ├── Chat/
+    │   ├── ChatScreens.swift         # Chat UI with streaming
+    │   └── DualChatScreen.swift      # Side-by-side dual chat
+    ├── Models/
+    │   └── ModelScreens.swift        # Model search/info
+    ├── History/
+    │   ├── HistoryScreen.swift       # Report history
+    │   └── PromptHistoryScreen.swift
+    ├── Settings/
+    │   ├── SettingsView.swift        # Settings hub
+    │   ├── SetupView.swift           # AI setup hub
+    │   ├── ServiceSettingsView.swift  # Provider settings
+    │   ├── AgentsView.swift          # Agents CRUD
+    │   ├── FlocksView.swift          # Flock CRUD
+    │   ├── SwarmsView.swift          # Swarm CRUD
+    │   ├── ParametersView.swift      # Parameter presets
+    │   ├── PromptsView.swift         # Prompts CRUD
+    │   ├── SystemPromptsView.swift   # System prompts
+    │   ├── EndpointsView.swift       # Endpoint management
+    │   ├── SettingsExport.swift      # Export/import configuration
+    │   └── SettingsPreferences.swift # UserDefaults load/save
+    ├── Admin/
+    │   ├── StatisticsView.swift      # AI Usage (statistics + costs)
+    │   ├── HousekeepingView.swift    # Housekeeping tools
+    │   ├── DeveloperView.swift       # Developer mode
+    │   ├── TraceView.swift           # API trace viewer
+    │   └── HelpView.swift            # In-app docs
+    └── Shared/
+        ├── AppColors.swift           # Color definitions
+        ├── SharedComponents.swift    # Reusable components
+        └── UiFormatting.swift        # Shared formatting utilities
+```
+
 ## Key Architecture
 
-- **AppService** is a data class with companion object registry. `AppService.entries` returns all providers. `AppService.findById(id)` for lookup.
+### Shared Concepts (both platforms)
+
+- **AppService** represents a provider. `AppService.entries` returns all providers. `AppService.findById(id)` for lookup.
 - **ApiFormat** enum: `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. All dispatch uses `service.apiFormat`, never provider identity.
 - **28 of 31 providers** are OpenAI-compatible sharing unified code paths. Only Anthropic and Google have unique implementations.
+- **Agent inheritance**: Agents inherit API key, model, endpoint from provider when fields are empty.
+- **Parameter merging**: Multiple parameter presets merged; later non-null values win. Booleans are "sticky true".
+- **Settings** uses `Map<AppService/String, ProviderConfig>` with accessor methods.
+- **Configuration export/import**: Shared JSON format (v21). Import accepts 11-21.
+- **First-run setup**: `setup.json` in assets/resources, loaded via `ProviderRegistry`.
+
+### Android-Specific
+
+- **AppService** is a data class with companion object registry in `AnalysisApi.kt`.
 - **Two-tier navigation**: Main screens use Jetpack Navigation. Settings sub-screens use `SettingsSubScreen` enum with `when` inside `SettingsScreen`.
 - **Full-screen overlay pattern**: `if (showOverlay) { OverlayScreen(...); return }` preserves parent `remember` state.
-- **Agent inheritance**: Agents inherit API key, model, endpoint from provider when fields are empty. Use `getEffectiveModelForAgent()` / `getEffectiveApiKeyForAgent()`.
-- **Parameter merging**: Multiple `Parameters` presets merged via `reduce`; later non-null values win. Booleans are "sticky true".
-- **Settings** uses `Map<AppService, ProviderConfig>` with accessor methods. `SettingsPreferences` iterates `AppService.entries` using `service.prefsKey`.
+- **SettingsPreferences** iterates `AppService.entries` using `service.prefsKey` for SharedPreferences.
+- **External Intent**: `com.ai.ACTION_NEW_REPORT` for integration with other Android apps (see `android/CALL_AI.md`).
+
+### macOS-Specific
+
+- **AppService** is a `final class` with `@Observable`-compatible patterns in `AppService.swift`.
+- **NavigationSplitView** sidebar with `SidebarSection` enum (15 sections in 5 groups: Main, Reports, Chat, Tools, Admin).
+- **ProviderRegistry** and **ApiTracer** are Swift `actor` types for thread safety.
+- **SettingsPreferences** uses `UserDefaults` with the same key conventions as Android.
+- **XcodeGen**: Project generated from `macOS/project.yml`; regenerate after changes.
 
 ## Important Gotchas
 
-- **SharedPreferences flock/swarm keys are historically swapped**: `"ai_flocks"` stores swarms, `"ai_swarms"` stores flocks. Selected IDs use `_v2` suffix keys.
+- **SharedPreferences/UserDefaults flock/swarm keys are historically swapped**: `"ai_flocks"` stores swarms, `"ai_swarms"` stores flocks. This applies to both platforms.
 - **Anthropic max_tokens**: Required (defaults to 4096), unlike OpenAI where it's optional.
 - **Google auth**: Uses `?key=` query parameter, not Bearer token.
-- **OpenAI dual API**: Chat Completions for gpt-4o etc., Responses API for gpt-5.x/o3/o4. Auto-routed via `usesResponsesApi()`.
+- **OpenAI dual API**: Chat Completions for gpt-4o etc., Responses API for gpt-5.x/o3/o4. Auto-routed via `usesResponsesApi()` / endpoint rules.
 - **Export version**: Currently v21. Import accepts 11-21.
-- **First-run setup**: `assets/setup.json` uses `ConfigExport` format, loaded via `ProviderRegistry` and `importAiConfigFromAsset()`. Can include providers, agents, parameters, etc.
 
 ## Adding a New AI Service (OpenAI-compatible)
 
+### Android
 1. Add entry to `AppService` companion object in `AnalysisApi.kt`
 2. Add to `ProviderRegistry` in `ProviderRegistry.kt` or include in `assets/setup.json`
 3. Add hardcoded models in `SettingsModels.kt` (only if no model list API)
@@ -144,10 +239,26 @@ com.ai/
 
 For a non-OpenAI-compatible provider, also add: new `ApiFormat` value, Retrofit interface, format-specific methods in Providers/Streaming/Chat files, and SSE parser.
 
+### macOS
+1. Add to `ProviderRegistry` in `ProviderRegistry.swift` or include in `Resources/setup.json`
+2. Add hardcoded models in `SettingsModels.swift` (only if no model list API)
+3. Add default endpoints in `ServiceSettingsView.swift` (only if multiple endpoints)
+4. Add OpenRouter prefix mapping in `PricingCache.swift` if applicable
+
+For a non-OpenAI-compatible provider, also add: new `ApiFormat` case, format-specific methods in Providers/Streaming/Chat files, and SSE parser.
+
 ## Adding a New Agent Parameter
 
+### Android
 1. Add to `Parameter` enum and `AgentParameters`/`Parameters` data classes in `SettingsModels.kt`
 2. Add UI in `AgentEditScreen` (`PromptsAgentsScreens.kt`) and `ParametersEditScreen` (`ParametersScreen.kt`)
 3. Update `AgentParametersExport` in `SettingsExport.kt`
 4. Update request model in `AnalysisApi.kt`
 5. Pass parameter in `AnalysisProviders.kt` and streaming methods
+
+### macOS
+1. Add to parameter types in `SettingsModels.swift`
+2. Add UI in `AgentsView.swift` and `ParametersView.swift`
+3. Update export in `SettingsExport.swift`
+4. Update request model in `ApiModels.swift`
+5. Pass parameter in `AnalysisProviders.swift` and streaming methods
