@@ -1,0 +1,136 @@
+<UserControl x:Class="AI.Views.Reports.ReportSelectionDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="24,16,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Select Models" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+        <!-- Search -->
+        <TextBox Grid.Row="1" x:Name="SearchBox" PlaceholderText="Search..."
+                 Margin="0,0,0,12" TextChanged="SearchBox_TextChanged"/>
+
+        <!-- Tabs -->
+        <TabControl Grid.Row="2" x:Name="TabsControl" Background="Transparent">
+            <!-- Agents tab -->
+            <TabItem Header="Agents">
+                <Border Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6"
+                        Margin="0,8,0,0">
+                    <ListBox x:Name="AgentList" Background="Transparent" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                                    <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,8,0"
+                                              Checked="AgentCheck_Changed" Unchecked="AgentCheck_Changed"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Detail}" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </TabItem>
+
+            <!-- Flocks tab -->
+            <TabItem Header="Flocks">
+                <Border Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6"
+                        Margin="0,8,0,0">
+                    <ListBox x:Name="FlockList" Background="Transparent" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                                    <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,8,0"
+                                              Checked="FlockCheck_Changed" Unchecked="FlockCheck_Changed"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Detail}" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </TabItem>
+
+            <!-- Swarms tab -->
+            <TabItem Header="Swarms">
+                <Border Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6"
+                        Margin="0,8,0,0">
+                    <ListBox x:Name="SwarmList" Background="Transparent" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                                    <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,8,0"
+                                              Checked="SwarmCheck_Changed" Unchecked="SwarmCheck_Changed"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Detail}" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </TabItem>
+
+            <!-- Models tab -->
+            <TabItem Header="Models">
+                <Border Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6"
+                        Margin="0,8,0,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ModelsPanel"/>
+                    </ScrollViewer>
+                </Border>
+            </TabItem>
+
+            <!-- Parameters tab -->
+            <TabItem Header="Parameters">
+                <Border Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6"
+                        Margin="0,8,0,0">
+                    <ListBox x:Name="ParametersList" Background="Transparent" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                                    <CheckBox IsChecked="{Binding IsSelected}" Margin="0,0,8,0"
+                                              Checked="ParamCheck_Changed" Unchecked="ParamCheck_Changed"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Detail}" FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </TabItem>
+        </TabControl>
+
+        <!-- Footer -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <TextBlock x:Name="SelectionCount" Text="0 models selected"
+                       VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Clear All" Style="{StaticResource SecondaryButton}"
+                        Margin="0,0,8,0" Click="ClearAllBtn_Click"/>
+                <Button Content="Done" Click="DoneBtn_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,0 +1,58 @@
+<UserControl x:Class="AI.Views.History.PromptHistoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="24,16,24,16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- List -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Prompt History" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <Button Grid.Row="1" Content="Refresh" Style="{StaticResource SecondaryButton}"
+                    Margin="0,0,0,8" Click="RefreshBtn_Click"/>
+            <Border Grid.Row="2" Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6">
+                <ListBox x:Name="HistoryList" SelectionChanged="HistoryList_SelectionChanged"
+                         Background="Transparent" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,4,0,4">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding TimestampDate, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}"
+                                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Grid>
+
+        <!-- Detail -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" x:Name="DetailTitle" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <Border Grid.Row="1" Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="DetailPromptText" TextWrapping="Wrap" FontSize="13"
+                               Foreground="{StaticResource OnBackgroundBrush}"/>
+                </ScrollViewer>
+            </Border>
+            <Button Grid.Row="2" x:Name="UsePromptBtn" Content="Use This Prompt" Margin="0,12,0,0"
+                    HorizontalAlignment="Left" Click="UsePromptBtn_Click"/>
+        </Grid>
+    </Grid>
+</UserControl>

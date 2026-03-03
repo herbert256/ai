@@ -1,0 +1,111 @@
+<UserControl x:Class="AI.Views.Admin.HousekeepingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BackgroundBrush}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,24" MaxWidth="700">
+            <TextBlock Text="Housekeeping" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,24"/>
+
+            <!-- Refresh Models -->
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="REFRESH MODELS" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Fetch the latest model lists from all providers with configured API keys."
+                               Foreground="{StaticResource OnSurfaceVariantBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <Button x:Name="RefreshModelsBtn" Content="Refresh All Models" HorizontalAlignment="Left"
+                            Click="RefreshModelsBtn_Click"/>
+                    <TextBlock x:Name="RefreshModelsStatus" Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Test Providers -->
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="TEST PROVIDERS" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Test connectivity to all active providers by sending a simple request."
+                               Foreground="{StaticResource OnSurfaceVariantBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <Button x:Name="TestProvidersBtn" Content="Test All Providers" HorizontalAlignment="Left"
+                            Click="TestProvidersBtn_Click"/>
+                    <TextBlock x:Name="TestProvidersStatus" Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    <StackPanel x:Name="TestResultsPanel" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Generate Default Agents -->
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="GENERATE DEFAULT AGENTS" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Create one agent per active provider using its default model."
+                               Foreground="{StaticResource OnSurfaceVariantBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <Button x:Name="GenerateAgentsBtn" Content="Generate Agents" HorizontalAlignment="Left"
+                            Click="GenerateAgentsBtn_Click"/>
+                    <TextBlock x:Name="GenerateAgentsStatus" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Export / Import -->
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="EXPORT / IMPORT" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Export or import your full configuration (providers, agents, flocks, swarms, parameters)."
+                               Foreground="{StaticResource OnSurfaceVariantBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Export Configuration" Margin="0,0,12,0" Click="ExportBtn_Click"/>
+                        <Button Content="Import Configuration" Style="{StaticResource SecondaryButton}"
+                                Click="ImportBtn_Click"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ExportImportStatus" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Cleanup -->
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="CLEANUP" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Remove stored data. These actions cannot be undone."
+                               Foreground="{StaticResource OnSurfaceVariantBrush}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+                    <WrapPanel>
+                        <Button Content="Clear Chat History" Margin="0,0,8,8"
+                                Background="{StaticResource ErrorBrush}" Foreground="White"
+                                Click="ClearChatHistoryBtn_Click"/>
+                        <Button Content="Clear Reports" Margin="0,0,8,8"
+                                Background="{StaticResource ErrorBrush}" Foreground="White"
+                                Click="ClearReportsBtn_Click"/>
+                        <Button Content="Clear Traces" Margin="0,0,8,8"
+                                Background="{StaticResource ErrorBrush}" Foreground="White"
+                                Click="ClearTracesBtn_Click"/>
+                        <Button Content="Clear Statistics" Margin="0,0,8,8"
+                                Background="{StaticResource ErrorBrush}" Foreground="White"
+                                Click="ClearStatisticsBtn_Click"/>
+                        <Button Content="Clear Prompt History" Margin="0,0,8,8"
+                                Background="{StaticResource ErrorBrush}" Foreground="White"
+                                Click="ClearPromptHistoryBtn_Click"/>
+                    </WrapPanel>
+
+                    <TextBlock x:Name="CleanupStatus" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

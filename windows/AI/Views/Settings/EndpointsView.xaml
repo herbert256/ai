@@ -1,0 +1,21 @@
+<UserControl x:Class="AI.Views.Settings.EndpointsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="24,16,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Endpoints" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,16"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="EndpointsPanel"/>
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="2" x:Name="CountLabel" Text="0 endpoints" Margin="0,12,0,0"
+                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+    </Grid>
+</UserControl>

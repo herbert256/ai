@@ -1,0 +1,92 @@
+<UserControl x:Class="AI.Views.Settings.SwarmsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="24,16,24,16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- List -->
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Swarms" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,12"/>
+            <Button Grid.Row="1" Content="+ New Swarm" Margin="0,0,0,8" Click="NewBtn_Click"/>
+            <Border Grid.Row="2" Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="6">
+                <ListBox x:Name="SwarmList" SelectionChanged="SwarmList_SelectionChanged"
+                         Background="Transparent" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,2,0,2">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="{Binding Members.Count}"/>
+                                    <Run Text=" members"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Grid>
+
+        <!-- Edit form -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,0,24">
+                <TextBlock x:Name="FormTitle" Text="Select a swarm" FontSize="18"
+                           FontWeight="SemiBold" Margin="0,0,0,16"/>
+
+                <TextBlock Text="Name" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                <TextBox x:Name="NameBox" Margin="0,0,0,16"/>
+
+                <!-- Add member -->
+                <TextBlock Text="ADD MEMBER" FontSize="11" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="MemberProviderCombo" Grid.Column="0"
+                              SelectionChanged="MemberProviderCombo_SelectionChanged"/>
+                    <ComboBox x:Name="MemberModelCombo" Grid.Column="2" IsEditable="True"/>
+                    <Button x:Name="AddMemberBtn" Grid.Column="4" Content="Add"
+                            Style="{StaticResource SecondaryButton}" Click="AddMemberBtn_Click"/>
+                </Grid>
+
+                <TextBlock Text="Members" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                <Border Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="4"
+                        Height="160" Margin="0,0,0,16">
+                    <ListBox x:Name="MemberList" Background="Transparent" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding ProviderId}" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding Model}"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="Save" Margin="0,0,8,0" Click="SaveBtn_Click"/>
+                    <Button Content="Remove Selected" Style="{StaticResource SecondaryButton}"
+                            Margin="0,0,8,0" Click="RemoveMemberBtn_Click"/>
+                    <Button Content="Delete" Style="{StaticResource DangerButton}" Click="DeleteBtn_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

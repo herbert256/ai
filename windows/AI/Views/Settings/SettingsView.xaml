@@ -1,0 +1,49 @@
+<UserControl x:Class="AI.Views.Settings.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,24" MaxWidth="600">
+            <TextBlock Text="Settings" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,24"/>
+
+            <!-- General -->
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="GENERAL" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16"/>
+
+                    <TextBlock Text="Username" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                    <TextBox x:Name="UserNameBox" Margin="0,0,0,16"/>
+
+                    <CheckBox x:Name="DeveloperModeCheck" Content="Developer Mode" Margin="0,0,0,8"/>
+                </StackPanel>
+            </Border>
+
+            <!-- API Keys -->
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="API KEYS" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16"/>
+
+                    <TextBlock Text="HuggingFace API Key" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,0,0,6"/>
+                    <TextBox x:Name="HfKeyBox" Margin="0,0,0,16"/>
+
+                    <TextBlock Text="OpenRouter API Key" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,0,0,6"/>
+                    <TextBox x:Name="OrKeyBox" Margin="0,0,0,16"/>
+
+                    <TextBlock Text="Default Email" Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,0,0,6"/>
+                    <TextBox x:Name="EmailBox"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Save button -->
+            <Button Content="Save Settings" HorizontalAlignment="Left" Click="SaveBtn_Click"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

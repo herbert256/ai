@@ -1,0 +1,49 @@
+<UserControl x:Class="AI.Views.Chat.ChatView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="24,16,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header / provider selection -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ComboBox x:Name="ProviderCombo" Grid.Column="0" Margin="0,0,8,0"
+                      SelectionChanged="ProviderCombo_SelectionChanged"/>
+            <ComboBox x:Name="ModelCombo" Grid.Column="1" Margin="0,0,8,0" IsEditable="True"/>
+            <Button x:Name="NewSessionBtn" Grid.Column="2" Content="New Chat"
+                    Style="{StaticResource SecondaryButton}" Click="NewSessionBtn_Click"/>
+        </Grid>
+
+        <!-- API key hint -->
+        <TextBlock Grid.Row="1" x:Name="ApiKeyHint" FontSize="11"
+                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+
+        <!-- Messages -->
+        <ScrollViewer Grid.Row="2" x:Name="MessagesScroll" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="MessagesPanel"/>
+        </ScrollViewer>
+
+        <!-- Input -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="InputBox" Grid.Column="0" AcceptsReturn="True" TextWrapping="Wrap"
+                     MinHeight="44" MaxHeight="120" VerticalScrollBarVisibility="Auto"
+                     PlaceholderText="Type a message..." Margin="0,0,8,0"
+                     KeyDown="InputBox_KeyDown"/>
+            <Button x:Name="SendBtn" Grid.Column="1" Content="Send" Width="80"
+                    Click="SendBtn_Click" IsEnabled="True"/>
+        </Grid>
+    </Grid>
+</UserControl>
