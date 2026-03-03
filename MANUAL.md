@@ -1,7 +1,5 @@
 # AI - User Manual
 
-This manual covers features shared by both the Android and macOS apps. Platform-specific differences are noted where applicable.
-
 ## Quick Start
 
 ### 1. Configure a Provider
@@ -238,10 +236,6 @@ Some AI models (like DeepSeek reasoning models) include `<think>...</think>` sec
 - In-app viewer: Click the "Think" button to expand/collapse reasoning
 - HTML reports: JavaScript-powered collapsible sections
 - Helps understand AI decision-making while keeping responses clean
-
-## Integration with Other Apps (Android Only)
-
-The Android app can be launched from other Android applications via Intents to generate reports. See [`android/CALL_AI.md`](android/CALL_AI.md) for complete documentation.
 
 ## App Structure
 

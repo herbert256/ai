@@ -1,6 +1,6 @@
 # AI - Multi-Provider AI Report Generator & Chat
 
-Android and macOS apps for AI-powered reports and conversations using 31 different AI services. Compare responses from OpenAI, Anthropic, Google, and 28 other providers, chat with real-time streaming responses, organize agents into flocks and swarms, configure custom API endpoints, track costs, and explore models across all providers.
+Android app for AI-powered reports and conversations using 31 different AI services. Compare responses from OpenAI, Anthropic, Google, and 28 other providers, chat with real-time streaming responses, organize agents into flocks and swarms, configure custom API endpoints, track costs, and explore models across all providers.
 
 ## Features
 
@@ -14,41 +14,24 @@ Android and macOS apps for AI-powered reports and conversations using 31 differe
 - **HTML Reports** with cost tables, think sections, citations, markdown rendering
 - **Configuration Export/Import** for backup and restore
 - **Developer Mode** with API tracing, trace viewer, and API test tool
-- **External App Integration** via Intent (Android only, see [`android/CALL_AI.md`](android/CALL_AI.md))
 
 ## Requirements
 
-### Android
 - Android 8.0 (API 26) or higher
-- API keys for desired AI services
-
-### macOS
-- macOS 14.0 or higher
 - API keys for desired AI services
 
 ## Installation
 
-### Android
 Download the latest APK from releases, or build from source:
 
 ```bash
-cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
-adb install -r android/ai/build/outputs/apk/debug/ai-debug.apk
-```
-
-### macOS
-Build from source:
-
-```bash
-cd macOS && xcodegen generate
-xcodebuild -project macOS/macAI.xcodeproj -scheme macAI -configuration Debug build
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
+adb install -r ai/build/outputs/apk/debug/ai-debug.apk
 ```
 
 ## Documentation
 
 - **[MANUAL.md](MANUAL.md)** — User guide: setup, features, supported services, troubleshooting
-- **[android/DEVELOP.md](android/DEVELOP.md)** — Android developer guide: architecture, building, internals, data formats
-- **[android/CALL_AI.md](android/CALL_AI.md)** — Android external app integration via Intents
 
 ## Privacy & Security
 
@@ -67,4 +50,3 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 - **Model Data**: OpenRouter API, Hugging Face API, LiteLLM pricing data
 - **Android UI**: Jetpack Compose, Material 3
 - **Android Networking**: Retrofit, OkHttp, Gson
-- **macOS UI**: SwiftUI, native macOS components
