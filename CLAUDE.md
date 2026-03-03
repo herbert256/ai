@@ -127,10 +127,10 @@ com.ai/
 
 ### macOS
 
-Source lives under `macOS/macAI/`:
+Source lives under `macOS/ai/`:
 
 ```
-macAI/
+ai/
 ├── macAIApp.swift                     # App entry point (@main)
 ├── Data/                              # Data layer (14 files)
 │   ├── AppService.swift              # Provider data class + ProviderDefinition

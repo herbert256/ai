@@ -15,11 +15,11 @@ targets:
     type: application
     platform: macOS
     sources:
-      - path: macAI
+      - path: ai
         excludes:
           - "Preview Content"
     resources:
-      - path: macAI/Resources
+      - path: ai/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ai.macAI
