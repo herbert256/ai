@@ -33,7 +33,7 @@ Download the latest APK from releases, or build from source:
 
 ```bash
 cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r android/ai/build/outputs/apk/debug/ai-debug.apk
 ```
 
 ### macOS

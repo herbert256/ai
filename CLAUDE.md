@@ -31,12 +31,12 @@ cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
 cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 
 # Deploy to device
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk && \
+adb install -r android/ai/build/outputs/apk/debug/ai-debug.apk && \
 adb shell am start -n com.ai/.MainActivity
 
 # Deploy to both device and cloud
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk && \
-cp android/app/build/outputs/apk/debug/app-debug.apk /Users/herbert/cloud/ai.apk
+adb install -r android/ai/build/outputs/apk/debug/ai-debug.apk && \
+cp android/ai/build/outputs/apk/debug/ai-debug.apk /Users/herbert/cloud/ai.apk
 
 # View logs
 adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
@@ -69,7 +69,7 @@ Swift 5.9, SwiftUI with NavigationSplitView, dark theme. MVVM with `@Observable`
 
 ### Android
 
-Source lives under `android/app/src/main/java/com/ai/`:
+Source lives under `android/ai/src/main/java/com/ai/`:
 
 ```
 com.ai/
