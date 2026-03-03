@@ -1,0 +1,701 @@
+package com.ai.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.ai.data.AppService
+
+/**
+ * Settings sub-screen navigation enum.
+ */
+enum class SettingsSubScreen {
+    MAIN,
+    AI_PROVIDER_EDIT,  // Dynamic provider editing (uses selectedProvider state)
+    // AI architecture
+    AI_SETUP,       // Hub with navigation cards
+    AI_PROVIDERS,   // Provider model configuration
+    AI_AGENTS,      // Agents CRUD
+    AI_ADD_AGENT,   // Add new agent (direct to AgentEditScreen)
+    AI_SWARMS,      // Flocks CRUD
+    AI_ADD_SWARM,   // Add new flock
+    AI_EDIT_SWARM,  // Edit existing flock
+    AI_FLOCKS,      // Swarms CRUD
+    AI_ADD_FLOCK,   // Add new swarm
+    AI_EDIT_FLOCK,  // Edit existing swarm
+    AI_PROMPTS,     // AI Prompts CRUD
+    AI_ADD_PROMPT,  // Add new prompt
+    AI_EDIT_PROMPT, // Edit existing prompt
+    AI_PARAMETERS,      // AI Parameters CRUD
+    AI_ADD_PARAMETERS,  // Add new parameters
+    AI_EDIT_PARAMETERS, // Edit existing parameters
+    AI_SYSTEM_PROMPTS,      // AI System Prompts CRUD
+    AI_ADD_SYSTEM_PROMPT,   // Add new system prompt
+    AI_EDIT_SYSTEM_PROMPT,  // Edit existing system prompt
+    AI_EXTERNAL_SERVICES    // External Services (HuggingFace, OpenRouter)
+}
+
+/**
+ * Root settings screen that manages navigation between settings sub-screens.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    generalSettings: GeneralSettings,
+    aiSettings: Settings,
+    loadingModelsFor: Set<AppService> = emptySet(),
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack,
+    onSaveGeneral: (GeneralSettings) -> Unit,
+    onSaveAi: (Settings) -> Unit,
+    onFetchModels: (AppService, String) -> Unit = { _, _ -> },
+    onTestAiModel: suspend (AppService, String, String) -> String? = { _, _, _ -> null },
+    onProviderStateChange: (AppService, String) -> Unit = { _, _ -> },
+    onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
+    onSaveHuggingFaceApiKey: (String) -> Unit = {},
+    onSaveOpenRouterApiKey: (String) -> Unit = {},
+    onNavigateToCostConfig: () -> Unit = {},
+    onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
+    onNavigateToTrace: (String) -> Unit = {},
+    initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
+) {
+    var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
+
+    // State for dynamic provider editing
+    var selectedProvider by remember { mutableStateOf<AppService?>(null) }
+
+    // State for pre-filling agent creation from provider screen
+    var prefillAgentProvider by remember { mutableStateOf<AppService?>(null) }
+    var prefillAgentApiKey by remember { mutableStateOf("") }
+    var prefillAgentModel by remember { mutableStateOf("") }
+
+    // State for flock editing
+    var editingFlockId by remember { mutableStateOf<String?>(null) }
+
+    // State for swarm editing
+    var editingSwarmId by remember { mutableStateOf<String?>(null) }
+
+    // State for prompt editing
+    var editingPromptId by remember { mutableStateOf<String?>(null) }
+
+    // State for params editing
+    var editingParametersId by remember { mutableStateOf<String?>(null) }
+
+    // State for system prompt editing
+    var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
+
+    // Helper to generate unique agent name
+    fun generateUniqueAgentName(baseName: String): String {
+        val existingNames = aiSettings.agents.map { it.name }.toSet()
+        if (baseName !in existingNames) return baseName
+        var counter = 2
+        while ("$baseName $counter" in existingNames) {
+            counter++
+        }
+        return "$baseName $counter"
+    }
+
+    // Helper to navigate to add agent with pre-filled data
+    fun navigateToAddAgent(provider: AppService, apiKey: String, model: String) {
+        prefillAgentProvider = provider
+        prefillAgentApiKey = apiKey
+        prefillAgentModel = model
+        currentSubScreen = SettingsSubScreen.AI_ADD_AGENT
+    }
+
+    // Handle Android back button
+    BackHandler {
+        when (currentSubScreen) {
+            SettingsSubScreen.MAIN -> onBack()
+            SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            // AI screens navigate back to AI_SETUP
+            SettingsSubScreen.AI_PROVIDERS,
+            SettingsSubScreen.AI_AGENTS,
+            SettingsSubScreen.AI_SWARMS,
+            SettingsSubScreen.AI_FLOCKS -> {
+                currentSubScreen = SettingsSubScreen.AI_SETUP
+            }
+            // AI Prompts goes back to AI_SETUP
+            SettingsSubScreen.AI_PROMPTS -> {
+                currentSubScreen = SettingsSubScreen.AI_SETUP
+            }
+            // AI Parameters goes back to AI_SETUP
+            SettingsSubScreen.AI_PARAMETERS -> {
+                currentSubScreen = SettingsSubScreen.AI_SETUP
+            }
+            // AI_SETUP goes back home if it was the initial screen, otherwise to MAIN
+            SettingsSubScreen.AI_SETUP -> {
+                if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
+                    onBack()
+                } else {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                }
+            }
+            // Add agent goes back to AI_PROVIDERS
+            SettingsSubScreen.AI_ADD_AGENT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            // Flock screens go back to AI_SWARMS
+            SettingsSubScreen.AI_ADD_SWARM,
+            SettingsSubScreen.AI_EDIT_SWARM -> currentSubScreen = SettingsSubScreen.AI_SWARMS
+            // Prompt screens go back to AI_PROMPTS
+            SettingsSubScreen.AI_ADD_PROMPT,
+            SettingsSubScreen.AI_EDIT_PROMPT -> currentSubScreen = SettingsSubScreen.AI_PROMPTS
+            // Parameters screens go back to AI_PARAMETERS
+            SettingsSubScreen.AI_ADD_PARAMETERS,
+            SettingsSubScreen.AI_EDIT_PARAMETERS -> currentSubScreen = SettingsSubScreen.AI_PARAMETERS
+            // System Prompt screens
+            SettingsSubScreen.AI_SYSTEM_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_SETUP
+            SettingsSubScreen.AI_ADD_SYSTEM_PROMPT,
+            SettingsSubScreen.AI_EDIT_SYSTEM_PROMPT -> currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+            SettingsSubScreen.AI_EXTERNAL_SERVICES -> currentSubScreen = SettingsSubScreen.AI_SETUP
+            else -> currentSubScreen = SettingsSubScreen.MAIN
+        }
+    }
+
+    when (currentSubScreen) {
+        SettingsSubScreen.MAIN -> SettingsMainScreen(
+            generalSettings = generalSettings,
+            aiSettings = aiSettings,
+            onBack = onBack,
+            onNavigateHome = onNavigateHome,
+            onSave = onSaveGeneral,
+            onNavigate = { currentSubScreen = it }
+        )
+        SettingsSubScreen.AI_PROVIDER_EDIT -> {
+            val provider = selectedProvider
+            if (provider != null) {
+                ProviderSettingsScreen(
+                    service = provider,
+                    aiSettings = aiSettings,
+                    isLoadingModels = provider in loadingModelsFor,
+                    onBackToSettings = { currentSubScreen = SettingsSubScreen.AI_PROVIDERS },
+                    onBackToHome = onNavigateHome,
+                    onSave = onSaveAi,
+                    onFetchModels = { key -> onFetchModels(provider, key) },
+                    onTestApiKey = onTestAiModel,
+                    onCreateAgent = { navigateToAddAgent(provider, aiSettings.getApiKey(provider), aiSettings.getModel(provider)) },
+                    onProviderStateChange = { state -> onProviderStateChange(provider, state) },
+                    onUpdateDefinition = { updatedService ->
+                        com.ai.data.ProviderRegistry.update(updatedService)
+                    },
+                    onDeleteProvider = { service ->
+                        com.ai.data.ProviderRegistry.remove(service.id)
+                        onSaveAi(aiSettings.removeProvider(service))
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                    },
+                    onTestModelWithPrompt = { model ->
+                        onTestModelWithPrompt(provider, aiSettings.getApiKey(provider), model, "Return only the letter O, nothing more")
+                    },
+                    onNavigateToTrace = onNavigateToTrace
+                )
+            }
+        }
+        // Three-tier AI architecture screens
+        SettingsSubScreen.AI_SETUP -> SetupScreen(
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            huggingFaceApiKey = generalSettings.huggingFaceApiKey,
+            openRouterApiKey = generalSettings.openRouterApiKey,
+            onBackToSettings = {
+                // If AI_SETUP is the initial screen (accessed from home), go home
+                // Otherwise go back to Settings main screen
+                if (initialSubScreen == SettingsSubScreen.AI_SETUP) {
+                    onBack()
+                } else {
+                    currentSubScreen = SettingsSubScreen.MAIN
+                }
+            },
+            onBackToHome = onNavigateHome,
+            onNavigate = { currentSubScreen = it },
+            onSave = onSaveAi,
+            onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
+            onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+            onRefreshAllModels = onRefreshAllModels,
+            onTestApiKey = onTestAiModel,
+            onProviderStateChange = onProviderStateChange,
+            onNavigateToCostConfig = onNavigateToCostConfig
+        )
+        SettingsSubScreen.AI_PROVIDERS -> ProvidersScreen(
+            aiSettings = aiSettings,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onProviderSelected = { service ->
+                selectedProvider = service
+                currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+            },
+            onAddProvider = { newService ->
+                com.ai.data.ProviderRegistry.add(newService)
+                onSaveAi(aiSettings.withProvider(newService, defaultProviderConfig(newService)))
+                selectedProvider = newService
+                currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+            }
+        )
+        SettingsSubScreen.AI_AGENTS -> AgentsScreen(
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onTestAiModel = onTestAiModel,
+            onFetchModels = onFetchModels
+        )
+        SettingsSubScreen.AI_ADD_AGENT -> {
+            // Calculate prefill name with unique suffix if needed
+            val prefillName = prefillAgentProvider?.let { provider ->
+                generateUniqueAgentName(provider.displayName)
+            } ?: ""
+
+            var addAgentModelSelectProvider by remember { mutableStateOf<AppService?>(null) }
+            var addAgentPendingModel by remember { mutableStateOf<String?>(null) }
+
+            val agentModelProvider = addAgentModelSelectProvider
+            if (agentModelProvider != null) {
+                SelectModelScreen(
+                    provider = agentModelProvider,
+                    aiSettings = aiSettings,
+                    currentModel = "",
+                    showDefaultOption = true,
+                    onSelectModel = { model ->
+                        addAgentPendingModel = model
+                        addAgentModelSelectProvider = null
+                    },
+                    onBack = { addAgentModelSelectProvider = null },
+                    onNavigateHome = onNavigateHome
+                )
+            } else {
+                AgentEditScreen(
+                    agent = null,
+                    aiSettings = aiSettings,
+                    developerMode = generalSettings.developerMode,
+                    existingNames = aiSettings.agents.map { it.name }.toSet(),
+                    onTestAiModel = onTestAiModel,
+                    onFetchModelsForProvider = onFetchModels,
+                    forceAddMode = true,
+                    prefillProvider = prefillAgentProvider,
+                    prefillApiKey = prefillAgentApiKey,
+                    prefillModel = prefillAgentModel,
+                    prefillName = prefillName,
+                    onSave = { newAgent ->
+                        val newAgents = aiSettings.agents + newAgent
+                        onSaveAi(aiSettings.copy(agents = newAgents))
+                        // Clear prefill data
+                        prefillAgentProvider = null
+                        prefillAgentApiKey = ""
+                        prefillAgentModel = ""
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                    },
+                    onBack = {
+                        // Clear prefill data on back
+                        prefillAgentProvider = null
+                        prefillAgentApiKey = ""
+                        prefillAgentModel = ""
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+                    },
+                    onNavigateHome = onNavigateHome,
+                    pendingModelSelection = addAgentPendingModel,
+                    onPendingModelConsumed = { addAgentPendingModel = null },
+                    onNavigateToSelectModel = { provider ->
+                        addAgentModelSelectProvider = provider
+                    }
+                )
+            }
+        }
+        SettingsSubScreen.AI_SWARMS -> FlocksScreen(
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddFlock = { currentSubScreen = SettingsSubScreen.AI_ADD_SWARM },
+            onEditFlock = { flockId ->
+                editingFlockId = flockId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_SWARM
+            }
+        )
+        SettingsSubScreen.AI_ADD_SWARM -> FlockEditScreen(
+            flock = null,
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            existingNames = aiSettings.flocks.map { it.name }.toSet(),
+            onSave = { newFlock ->
+                val newFlocks = aiSettings.flocks + newFlock
+                onSaveAi(aiSettings.copy(flocks = newFlocks))
+                currentSubScreen = SettingsSubScreen.AI_SWARMS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_SWARMS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_SWARM -> {
+            val flock = editingFlockId?.let { aiSettings.getFlockById(it) }
+            FlockEditScreen(
+                flock = flock,
+                aiSettings = aiSettings,
+                developerMode = generalSettings.developerMode,
+                existingNames = aiSettings.flocks.filter { it.id != editingFlockId }.map { it.name }.toSet(),
+                onSave = { updatedFlock ->
+                    val newFlocks = aiSettings.flocks.map { if (it.id == updatedFlock.id) updatedFlock else it }
+                    onSaveAi(aiSettings.copy(flocks = newFlocks))
+                    editingFlockId = null
+                    currentSubScreen = SettingsSubScreen.AI_SWARMS
+                },
+                onBack = {
+                    editingFlockId = null
+                    currentSubScreen = SettingsSubScreen.AI_SWARMS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_FLOCKS -> SwarmsScreen(
+            aiSettings = aiSettings,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddSwarm = { currentSubScreen = SettingsSubScreen.AI_ADD_FLOCK },
+            onEditSwarm = { swarmId ->
+                editingSwarmId = swarmId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_FLOCK
+            }
+        )
+        SettingsSubScreen.AI_ADD_FLOCK -> SwarmEditScreen(
+            swarm = null,
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            existingNames = aiSettings.swarms.map { it.name }.toSet(),
+            availableModels = AppService.entries.associateWith { aiSettings.getModels(it) },
+            onSave = { newSwarm ->
+                val newSwarms = aiSettings.swarms + newSwarm
+                onSaveAi(aiSettings.copy(swarms = newSwarms))
+                currentSubScreen = SettingsSubScreen.AI_FLOCKS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_FLOCKS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_FLOCK -> {
+            val swarm = editingSwarmId?.let { aiSettings.getSwarmById(it) }
+            SwarmEditScreen(
+                swarm = swarm,
+                aiSettings = aiSettings,
+                developerMode = generalSettings.developerMode,
+                existingNames = aiSettings.swarms.filter { it.id != editingSwarmId }.map { it.name }.toSet(),
+                availableModels = AppService.entries.associateWith { aiSettings.getModels(it) },
+                onSave = { updatedSwarm ->
+                    val newSwarms = aiSettings.swarms.map { if (it.id == updatedSwarm.id) updatedSwarm else it }
+                    onSaveAi(aiSettings.copy(swarms = newSwarms))
+                    editingSwarmId = null
+                    currentSubScreen = SettingsSubScreen.AI_FLOCKS
+                },
+                onBack = {
+                    editingSwarmId = null
+                    currentSubScreen = SettingsSubScreen.AI_FLOCKS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_PROMPTS -> PromptsScreen(
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddPrompt = { currentSubScreen = SettingsSubScreen.AI_ADD_PROMPT },
+            onEditPrompt = { promptId ->
+                editingPromptId = promptId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_PROMPT
+            }
+        )
+        SettingsSubScreen.AI_ADD_PROMPT -> PromptEditScreen(
+            prompt = null,
+            aiSettings = aiSettings,
+            developerMode = generalSettings.developerMode,
+            existingNames = aiSettings.prompts.map { it.name }.toSet(),
+            onSave = { newPrompt ->
+                val newPrompts = aiSettings.prompts + newPrompt
+                onSaveAi(aiSettings.copy(prompts = newPrompts))
+                currentSubScreen = SettingsSubScreen.AI_PROMPTS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_PROMPTS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_PROMPT -> {
+            val prompt = editingPromptId?.let { aiSettings.getPromptById(it) }
+            PromptEditScreen(
+                prompt = prompt,
+                aiSettings = aiSettings,
+                developerMode = generalSettings.developerMode,
+                existingNames = aiSettings.prompts.filter { it.id != editingPromptId }.map { it.name }.toSet(),
+                onSave = { updatedPrompt ->
+                    val newPrompts = aiSettings.prompts.map { if (it.id == updatedPrompt.id) updatedPrompt else it }
+                    onSaveAi(aiSettings.copy(prompts = newPrompts))
+                    editingPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_PROMPTS
+                },
+                onBack = {
+                    editingPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_PROMPTS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_PARAMETERS -> ParametersListScreen(
+            aiSettings = aiSettings,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddParameters = { currentSubScreen = SettingsSubScreen.AI_ADD_PARAMETERS },
+            onEditParameters = { paramsId ->
+                editingParametersId = paramsId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_PARAMETERS
+            }
+        )
+        SettingsSubScreen.AI_ADD_PARAMETERS -> ParametersEditScreen(
+            params = null,
+            existingNames = aiSettings.parameters.map { it.name }.toSet(),
+            onSave = { newParams ->
+                val newParamsList = aiSettings.parameters + newParams
+                onSaveAi(aiSettings.copy(parameters = newParamsList))
+                currentSubScreen = SettingsSubScreen.AI_PARAMETERS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_PARAMETERS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_PARAMETERS -> {
+            val params = editingParametersId?.let { aiSettings.getParametersById(it) }
+            ParametersEditScreen(
+                params = params,
+                existingNames = aiSettings.parameters.filter { it.id != editingParametersId }.map { it.name }.toSet(),
+                onSave = { updatedParams ->
+                    val newParamsList = aiSettings.parameters.map { if (it.id == updatedParams.id) updatedParams else it }
+                    onSaveAi(aiSettings.copy(parameters = newParamsList))
+                    editingParametersId = null
+                    currentSubScreen = SettingsSubScreen.AI_PARAMETERS
+                },
+                onBack = {
+                    editingParametersId = null
+                    currentSubScreen = SettingsSubScreen.AI_PARAMETERS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_SYSTEM_PROMPTS -> SystemPromptsListScreen(
+            aiSettings = aiSettings,
+            onBackToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+            onBackToHome = onNavigateHome,
+            onSave = onSaveAi,
+            onAddSystemPrompt = { currentSubScreen = SettingsSubScreen.AI_ADD_SYSTEM_PROMPT },
+            onEditSystemPrompt = { spId ->
+                editingSystemPromptId = spId
+                currentSubScreen = SettingsSubScreen.AI_EDIT_SYSTEM_PROMPT
+            }
+        )
+        SettingsSubScreen.AI_ADD_SYSTEM_PROMPT -> SystemPromptEditScreen(
+            systemPrompt = null,
+            existingNames = aiSettings.systemPrompts.map { it.name }.toSet(),
+            onSave = { newSp ->
+                val newList = aiSettings.systemPrompts + newSp
+                onSaveAi(aiSettings.copy(systemPrompts = newList))
+                currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+            },
+            onBack = { currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS },
+            onNavigateHome = onNavigateHome
+        )
+        SettingsSubScreen.AI_EDIT_SYSTEM_PROMPT -> {
+            val sp = editingSystemPromptId?.let { aiSettings.getSystemPromptById(it) }
+            SystemPromptEditScreen(
+                systemPrompt = sp,
+                existingNames = aiSettings.systemPrompts.filter { it.id != editingSystemPromptId }.map { it.name }.toSet(),
+                onSave = { updatedSp ->
+                    val newList = aiSettings.systemPrompts.map { if (it.id == updatedSp.id) updatedSp else it }
+                    onSaveAi(aiSettings.copy(systemPrompts = newList))
+                    editingSystemPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+                },
+                onBack = {
+                    editingSystemPromptId = null
+                    currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS
+                },
+                onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_EXTERNAL_SERVICES -> {
+            ExternalServicesScreen(
+                huggingFaceApiKey = generalSettings.huggingFaceApiKey,
+                openRouterApiKey = generalSettings.openRouterApiKey,
+                onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey,
+                onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+                onBack = { currentSubScreen = SettingsSubScreen.AI_SETUP },
+                onNavigateHome = onNavigateHome
+            )
+        }
+    }
+}
+
+/**
+ * Main settings screen showing general settings directly.
+ */
+@Composable
+private fun SettingsMainScreen(
+    generalSettings: GeneralSettings,
+    aiSettings: Settings,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSave: (GeneralSettings) -> Unit,
+    onNavigate: (SettingsSubScreen) -> Unit = {}
+) {
+    var userName by remember { mutableStateOf(generalSettings.userName) }
+    var huggingFaceApiKey by remember { mutableStateOf(generalSettings.huggingFaceApiKey) }
+    var openRouterApiKey by remember { mutableStateOf(generalSettings.openRouterApiKey) }
+    var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
+    var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
+    var popupModelSelection by remember { mutableStateOf(generalSettings.popupModelSelection) }
+
+    fun saveSettings() {
+        onSave(generalSettings.copy(
+            userName = userName.ifBlank { "user" },
+            huggingFaceApiKey = huggingFaceApiKey,
+            openRouterApiKey = openRouterApiKey,
+            fullScreenMode = fullScreenMode,
+            defaultEmail = defaultEmail,
+            popupModelSelection = popupModelSelection
+        ))
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Title bar
+        TitleBar(
+            title = "Settings",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // User name card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "User",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                OutlinedTextField(
+                    value = userName,
+                    onValueChange = {
+                        userName = it
+                        saveSettings()
+                    },
+                    label = { Text("Your name") },
+                    placeholder = { Text("user") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = AppColors.outlinedFieldColors()
+                )
+
+                OutlinedTextField(
+                    value = defaultEmail,
+                    onValueChange = {
+                        defaultEmail = it
+                        saveSettings()
+                    },
+                    label = { Text("Default email") },
+                    placeholder = { Text("name@example.com") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = AppColors.outlinedFieldColors()
+                )
+            }
+        }
+
+        // Display settings card
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Display",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+
+                // Full screen mode toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Full screen mode", color = Color.White)
+                        Text(
+                            text = "Hide the system status bar",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppColors.TextSecondary
+                        )
+                    }
+                    Switch(
+                        checked = fullScreenMode,
+                        onCheckedChange = {
+                            fullScreenMode = it
+                            saveSettings()
+                        }
+                    )
+                }
+
+                // Model selection mode toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Model selection", color = Color.White)
+                        Text(
+                            text = if (popupModelSelection) "Popup" else "Full screen",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppColors.TextSecondary
+                        )
+                    }
+                    Switch(
+                        checked = popupModelSelection,
+                        onCheckedChange = {
+                            popupModelSelection = it
+                            saveSettings()
+                        }
+                    )
+                }
+
+            }
+        }
+
+    }
+}
+

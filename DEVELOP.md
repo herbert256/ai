@@ -23,11 +23,11 @@
 
 ### Debug Build
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
+cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
 ```
 
 ### Release Build
-Create `local.properties`:
+Create `android/local.properties`:
 ```properties
 KEYSTORE_FILE=/path/to/keystore.jks
 KEYSTORE_PASSWORD=your_password
@@ -37,7 +37,7 @@ KEY_PASSWORD=your_key_password
 
 Build:
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
+cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleRelease
 ```
 
 ## Design Patterns

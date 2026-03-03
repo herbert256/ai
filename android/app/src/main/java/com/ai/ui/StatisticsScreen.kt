@@ -1,0 +1,909 @@
+package com.ai.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.AppService
+
+/**
+ * Combined AI Usage screen showing both statistics and costs in one place.
+ * Groups by provider with expandable cards showing per-model details.
+ */
+@Composable
+fun UsageScreen(
+    openRouterApiKey: String,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack
+) {
+    BackHandler { onBack() }
+
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
+    val scope = rememberCoroutineScope()
+
+    var stats by remember { mutableStateOf(settingsPrefs.loadUsageStats()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var pricingReady by remember { mutableStateOf(false) }
+
+    // Trace overlay state
+    var showTraceHostname by remember { mutableStateOf<String?>(null) }
+    var showTraceModel by remember { mutableStateOf<String?>(null) }
+    var showTraceDetail by remember { mutableStateOf<String?>(null) }
+
+    // Pricing load/refresh function
+    suspend fun loadPricing(forceRefresh: Boolean = false) {
+        val pricingCache = com.ai.data.PricingCache
+        pricingCache.refreshLiteLLMPricing(context)
+        if (forceRefresh || pricingCache.needsOpenRouterRefresh(context)) {
+            if (openRouterApiKey.isNotBlank()) {
+                val pricing = pricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                if (pricing.isNotEmpty()) {
+                    pricingCache.saveOpenRouterPricing(context, pricing)
+                }
+            }
+        }
+        pricingReady = true
+    }
+
+    LaunchedEffect(Unit) {
+        loadPricing()
+        isLoading = false
+    }
+
+    // Trace overlays
+    if (showTraceDetail != null) {
+        TraceDetailScreen(
+            filename = showTraceDetail!!,
+            onBack = { showTraceDetail = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (showTraceHostname != null) {
+        TraceListScreen(
+            onBack = { showTraceHostname = null; showTraceModel = null },
+            onNavigateHome = onNavigateHome,
+            onSelectTrace = { filename -> showTraceDetail = filename },
+            onClearTraces = { },
+            hostnameFilter = showTraceHostname,
+            modelFilter = showTraceModel
+        )
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        TitleBar(
+            title = "AI Usage",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = AppColors.Green)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Loading pricing data...", color = AppColors.TextSecondary)
+                    }
+                }
+            }
+            stats.isEmpty() -> {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "\uD83D\uDCCA", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("No usage data yet", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Generate AI reports or chat to start tracking usage.", style = MaterialTheme.typography.bodyMedium, color = AppColors.TextSecondary)
+                    }
+                }
+            }
+            pricingReady -> {
+                val pricingCache = com.ai.data.PricingCache
+
+                // Calculate costs for all stats
+                val statsWithCosts = stats.values.map { stat ->
+                    val pricing = pricingCache.getPricing(context, stat.provider, stat.model)
+                    val inputCost = stat.inputTokens * pricing.promptPrice
+                    val outputCost = stat.outputTokens * pricing.completionPrice
+                    StatWithCost(stat, inputCost, outputCost, inputCost + outputCost, true, pricing.source)
+                }
+
+                // Totals
+                val totalCalls = stats.values.sumOf { it.callCount }
+                val totalInput = stats.values.sumOf { it.inputTokens }
+                val totalOutput = stats.values.sumOf { it.outputTokens }
+                val totalCost = statsWithCosts.sumOf { it.totalCost ?: 0.0 }
+                val totalInputCost = statsWithCosts.sumOf { it.inputCost ?: 0.0 }
+                val totalOutputCost = statsWithCosts.sumOf { it.outputCost ?: 0.0 }
+
+                // Summary card with both tokens and cost
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A4A3A))
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Total Usage",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = AppColors.Blue
+                            )
+                            // Refresh button
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        isRefreshing = true
+                                        loadPricing(forceRefresh = true)
+                                        isRefreshing = false
+                                    }
+                                },
+                                enabled = !isRefreshing && openRouterApiKey.isNotBlank(),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                if (isRefreshing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        color = AppColors.Green,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text("\u21BB Refresh", color = Color(0xFF64B5F6), fontSize = 11.sp)
+                                }
+                            }
+                        }
+                        // Cost total
+                        Text(
+                            text = formatCurrency(totalCost),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = AppColors.Green
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        // Token and cost breakdown
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Calls", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                                Text(formatNumber(totalCalls), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Column {
+                                Text("Input", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                                Text(formatTokens(totalInput), color = Color(0xFFCCCCCC), fontSize = 10.sp)
+                                Text(formatCurrency(totalInputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
+                            }
+                            Column {
+                                Text("Output", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                                Text(formatTokens(totalOutput), color = Color(0xFFCCCCCC), fontSize = 10.sp)
+                                Text(formatCurrency(totalOutputCost), fontFamily = FontFamily.Monospace, color = Color(0xFFCCCCCC), fontSize = 10.sp)
+                            }
+                            Column {
+                                Text("Models", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                                Text("${statsWithCosts.size}", color = Color(0xFFCCCCCC), fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Clear button
+                OutlinedButton(
+                    onClick = {
+                        settingsPrefs.clearUsageStats()
+                        stats = emptyMap()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Clear Statistics")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Group stats by provider, sorted by total cost descending
+                val groupedByProvider = remember(statsWithCosts) {
+                    statsWithCosts.groupBy { it.stat.provider }
+                        .mapValues { (_, models) ->
+                            ProviderCostGroup(
+                                models = models.sortedByDescending { it.totalCost ?: 0.0 },
+                                totalCost = models.mapNotNull { it.totalCost }.sum(),
+                                totalInputCost = models.mapNotNull { it.inputCost }.sum(),
+                                totalOutputCost = models.mapNotNull { it.outputCost }.sum(),
+                                totalCalls = models.sumOf { it.stat.callCount }
+                            )
+                        }
+                        .toList()
+                        .sortedByDescending { it.second.totalCost }
+                }
+
+                var expandedProviders by remember { mutableStateOf(setOf<com.ai.data.AppService>()) }
+
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(groupedByProvider, key = { it.first.id }) { (provider, group) ->
+                        UsageProviderCard(
+                            provider = provider,
+                            group = group,
+                            isExpanded = provider in expandedProviders,
+                            onToggle = {
+                                expandedProviders = if (provider in expandedProviders) {
+                                    expandedProviders - provider
+                                } else {
+                                    expandedProviders + provider
+                                }
+                            },
+                            onModelClick = { stat ->
+                                val hostname = try { java.net.URL(stat.provider.baseUrl).host } catch (_: Exception) { null }
+                                hostname?.let {
+                                    showTraceHostname = it
+                                    showTraceModel = stat.model
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Expandable provider card for the combined Usage screen.
+ * Shows provider total cost + calls in header, per-model details when expanded.
+ */
+@Composable
+private fun UsageProviderCard(
+    provider: com.ai.data.AppService,
+    group: ProviderCostGroup,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    onModelClick: (UsageStats) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark),
+        shape = RoundedCornerShape(6.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            // Header row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = if (isExpanded) "\u25BC" else "\u25B6",
+                        color = AppColors.TextTertiary,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = provider.displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.Blue
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${group.totalCalls} calls",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppColors.TextTertiary
+                    )
+                }
+                Text(
+                    text = formatCurrency(group.totalCost),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    color = AppColors.Green
+                )
+            }
+
+            // Expanded content
+            if (isExpanded) {
+                HorizontalDivider(color = Color(0xFF404040))
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    group.models.forEach { statWithCost ->
+                        UsageModelRow(
+                            statWithCost = statWithCost,
+                            onClick = { onModelClick(statWithCost.stat) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Row showing model usage details within expanded provider card.
+ * Clickable to show API traces for that model.
+ */
+@Composable
+private fun UsageModelRow(statWithCost: StatWithCost, onClick: () -> Unit) {
+    val stat = statWithCost.stat
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stat.model,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("${stat.callCount} calls", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary)
+                Text("In: ${formatTokens(stat.inputTokens)}", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary)
+                Text("Out: ${formatTokens(stat.outputTokens)}", style = MaterialTheme.typography.labelSmall, color = AppColors.TextTertiary)
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            if (statWithCost.hasPricing) {
+                Text(
+                    text = formatCurrency(statWithCost.totalCost ?: 0.0),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                    color = AppColors.Green
+                )
+                val sourceColor = when (statWithCost.pricingSource) {
+                    "openrouter" -> Color(0xFF64B5F6)
+                    "litellm" -> Color(0xFFBA68C8)
+                    "fallback" -> Color(0xFFFFB74D)
+                    else -> AppColors.TextTertiary
+                }
+                Text(
+                    text = statWithCost.pricingSource ?: "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sourceColor
+                )
+            } else {
+                Text("No pricing", style = MaterialTheme.typography.bodySmall, color = AppColors.Orange)
+            }
+        }
+    }
+}
+
+/**
+ * Group of costs for a provider.
+ */
+data class ProviderCostGroup(
+    val models: List<StatWithCost>,
+    val totalCost: Double,
+    val totalInputCost: Double,
+    val totalOutputCost: Double,
+    val totalCalls: Int
+)
+
+data class StatWithCost(
+    val stat: UsageStats,
+    val inputCost: Double?,
+    val outputCost: Double?,
+    val totalCost: Double?,
+    val hasPricing: Boolean,
+    val pricingSource: String? = null
+)
+
+private fun formatNumber(value: Int): String = formatCompactNumber(value.toLong())
+
+private fun formatTokens(value: Long): String = formatCompactNumber(value)
+
+private fun formatCurrency(value: Double): String = formatUsd(value)
+
+/**
+ * Cost Configuration Screen - CRUD for manual price overrides per model.
+ */
+@Composable
+fun CostConfigurationScreen(
+    aiSettings: Settings,
+    developerMode: Boolean = false,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit = onBack
+) {
+    BackHandler { onBack() }
+
+    val context = LocalContext.current
+
+    // State for editing existing entries
+    var editingKey by remember { mutableStateOf<String?>(null) }
+    var editInputPrice by remember { mutableStateOf("") }
+    var editOutputPrice by remember { mutableStateOf("") }
+
+    // State for adding new entries
+    var showAddScreen by remember { mutableStateOf(false) }
+
+    // Force recomposition when manual pricing changes
+    var refreshTrigger by remember { mutableIntStateOf(0) }
+
+    // Get manual pricing (reloads when refreshTrigger changes)
+    val manualPricing = remember(refreshTrigger) {
+        com.ai.data.PricingCache.getAllManualPricing(context)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp)
+    ) {
+        TitleBar(
+            title = "Cost Configuration",
+            onBackClick = onBack,
+            onAiClick = onNavigateHome
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Add button
+        Button(
+            onClick = { showAddScreen = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) {
+            Text("+ Add Manual Override")
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Manual price overrides (per 1M tokens): ${manualPricing.size}",
+            style = MaterialTheme.typography.bodySmall,
+            color = AppColors.TextSecondary
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (manualPricing.isEmpty()) {
+            Text(
+                text = "No manual price overrides configured.\nTap '+ Add Manual Override' to add one.",
+                color = AppColors.TextTertiary
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Sort manual pricing entries by provider name, then model name
+                val sortedEntries = manualPricing.entries.sortedWith(
+                    compareBy(
+                        { entry ->
+                            val parts = entry.key.split(":", limit = 2)
+                            parts.getOrNull(0) ?: ""
+                        },
+                        { entry ->
+                            val parts = entry.key.split(":", limit = 2)
+                            parts.getOrNull(1) ?: ""
+                        }
+                    )
+                )
+
+                items(sortedEntries, key = { it.key }) { (manualKey, pricing) ->
+                    val parts = manualKey.split(":", limit = 2)
+                    if (parts.size == 2) {
+                        val providerName = parts[0]
+                        val modelName = parts[1]
+                        val provider = com.ai.data.AppService.findById(providerName)
+
+                        if (provider != null) {
+                            val isEditing = editingKey == manualKey
+
+                            CostConfigCard(
+                                provider = provider,
+                                model = modelName,
+                                currentInputPrice = pricing.promptPrice,
+                                currentOutputPrice = pricing.completionPrice,
+                                isEditing = isEditing,
+                                editInputPrice = if (isEditing) editInputPrice else "",
+                                editOutputPrice = if (isEditing) editOutputPrice else "",
+                                onEditInputPriceChange = { editInputPrice = it },
+                                onEditOutputPriceChange = { editOutputPrice = it },
+                                onEditClick = {
+                                    editingKey = manualKey
+                                    val inputPerMillion = pricing.promptPrice * 1_000_000
+                                    val outputPerMillion = pricing.completionPrice * 1_000_000
+                                    editInputPrice = if (inputPerMillion > 0) formatDecimal(inputPerMillion) else ""
+                                    editOutputPrice = if (outputPerMillion > 0) formatDecimal(outputPerMillion) else ""
+                                },
+                                onSaveClick = {
+                                    val inputPerToken = editInputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                                    val outputPerToken = editOutputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                                    if (inputPerToken != null && outputPerToken != null) {
+                                        com.ai.data.PricingCache.setManualPricing(
+                                            context, provider, modelName,
+                                            inputPerToken, outputPerToken
+                                        )
+                                        editingKey = null
+                                        refreshTrigger++
+                                    }
+                                },
+                                onCancelClick = {
+                                    editingKey = null
+                                },
+                                onRemoveClick = {
+                                    com.ai.data.PricingCache.removeManualPricing(context, provider, modelName)
+                                    refreshTrigger++
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Full-screen Add Manual Override
+    if (showAddScreen) {
+        AddManualOverrideScreen(
+            aiSettings = aiSettings,
+            onSave = { provider, model, inputPerToken, outputPerToken ->
+                com.ai.data.PricingCache.setManualPricing(
+                    context, provider, model,
+                    inputPerToken, outputPerToken
+                )
+                showAddScreen = false
+                refreshTrigger++
+            },
+            onBack = { showAddScreen = false },
+            onNavigateHome = onNavigateHome
+        )
+    }
+}
+
+/**
+ * Full-screen Add Manual Override screen with model selection via SelectModelScreen.
+ */
+@Composable
+private fun AddManualOverrideScreen(
+    aiSettings: Settings,
+    onSave: (AppService, String, Double, Double) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+
+    var selectedProvider by remember { mutableStateOf(AppService.entries.first()) }
+    var model by remember { mutableStateOf("") }
+    var inputPrice by remember { mutableStateOf("") }
+    var outputPrice by remember { mutableStateOf("") }
+    var showModelSelect by remember { mutableStateOf(false) }
+    var showProviderSelect by remember { mutableStateOf(false) }
+
+    if (showProviderSelect) {
+        SelectProviderScreen(
+            aiSettings = aiSettings,
+            onSelectProvider = { provider ->
+                selectedProvider = provider
+                model = ""
+                showProviderSelect = false
+            },
+            onBack = { showProviderSelect = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    if (showModelSelect) {
+        SelectModelScreen(
+            provider = selectedProvider,
+            aiSettings = aiSettings,
+            currentModel = model,
+            showDefaultOption = false,
+            onSelectModel = { model = it; showModelSelect = false },
+            onBack = { showModelSelect = false },
+            onNavigateHome = onNavigateHome
+        )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TitleBar(
+                title = "Add Manual Override",
+                onBackClick = onBack,
+                onAiClick = onNavigateHome
+            )
+
+            // Save / Cancel buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onBack,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = {
+                        val inPerToken = inputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                        val outPerToken = outputPrice.toDoubleOrNull()?.let { it / 1_000_000 }
+                        if (model.isNotBlank() && inPerToken != null && outPerToken != null) {
+                            onSave(selectedProvider, model, inPerToken, outPerToken)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = model.isNotBlank() &&
+                            inputPrice.toDoubleOrNull() != null &&
+                            outputPrice.toDoubleOrNull() != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                ) {
+                    Text("Save")
+                }
+            }
+
+            // Provider selection
+            Text("Provider", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = selectedProvider.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                Button(
+                    onClick = { showProviderSelect = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
+                }
+            }
+
+            // Model input + Select button
+            Text("Model", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = model,
+                    onValueChange = { model = it },
+                    placeholder = { Text("Model name", color = AppColors.TextDim) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                Button(
+                    onClick = { showModelSelect = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("Select", fontSize = 12.sp)
+                }
+            }
+
+            // Prices
+            Text("Prices (per 1M tokens)", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = inputPrice,
+                    onValueChange = { inputPrice = it },
+                    label = { Text("Input $") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                OutlinedTextField(
+                    value = outputPrice,
+                    onValueChange = { outputPrice = it },
+                    label = { Text("Output $") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CostConfigCard(
+    provider: com.ai.data.AppService,
+    model: String,
+    currentInputPrice: Double?,
+    currentOutputPrice: Double?,
+    isEditing: Boolean,
+    editInputPrice: String,
+    editOutputPrice: String,
+    onEditInputPriceChange: (String) -> Unit,
+    onEditOutputPriceChange: (String) -> Unit,
+    onEditClick: () -> Unit,
+    onSaveClick: () -> Unit,
+    onCancelClick: () -> Unit,
+    onRemoveClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            // Provider and model name
+            Column {
+                Text(
+                    text = provider.displayName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AppColors.Blue
+                )
+                Text(
+                    text = model,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isEditing) {
+                // Editing mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editInputPrice,
+                        onValueChange = onEditInputPriceChange,
+                        label = { Text("Input $/1M") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = AppColors.outlinedFieldColors()
+                    )
+                    OutlinedTextField(
+                        value = editOutputPrice,
+                        onValueChange = onEditOutputPriceChange,
+                        label = { Text("Output $/1M") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        colors = AppColors.outlinedFieldColors()
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onCancelClick) {
+                        Text("Cancel", color = AppColors.TextSecondary)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onSaveClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                    ) {
+                        Text("Save")
+                    }
+                }
+            } else {
+                // Display mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Column {
+                                Text("Input", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                                Text(
+                                    text = if (currentInputPrice != null)
+                                        formatUsd(currentInputPrice * 1_000_000, decimals = 2)
+                                    else "-",
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFCCCCCC),
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Column {
+                                Text("Output", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                                Text(
+                                    text = if (currentOutputPrice != null)
+                                        formatUsd(currentOutputPrice * 1_000_000, decimals = 2)
+                                    else "-",
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFCCCCCC),
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                    Row {
+                        TextButton(onClick = onRemoveClick) {
+                            Text("Remove", color = AppColors.RedBright, fontSize = 12.sp)
+                        }
+                        TextButton(onClick = onEditClick) {
+                            Text("Edit", color = Color(0xFF64B5F6), fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

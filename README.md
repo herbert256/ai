@@ -1,6 +1,6 @@
 # AI - Multi-Provider AI Report Generator & Chat
 
-An Android app that generates AI-powered reports and enables conversations using 31 different AI services. Compare responses from OpenAI, Anthropic, Google, and 28 other providers, chat with real-time streaming responses, organize agents into flocks and swarms, configure custom API endpoints, track costs, and explore models across all providers.
+Android and macOS apps for AI-powered reports and conversations using 31 different AI services. Compare responses from OpenAI, Anthropic, Google, and 28 other providers, chat with real-time streaming responses, organize agents into flocks and swarms, configure custom API endpoints, track costs, and explore models across all providers.
 
 ## Features
 
@@ -18,17 +18,30 @@ An Android app that generates AI-powered reports and enables conversations using
 
 ## Requirements
 
+### Android
 - Android 8.0 (API 26) or higher
-- Internet connection
+- API keys for desired AI services
+
+### macOS
+- macOS 14.0 or higher
 - API keys for desired AI services
 
 ## Installation
 
+### Android
 Download the latest APK from releases, or build from source:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### macOS
+Build from source:
+
+```bash
+cd mac && xcodegen generate
+xcodebuild -project mac/macAI.xcodeproj -scheme macAI -configuration Debug build
 ```
 
 ## Documentation

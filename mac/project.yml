@@ -1,0 +1,38 @@
+name: macAI
+options:
+  bundleIdPrefix: com.ai
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  minimumXcodeGenVersion: "2.38"
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+targets:
+  macAI:
+    type: application
+    platform: macOS
+    sources:
+      - path: macAI
+        excludes:
+          - "Preview Content"
+    resources:
+      - path: macAI/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ai.macAI
+        PRODUCT_NAME: macAI
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_GENERATION_MODE: GeneratedFile
+        INFOPLIST_KEY_NSMainStoryboardFile: ""
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        GENERATE_INFOPLIST_FILE: "YES"
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_APP_SANDBOX: "NO"
+        SWIFT_STRICT_CONCURRENCY: complete
