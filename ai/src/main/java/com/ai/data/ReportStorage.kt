@@ -25,6 +25,7 @@ data class ReportAgent(
     var citations: List<String>? = null,
     var searchResults: List<SearchResult>? = null,
     var relatedQuestions: List<String>? = null,
+    var rawUsageJson: String? = null,
     var durationMs: Long? = null
 )
 
@@ -80,7 +81,8 @@ object ReportStorage {
         httpStatus: Int? = null, requestHeaders: String? = null, requestBody: String? = null,
         responseHeaders: String? = null, responseBody: String? = null, errorMessage: String? = null,
         tokenUsage: TokenUsage? = null, cost: Double? = null, citations: List<String>? = null,
-        searchResults: List<SearchResult>? = null, relatedQuestions: List<String>? = null, durationMs: Long? = null
+        searchResults: List<SearchResult>? = null, relatedQuestions: List<String>? = null,
+        rawUsageJson: String? = null, durationMs: Long? = null
     ) {
         init(context)
         lock.withLock {
@@ -98,6 +100,7 @@ object ReportStorage {
             if (citations != null) agent.citations = citations
             if (searchResults != null) agent.searchResults = searchResults
             if (relatedQuestions != null) agent.relatedQuestions = relatedQuestions
+            if (rawUsageJson != null) agent.rawUsageJson = rawUsageJson
             if (durationMs != null) agent.durationMs = durationMs
             if (report.agents.all { it.reportStatus in listOf(ReportStatus.SUCCESS, ReportStatus.ERROR, ReportStatus.STOPPED) }) {
                 report.completedAt = System.currentTimeMillis()
@@ -113,10 +116,11 @@ object ReportStorage {
         context: Context, reportId: String, agentId: String, httpStatus: Int,
         responseHeaders: String?, responseBody: String?, tokenUsage: TokenUsage?, cost: Double?,
         citations: List<String>? = null, searchResults: List<SearchResult>? = null,
-        relatedQuestions: List<String>? = null, durationMs: Long? = null
+        relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null
     ) = updateAgentStatus(context, reportId, agentId, ReportStatus.SUCCESS, httpStatus,
         responseHeaders = responseHeaders, responseBody = responseBody, tokenUsage = tokenUsage,
-        cost = cost, citations = citations, searchResults = searchResults, relatedQuestions = relatedQuestions, durationMs = durationMs)
+        cost = cost, citations = citations, searchResults = searchResults,
+        relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs)
 
     fun markAgentError(
         context: Context, reportId: String, agentId: String, httpStatus: Int?,
@@ -140,8 +144,13 @@ object ReportStorage {
         context: Context, reportId: String, agentId: String, httpStatus: Int,
         responseHeaders: String?, responseBody: String?, tokenUsage: TokenUsage?, cost: Double?,
         citations: List<String>? = null, searchResults: List<SearchResult>? = null,
-        relatedQuestions: List<String>? = null, durationMs: Long? = null
-    ) = withContext(Dispatchers.IO) { markAgentSuccess(context, reportId, agentId, httpStatus, responseHeaders, responseBody, tokenUsage, cost, citations, searchResults, relatedQuestions, durationMs) }
+        relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null
+    ) = withContext(Dispatchers.IO) {
+        markAgentSuccess(
+            context, reportId, agentId, httpStatus, responseHeaders, responseBody, tokenUsage, cost,
+            citations, searchResults, relatedQuestions, rawUsageJson, durationMs
+        )
+    }
 
     suspend fun markAgentErrorAsync(
         context: Context, reportId: String, agentId: String, httpStatus: Int?,
@@ -155,7 +164,6 @@ object ReportStorage {
     fun getAllReports(context: Context): List<Report> { init(context); return lock.withLock { loadAllReports().sortedByDescending { it.timestamp } } }
     fun deleteReport(context: Context, reportId: String) { init(context); lock.withLock { File(reportsDir, "$reportId.json").delete() } }
     fun deleteAllReports(context: Context) { init(context); lock.withLock { reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { it.delete() } } }
-    fun getReportsByDateRange(context: Context, startTime: Long, endTime: Long) = getAllReports(context).filter { it.timestamp in startTime..endTime }
 
     private fun loadReport(reportId: String): Report? {
         val file = File(reportsDir ?: return null, "$reportId.json")

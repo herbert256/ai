@@ -106,16 +106,39 @@ object ApiTracer {
  * OkHttp Interceptor that traces API requests and responses when tracing is enabled.
  */
 class TracingInterceptor : Interceptor {
+    companion object {
+        private val SENSITIVE_HEADER_NAMES = setOf(
+            "authorization",
+            "proxy-authorization",
+            "x-api-key",
+            "api-key",
+            "cookie",
+            "set-cookie"
+        )
+        private val SENSITIVE_JSON_KEYS = setOf(
+            "api_key",
+            "apikey",
+            "authorization",
+            "token",
+            "access_token",
+            "refresh_token",
+            "password",
+            "secret"
+        )
+        private const val REDACTED = "[REDACTED]"
+    }
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         if (!ApiTracer.isTracingEnabled) return chain.proceed(request)
 
         val timestamp = System.currentTimeMillis()
         val hostname = request.url.host
-        val requestHeaders = headersToMap(request.headers)
-        val requestBody = request.body?.let { body ->
+        val rawRequestBody = request.body?.let { body ->
             try { val buffer = Buffer(); body.writeTo(buffer); buffer.readUtf8() } catch (_: Exception) { null }
         }
+        val requestHeaders = headersToMap(request.headers)
+        val requestBody = redactJsonString(rawRequestBody)
 
         val traceRequest = TraceRequest(request.url.toString(), request.method, requestHeaders, requestBody)
         val response = chain.proceed(request)
@@ -125,11 +148,15 @@ class TracingInterceptor : Interceptor {
         val responseHeaders = headersToMap(response.headers)
         val responseBody = if (isStreaming) "[streaming response - not captured]" else {
             response.body?.let { body ->
-                try { val source = body.source(); source.request(Long.MAX_VALUE); source.buffer.clone().readUtf8() } catch (_: Exception) { null }
+                try {
+                    val source = body.source()
+                    source.request(Long.MAX_VALUE)
+                    redactJsonString(source.buffer.clone().readUtf8())
+                } catch (_: Exception) { null }
             }
         }
 
-        val model = requestBody?.let { body ->
+        val model = rawRequestBody?.let { body ->
             try {
                 @Suppress("DEPRECATION")
                 val el = com.google.gson.JsonParser().parse(body)
@@ -146,8 +173,40 @@ class TracingInterceptor : Interceptor {
         val map = mutableMapOf<String, String>()
         for (i in 0 until headers.size) {
             val name = headers.name(i); val value = headers.value(i)
-            map[name] = map[name]?.let { "$it, $value" } ?: value
+            val safeValue = if (name.lowercase(Locale.US) in SENSITIVE_HEADER_NAMES) REDACTED else value
+            map[name] = map[name]?.let { "$it, $safeValue" } ?: safeValue
         }
         return map
+    }
+
+    private fun redactJsonString(text: String?): String? {
+        if (text.isNullOrBlank()) return text
+        return try {
+            @Suppress("DEPRECATION")
+            val root = com.google.gson.JsonParser().parse(text)
+            redactJsonElement(root)
+            createAppGson().toJson(root)
+        } catch (_: Exception) {
+            text
+        }
+    }
+
+    private fun redactJsonElement(element: com.google.gson.JsonElement?) {
+        when {
+            element == null || element.isJsonNull -> return
+            element.isJsonObject -> {
+                val obj = element.asJsonObject
+                obj.entrySet().forEach { (key, value) ->
+                    if (key.lowercase(Locale.US) in SENSITIVE_JSON_KEYS) {
+                        obj.addProperty(key, REDACTED)
+                    } else {
+                        redactJsonElement(value)
+                    }
+                }
+            }
+            element.isJsonArray -> {
+                element.asJsonArray.forEach { redactJsonElement(it) }
+            }
+        }
     }
 }

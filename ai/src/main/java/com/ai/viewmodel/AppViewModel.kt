@@ -82,9 +82,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
-        ApiTracer.isTracingEnabled = true
+        ApiTracer.isTracingEnabled = false
         viewModelScope.launch(Dispatchers.IO) {
             val bs = bootstrap(application)
+            ApiTracer.isTracingEnabled = bs.first.developerMode
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             refreshAllModelLists(bs.second)
         }
@@ -124,6 +125,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ===== Settings =====
 
     fun updateGeneralSettings(settings: GeneralSettings) {
+        ApiTracer.isTracingEnabled = settings.developerMode
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
     }
@@ -194,8 +196,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             results.associate { it.first.displayName to it.second }
         }
     }
-
-    fun clearModelListsCache() = settingsPrefs.clearModelListsCache()
 
     // ===== Model Testing =====
 

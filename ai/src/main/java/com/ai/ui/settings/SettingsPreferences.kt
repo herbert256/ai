@@ -149,14 +149,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun clearLastReportPrompt() { prefs.edit { remove(KEY_LAST_AI_REPORT_TITLE); remove(KEY_LAST_AI_REPORT_PROMPT) } }
-    fun clearSelectedReportIds() { prefs.edit { remove(KEY_SELECTED_SWARM_IDS); remove(KEY_SELECTED_FLOCK_IDS) } }
-
-    // ===== Selected Flock/Swarm IDs =====
-
-    fun loadSelectedFlockIds(): Set<String> = loadJsonList(KEY_SELECTED_FLOCK_IDS)?.toSet() ?: emptySet()
-    fun saveSelectedFlockIds(ids: Set<String>) { prefs.edit { putString(KEY_SELECTED_FLOCK_IDS, gson.toJson(ids.toList())) } }
-    fun loadSelectedSwarmIds(): Set<String> = loadJsonList(KEY_SELECTED_SWARM_IDS)?.toSet() ?: emptySet()
-    fun saveSelectedSwarmIds(ids: Set<String>) { prefs.edit { putString(KEY_SELECTED_SWARM_IDS, gson.toJson(ids.toList())) } }
 
     // ===== Usage Statistics =====
 
@@ -201,10 +193,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun updateModelListTimestamps(providers: List<AppService>) {
         val now = System.currentTimeMillis()
         prefs.edit { providers.forEach { putLong(KEY_MODEL_LIST_TIMESTAMP_PREFIX + it.id, now) } }
-    }
-
-    fun clearModelListsCache() {
-        prefs.edit { AppService.entries.forEach { remove(KEY_MODEL_LIST_TIMESTAMP_PREFIX + it.id) } }
     }
 
     // ===== Private helpers =====
@@ -257,9 +245,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         const val MAX_PROMPT_HISTORY = 100
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"
         const val KEY_LAST_AI_REPORT_PROMPT = "last_ai_report_prompt"
-        private const val KEY_SELECTED_FLOCK_IDS = "selected_flock_ids"
-        private const val KEY_SELECTED_SWARM_IDS = "selected_swarm_ids"
-
         private const val FILE_USAGE_STATS = "usage-stats.json"
         private const val FILE_PROMPT_HISTORY = "prompt-history.json"
         private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"

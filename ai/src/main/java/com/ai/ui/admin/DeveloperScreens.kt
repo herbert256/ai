@@ -245,14 +245,15 @@ fun EditApiRequestScreen(
                 try {
                     val traceCountBefore = ApiTracer.getTraceCount()
                     val wasEnabled = ApiTracer.isTracingEnabled
-                    ApiTracer.isTracingEnabled = true
-
-                    withContext(Dispatchers.IO) {
-                        val repo = AnalysisRepository()
-                        repo.testApiConnectionWithJson(provider, apiKey, apiUrl, editableJson)
+                    try {
+                        ApiTracer.isTracingEnabled = true
+                        withContext(Dispatchers.IO) {
+                            val repo = AnalysisRepository()
+                            repo.testApiConnectionWithJson(provider, apiKey, apiUrl, editableJson)
+                        }
+                    } finally {
+                        ApiTracer.isTracingEnabled = wasEnabled
                     }
-
-                    ApiTracer.isTracingEnabled = wasEnabled
                     val traces = ApiTracer.getTraceFiles()
                     val newTrace = if (ApiTracer.getTraceCount() > traceCountBefore) traces.firstOrNull()?.filename else null
 

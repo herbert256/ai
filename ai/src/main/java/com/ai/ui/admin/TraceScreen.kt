@@ -241,15 +241,13 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
             OutlinedButton(onClick = {
                 // Save provider/model/key to prefs for EditApiRequestScreen
                 t?.let { trace ->
-                    val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
-                    prefs.edit().apply {
-                        putString("last_test_raw_json", trace.request.body)
-                        putString("last_test_api_url", trace.request.url)
-                        val authHeader = trace.request.headers["Authorization"] ?: ""
-                        putString("last_test_api_key", authHeader.removePrefix("Bearer ").trim())
-                        putString("last_test_model", trace.model ?: "")
-                    }.apply()
-                }
+                        val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
+                        prefs.edit().apply {
+                            putString("last_test_raw_json", trace.request.body)
+                            putString("last_test_api_url", trace.request.url)
+                            putString("last_test_model", trace.model ?: "")
+                        }.apply()
+                    }
                 onEditRequest()
             }, modifier = Modifier.weight(1f)) { Text("Edit", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = { shareTrace(context, rawJson, currentFilename) }, modifier = Modifier.weight(1f)) { Text("Share", maxLines = 1, softWrap = false) }

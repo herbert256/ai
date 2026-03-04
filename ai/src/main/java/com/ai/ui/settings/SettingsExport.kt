@@ -104,7 +104,9 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         systemPrompts = settings.systemPrompts.ifEmpty { null }?.map { SystemPromptExport(it.id, it.name, it.prompt) },
         huggingFaceApiKey = generalSettings.huggingFaceApiKey.ifBlank { null },
         aiPrompts = settings.prompts.ifEmpty { null }?.map { PromptExport(it.id, it.name, it.agentId, it.promptText) },
-        manualPricing = PricingCache.getAllManualPricing(context).values.map { ManualPricingExport(it.modelId, it.promptPrice, it.completionPrice) }.ifEmpty { null },
+        manualPricing = PricingCache.getAllManualPricing(context).map { (key, pricing) ->
+            ManualPricingExport(key, pricing.promptPrice, pricing.completionPrice)
+        }.ifEmpty { null },
         providerEndpoints = settings.endpoints.entries.map { (provider, eps) -> ProviderEndpointsExport(provider.id, eps.map { EndpointExport(it.id, it.name, it.url, it.isDefault) }) }.ifEmpty { null },
         openRouterApiKey = generalSettings.openRouterApiKey.ifBlank { null },
         providerDefinitions = ProviderRegistry.getCustomProviders().ifEmpty { null },
@@ -160,7 +162,10 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
     }
 
     export.manualPricing?.let { pricingList ->
-        val map = pricingList.associate { it.key to PricingCache.ModelPricing(it.key.substringAfter(":"), it.promptPrice, it.completionPrice, "manual") }
+        val map = pricingList.associate { entry ->
+            val modelId = entry.key.substringAfter(':', entry.key)
+            entry.key to PricingCache.ModelPricing(modelId, entry.promptPrice, entry.completionPrice, "manual")
+        }
         PricingCache.setAllManualPricing(context, map)
     }
 
@@ -197,7 +202,7 @@ fun performStartClean(context: Context, onProgress: ((String) -> Unit)? = null) 
     onProgress?.invoke("Deleting reports...")
     com.ai.data.ReportStorage.getAllReports(context).forEach { if (it.timestamp < cutoff) com.ai.data.ReportStorage.deleteReport(context, it.id) }
     onProgress?.invoke("Clearing prompts...")
-    sp.clearPromptHistory(); sp.clearLastReportPrompt(); sp.clearSelectedReportIds()
+    sp.clearPromptHistory(); sp.clearLastReportPrompt()
     onProgress?.invoke("Clearing statistics...")
     sp.clearUsageStats()
     onProgress?.invoke("Deleting API traces...")

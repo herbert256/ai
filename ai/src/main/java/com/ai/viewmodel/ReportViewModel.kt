@@ -196,7 +196,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (response.isSuccess) {
             ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
                 response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
-                response.tokenUsage, cost, response.citations, response.searchResults, response.relatedQuestions, durationMs)
+                response.tokenUsage, cost, response.citations, response.searchResults,
+                response.relatedQuestions, response.rawUsageJson, durationMs)
         } else {
             ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
                 response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs)

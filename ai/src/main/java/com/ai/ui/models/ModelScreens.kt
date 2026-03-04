@@ -23,7 +23,6 @@ import com.ai.ui.report.formatPricingPerMillion
 import com.ai.ui.settings.AgentEditScreen
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private data class ModelSearchItem(val provider: AppService, val providerName: String, val modelName: String)
@@ -33,6 +32,24 @@ private data class ModelInfoData(
     val huggingFaceInfo: HuggingFaceModelInfo? = null,
     val hasPricing: Boolean = false
 )
+
+private object ModelInfoCache {
+    @Volatile private var apiKey: String? = null
+    @Volatile private var openRouterModels: List<OpenRouterModelInfo>? = null
+
+    suspend fun getOpenRouterModels(apiKey: String): List<OpenRouterModelInfo> {
+        if (apiKey.isBlank()) return emptyList()
+        if (this.apiKey == apiKey) {
+            openRouterModels?.let { return it }
+        }
+        val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
+        val response = api.listModelsDetailed("Bearer $apiKey")
+        val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
+        this.apiKey = apiKey
+        openRouterModels = models
+        return models
+    }
+}
 
 @Composable
 fun ModelSearchScreen(
@@ -167,7 +184,6 @@ fun ModelInfoScreen(
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var modelInfo by remember { mutableStateOf<ModelInfoData?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -178,22 +194,18 @@ fun ModelInfoScreen(
     LaunchedEffect(provider, modelName) {
         isLoading = true; errorMessage = null
         try {
-            withContext(Dispatchers.IO) {
+            val loadedInfo = withContext(Dispatchers.IO) {
                 var orInfo: OpenRouterModelInfo? = null
                 var hfInfo: HuggingFaceModelInfo? = null
 
                 // OpenRouter lookup
                 if (openRouterApiKey.isNotBlank()) {
                     try {
-                        val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-                        val response = api.listModelsDetailed("Bearer $openRouterApiKey")
-                        if (response.isSuccessful) {
-                            val models = response.body()?.data ?: emptyList()
-                            val orName = provider.openRouterName
-                            orInfo = models.find { it.id == "$orName/$modelName" }
-                                ?: models.find { it.id.endsWith("/$modelName") }
-                                ?: models.find { it.id == modelName }
-                        }
+                        val models = ModelInfoCache.getOpenRouterModels(openRouterApiKey)
+                        val orName = provider.openRouterName
+                        orInfo = models.find { it.id == "$orName/$modelName" }
+                            ?: models.find { it.id.endsWith("/$modelName") }
+                            ?: models.find { it.id == modelName }
                     } catch (_: Exception) {}
                 }
 
@@ -213,8 +225,9 @@ fun ModelInfoScreen(
                     }
                 }
 
-                modelInfo = ModelInfoData(openRouterInfo = orInfo, huggingFaceInfo = hfInfo, hasPricing = orInfo?.pricing != null)
+                ModelInfoData(openRouterInfo = orInfo, huggingFaceInfo = hfInfo, hasPricing = orInfo?.pricing != null)
             }
+            modelInfo = loadedInfo
         } catch (e: Exception) {
             errorMessage = e.message
         } finally {
