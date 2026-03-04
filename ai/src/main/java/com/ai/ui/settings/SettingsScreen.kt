@@ -91,8 +91,7 @@ fun SettingsScreen(
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
-                onRefreshAllModels = onRefreshAllModels, onTestApiKey = onTestAiModel,
-                onProviderStateChange = onProviderStateChange, onNavigateToCostConfig = onNavigateToCostConfig
+                onNavigateToCostConfig = onNavigateToCostConfig
             )
         }
         SettingsSubScreen.AI_PROVIDERS -> {

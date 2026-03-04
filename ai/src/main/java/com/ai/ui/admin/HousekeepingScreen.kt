@@ -1,8 +1,11 @@
 package com.ai.ui.admin
 
 import android.content.Context
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -18,7 +21,7 @@ import com.ai.data.*
 import com.ai.model.*
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.settings.exportAiConfig
-import com.ai.ui.settings.importAiConfigFromClipboard
+import com.ai.ui.settings.importAiConfigFromFile
 import com.ai.ui.shared.*
 import com.ai.viewmodel.GeneralSettings
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +60,102 @@ fun HousekeepingScreen(
     var showOpenRouterDialog by remember { mutableStateOf(false) }
     var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
     var showGenerationDialog by remember { mutableStateOf(false) }
+
+    // File import/export
+    var importType by remember { mutableStateOf("config") }
+
+    fun writeToUri(uri: Uri, content: String) {
+        context.contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
+    }
+
+    fun readFromUri(uri: Uri): String? {
+        return context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+    }
+
+    val exportConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+        val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
+        val gs = settingsPrefs.loadGeneralSettings()
+        val json = exportAiConfig(context, aiSettings, gs)
+        writeToUri(uri, json)
+        Toast.makeText(context, "Configuration exported", Toast.LENGTH_SHORT).show()
+    }
+
+    val exportKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val keys = mutableMapOf<String, String>()
+        for (service in AppService.entries) {
+            val apiKey = aiSettings.getApiKey(service)
+            if (apiKey.isNotBlank()) keys[service.id] = apiKey
+        }
+        if (huggingFaceApiKey.isNotBlank()) keys["HUGGINGFACE"] = huggingFaceApiKey
+        if (openRouterApiKey.isNotBlank()) keys["OPENROUTER_KEY"] = openRouterApiKey
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(keys))
+        Toast.makeText(context, "${keys.size} API keys exported", Toast.LENGTH_SHORT).show()
+    }
+
+    val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val manual = PricingCache.getAllManualPricing(context)
+        val lines = mutableListOf("provider,model,input_per_million,output_per_million")
+        manual.forEach { (key, pricing) ->
+            val parts = key.split(":", limit = 2)
+            lines.add("${parts[0]},${parts.getOrElse(1) { "" }},${pricing.promptPrice * 1_000_000},${pricing.completionPrice * 1_000_000}")
+        }
+        writeToUri(uri, lines.joinToString("\n"))
+        Toast.makeText(context, "${manual.size} cost entries exported", Toast.LENGTH_SHORT).show()
+    }
+
+    val importFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        when (importType) {
+            "config" -> {
+                val result = importAiConfigFromFile(context, uri, aiSettings)
+                if (result != null) {
+                    onSave(result.aiSettings)
+                    result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
+                    result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
+                }
+            }
+            "keys" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                try {
+                    val keys: Map<String, String> = createAppGson().fromJson(json, object : com.google.gson.reflect.TypeToken<Map<String, String>>() {}.type)
+                    var updated = aiSettings; var count = 0
+                    for ((id, key) in keys) {
+                        if (id == "HUGGINGFACE") { onSaveHuggingFaceApiKey(key); count++; continue }
+                        if (id == "OPENROUTER_KEY") { onSaveOpenRouterApiKey(key); count++; continue }
+                        val service = AppService.findById(id) ?: continue
+                        updated = updated.withApiKey(service, key); count++
+                    }
+                    onSave(updated)
+                    Toast.makeText(context, "$count API keys imported", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Invalid keys file: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            "costs" -> {
+                val csv = readFromUri(uri)
+                if (csv.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                var imported = 0; var skipped = 0
+                csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
+                    val parts = line.split(",")
+                    if (parts.size >= 4) {
+                        val provider = AppService.findById(parts[0].trim())
+                        val model = parts[1].trim()
+                        val inp = parts[2].trim().toDoubleOrNull()?.div(1_000_000)
+                        val outp = parts[3].trim().toDoubleOrNull()?.div(1_000_000)
+                        if (provider != null && model.isNotBlank() && inp != null && outp != null) {
+                            PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+                        } else skipped++
+                    } else skipped++
+                }
+                Toast.makeText(context, "Imported $imported costs" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     fun launchTask(title: String, initialText: String = "", block: suspend () -> Unit) {
         scope.launch {
@@ -195,14 +294,14 @@ fun HousekeepingScreen(
                                 }
                                 showProviderStateDialog = true
                             }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Providers", fontSize = 12.sp) }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Providers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
                             launchTask("Refreshing Models") {
                                 refreshResults = onRefreshAllModels(aiSettings, true) { msg: String -> progressText = msg }
                                 showResultsDialog = true
                             }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Models", fontSize = 12.sp) }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Models", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -216,7 +315,7 @@ fun HousekeepingScreen(
                                 }
                                 showOpenRouterDialog = true
                             }
-                        }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f)) { Text("OpenRouter", fontSize = 12.sp) }
+                        }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f)) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
                             launchTask("Generating Agents") {
@@ -252,7 +351,7 @@ fun HousekeepingScreen(
                                 }
                                 showGenerationDialog = true
                             }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Generate", fontSize = 12.sp) }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Generate", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                 }
             }
@@ -261,45 +360,17 @@ fun HousekeepingScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
-
-                    OutlinedButton(onClick = {
-                        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-                        val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
-                        val gs = settingsPrefs.loadGeneralSettings()
-                        val json = exportAiConfig(context, aiSettings, gs)
-                        val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clip.setPrimaryClip(android.content.ClipData.newPlainText("ai_config", json))
-                        Toast.makeText(context, "Config copied to clipboard (${json.length} chars)", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Copy Config to Clipboard") }
-
-                    OutlinedButton(onClick = {
-                        // Export API keys as JSON
-                        val keys = mutableMapOf<String, String>()
-                        for (service in AppService.entries) {
-                            val apiKey = aiSettings.getApiKey(service)
-                            if (apiKey.isNotBlank()) keys[service.id] = apiKey
-                        }
-                        if (huggingFaceApiKey.isNotBlank()) keys["HUGGINGFACE"] = huggingFaceApiKey
-                        if (openRouterApiKey.isNotBlank()) keys["OPENROUTER_KEY"] = openRouterApiKey
-                        val json = createAppGson(prettyPrint = true).toJson(keys)
-                        val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clip.setPrimaryClip(android.content.ClipData.newPlainText("api_keys", json))
-                        Toast.makeText(context, "${keys.size} API keys copied", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Copy API Keys to Clipboard") }
-
-                    OutlinedButton(onClick = {
-                        // Export model costs as CSV
-                        val manual = PricingCache.getAllManualPricing(context)
-                        val lines = mutableListOf("provider,model,input_per_million,output_per_million")
-                        manual.forEach { (key, pricing) ->
-                            val parts = key.split(":", limit = 2)
-                            lines.add("${parts[0]},${parts.getOrElse(1) { "" }},${pricing.promptPrice * 1_000_000},${pricing.completionPrice * 1_000_000}")
-                        }
-                        val csv = lines.joinToString("\n")
-                        val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clip.setPrimaryClip(android.content.ClipData.newPlainText("costs", csv))
-                        Toast.makeText(context, "${manual.size} cost entries copied", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Copy Costs CSV to Clipboard") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            exportConfigLauncher.launch("ai_config.json")
+                        }, modifier = Modifier.weight(1f)) { Text("Config", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            exportKeysLauncher.launch("ai_keys.json")
+                        }, modifier = Modifier.weight(1f)) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            exportCostsLauncher.launch("ai_costs.csv")
+                        }, modifier = Modifier.weight(1f)) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
                 }
             }
 
@@ -307,62 +378,17 @@ fun HousekeepingScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Import", fontWeight = FontWeight.Bold, color = Color.White)
-
-                    OutlinedButton(onClick = {
-                        val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val json = clip.primaryClip?.getItemAt(0)?.text?.toString()
-                        if (json.isNullOrBlank()) { Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show(); return@OutlinedButton }
-                        val result = importAiConfigFromClipboard(context, json, aiSettings)
-                        if (result != null) {
-                            onSave(result.aiSettings)
-                            result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
-                            result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
-                            Toast.makeText(context, "Config imported", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Invalid config JSON", Toast.LENGTH_SHORT).show()
-                        }
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Import Config from Clipboard") }
-
-                    OutlinedButton(onClick = {
-                        val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val json = clip.primaryClip?.getItemAt(0)?.text?.toString()
-                        if (json.isNullOrBlank()) { Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show(); return@OutlinedButton }
-                        try {
-                            val keys: Map<String, String> = createAppGson().fromJson(json, object : com.google.gson.reflect.TypeToken<Map<String, String>>() {}.type)
-                            var updated = aiSettings
-                            var count = 0
-                            for ((id, key) in keys) {
-                                if (id == "HUGGINGFACE") { onSaveHuggingFaceApiKey(key); count++; continue }
-                                if (id == "OPENROUTER_KEY") { onSaveOpenRouterApiKey(key); count++; continue }
-                                val service = AppService.findById(id) ?: continue
-                                updated = updated.withApiKey(service, key); count++
-                            }
-                            onSave(updated)
-                            Toast.makeText(context, "$count API keys imported", Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Invalid keys JSON: ${e.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Import API Keys from Clipboard") }
-
-                    OutlinedButton(onClick = {
-                        val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val csv = clip.primaryClip?.getItemAt(0)?.text?.toString()
-                        if (csv.isNullOrBlank()) { Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show(); return@OutlinedButton }
-                        var imported = 0; var skipped = 0
-                        csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
-                            val parts = line.split(",")
-                            if (parts.size >= 4) {
-                                val provider = AppService.findById(parts[0].trim())
-                                val model = parts[1].trim()
-                                val inp = parts[2].trim().toDoubleOrNull()?.div(1_000_000)
-                                val outp = parts[3].trim().toDoubleOrNull()?.div(1_000_000)
-                                if (provider != null && model.isNotBlank() && inp != null && outp != null) {
-                                    PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
-                                } else skipped++
-                            } else skipped++
-                        }
-                        Toast.makeText(context, "Imported $imported costs, skipped $skipped", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Import Costs CSV from Clipboard") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            importType = "config"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f)) { Text("Config", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            importType = "keys"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f)) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
+                        }, modifier = Modifier.weight(1f)) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
                 }
             }
 

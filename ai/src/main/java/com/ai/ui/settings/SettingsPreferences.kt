@@ -251,9 +251,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_POPUP_MODEL_SELECTION = "popup_model_selection"
 
         private const val KEY_AI_AGENTS = "ai_agents"
-        // Historically swapped: flocks key stores swarms, swarms key stores flocks
-        private const val KEY_AI_FLOCKS = "ai_flocks_v2"
-        private const val KEY_AI_SWARMS = "ai_swarms_v2"
+        private const val KEY_AI_FLOCKS = "ai_flocks"
+        private const val KEY_AI_SWARMS = "ai_swarms"
         private const val KEY_AI_PARAMETERS = "ai_parameters"
         private const val KEY_AI_SYSTEM_PROMPTS = "ai_system_prompts"
         private const val KEY_AI_PROMPTS = "ai_prompts"
@@ -263,8 +262,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         const val MAX_PROMPT_HISTORY = 100
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"
         const val KEY_LAST_AI_REPORT_PROMPT = "last_ai_report_prompt"
-        private const val KEY_SELECTED_FLOCK_IDS = "selected_flock_ids_v2"
-        private const val KEY_SELECTED_SWARM_IDS = "selected_swarm_ids_v2"
+        private const val KEY_SELECTED_FLOCK_IDS = "selected_flock_ids"
+        private const val KEY_SELECTED_SWARM_IDS = "selected_swarm_ids"
 
         private const val FILE_USAGE_STATS = "usage-stats.json"
         private const val FILE_PROMPT_HISTORY = "prompt-history.json"

@@ -1,6 +1,5 @@
 package com.ai.ui.settings
 
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -20,9 +19,6 @@ import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun SetupScreen(
@@ -36,68 +32,22 @@ fun SetupScreen(
     onSave: (Settings) -> Unit = {},
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
-    onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
-    onTestApiKey: suspend (AppService, String, String) -> String? = { _, _, _ -> null },
-    onProviderStateChange: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToCostConfig: () -> Unit = {}
 ) {
     BackHandler { onBackToSettings() }
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var isRefreshing by remember { mutableStateOf(false) }
-    var refreshProgressText by remember { mutableStateOf("") }
-
     val hasApiKey = remember(aiSettings) { aiSettings.hasAnyApiKey() }
     val agentCount = remember(aiSettings.agents) { aiSettings.agents.count { aiSettings.isProviderActive(it.provider) } }
+    val costCount = remember { PricingCache.getAllManualPricing(context).size }
     val externalCount = remember(huggingFaceApiKey, openRouterApiKey) {
         (if (huggingFaceApiKey.isNotBlank()) 1 else 0) + (if (openRouterApiKey.isNotBlank()) 1 else 0)
-    }
-
-    fun runRefreshAll() {
-        scope.launch {
-            isRefreshing = true; refreshProgressText = "Refreshing model lists..."
-            try {
-                val results = onRefreshAllModels(aiSettings, true) { msg: String -> refreshProgressText = "State: $msg" }
-                // Test all provider keys
-                for (service in AppService.entries) {
-                    val apiKey = aiSettings.getApiKey(service)
-                    if (apiKey.isBlank()) continue
-                    refreshProgressText = "Testing: ${service.displayName}"
-                    val error = withContext(Dispatchers.IO) { onTestApiKey(service, apiKey, aiSettings.getModel(service)) }
-                    onProviderStateChange(service, if (error == null) "ok" else "error")
-                }
-                // Refresh pricing
-                refreshProgressText = "Refreshing pricing..."
-                withContext(Dispatchers.IO) {
-                    PricingCache.refreshLiteLLMPricing(context)
-                }
-                Toast.makeText(context, "Refresh complete", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-            } finally {
-                isRefreshing = false; refreshProgressText = ""
-            }
-        }
     }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(title = "AI Setup", onBackClick = onBackToSettings, onAiClick = onBackToHome)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Refresh button
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { runRefreshAll() }, enabled = !isRefreshing && hasApiKey,
-                modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text(if (isRefreshing) "Refreshing..." else "Refresh All") }
-        }
-        if (refreshProgressText.isNotBlank()) {
-            Text(refreshProgressText, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "Configure API keys and models", "${AppService.entries.size}",
@@ -114,7 +64,7 @@ fun SetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
             SetupNavCard("\uD83D\uDCDD", "Internal Prompts", "Prompts for agents", "${aiSettings.prompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) })
-            SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "",
+            SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
                 onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
@@ -156,27 +106,16 @@ fun ProvidersScreen(
     onProviderSelected: (AppService) -> Unit
 ) {
     BackHandler { onBackToAiSetup() }
-    var showAll by remember { mutableStateOf(false) }
     val allProviders = AppService.entries
-    val activeCount = remember(aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
-    val displayProviders = if (showAll) allProviders else allProviders.filter { aiSettings.getProviderState(it) != "not-used" }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(title = "Providers", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = { showAll = !showAll }, modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (showAll) "Show active ($activeCount)" else "Show all (${allProviders.size})")
-        }
-
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            displayProviders.sortedBy { it.displayName }.forEach { provider ->
+            allProviders.sortedBy { it.displayName }.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)
                 val stateEmoji = when (state) {
                     "ok" -> "\uD83D\uDD11"; "error" -> "\u274C"; "inactive" -> "\uD83D\uDCA4"; else -> "\u2B55"

@@ -139,7 +139,6 @@ com.ai/
 
 ## Important Gotchas
 
-- **SharedPreferences flock/swarm keys are historically swapped**: `"ai_flocks"` stores swarms, `"ai_swarms"` stores flocks.
 - **Anthropic max_tokens**: Required (defaults to 4096), unlike OpenAI where it's optional.
 - **Google auth**: Uses `?key=` query parameter, not Bearer token.
 - **OpenAI dual API**: Chat Completions for gpt-4o etc., Responses API for gpt-5.x/o3/o4. Auto-routed via `usesResponsesApi()` / endpoint rules.
