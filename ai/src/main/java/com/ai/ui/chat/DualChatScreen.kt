@@ -382,7 +382,7 @@ fun DualChatSessionScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Dual Chat", onBackClick = { chatJob?.cancel(); onNavigateBack() }, onAiClick = onNavigateHome)
+        TitleBar(title = "Dual Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
 
         // Cost row
         Row(
