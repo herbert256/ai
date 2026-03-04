@@ -150,7 +150,7 @@ fun DualChatSetupScreen(
                     val tp = model1Provider; val tn = model1Name; val tpi = model1ParamsIds; val tsp = model1SystemPromptId
                     model1Provider = model2Provider; model1Name = model2Name; model1ParamsIds = model2ParamsIds; model1SystemPromptId = model2SystemPromptId
                     model2Provider = tp; model2Name = tn; model2ParamsIds = tpi; model2SystemPromptId = tsp
-                }) { Text("\u2B05 Swap \u27A1") }
+                }) { Text("\u2B05 Swap \u27A1", maxLines = 1, softWrap = false) }
             }
 
             // Model 2
@@ -208,7 +208,7 @@ fun DualChatSetupScreen(
             },
             enabled = canStart, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-        ) { Text("Go", fontSize = 16.sp) }
+        ) { Text("Go", fontSize = 16.sp, maxLines = 1, softWrap = false) }
     }
 }
 
@@ -437,7 +437,7 @@ fun DualChatSessionScreen(
                 onClick = { chatJob?.cancel(); ApiTracer.currentReportId = null; isRunning = false; isStopped = true; thinkingModel = null },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC4444))
-            ) { Text("Stop") }
+            ) { Text("Stop", maxLines = 1, softWrap = false) }
         } else if (isStopped) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -455,11 +455,11 @@ fun DualChatSessionScreen(
                     },
                     enabled = extraCount > 0,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text("Chat $extraCount more") }
+                ) { Text("Chat $extraCount more", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { /* could navigate to trace list */ },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC8800))
-                ) { Text("Trace") }
+                ) { Text("Trace", maxLines = 1, softWrap = false) }
             }
         }
     }

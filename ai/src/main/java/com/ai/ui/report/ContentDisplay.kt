@@ -134,7 +134,7 @@ fun ReportsViewerScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = if (isActive) AppColors.Blue else Color.Transparent),
                                     border = if (!isActive) BorderStroke(1.dp, AppColors.BorderUnfocused) else null,
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                                ) { Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AppColors.DisabledBackground else AppColors.Blue) }
+                                ) { Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AppColors.DisabledBackground else AppColors.Blue, maxLines = 1, softWrap = false) }
                             }
                             if (hasCosts) {
                                 val isActive = activeSection == "costs"
@@ -142,7 +142,7 @@ fun ReportsViewerScreen(
                                     colors = ButtonDefaults.buttonColors(containerColor = if (isActive) AppColors.Blue else Color.Transparent),
                                     border = if (!isActive) BorderStroke(1.dp, AppColors.BorderUnfocused) else null,
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                                ) { Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AppColors.DisabledBackground else AppColors.Blue) }
+                                ) { Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AppColors.DisabledBackground else AppColors.Blue, maxLines = 1, softWrap = false) }
                             }
                         }
                         if (activeSection == "prompt") { Spacer(modifier = Modifier.height(8.dp)); Text(report.prompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp) }
@@ -285,7 +285,7 @@ private fun ThinkSection(content: String) {
             border = BorderStroke(1.dp, AppColors.TextDim),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             modifier = Modifier.padding(vertical = 8.dp)
-        ) { Text(if (isExpanded) "Hide Think" else "Think", color = AppColors.TextSecondary, fontSize = 13.sp) }
+        ) { Text(if (isExpanded) "Hide Think" else "Think", color = AppColors.TextSecondary, fontSize = 13.sp, maxLines = 1, softWrap = false) }
 
         if (isExpanded) {
             Row(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525))) {

@@ -42,9 +42,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             developerMode = true,
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
-            fullScreenMode = prefs.getBoolean(KEY_FULL_SCREEN_MODE, false),
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
-            popupModelSelection = prefs.getBoolean(KEY_POPUP_MODEL_SELECTION, true)
         )
     }
 
@@ -53,9 +51,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
             putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
             putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
-            putBoolean(KEY_FULL_SCREEN_MODE, settings.fullScreenMode)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
-            putBoolean(KEY_POPUP_MODEL_SELECTION, settings.popupModelSelection)
         }
     }
 
@@ -246,10 +242,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_HUGGINGFACE_API_KEY = "huggingface_api_key"
         private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
-        private const val KEY_FULL_SCREEN_MODE = "full_screen_mode"
         private const val KEY_DEFAULT_EMAIL = "default_email"
-        private const val KEY_POPUP_MODEL_SELECTION = "popup_model_selection"
-
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

@@ -117,6 +117,6 @@ fun PromptEditScreen(
             enabled = nameError == null && selectedAgentId.isNotBlank() && promptText.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create") }
+        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
     }
 }

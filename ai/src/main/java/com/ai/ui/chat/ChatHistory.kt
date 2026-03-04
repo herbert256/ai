@@ -111,11 +111,11 @@ private fun PaginationControls(currentPage: Int, totalPages: Int, totalItems: In
         verticalAlignment = Alignment.CenterVertically
     ) {
         TextButton(onClick = { onPageChange(currentPage - 1) }, enabled = currentPage > 0) {
-            Text("< Previous", color = if (currentPage > 0) AppColors.Blue else AppColors.TextDim)
+            Text("< Previous", color = if (currentPage > 0) AppColors.Blue else AppColors.TextDim, maxLines = 1, softWrap = false)
         }
         Text("Page ${currentPage + 1} of $totalPages ($totalItems chats)", fontSize = 12.sp, color = AppColors.TextTertiary)
         TextButton(onClick = { onPageChange(currentPage + 1) }, enabled = currentPage < totalPages - 1) {
-            Text("Next >", color = if (currentPage < totalPages - 1) AppColors.Blue else AppColors.TextDim)
+            Text("Next >", color = if (currentPage < totalPages - 1) AppColors.Blue else AppColors.TextDim, maxLines = 1, softWrap = false)
         }
     }
 }
@@ -200,7 +200,7 @@ fun ChatSearchScreen(
             singleLine = true, colors = AppColors.outlinedFieldColors(),
             trailingIcon = {
                 TextButton(onClick = { hasSearched = true }, enabled = searchQuery.isNotBlank()) {
-                    Text("Search", color = if (searchQuery.isNotBlank()) AppColors.Blue else AppColors.TextDim)
+                    Text("Search", color = if (searchQuery.isNotBlank()) AppColors.Blue else AppColors.TextDim, maxLines = 1, softWrap = false)
                 }
             }
         )

@@ -199,7 +199,7 @@ fun ChatParametersScreen(
                 )
             },
             modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text("Start Chat", fontSize = 16.sp) }
+        ) { Text("Start Chat", fontSize = 16.sp, maxLines = 1, softWrap = false) }
     }
 }
 
@@ -302,7 +302,7 @@ fun ChatSessionScreen(
         TitleBar(
             title = "Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome,
             leftContent = {
-                TextButton(onClick = onNavigateBack) { Text("< Back", color = Color.White, fontSize = 16.sp) }
+                TextButton(onClick = onNavigateBack) { Text("< Back", color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false) }
                 if (totalCost > 0) {
                     Text("%.2fc".format(totalCost), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
@@ -357,7 +357,7 @@ fun ChatSessionScreen(
                 onClick = { if (userInput.isNotBlank() && !isLoading && !isStreaming) sendMessage(userInput.trim()) },
                 enabled = userInput.isNotBlank() && !isLoading && !isStreaming,
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-            ) { Text("Send") }
+            ) { Text("Send", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -481,7 +481,7 @@ internal fun SystemPromptSelectorDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                    Text("Cancel")
+                    Text("Cancel", maxLines = 1, softWrap = false)
                 }
             }
         }
@@ -539,9 +539,9 @@ internal fun ParametersSelectorDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
                     Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = { onConfirm(current.toList()) }) { Text("OK") }
+                    TextButton(onClick = { onConfirm(current.toList()) }) { Text("OK", maxLines = 1, softWrap = false) }
                 }
             }
         }

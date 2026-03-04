@@ -233,11 +233,11 @@ fun ReportsScreen(
             text = { Text("Choose format:") },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { shareReportAsJson(context, currentReportId); showShareDialog = false }) { Text("JSON") }
-                    TextButton(onClick = { shareReportAsHtml(context, currentReportId, developerMode); showShareDialog = false }) { Text("HTML") }
+                    TextButton(onClick = { shareReportAsJson(context, currentReportId); showShareDialog = false }) { Text("JSON", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { shareReportAsHtml(context, currentReportId, developerMode); showShareDialog = false }) { Text("HTML", maxLines = 1, softWrap = false) }
                 }
             },
-            dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
     }
 
@@ -255,7 +255,7 @@ fun ReportsScreen(
             onDismissRequest = { showEmailDialog = false },
             title = { Text(if (emailSent) "Email Sent" else "Sending...") },
             text = { Text(if (emailSent) "Report emailed to $emailAddress" else "Emailing report to $emailAddress...") },
-            confirmButton = { TextButton(onClick = { showEmailDialog = false }) { Text("OK") } }
+            confirmButton = { TextButton(onClick = { showEmailDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } }
         )
     }
 
@@ -331,7 +331,7 @@ private fun ColumnScope.SelectionPhase(
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("Flock" to onAddFlock, "Agent" to onAddAgent, "Swarm" to onAddSwarm, "Model" to onAddModel, "All Models" to onAddAllModels).forEach { (label, action) ->
             OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp), modifier = Modifier.height(32.dp)) {
-                Text("+$label", fontSize = 12.sp)
+                Text("+$label", fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -365,9 +365,9 @@ private fun ColumnScope.SelectionPhase(
 
     // Bottom buttons
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (models.isNotEmpty()) OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f)) { Text("Clear") }
+        if (models.isNotEmpty()) OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f)) { Text("Clear", maxLines = 1, softWrap = false) }
         OutlinedButton(onClick = onAdvancedParams, modifier = Modifier.weight(1f)) {
-            Text(if (advancedParameters != null) "Params \u2713" else "Params", fontSize = 13.sp)
+            Text(if (advancedParameters != null) "Params \u2713" else "Params", fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
     }
 
@@ -380,13 +380,13 @@ private fun ColumnScope.SelectionPhase(
             enabled = models.isNotEmpty(),
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text("Classic") }
+        ) { Text("Classic", maxLines = 1, softWrap = false) }
         Button(
             onClick = { onGenerate(ReportType.TABLE) },
             enabled = models.isNotEmpty(),
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-        ) { Text("Table") }
+        ) { Text("Table", maxLines = 1, softWrap = false) }
     }
 }
 
@@ -483,17 +483,17 @@ private fun ColumnScope.GenerationPhase(
     // Action buttons
     if (!isComplete) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onStop, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)) { Text("STOP") }
-            OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f)) { Text("Background") }
+            Button(onClick = onStop, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)) { Text("STOP", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f)) { Text("Background", maxLines = 1, softWrap = false) }
         }
     } else {
         @OptIn(ExperimentalLayoutApi::class)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = { onView(null) }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)) { Text("View") }
-            Button(onClick = onShare, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)) { Text("Share") }
-            Button(onClick = onBrowser, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)) { Text("Browser") }
-            if (hasDefaultEmail) Button(onClick = onEmail, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)) { Text("Email") }
-            if (developerMode && currentReportId != null) OutlinedButton(onClick = onTrace) { Text("Trace") }
+            Button(onClick = { onView(null) }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)) { Text("View", maxLines = 1, softWrap = false) }
+            Button(onClick = onShare, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)) { Text("Share", maxLines = 1, softWrap = false) }
+            Button(onClick = onBrowser, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)) { Text("Browser", maxLines = 1, softWrap = false) }
+            if (hasDefaultEmail) Button(onClick = onEmail, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)) { Text("Email", maxLines = 1, softWrap = false) }
+            if (developerMode && currentReportId != null) OutlinedButton(onClick = onTrace) { Text("Trace", maxLines = 1, softWrap = false) }
         }
     }
 }

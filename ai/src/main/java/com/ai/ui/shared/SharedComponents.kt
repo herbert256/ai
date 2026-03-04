@@ -47,7 +47,7 @@ fun TitleBar(
                 }
             } else if (onBackClick != null) {
                 TextButton(onClick = onBackClick) {
-                    Text(backText, color = Color.White, fontSize = 16.sp)
+                    Text(backText, color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false)
                 }
             } else {
                 Spacer(modifier = Modifier.width(1.dp))
@@ -59,7 +59,7 @@ fun TitleBar(
                 )
             }
             TextButton(onClick = onAiClick) {
-                Text("AI", color = Color.White, fontSize = 16.sp)
+                Text("AI", color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -80,10 +80,10 @@ fun DeleteConfirmationDialog(
         title = { Text("Delete $entityType") },
         text = { Text("Are you sure you want to delete \"$entityName\"?") },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Delete", color = AppColors.Red) }
+            TextButton(onClick = onConfirm) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
         }
     )
 }

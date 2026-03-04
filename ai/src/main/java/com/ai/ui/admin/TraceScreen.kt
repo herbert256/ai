@@ -69,9 +69,9 @@ fun TraceListScreen(
 
             if (totalPages > 1) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) { Text("< Prev") }
+                    TextButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) { Text("< Prev", maxLines = 1, softWrap = false) }
                     Text("${currentPage + 1} / $totalPages (${traceFiles.size})", fontSize = 12.sp, color = AppColors.TextTertiary)
-                    TextButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) { Text("Next >") }
+                    TextButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) { Text("Next >", maxLines = 1, softWrap = false) }
                 }
             }
 
@@ -98,7 +98,7 @@ fun TraceListScreen(
                     onClearTraces(); traceFiles = emptyList(); currentPage = 0
                 }, enabled = traceFiles.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Clear Traces") }
+                ) { Text("Clear Traces", maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -193,7 +193,7 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
                 OutlinedButton(onClick = { currentView = view }, modifier = Modifier.weight(1f),
                     colors = if (isActive) ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF3366BB).copy(alpha = 0.3f)) else ButtonDefaults.outlinedButtonColors(),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
-                ) { Text(label, fontSize = 10.sp, maxLines = 1) }
+                ) { Text(label, fontSize = 10.sp, maxLines = 1, softWrap = false) }
             }
         }
 
@@ -232,12 +232,12 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = {
                 if (hasPrev) { currentFilename = traceFiles[currentIndex - 1]; currentView = TraceContentView.ALL }
-            }, enabled = hasPrev, modifier = Modifier.weight(1f)) { Text("<") }
+            }, enabled = hasPrev, contentPadding = PaddingValues(0.dp), modifier = Modifier.width(36.dp)) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clip.setPrimaryClip(ClipData.newPlainText("trace", displayContent))
                 Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-            }, modifier = Modifier.weight(1f)) { Text("Copy") }
+            }, modifier = Modifier.weight(1f)) { Text("Copy", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 // Save provider/model/key to prefs for EditApiRequestScreen
                 t?.let { trace ->
@@ -251,11 +251,11 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
                     }.apply()
                 }
                 onEditRequest()
-            }, modifier = Modifier.weight(1f)) { Text("Edit") }
-            OutlinedButton(onClick = { shareTrace(context, rawJson, currentFilename) }, modifier = Modifier.weight(1f)) { Text("Share") }
+            }, modifier = Modifier.weight(1f)) { Text("Edit", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = { shareTrace(context, rawJson, currentFilename) }, modifier = Modifier.weight(1f)) { Text("Share", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.ALL }
-            }, enabled = hasNext, modifier = Modifier.weight(1f)) { Text(">") }
+            }, enabled = hasNext, contentPadding = PaddingValues(0.dp), modifier = Modifier.width(36.dp)) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
         }
     }
 }

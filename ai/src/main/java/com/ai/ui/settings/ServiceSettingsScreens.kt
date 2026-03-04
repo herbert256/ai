@@ -123,12 +123,12 @@ fun ProviderSettingsScreen(
                                     }
                                 },
                                 enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                            ) { Text(if (isTesting) "Testing..." else "Test") }
+                            ) { Text(if (isTesting) "Testing..." else "Test", maxLines = 1, softWrap = false) }
                         }
                         Button(
                             onClick = onCreateAgent,
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                        ) { Text("Create Agent") }
+                        ) { Text("Create Agent", maxLines = 1, softWrap = false) }
                     }
                     testResult?.let {
                         Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp)
@@ -174,7 +174,7 @@ fun ProviderSettingsScreen(
                         onClick = { onFetchModels(apiKey) },
                         enabled = !isLoadingModels,
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models") }
+                    ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
                 }
                 if (models.isNotEmpty()) {
                     Text("${models.size} models available", fontSize = 12.sp, color = AppColors.TextTertiary)

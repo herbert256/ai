@@ -80,8 +80,7 @@ fun SettingsScreen(
         SettingsSubScreen.MAIN -> {
             SettingsMainScreen(
                 generalSettings = generalSettings, onSave = onSaveGeneral,
-                onBack = onBack, onNavigateHome = onNavigateHome,
-                onNavigateToAiSetup = { currentSubScreen = SettingsSubScreen.AI_SETUP }
+                onBack = onBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_SETUP -> {
@@ -257,18 +256,14 @@ private fun SettingsMainScreen(
     generalSettings: GeneralSettings,
     onSave: (GeneralSettings) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onNavigateToAiSetup: () -> Unit
+    onNavigateHome: () -> Unit
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
-    var fullScreenMode by remember { mutableStateOf(generalSettings.fullScreenMode) }
-    var popupModelSelection by remember { mutableStateOf(generalSettings.popupModelSelection) }
 
-    LaunchedEffect(userName, defaultEmail, fullScreenMode, popupModelSelection) {
+    LaunchedEffect(userName, defaultEmail) {
         val updated = generalSettings.copy(
-            userName = userName, defaultEmail = defaultEmail,
-            fullScreenMode = fullScreenMode, popupModelSelection = popupModelSelection
+            userName = userName, defaultEmail = defaultEmail
         )
         if (updated != generalSettings) onSave(updated)
     }
@@ -278,26 +273,6 @@ private fun SettingsMainScreen(
     ) {
         TitleBar(title = "Settings", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
-            modifier = Modifier.fillMaxWidth().clickable { onNavigateToAiSetup() }
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("\uD83E\uDD16", fontSize = 24.sp)
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("AI Setup", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("Configure providers, agents, models", fontSize = 13.sp, color = AppColors.TextTertiary)
-                }
-                Text(">", fontSize = 18.sp, color = AppColors.Blue)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             OutlinedTextField(
@@ -310,22 +285,6 @@ private fun SettingsMainScreen(
                 label = { Text("Default email address") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors()
             )
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { fullScreenMode = !fullScreenMode },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = fullScreenMode, onCheckedChange = { fullScreenMode = it })
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Full screen mode", color = Color.White)
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { popupModelSelection = !popupModelSelection },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = popupModelSelection, onCheckedChange = { popupModelSelection = it })
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Popup model selection", color = Color.White)
-            }
         }
     }
 }

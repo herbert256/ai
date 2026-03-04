@@ -9,14 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.ui.navigation.AppNavHost
 import com.ai.viewmodel.AppViewModel
@@ -33,16 +27,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleIntent(intent)
 
-        val prefs = getSharedPreferences(AppViewModel.PREFS_NAME, MODE_PRIVATE)
-        applyFullScreenMode(prefs.getBoolean("full_screen_mode", false))
-
         setContent {
             val viewModel: AppViewModel = viewModel()
-            val uiState by viewModel.uiState.collectAsState()
-
-            LaunchedEffect(uiState.generalSettings.fullScreenMode) {
-                applyFullScreenMode(uiState.generalSettings.fullScreenMode)
-            }
 
             AppTheme {
                 Scaffold(
@@ -64,16 +50,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
-        }
-    }
-
-    private fun applyFullScreenMode(fullScreen: Boolean) {
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        if (fullScreen) {
-            controller.hide(WindowInsetsCompat.Type.statusBars())
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        } else {
-            controller.show(WindowInsetsCompat.Type.statusBars())
         }
     }
 

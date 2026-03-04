@@ -80,7 +80,7 @@ fun ApiTestScreen(
                     }
                 }
             }},
-            confirmButton = {}, dismissButton = { TextButton(onClick = { showModelDialog = false }) { Text("Cancel") } })
+            confirmButton = {}, dismissButton = { TextButton(onClick = { showModelDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } })
     }
 
     // Endpoint selection dialog
@@ -99,7 +99,7 @@ fun ApiTestScreen(
                     }
                 }
             }},
-            confirmButton = {}, dismissButton = { TextButton(onClick = { showEndpointDialog = false }) { Text("Cancel") } })
+            confirmButton = {}, dismissButton = { TextButton(onClick = { showEndpointDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } })
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -121,7 +121,7 @@ fun ApiTestScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = apiUrl, onValueChange = { apiUrl = it }, label = { Text("Endpoint URL") },
                     modifier = Modifier.weight(1f), singleLine = true, colors = AppColors.outlinedFieldColors())
-                OutlinedButton(onClick = { showEndpointDialog = true }) { Text("...") }
+                OutlinedButton(onClick = { showEndpointDialog = true }) { Text("...", maxLines = 1, softWrap = false) }
             }
 
             // API Key
@@ -140,7 +140,7 @@ fun ApiTestScreen(
                         } catch (_: Exception) { emptyList() }
                         isLoadingModels = false; showModelDialog = true
                     }
-                }) { Text("...") }
+                }) { Text("...", maxLines = 1, softWrap = false) }
             }
 
             // Prompt
@@ -173,7 +173,7 @@ fun ApiTestScreen(
             }.apply()
             onNavigateToEditRequest()
         }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Build Request") }
+        ) { Text("Build Request", maxLines = 1, softWrap = false) }
     }
 }
 
@@ -267,6 +267,6 @@ fun EditApiRequestScreen(
             }
         }, enabled = !isLoading, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isLoading) "Sending..." else "Submit") }
+        ) { Text(if (isLoading) "Sending..." else "Submit", maxLines = 1, softWrap = false) }
     }
 }

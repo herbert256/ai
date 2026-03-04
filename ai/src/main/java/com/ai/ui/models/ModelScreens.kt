@@ -100,11 +100,11 @@ fun ModelSearchScreen(
         AlertDialog(onDismissRequest = { showActionDialog = false; selectedModel = null },
             title = { Text("${m.providerName} / ${m.modelName}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showActionDialog = false; onNavigateToChatParams(m.provider, m.modelName) }, modifier = Modifier.fillMaxWidth()) { Text("Start AI Chat") }
-                OutlinedButton(onClick = { showActionDialog = false; showAgentEdit = true }, modifier = Modifier.fillMaxWidth()) { Text("Create AI Agent") }
-                OutlinedButton(onClick = { showActionDialog = false; onNavigateToModelInfo(m.provider, m.modelName); selectedModel = null }, modifier = Modifier.fillMaxWidth()) { Text("Model Info") }
+                OutlinedButton(onClick = { showActionDialog = false; onNavigateToChatParams(m.provider, m.modelName) }, modifier = Modifier.fillMaxWidth()) { Text("Start AI Chat", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { showActionDialog = false; showAgentEdit = true }, modifier = Modifier.fillMaxWidth()) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { showActionDialog = false; onNavigateToModelInfo(m.provider, m.modelName); selectedModel = null }, modifier = Modifier.fillMaxWidth()) { Text("Model Info", maxLines = 1, softWrap = false) }
             }},
-            confirmButton = {}, dismissButton = { TextButton(onClick = { showActionDialog = false; selectedModel = null }) { Text("Cancel") } })
+            confirmButton = {}, dismissButton = { TextButton(onClick = { showActionDialog = false; selectedModel = null }) { Text("Cancel", maxLines = 1, softWrap = false) } })
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {

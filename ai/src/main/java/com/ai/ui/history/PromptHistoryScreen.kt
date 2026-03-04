@@ -69,9 +69,9 @@ fun PromptHistoryScreen(
             // Pagination
             if (totalPages > 1) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) { Text("< Prev") }
+                    TextButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) { Text("< Prev", maxLines = 1, softWrap = false) }
                     Text("${currentPage + 1} / $totalPages (${filteredEntries.size})", fontSize = 12.sp, color = AppColors.TextTertiary)
-                    TextButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) { Text("Next >") }
+                    TextButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) { Text("Next >", maxLines = 1, softWrap = false) }
                 }
             }
 
@@ -95,7 +95,7 @@ fun PromptHistoryScreen(
             Button(onClick = { settingsPrefs.clearPromptHistory(); allEntries = emptyList(); currentPage = 0 },
                 enabled = allEntries.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Clear History") }
+            ) { Text("Clear History", maxLines = 1, softWrap = false) }
         }
     }
 }

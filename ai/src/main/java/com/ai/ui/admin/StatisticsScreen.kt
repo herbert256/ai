@@ -105,7 +105,7 @@ fun UsageScreen(openRouterApiKey: String, onBack: () -> Unit, onNavigateHome: ()
                 settingsPrefs.clearUsageStats(); stats = emptyMap()
                 Toast.makeText(context, "Statistics cleared", Toast.LENGTH_SHORT).show()
             }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), modifier = Modifier.fillMaxWidth()
-            ) { Text("Clear Statistics") }
+            ) { Text("Clear Statistics", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -180,7 +180,7 @@ fun CostConfigurationScreen(aiSettings: Settings, developerMode: Boolean, onBack
 
         Button(onClick = { showAddScreen = true }, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Add Manual Override") }
+        ) { Text("Add Manual Override", maxLines = 1, softWrap = false) }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -246,8 +246,8 @@ private fun CostConfigCard(
                     label = { Text("Output $/1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onCancel) { Text("Cancel") }
-                    Button(onClick = onSave, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)) { Text("Save") }
+                    OutlinedButton(onClick = onCancel) { Text("Cancel", maxLines = 1, softWrap = false) }
+                    Button(onClick = onSave, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)) { Text("Save", maxLines = 1, softWrap = false) }
                 }
             } else {
                 Spacer(modifier = Modifier.height(4.dp))
@@ -255,8 +255,8 @@ private fun CostConfigCard(
                 Text("Output: ${formatTokenPricePerMillion(outputPrice)}", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onRemove) { Text("Remove", color = AppColors.Red) }
-                    OutlinedButton(onClick = onEdit) { Text("Edit") }
+                    OutlinedButton(onClick = onRemove) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = onEdit) { Text("Edit", maxLines = 1, softWrap = false) }
                 }
             }
         }
@@ -304,7 +304,7 @@ private fun AddManualOverrideScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = model, onValueChange = { model = it },
                     label = { Text("Model") }, modifier = Modifier.weight(1f), singleLine = true, colors = AppColors.outlinedFieldColors())
-                OutlinedButton(onClick = { showModelSelect = true }) { Text("Select") }
+                OutlinedButton(onClick = { showModelSelect = true }) { Text("Select", maxLines = 1, softWrap = false) }
             }
 
             // Show current pricing for reference
@@ -327,7 +327,7 @@ private fun AddManualOverrideScreen(
             if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp)
         }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null,
             modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Save") }
+        ) { Text("Save", maxLines = 1, softWrap = false) }
     }
 }
 

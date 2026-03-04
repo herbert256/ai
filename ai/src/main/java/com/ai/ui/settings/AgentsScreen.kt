@@ -173,7 +173,7 @@ fun AgentEditScreen(
                         }
                     },
                     enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text(if (isTesting) "Testing..." else "Test Connection") }
+                ) { Text(if (isTesting) "Testing..." else "Test Connection", maxLines = 1, softWrap = false) }
                 testResult?.let { Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp) }
             }
         }
@@ -187,6 +187,6 @@ fun AgentEditScreen(
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create") }
+        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
     }
 }

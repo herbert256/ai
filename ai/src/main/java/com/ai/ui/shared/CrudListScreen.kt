@@ -67,7 +67,7 @@ fun <T> CrudListScreen(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
         ) {
-            Text(addLabel)
+            Text(addLabel, maxLines = 1, softWrap = false)
         }
 
         Spacer(modifier = Modifier.height(16.dp))

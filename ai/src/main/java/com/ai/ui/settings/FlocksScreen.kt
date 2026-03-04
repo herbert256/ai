@@ -116,7 +116,7 @@ fun FlockEditScreen(
                 },
                 enabled = nameError == null && selectedAgentIds.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text(if (isEditing) "Save" else "Create") }
+            ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
         }
 
         Spacer(modifier = Modifier.height(8.dp))

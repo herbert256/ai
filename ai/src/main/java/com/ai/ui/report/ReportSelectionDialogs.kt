@@ -63,7 +63,7 @@ internal fun ReportSelectFlockDialog(aiSettings: Settings, onSelectFlock: (Flock
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                     }
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -102,7 +102,7 @@ internal fun ReportSelectAgentDialog(aiSettings: Settings, onSelectAgent: (Agent
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                     }
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -139,7 +139,7 @@ internal fun ReportSelectSwarmDialog(aiSettings: Settings, onSelectSwarm: (Swarm
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                     }
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -159,7 +159,7 @@ internal fun ReportSelectProviderDialog(aiSettings: Settings, onSelectProvider: 
                         modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }.padding(vertical = 8.dp, horizontal = 4.dp))
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -192,7 +192,7 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                     }
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -253,7 +253,7 @@ internal fun ReportSelectAllModelsDialog(aiSettings: Settings, onSelectModel: (A
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                     }
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
             }
         }
     }

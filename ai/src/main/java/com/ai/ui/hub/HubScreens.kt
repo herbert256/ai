@@ -165,7 +165,7 @@ fun NewReportScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { title = ""; prompt = "" }, modifier = Modifier.weight(1f)) { Text("Clear") }
+            OutlinedButton(onClick = { title = ""; prompt = "" }, modifier = Modifier.weight(1f)) { Text("Clear", maxLines = 1, softWrap = false) }
             Button(
                 onClick = {
                     if (title.isNotBlank() && prompt.isNotBlank()) {
@@ -179,7 +179,7 @@ fun NewReportScreen(
                 enabled = title.isNotBlank() && prompt.isNotBlank(),
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-            ) { Text("Next", fontSize = 16.sp) }
+            ) { Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false) }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

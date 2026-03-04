@@ -51,7 +51,7 @@ fun ReportAdvancedParametersScreen(
                     onApply(if (hasAny) params else null)
                 },
                 modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Apply") }
+            ) { Text("Apply", maxLines = 1, softWrap = false) }
             OutlinedButton(
                 onClick = {
                     temperature = ""; maxTokens = ""; topP = ""; topK = ""; frequencyPenalty = ""; presencePenalty = ""
@@ -59,7 +59,7 @@ fun ReportAdvancedParametersScreen(
                     onApply(null)
                 },
                 modifier = Modifier.weight(1f)
-            ) { Text("Clear all") }
+            ) { Text("Clear all", maxLines = 1, softWrap = false) }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

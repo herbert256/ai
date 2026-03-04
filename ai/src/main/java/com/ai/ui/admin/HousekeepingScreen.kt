@@ -178,7 +178,7 @@ fun HousekeepingScreen(
     // Error dialog
     taskError?.let { error ->
         AlertDialog(onDismissRequest = { taskError = null }, title = { Text("Error") },
-            text = { Text(error) }, confirmButton = { TextButton(onClick = { taskError = null }) { Text("OK") } })
+            text = { Text(error) }, confirmButton = { TextButton(onClick = { taskError = null }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
     // Result dialogs
@@ -189,7 +189,7 @@ fun HousekeepingScreen(
                     val color = if (count > 0) AppColors.Green else AppColors.Red
                     Text("$name: ${if (count > 0) "$count models" else "failed"}", fontSize = 13.sp, color = color)
                 }
-            }}, confirmButton = { TextButton(onClick = { showResultsDialog = false }) { Text("OK") } })
+            }}, confirmButton = { TextButton(onClick = { showResultsDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
     if (showProviderStateDialog && providerStateResults != null) {
@@ -199,14 +199,14 @@ fun HousekeepingScreen(
                     val color = when (state) { "ok" -> AppColors.Green; "error" -> AppColors.Red; else -> AppColors.TextTertiary }
                     Text("$name: $state", fontSize = 13.sp, color = color)
                 }
-            }}, confirmButton = { TextButton(onClick = { showProviderStateDialog = false }) { Text("OK") } })
+            }}, confirmButton = { TextButton(onClick = { showProviderStateDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
     if (showOpenRouterDialog && openRouterResult != null) {
         val (pricing, specPricing, specParams) = openRouterResult!!
         AlertDialog(onDismissRequest = { showOpenRouterDialog = false }, title = { Text("OpenRouter Data") },
             text = { Text("Pricing: $pricing models\nSpec pricing: $specPricing\nSpec parameters: $specParams") },
-            confirmButton = { TextButton(onClick = { showOpenRouterDialog = false }) { Text("OK") } })
+            confirmButton = { TextButton(onClick = { showOpenRouterDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
     if (showGenerationDialog && generationResults != null) {
@@ -215,7 +215,7 @@ fun HousekeepingScreen(
                 generationResults!!.forEach { (name, success) ->
                     Text("$name: ${if (success) "OK" else "failed"}", fontSize = 13.sp, color = if (success) AppColors.Green else AppColors.Red)
                 }
-            }}, confirmButton = { TextButton(onClick = { showGenerationDialog = false }) { Text("OK") } })
+            }}, confirmButton = { TextButton(onClick = { showGenerationDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -272,7 +272,7 @@ fun HousekeepingScreen(
                         }
                     }, enabled = !isAnyRunning && aiSettings.hasAnyApiKey(),
                         modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-                    ) { Text("Refresh All") }
+                    ) { Text("Refresh All", maxLines = 1, softWrap = false) }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
@@ -400,21 +400,21 @@ fun HousekeepingScreen(
                     OutlinedButton(onClick = {
                         val deleted = ApiTracer.deleteTracesOlderThan(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000)
                         Toast.makeText(context, "Deleted $deleted old traces", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Delete Traces Older Than 7 Days") }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Delete Traces Older Than 7 Days", maxLines = 1, softWrap = false) }
 
                     OutlinedButton(onClick = {
                         val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
                         val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
                         reports.forEach { ReportStorage.deleteReport(context, it.id) }
                         Toast.makeText(context, "Deleted ${reports.size} old reports", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Delete Reports Older Than 30 Days") }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Delete Reports Older Than 30 Days", maxLines = 1, softWrap = false) }
 
                     OutlinedButton(onClick = {
                         val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
                         val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
                         settingsPrefs.clearUsageStats()
                         Toast.makeText(context, "Usage statistics cleared", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Clear Usage Statistics") }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
                 }
             }
         }
