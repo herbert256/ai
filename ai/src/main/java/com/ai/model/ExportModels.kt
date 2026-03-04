@@ -51,7 +51,7 @@ data class ParametersExport(
     val frequencyPenalty: Float? = null, val presencePenalty: Float? = null,
     val systemPrompt: String? = null, val stopSequences: List<String>? = null,
     val seed: Int? = null, val responseFormatJson: Boolean = false,
-    val searchEnabled: Boolean = false, val returnCitations: Boolean = false,
+    val searchEnabled: Boolean = false, val returnCitations: Boolean = true,
     val searchRecency: String? = null
 )
 
