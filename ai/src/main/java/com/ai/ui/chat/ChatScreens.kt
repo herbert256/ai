@@ -405,14 +405,12 @@ private fun AnimatedTextLines(content: String) {
     val lines = content.split("\n")
     var visibleLineCount by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(lines.size) {
+    LaunchedEffect(content) {
+        if (lines.size < visibleLineCount) visibleLineCount = lines.size
         while (visibleLineCount < lines.size) {
             kotlinx.coroutines.delay(500)
             visibleLineCount = minOf(visibleLineCount + 1, lines.size)
         }
-    }
-    LaunchedEffect(content.take(50)) {
-        if (lines.size < visibleLineCount) visibleLineCount = lines.size
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
