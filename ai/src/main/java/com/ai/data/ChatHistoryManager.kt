@@ -64,13 +64,6 @@ object ChatHistoryManager {
         return try { File(dir, "$sessionId.json").delete().also { if (it) notifyHistoryChanged() } } catch (_: Exception) { false }
     }
 
-    fun clearHistory() {
-        val dir = historyDir ?: return
-        var changed = false
-        dir.listFiles()?.forEach { changed = it.delete() || changed }
-        if (changed) notifyHistoryChanged()
-    }
-
     fun getSessionCount(): Int {
         val dir = historyDir ?: return 0
         if (!dir.exists()) return 0
