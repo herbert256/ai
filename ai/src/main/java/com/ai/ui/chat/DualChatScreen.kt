@@ -456,10 +456,6 @@ fun DualChatSessionScreen(
                     enabled = extraCount > 0,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                 ) { Text("Chat $extraCount more", maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { /* could navigate to trace list */ },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC8800))
-                ) { Text("Trace", maxLines = 1, softWrap = false) }
             }
         }
     }
