@@ -15,7 +15,7 @@ import kotlin.concurrent.withLock
 object ChatHistoryManager {
     private const val HISTORY_DIR = "chat-history"
     private var historyDir: File? = null
-    private val gson = createAppGson(prettyPrint = true)
+    private val gson = createAppGson()
     private val lock = java.util.concurrent.locks.ReentrantLock()
     private val _historyVersion = MutableStateFlow(0L)
     val historyVersion: StateFlow<Long> = _historyVersion.asStateFlow()
