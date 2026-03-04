@@ -315,7 +315,8 @@ fun ChatSessionScreen(
                 }
             } else {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(displayMessages, key = { it.timestamp }) { msg ->
+                    items(displayMessages.size, key = { "${displayMessages[it].role}_${displayMessages[it].timestamp}_$it" }) { idx ->
+                        val msg = displayMessages[idx]
                         ChatMessageBubble(msg, userName)
                     }
                     if (isStreaming && streamingContent.isNotEmpty()) {
