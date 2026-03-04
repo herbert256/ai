@@ -19,6 +19,7 @@ object ChatHistoryManager {
     private val lock = java.util.concurrent.locks.ReentrantLock()
     private val _historyVersion = MutableStateFlow(0L)
     val historyVersion: StateFlow<Long> = _historyVersion.asStateFlow()
+    @Volatile private var cachedSessions: List<ChatSession>? = null
 
     fun init(context: Context) = lock.withLock {
         if (historyDir != null) return
@@ -31,6 +32,7 @@ object ChatHistoryManager {
             if (!dir.exists()) dir.mkdirs()
             try {
                 File(dir, "${session.id}.json").writeText(gson.toJson(session))
+                cachedSessions = null
                 notifyHistoryChanged(); true
             } catch (e: Exception) {
                 android.util.Log.e("ChatHistoryManager", "Failed to save: ${e.message}"); false
@@ -49,19 +51,27 @@ object ChatHistoryManager {
     }
 
     fun getAllSessions(): List<ChatSession> {
+        cachedSessions?.let { return it }
         val dir = historyDir ?: return emptyList()
         if (!dir.exists()) return emptyList()
         return lock.withLock {
-            dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
+            cachedSessions?.let { return it }
+            val sessions = dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
                 try { gson.fromJson(file.readText(), ChatSession::class.java) }
                 catch (e: Exception) { android.util.Log.e("ChatHistoryManager", "Failed to parse: ${e.message}"); null }
             }?.sortedByDescending { it.updatedAt } ?: emptyList()
+            cachedSessions = sessions
+            sessions
         }
     }
 
     fun deleteSession(sessionId: String): Boolean {
         val dir = historyDir ?: return false
-        return try { File(dir, "$sessionId.json").delete().also { if (it) notifyHistoryChanged() } } catch (_: Exception) { false }
+        return try {
+            File(dir, "$sessionId.json").delete().also {
+                if (it) { lock.withLock { cachedSessions = null }; notifyHistoryChanged() }
+            }
+        } catch (_: Exception) { false }
     }
 
     fun getSessionCount(): Int {
