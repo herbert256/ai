@@ -17,32 +17,35 @@ object ProviderRegistry {
     private const val KEY_INITIALIZED = "initialized"
 
     private val providers = java.util.concurrent.CopyOnWriteArrayList<AppService>()
-    private var initialized = false
+    @Volatile private var initialized = false
     private var prefs: SharedPreferences? = null
     private val lock = Any()
     private val providerListType = object : TypeToken<List<ProviderDefinition>>() {}.type
 
     fun init(context: Context) {
         if (initialized) return
-        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val sp = prefs!!
-        if (sp.getBoolean(KEY_INITIALIZED, false)) {
-            val json = sp.getString(KEY_PROVIDERS, null)
-            if (json != null) {
-                try {
-                    providers.clear()
-                    providers.addAll(parseProvidersJson(json))
-                } catch (e: Exception) {
-                    android.util.Log.e("ProviderRegistry", "Error loading from prefs: ${e.message}")
-                    loadFromAssets(context)
-                }
+        synchronized(lock) {
+            if (initialized) return
+            prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val sp = prefs!!
+            if (sp.getBoolean(KEY_INITIALIZED, false)) {
+                val json = sp.getString(KEY_PROVIDERS, null)
+                if (json != null) {
+                    try {
+                        providers.clear()
+                        providers.addAll(parseProvidersJson(json))
+                    } catch (e: Exception) {
+                        android.util.Log.e("ProviderRegistry", "Error loading from prefs: ${e.message}")
+                        loadFromAssets(context)
+                    }
+                } else loadFromAssets(context)
             } else loadFromAssets(context)
-        } else loadFromAssets(context)
-        if (providers.isEmpty()) {
-            android.util.Log.w("ProviderRegistry", "No providers loaded, falling back to assets")
-            loadFromAssets(context)
+            if (providers.isEmpty()) {
+                android.util.Log.w("ProviderRegistry", "No providers loaded, falling back to assets")
+                loadFromAssets(context)
+            }
+            initialized = true
         }
-        initialized = true
     }
 
     private fun loadFromAssets(context: Context) {
