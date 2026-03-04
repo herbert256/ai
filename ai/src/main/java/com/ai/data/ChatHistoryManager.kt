@@ -51,10 +51,12 @@ object ChatHistoryManager {
     fun getAllSessions(): List<ChatSession> {
         val dir = historyDir ?: return emptyList()
         if (!dir.exists()) return emptyList()
-        return dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
-            try { gson.fromJson(file.readText(), ChatSession::class.java) }
-            catch (e: Exception) { android.util.Log.e("ChatHistoryManager", "Failed to parse: ${e.message}"); null }
-        }?.sortedByDescending { it.updatedAt } ?: emptyList()
+        return lock.withLock {
+            dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
+                try { gson.fromJson(file.readText(), ChatSession::class.java) }
+                catch (e: Exception) { android.util.Log.e("ChatHistoryManager", "Failed to parse: ${e.message}"); null }
+            }?.sortedByDescending { it.updatedAt } ?: emptyList()
+        }
     }
 
     fun deleteSession(sessionId: String): Boolean {
