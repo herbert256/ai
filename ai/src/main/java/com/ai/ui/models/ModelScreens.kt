@@ -88,7 +88,7 @@ fun ModelSearchScreen(
                 onSaveSettings(updated)
                 showAgentEdit = false; selectedModel = null
             },
-            onBack = { showAgentEdit = false },
+            onBack = { showAgentEdit = false; selectedModel = null },
             onNavigateHome = onBackToHome
         )
         return
