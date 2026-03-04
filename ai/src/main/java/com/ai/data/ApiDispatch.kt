@@ -36,12 +36,13 @@ suspend fun AnalysisRepository.sendChat(
     apiKey: String,
     model: String,
     messages: List<ChatMessage>,
-    params: ChatParameters
+    params: ChatParameters,
+    baseUrl: String = service.baseUrl
 ): String = withContext(Dispatchers.IO) {
     when (service.apiFormat) {
         ApiFormat.ANTHROPIC -> chatAnthropic(service, apiKey, model, messages, params)
         ApiFormat.GOOGLE -> chatGemini(service, apiKey, model, messages, params)
-        ApiFormat.OPENAI_COMPATIBLE -> chatOpenAi(service, apiKey, model, messages, params)
+        ApiFormat.OPENAI_COMPATIBLE -> chatOpenAi(service, apiKey, model, messages, params, baseUrl)
     }
 }
 
@@ -176,12 +177,17 @@ private suspend fun AnalysisRepository.analyzeGemini(
 // ============================================================================
 
 private suspend fun AnalysisRepository.chatOpenAi(
-    service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
+    service: AppService,
+    apiKey: String,
+    model: String,
+    messages: List<ChatMessage>,
+    params: ChatParameters,
+    baseUrl: String
 ): String {
     if (usesResponsesApi(service, model)) return chatResponsesApi(service, apiKey, model, messages, params)
 
-    val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
-    val chatUrl = normalizeUrl(service.baseUrl) + service.chatPath
+    val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
+    val chatUrl = normalizeUrl(baseUrl) + service.chatPath
     val openAiMessages = messages.map { OpenAiMessage(it.role, it.content) }
     val request = OpenAiRequest(
         model = model, messages = openAiMessages,

@@ -24,7 +24,6 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.UiState
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 
 // ===== Navigation Wrapper =====
@@ -44,8 +43,16 @@ fun ReportsScreenNav(
     val aiSettings = uiState.aiSettings
     val initialModels = remember(aiSettings) { loadSavedReportModels(viewModel, aiSettings) }
 
-    val handleDismiss = { reportViewModel.dismissGenericReportsDialog(); onNavigateBack() }
-    val handleNavigateHome = { reportViewModel.dismissGenericReportsDialog(); onNavigateHome() }
+    val handleDismiss = {
+        reportViewModel.dismissGenericReportsDialog()
+        viewModel.clearExternalInstructions()
+        onNavigateBack()
+    }
+    val handleNavigateHome = {
+        reportViewModel.dismissGenericReportsDialog()
+        viewModel.clearExternalInstructions()
+        onNavigateHome()
+    }
     val handleContinueInBackground = { reportViewModel.continueReportInBackground(); onNavigateHome() }
 
     ReportsScreen(
@@ -53,10 +60,10 @@ fun ReportsScreenNav(
         initialModels = initialModels,
         onGenerate = { models, paramsIds, reportType ->
             val agentIds = models.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
-            val swarmIds = models.filter { it.sourceType == "swarm" && it.type == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val swarmIds = models.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
             val directIds = models.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             viewModel.saveReportAgents(agentIds)
-            viewModel.saveReportModels(swarmIds + directIds)
+            viewModel.saveReportModels(models.map(::encodeSavedReportModelSelection).toSet())
             reportViewModel.generateGenericReports(
                 scope = scope, context = context, selectedAgentIds = agentIds, selectedSwarmIds = swarmIds,
                 directModelIds = directIds, parametersIds = paramsIds, reportType = reportType
@@ -69,6 +76,7 @@ fun ReportsScreenNav(
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
+        onClearExternalInstructions = viewModel::clearExternalInstructions,
         developerMode = developerMode
     )
 }
@@ -87,14 +95,33 @@ internal fun formatPricingPerMillion(context: android.content.Context, provider:
 private fun loadSavedReportModels(viewModel: AppViewModel, aiSettings: Settings): List<ReportModel> {
     val agentIds = viewModel.loadReportAgents()
     val agentModels = agentIds.mapNotNull { id -> aiSettings.getAgentById(id)?.let { expandAgentToModel(it, aiSettings) } }
-    val modelIds = viewModel.loadReportModels()
-    val directModels = modelIds.mapNotNull { mid ->
-        val parts = mid.removePrefix("swarm:").split(":", limit = 2)
-        val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
-        val model = parts.getOrNull(1) ?: return@mapNotNull null
-        toReportModel(provider, model)
+    val savedSelections = viewModel.loadReportModels()
+    val savedModels = savedSelections.flatMap { decodeSavedReportModelSelection(it, aiSettings) }
+    return deduplicateModels(agentModels + savedModels)
+}
+
+private fun encodeSavedReportModelSelection(model: ReportModel): String {
+    return when (model.sourceType) {
+        "swarm" -> model.sourceId?.let { "swarm-id:$it" } ?: "swarm:${model.provider.id}:${model.model}"
+        else -> "swarm:${model.provider.id}:${model.model}"
     }
-    return deduplicateModels(agentModels + directModels)
+}
+
+private fun decodeSavedReportModelSelection(selection: String, aiSettings: Settings): List<ReportModel> {
+    return when {
+        selection.startsWith("swarm-id:") -> {
+            aiSettings.getSwarmById(selection.removePrefix("swarm-id:"))
+                ?.let { expandSwarmToModels(it, aiSettings) }
+                ?: emptyList()
+        }
+        selection.startsWith("swarm:") -> {
+            val parts = selection.removePrefix("swarm:").split(":", limit = 2)
+            val provider = AppService.findById(parts.getOrNull(0) ?: return emptyList()) ?: return emptyList()
+            val model = parts.getOrNull(1) ?: return emptyList()
+            listOf(toReportModel(provider, model))
+        }
+        else -> emptyList()
+    }
 }
 
 // ===== Main Reports Screen =====
@@ -111,6 +138,7 @@ fun ReportsScreen(
     advancedParameters: AgentParameters? = null,
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
+    onClearExternalInstructions: () -> Unit = {},
     developerMode: Boolean = false
 ) {
     val context = LocalContext.current
@@ -172,9 +200,10 @@ fun ReportsScreen(
     LaunchedEffect(externalModels, uiState.externalReportType) {
         if (externalModels.isNotEmpty() && !externalAutoGenerated && !isGenerating && uiState.externalReportType != null && !uiState.externalSelect) {
             externalAutoGenerated = true
-            models = deduplicateModels(models + externalModels)
+            val updatedModels = deduplicateModels(models + externalModels)
+            models = updatedModels
             val type = if (uiState.externalReportType.equals("table", ignoreCase = true)) ReportType.TABLE else ReportType.CLASSIC
-            onGenerate(models, selectedParametersIds, type)
+            onGenerate(updatedModels, selectedParametersIds, type)
         }
     }
 
@@ -203,6 +232,18 @@ fun ReportsScreen(
                     "email" -> if (uiState.generalSettings.defaultEmail.isNotBlank()) emailReportAsHtml(context, currentReportId, uiState.generalSettings.defaultEmail, developerMode)
                 }
                 if (uiState.externalReturn) { delay(1000); activity?.finish() }
+            }
+            if (
+                uiState.externalEmail != null ||
+                uiState.externalNextAction != null ||
+                uiState.externalReturn ||
+                uiState.externalReportType != null ||
+                uiState.externalAgentNames.isNotEmpty() ||
+                uiState.externalFlockNames.isNotEmpty() ||
+                uiState.externalSwarmNames.isNotEmpty() ||
+                uiState.externalModelSpecs.isNotEmpty()
+            ) {
+                onClearExternalInstructions()
             }
         }
     }
@@ -413,6 +454,12 @@ private fun ColumnScope.GenerationPhase(
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
 
+    fun resolveModelForResult(agentId: String, result: AnalysisResponse): String {
+        return aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
+            ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
+            ?: result.service.defaultModel
+    }
+
     // Progress
     Text("$reportsProgress / $reportsTotal complete", color = AppColors.TextSecondary, fontSize = 14.sp)
     LinearProgressIndicator(
@@ -424,12 +471,10 @@ private fun ColumnScope.GenerationPhase(
     // Agent results
     val selectedAgents = uiState.genericReportsSelectedAgents
     val totalCost = remember(reportsAgentResults) {
-        reportsAgentResults.values.sumOf { resp ->
+        reportsAgentResults.entries.sumOf { (agentId, resp) ->
             resp.tokenUsage?.let { tu ->
                 tu.apiCost ?: run {
-                    val provider = resp.service
-                    val model = resp.agentName?.let { name -> aiSettings.getAgentById(name)?.let { aiSettings.getEffectiveModelForAgent(it) } } ?: ""
-                    val p = PricingCache.getPricing(context, provider, model)
+                    val p = PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp))
                     tu.inputTokens * p.promptPrice + tu.outputTokens * p.completionPrice
                 }
             } ?: 0.0
@@ -458,10 +503,10 @@ private fun ColumnScope.GenerationPhase(
                 }
                 if (result?.tokenUsage != null) {
                     val cost = result.tokenUsage.apiCost ?: run {
-                        val p = PricingCache.getPricing(context, result.service, agent?.model ?: "")
+                        val p = PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result))
                         result.tokenUsage.inputTokens * p.promptPrice + result.tokenUsage.outputTokens * p.completionPrice
                     }
-                    Text(formatCents(cost * 100), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
             }
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -473,7 +518,7 @@ private fun ColumnScope.GenerationPhase(
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text("Total: $totalIn/$totalOut tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-                Text("${formatCents(totalCost * 100)} \u00A2", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+                Text("${formatCents(totalCost)} \u00A2", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
             }
         }
     }

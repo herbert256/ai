@@ -260,10 +260,11 @@ private fun SettingsMainScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
+    var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
 
-    LaunchedEffect(userName, defaultEmail) {
+    LaunchedEffect(userName, defaultEmail, developerMode) {
         val updated = generalSettings.copy(
-            userName = userName, defaultEmail = defaultEmail
+            userName = userName, defaultEmail = defaultEmail, developerMode = developerMode
         )
         if (updated != generalSettings) onSave(updated)
     }
@@ -285,6 +286,14 @@ private fun SettingsMainScreen(
                 label = { Text("Default email address") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors()
             )
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { developerMode = !developerMode },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(checked = developerMode, onCheckedChange = { developerMode = it })
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Developer mode", color = Color.White, fontSize = 14.sp)
+            }
         }
     }
 }

@@ -145,7 +145,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         selectionParamsById: Map<String, List<String>>, externalSystemPrompt: String?
     ): List<ReportTask> {
         val agentTasks = agents.map { agent ->
-            val ea = agent.copy(apiKey = aiSettings.getEffectiveApiKeyForAgent(agent), model = aiSettings.getEffectiveModelForAgent(agent))
+            val ea = agent.copy(
+                apiKey = aiSettings.getEffectiveApiKeyForAgent(agent),
+                model = aiSettings.getEffectiveModelForAgent(agent)
+            )
             val selParams = aiSettings.mergeParameters(selectionParamsById[agent.id] ?: emptyList())
             var params = selParams ?: aiSettings.resolveAgentParameters(agent)
             val spText = resolveSystemPromptText(aiSettings, agent.systemPromptId, findFlockSystemPromptIdForAgent(aiSettings, agent.id)) ?: externalSystemPrompt
@@ -174,7 +177,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         val startTime = System.currentTimeMillis()
         val response = try {
-            appViewModel.repository.analyzeWithAgent(task.runtimeAgent, "", aiPrompt, task.resolvedParams, overrideParams, context)
+            val baseUrl = appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+            appViewModel.repository.analyzeWithAgent(
+                task.runtimeAgent,
+                "",
+                aiPrompt,
+                task.resolvedParams,
+                overrideParams,
+                context,
+                baseUrl
+            )
         } catch (e: Exception) {
             AnalysisResponse(service = task.runtimeAgent.provider, analysis = null, error = e.message ?: "Unknown error")
         }
@@ -226,7 +238,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val service = agent?.provider
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringBefore(':')?.let { AppService.findById(it) }
                     ?: AppService.entries.firstOrNull() ?: AppService.findById("OPENAI")!!
-                agentId to AnalysisResponse(service = service, analysis = "Not ready", error = null)
+                agentId to AnalysisResponse(service = service, analysis = null, error = "Stopped by user")
             }
         }
 

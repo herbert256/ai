@@ -39,7 +39,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun loadGeneralSettings(): GeneralSettings {
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
-            developerMode = true,
+            developerMode = prefs.getBoolean(KEY_DEVELOPER_MODE, true),
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
@@ -49,6 +49,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun saveGeneralSettings(settings: GeneralSettings) {
         prefs.edit {
             putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
+            putBoolean(KEY_DEVELOPER_MODE, settings.developerMode)
             putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
             putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
@@ -240,6 +241,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         const val PREFS_NAME = "eval_prefs"
 
         private const val KEY_USER_NAME = "user_name"
+        private const val KEY_DEVELOPER_MODE = "developer_mode"
         private const val KEY_HUGGINGFACE_API_KEY = "huggingface_api_key"
         private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"

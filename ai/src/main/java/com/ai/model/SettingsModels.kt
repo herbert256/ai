@@ -242,7 +242,7 @@ data class Settings(
 // Report model expansion helpers
 data class ReportModel(
     val provider: AppService, val model: String, val type: String, val sourceType: String,
-    val sourceName: String, val agentId: String? = null, val endpointId: String? = null,
+    val sourceName: String, val sourceId: String? = null, val agentId: String? = null, val endpointId: String? = null,
     val agentApiKey: String? = null, val paramsIds: List<String> = emptyList()
 ) {
     val deduplicationKey: String get() = "${provider.id}:$model"
@@ -252,17 +252,17 @@ fun expandFlockToModels(flock: Flock, s: Settings) = flock.agentIds.mapNotNull {
     val agent = s.getAgentById(id) ?: return@mapNotNull null
     if (!s.isProviderActive(agent.provider)) return@mapNotNull null
     ReportModel(agent.provider, s.getEffectiveModelForAgent(agent), "agent", "flock", flock.name,
-        agent.id, agent.endpointId, s.getEffectiveApiKeyForAgent(agent), flock.paramsIds + agent.paramsIds)
+        flock.id, agent.id, agent.endpointId, s.getEffectiveApiKeyForAgent(agent), flock.paramsIds + agent.paramsIds)
 }
 
 fun expandAgentToModel(agent: Agent, s: Settings): ReportModel? {
     if (!s.isProviderActive(agent.provider)) return null
     return ReportModel(agent.provider, s.getEffectiveModelForAgent(agent), "agent", "agent", agent.name,
-        agent.id, agent.endpointId, s.getEffectiveApiKeyForAgent(agent), agent.paramsIds)
+        agent.id, agent.id, agent.endpointId, s.getEffectiveApiKeyForAgent(agent), agent.paramsIds)
 }
 
 fun expandSwarmToModels(swarm: Swarm, s: Settings) = swarm.members.filter { s.isProviderActive(it.provider) }.map {
-    ReportModel(it.provider, it.model, "model", "swarm", swarm.name, paramsIds = swarm.paramsIds)
+    ReportModel(it.provider, it.model, "model", "swarm", swarm.name, swarm.id, paramsIds = swarm.paramsIds)
 }
 
 fun toReportModel(provider: AppService, model: String) = ReportModel(provider, model, "model", "model", "")

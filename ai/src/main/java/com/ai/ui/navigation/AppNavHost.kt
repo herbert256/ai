@@ -237,9 +237,8 @@ fun AppNavHost(
                 ChatSessionScreen(
                     provider = agent.provider, model = effectiveModel, parameters = chatParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessage = { messages, _ -> chatViewModel.sendChatMessage(agent.provider, effectiveApiKey, effectiveModel, messages) },
                     onSendMessageStream = { messages -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(kotlinx.coroutines.MainScope(), agent.provider, effectiveModel, inp, out) }
+                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) }
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
@@ -282,9 +281,8 @@ fun AppNavHost(
                 ChatSessionScreen(
                     provider = provider, model = model, parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessage = { messages, _ -> chatViewModel.sendChatMessage(provider, apiKey, model, messages) },
                     onSendMessageStream = { messages -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(kotlinx.coroutines.MainScope(), provider, model, inp, out) }
+                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) }
                 )
             }
         }
@@ -302,9 +300,8 @@ fun AppNavHost(
                     provider = session.provider, model = session.model, parameters = session.parameters,
                     userName = uiState.generalSettings.userName, initialMessages = session.messages, sessionId = session.id,
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessage = { messages, _ -> chatViewModel.sendChatMessage(session.provider, apiKey, session.model, messages) },
                     onSendMessageStream = { messages -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(kotlinx.coroutines.MainScope(), session.provider, session.model, inp, out) }
+                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) }
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }

@@ -213,9 +213,8 @@ fun ChatSessionScreen(
     userName: String,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSendMessage: suspend (List<ChatMessage>, ChatParameters) -> ChatMessage,
     onSendMessageStream: (List<ChatMessage>) -> Flow<String>,
-    onRecordStatistics: (Int, Int) -> Unit,
+    onRecordStatistics: suspend (Int, Int) -> Unit,
     initialMessages: List<ChatMessage> = emptyList(),
     sessionId: String? = null
 ) {
@@ -229,12 +228,9 @@ fun ChatSessionScreen(
 
     var messages by remember { mutableStateOf(initialMessages) }
     var userInput by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
     var streamingContent by remember { mutableStateOf("") }
-    var totalInputTokens by remember { mutableIntStateOf(0) }
-    var totalOutputTokens by remember { mutableIntStateOf(0) }
     var totalCost by remember { mutableDoubleStateOf(0.0) }
 
     val pricing = remember(provider, model) { PricingCache.getPricing(context, provider, model) }
@@ -258,7 +254,7 @@ fun ChatSessionScreen(
 
     // Auto-scroll
     val displayMessages = messages.filter { it.role != "system" }
-    val bottomItemCount = displayMessages.size + (if (isStreaming && streamingContent.isNotEmpty()) 1 else 0) + (if (isLoading || (isStreaming && streamingContent.isEmpty())) 1 else 0)
+    val bottomItemCount = displayMessages.size + (if (isStreaming && streamingContent.isNotEmpty()) 1 else 0) + (if (isStreaming && streamingContent.isEmpty()) 1 else 0)
     LaunchedEffect(messages.size, streamingContent) {
         if (bottomItemCount > 0) listState.animateScrollToItem(bottomItemCount - 1)
     }
@@ -270,7 +266,6 @@ fun ChatSessionScreen(
         saveSession(messages)
 
         val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
-        totalInputTokens += inputTokens
 
         scope.launch {
             isStreaming = true; streamingContent = ""
@@ -281,7 +276,6 @@ fun ChatSessionScreen(
                 messages = messages + assistantMsg
                 saveSession(messages)
                 val outputTokens = AppViewModel.estimateTokens(streamingContent)
-                totalOutputTokens += outputTokens
                 totalCost += inputTokens * pricing.promptPrice * 100 + outputTokens * pricing.completionPrice * 100
                 onRecordStatistics(inputTokens, outputTokens)
             } catch (e: Exception) {
@@ -315,7 +309,7 @@ fun ChatSessionScreen(
             modifier = Modifier.fillMaxWidth().weight(1f),
             colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)
         ) {
-            if (displayMessages.isEmpty() && !isStreaming && !isLoading) {
+            if (displayMessages.isEmpty() && !isStreaming) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Start a conversation...", color = AppColors.TextTertiary, fontSize = 14.sp)
                 }
@@ -327,7 +321,7 @@ fun ChatSessionScreen(
                     if (isStreaming && streamingContent.isNotEmpty()) {
                         item(key = "streaming") { StreamingMessageBubble(streamingContent) }
                     }
-                    if (isLoading || (isStreaming && streamingContent.isEmpty())) {
+                    if (isStreaming && streamingContent.isEmpty()) {
                         item(key = "loading") {
                             Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AppColors.Blue, strokeWidth = 2.dp)
@@ -354,8 +348,8 @@ fun ChatSessionScreen(
                 maxLines = 4, colors = AppColors.outlinedFieldColors()
             )
             Button(
-                onClick = { if (userInput.isNotBlank() && !isLoading && !isStreaming) sendMessage(userInput.trim()) },
-                enabled = userInput.isNotBlank() && !isLoading && !isStreaming,
+                onClick = { if (userInput.isNotBlank() && !isStreaming) sendMessage(userInput.trim()) },
+                enabled = userInput.isNotBlank() && !isStreaming,
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }

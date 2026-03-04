@@ -131,7 +131,8 @@ class AnalysisRepository {
         prompt: String,
         agentResolvedParams: AgentParameters = AgentParameters(),
         overrideParams: AgentParameters? = null,
-        context: Context? = null
+        context: Context? = null,
+        baseUrl: String? = null
     ): AnalysisResponse = withContext(Dispatchers.IO) {
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)
@@ -142,7 +143,14 @@ class AnalysisRepository {
             if (overrideParams != null && context != null) {
                 params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
             }
-            return analyze(agent.provider, agent.apiKey, finalPrompt, agent.model, params).copy(agentName = agent.name, promptUsed = finalPrompt)
+            return analyze(
+                agent.provider,
+                agent.apiKey,
+                finalPrompt,
+                agent.model,
+                params,
+                baseUrl ?: agent.provider.baseUrl
+            ).copy(agentName = agent.name, promptUsed = finalPrompt)
         }
         withRetry("Agent ${agent.name}", { makeApiCall() }, { it.isSuccess }) { e ->
             AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name)
