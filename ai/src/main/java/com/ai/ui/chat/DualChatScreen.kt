@@ -400,7 +400,7 @@ fun DualChatSessionScreen(
 
         // Messages
         LazyColumn(state = listState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(messages.size, key = { it }) { index ->
+            items(messages.size, key = { "msg_${it}_${messages[it].modelIndex}" }) { index ->
                 DualMessageBubble(messages[index])
             }
             if (thinkingModel != null) {
