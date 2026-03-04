@@ -195,6 +195,7 @@ fun AppNavHost(
                 ModelInfoScreen(provider = provider, modelName = model,
                     openRouterApiKey = AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
                     huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey, aiSettings = uiState.aiSettings,
+                    repository = appViewModel.repository,
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
         }

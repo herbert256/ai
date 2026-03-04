@@ -161,6 +161,7 @@ fun ModelInfoScreen(
     openRouterApiKey: String,
     huggingFaceApiKey: String,
     aiSettings: Settings,
+    repository: com.ai.data.AnalysisRepository,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -234,7 +235,7 @@ fun ModelInfoScreen(
                     .replace("@MODEL@", modelName).replace("@PROVIDER@", provider.displayName)
                     .replace("@AGENT@", agent.name)
                 val response = withContext(Dispatchers.IO) {
-                    AnalysisRepository().analyzePlayerWithAgent(effectiveAgent, resolvedPrompt, aiSettings.resolveAgentParameters(agent))
+                    repository.analyzePlayerWithAgent(effectiveAgent, resolvedPrompt, aiSettings.resolveAgentParameters(agent))
                 }
                 if (response.isSuccess) aiDescription = response.analysis
             } catch (_: Exception) {} finally { isAiLoading = false }
