@@ -130,17 +130,17 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         for (def in defs) {
             val existing = ProviderRegistry.findById(def.id)
             if (existing == null) {
-                try { newProviders.add(def.toAppService()) } catch (_: Exception) {}
+                try { newProviders.add(def.toAppService()) } catch (e: Exception) { android.util.Log.w("SettingsExport", "Skipped provider ${def.id}: ${e.message}") }
             } else if (!def.endpointRules.isNullOrEmpty() && existing.endpointRules != def.endpointRules) {
-                try { ProviderRegistry.update(def.toAppService()) } catch (_: Exception) {}
+                try { ProviderRegistry.update(def.toAppService()) } catch (e: Exception) { android.util.Log.w("SettingsExport", "Failed to update provider ${def.id}: ${e.message}") }
             }
         }
         if (newProviders.isNotEmpty()) ProviderRegistry.ensureProviders(newProviders)
     }
 
-    val agents = export.agents.mapNotNull { e -> AppService.findById(e.provider)?.let { Agent(e.id, e.name, it, e.model, e.apiKey, e.endpointId, e.parametersIds ?: emptyList(), e.systemPromptId) } }
+    val agents = export.agents.mapNotNull { e -> AppService.findById(e.provider)?.let { Agent(e.id, e.name, it, e.model, e.apiKey, e.endpointId, e.parametersIds ?: emptyList(), e.systemPromptId) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped agent ${e.name}: unknown provider ${e.provider}") } }
     val flocks = export.flocks?.map { Flock(it.id, it.name, it.agentIds, it.parametersIds ?: emptyList(), it.systemPromptId) } ?: emptyList()
-    val swarms = export.swarms?.mapNotNull { e -> try { Swarm(e.id, e.name, e.members.mapNotNull { m -> AppService.findById(m.provider)?.let { SwarmMember(it, m.model) } }, e.parametersIds ?: emptyList(), e.systemPromptId) } catch (_: Exception) { null } } ?: emptyList()
+    val swarms = export.swarms?.mapNotNull { e -> try { Swarm(e.id, e.name, e.members.mapNotNull { m -> AppService.findById(m.provider)?.let { SwarmMember(it, m.model) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped swarm member ${m.provider}/${m.model}: unknown provider") } }, e.parametersIds ?: emptyList(), e.systemPromptId) } catch (ex: Exception) { android.util.Log.w("SettingsExport", "Skipped swarm ${e.name}: ${ex.message}"); null } } ?: emptyList()
     val prompts = export.aiPrompts?.map { Prompt(it.id, it.name, it.agentId, it.promptText) } ?: emptyList()
     val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency) } ?: emptyList()
     val systemPrompts = export.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
