@@ -30,8 +30,7 @@ import java.util.Locale
 @Composable
 fun HistoryScreenNav(
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    developerMode: Boolean
+    onNavigateHome: () -> Unit
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
@@ -123,7 +122,7 @@ fun HistoryScreenNav(
             // Report rows
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(pageItems, key = { it.id }) { report ->
-                    HistoryReportRow(report = report, developerMode = developerMode,
+                    HistoryReportRow(report = report,
                         onViewReport = { selectedReportId = report.id },
                         onDeleteReport = {
                             ReportStorage.deleteReport(context, report.id)
@@ -146,7 +145,7 @@ fun HistoryScreenNav(
 }
 
 @Composable
-private fun HistoryReportRow(report: Report, developerMode: Boolean, onViewReport: () -> Unit, onDeleteReport: () -> Unit) {
+private fun HistoryReportRow(report: Report, onViewReport: () -> Unit, onDeleteReport: () -> Unit) {
     val context = LocalContext.current
     var showActions by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
@@ -157,7 +156,7 @@ private fun HistoryReportRow(report: Report, developerMode: Boolean, onViewRepor
         AlertDialog(onDismissRequest = { showShareDialog = false }, title = { Text("Share Format") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { shareReportAsJson(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("JSON", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = { shareReportAsHtml(context, report.id, developerMode); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("HTML", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { shareReportAsHtml(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("HTML", maxLines = 1, softWrap = false) }
             }},
             confirmButton = {}, dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } })
     }
@@ -178,7 +177,7 @@ private fun HistoryReportRow(report: Report, developerMode: Boolean, onViewRepor
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(onClick = onViewReport, modifier = Modifier.weight(1f)) { Text("View", fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, softWrap = false) }
                     OutlinedButton(onClick = { showShareDialog = true }, modifier = Modifier.weight(1f)) { Text("Share", fontSize = 12.sp, color = AppColors.Green, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { openReportInChrome(context, report.id, developerMode) }, modifier = Modifier.weight(1f)) { Text("Browser", fontSize = 12.sp, color = AppColors.Purple, maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = { openReportInChrome(context, report.id) }, modifier = Modifier.weight(1f)) { Text("Browser", fontSize = 12.sp, color = AppColors.Purple, maxLines = 1, softWrap = false) }
                     OutlinedButton(onClick = { showDeleteConfirm = true }) { Text("X", fontSize = 12.sp, color = AppColors.Red, maxLines = 1, softWrap = false) }
                 }
             }

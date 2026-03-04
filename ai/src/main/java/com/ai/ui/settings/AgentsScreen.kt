@@ -22,7 +22,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun AgentsScreen(
     aiSettings: Settings,
-    developerMode: Boolean,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
@@ -53,7 +52,6 @@ fun AgentsScreen(
 fun AgentEditScreen(
     agent: Agent?,
     aiSettings: Settings,
-    developerMode: Boolean,
     existingNames: Set<String>,
     onTestAiModel: suspend (AppService, String, String) -> String?,
     onFetchModels: (AppService, String) -> Unit,

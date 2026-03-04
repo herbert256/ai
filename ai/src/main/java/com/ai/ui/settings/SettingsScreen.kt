@@ -7,8 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
@@ -85,7 +83,7 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_SETUP -> {
             SetupScreen(
-                aiSettings = aiSettings, developerMode = generalSettings.developerMode,
+                aiSettings = aiSettings,
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
@@ -118,7 +116,7 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_AGENTS -> {
             AgentsScreen(
-                aiSettings = aiSettings, developerMode = generalSettings.developerMode,
+                aiSettings = aiSettings,
                 onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
                 onTestAiModel = onTestAiModel, onFetchModels = onFetchModels,
                 onAddAgent = { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENT_EDIT },
@@ -128,7 +126,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_AGENT_EDIT -> {
             val agent = editingAgentId?.let { aiSettings.getAgentById(it) }
             AgentEditScreen(
-                agent = agent, aiSettings = aiSettings, developerMode = generalSettings.developerMode,
+                agent = agent, aiSettings = aiSettings,
                 existingNames = aiSettings.agents.filter { it.id != (agent?.id ?: "") }.map { it.name.lowercase() }.toSet(),
                 onTestAiModel = onTestAiModel, onFetchModels = onFetchModels,
                 onSave = { saved ->
@@ -260,12 +258,9 @@ private fun SettingsMainScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
-    var developerMode by remember { mutableStateOf(generalSettings.developerMode) }
 
-    LaunchedEffect(userName, defaultEmail, developerMode) {
-        val updated = generalSettings.copy(
-            userName = userName, defaultEmail = defaultEmail, developerMode = developerMode
-        )
+    LaunchedEffect(userName, defaultEmail) {
+        val updated = generalSettings.copy(userName = userName, defaultEmail = defaultEmail)
         if (updated != generalSettings) onSave(updated)
     }
 
@@ -286,14 +281,6 @@ private fun SettingsMainScreen(
                 label = { Text("Default email address") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors()
             )
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { developerMode = !developerMode },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = developerMode, onCheckedChange = { developerMode = it })
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Developer mode", color = Color.White, fontSize = 14.sp)
-            }
         }
     }
 }

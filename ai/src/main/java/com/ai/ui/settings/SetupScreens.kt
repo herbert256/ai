@@ -23,7 +23,6 @@ import com.ai.ui.shared.TitleBar
 @Composable
 fun SetupScreen(
     aiSettings: Settings,
-    developerMode: Boolean = false,
     huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
     onBackToSettings: () -> Unit,

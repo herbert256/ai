@@ -34,8 +34,7 @@ fun ReportsScreenNav(
     reportViewModel: ReportViewModel,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
-    onNavigateToTrace: (String) -> Unit = {},
-    developerMode: Boolean = false
+    onNavigateToTrace: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -76,8 +75,7 @@ fun ReportsScreenNav(
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
-        onClearExternalInstructions = viewModel::clearExternalInstructions,
-        developerMode = developerMode
+        onClearExternalInstructions = viewModel::clearExternalInstructions
     )
 }
 
@@ -138,8 +136,7 @@ fun ReportsScreen(
     advancedParameters: AgentParameters? = null,
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
-    onClearExternalInstructions: () -> Unit = {},
-    developerMode: Boolean = false
+    onClearExternalInstructions: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -219,7 +216,7 @@ fun ReportsScreen(
         if (isComplete && currentReportId != null) {
             val email = uiState.externalEmail
             if (email != null && email.isNotBlank()) {
-                emailReportAsHtml(context, currentReportId, email, developerMode)
+                emailReportAsHtml(context, currentReportId, email)
                 if (uiState.externalReturn) activity?.finish()
             }
             val next = uiState.externalNextAction
@@ -227,9 +224,9 @@ fun ReportsScreen(
                 delay(500)
                 when (next.lowercase()) {
                     "view" -> showViewer = true
-                    "share" -> shareReportAsHtml(context, currentReportId, developerMode)
-                    "browser" -> openReportInChrome(context, currentReportId, developerMode)
-                    "email" -> if (uiState.generalSettings.defaultEmail.isNotBlank()) emailReportAsHtml(context, currentReportId, uiState.generalSettings.defaultEmail, developerMode)
+                    "share" -> shareReportAsHtml(context, currentReportId)
+                    "browser" -> openReportInChrome(context, currentReportId)
+                    "email" -> if (uiState.generalSettings.defaultEmail.isNotBlank()) emailReportAsHtml(context, currentReportId, uiState.generalSettings.defaultEmail)
                 }
                 if (uiState.externalReturn) { delay(1000); activity?.finish() }
             }
@@ -275,7 +272,7 @@ fun ReportsScreen(
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { shareReportAsJson(context, currentReportId); showShareDialog = false }) { Text("JSON", maxLines = 1, softWrap = false) }
-                    TextButton(onClick = { shareReportAsHtml(context, currentReportId, developerMode); showShareDialog = false }) { Text("HTML", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { shareReportAsHtml(context, currentReportId); showShareDialog = false }) { Text("HTML", maxLines = 1, softWrap = false) }
                 }
             },
             dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -287,7 +284,7 @@ fun ReportsScreen(
         val emailAddress = uiState.generalSettings.defaultEmail
         LaunchedEffect(currentReportId) {
             emailSent = false
-            emailReportAsHtml(context, currentReportId, emailAddress, developerMode)
+            emailReportAsHtml(context, currentReportId, emailAddress)
             emailSent = true
             delay(2000)
             showEmailDialog = false
@@ -332,12 +329,11 @@ fun ReportsScreen(
                 reportsTotal = reportsTotal,
                 reportsAgentResults = reportsAgentResults,
                 currentReportId = currentReportId,
-                developerMode = developerMode,
                 onStop = onStop,
                 onContinueInBackground = onContinueInBackground,
                 onView = { agentId -> selectedAgentForViewer = agentId; showViewer = true },
                 onShare = { showShareDialog = true },
-                onBrowser = { currentReportId?.let { openReportInChrome(context, it, developerMode) } },
+                onBrowser = { currentReportId?.let { openReportInChrome(context, it) } },
                 onEmail = { showEmailDialog = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
                 hasDefaultEmail = uiState.generalSettings.defaultEmail.isNotBlank()
@@ -441,7 +437,6 @@ private fun ColumnScope.GenerationPhase(
     reportsTotal: Int,
     reportsAgentResults: Map<String, AnalysisResponse>,
     currentReportId: String?,
-    developerMode: Boolean,
     onStop: () -> Unit,
     onContinueInBackground: () -> Unit,
     onView: (String?) -> Unit,
@@ -538,7 +533,7 @@ private fun ColumnScope.GenerationPhase(
             Button(onClick = onShare, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)) { Text("Share", maxLines = 1, softWrap = false) }
             Button(onClick = onBrowser, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)) { Text("Browser", maxLines = 1, softWrap = false) }
             if (hasDefaultEmail) Button(onClick = onEmail, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)) { Text("Email", maxLines = 1, softWrap = false) }
-            if (developerMode && currentReportId != null) OutlinedButton(onClick = onTrace) { Text("Trace", maxLines = 1, softWrap = false) }
+            if (currentReportId != null) OutlinedButton(onClick = onTrace) { Text("Trace", maxLines = 1, softWrap = false) }
         }
     }
 }

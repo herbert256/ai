@@ -54,7 +54,6 @@ private object ModelInfoCache {
 @Composable
 fun ModelSearchScreen(
     aiSettings: Settings,
-    developerMode: Boolean,
     loadingModelsFor: Set<AppService>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
@@ -96,7 +95,6 @@ fun ModelSearchScreen(
         AgentEditScreen(
             agent = Agent("", "${m.providerName} ${m.modelName}", m.provider, m.modelName, aiSettings.getApiKey(m.provider)),
             aiSettings = aiSettings,
-            developerMode = developerMode,
             existingNames = aiSettings.agents.map { it.name.lowercase() }.toSet(),
             onTestAiModel = onTestAiModel,
             onFetchModels = onFetchModels,

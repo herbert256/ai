@@ -23,7 +23,6 @@ import kotlinx.coroutines.withContext
 // General app settings
 data class GeneralSettings(
     val userName: String = "user",
-    val developerMode: Boolean = true,
     val huggingFaceApiKey: String = "",
     val openRouterApiKey: String = "",
     val defaultEmail: String = ""
@@ -82,10 +81,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
-        ApiTracer.isTracingEnabled = false
+        ApiTracer.isTracingEnabled = true
         viewModelScope.launch(Dispatchers.IO) {
             val bs = bootstrap(application)
-            ApiTracer.isTracingEnabled = bs.first.developerMode
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             refreshAllModelLists(bs.second)
         }
@@ -125,7 +123,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ===== Settings =====
 
     fun updateGeneralSettings(settings: GeneralSettings) {
-        ApiTracer.isTracingEnabled = settings.developerMode
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
     }

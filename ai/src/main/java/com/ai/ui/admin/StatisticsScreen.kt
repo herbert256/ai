@@ -155,7 +155,7 @@ private fun UsageModelRow(swc: StatWithCost) {
 // ===== Cost Configuration Screen =====
 
 @Composable
-fun CostConfigurationScreen(aiSettings: Settings, developerMode: Boolean, onBack: () -> Unit, onNavigateHome: () -> Unit) {
+fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigateHome: () -> Unit) {
     BackHandler { onBack() }
     val context = LocalContext.current
     var refreshTrigger by remember { mutableIntStateOf(0) }

@@ -14,7 +14,7 @@ import java.util.Locale
 
 internal data class HtmlReportData(
     val title: String, val prompt: String, val timestamp: String,
-    val rapportText: String?, val closeText: String?, val developerMode: Boolean,
+    val rapportText: String?, val closeText: String?,
     val agents: List<HtmlAgentData>, val reportType: ReportType = ReportType.CLASSIC
 )
 
@@ -41,10 +41,10 @@ internal fun shareReportAsJson(context: android.content.Context, reportId: Strin
     } catch (e: Exception) { Toast.makeText(context, "Error sharing: ${e.message}", Toast.LENGTH_SHORT).show() }
 }
 
-internal fun shareReportAsHtml(context: android.content.Context, reportId: String, developerMode: Boolean = false) {
+internal fun shareReportAsHtml(context: android.content.Context, reportId: String) {
     val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
     try {
-        val html = convertReportToHtml(context, report, getAppVersion(context), developerMode)
+        val html = convertReportToHtml(context, report, getAppVersion(context))
         val file = writeToCache(context, "ai_report_${timestamp()}.html", html)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -56,10 +56,10 @@ internal fun shareReportAsHtml(context: android.content.Context, reportId: Strin
     } catch (e: Exception) { Toast.makeText(context, "Error sharing: ${e.message}", Toast.LENGTH_SHORT).show() }
 }
 
-internal fun emailReportAsHtml(context: android.content.Context, reportId: String, emailAddress: String, developerMode: Boolean = false): Boolean {
+internal fun emailReportAsHtml(context: android.content.Context, reportId: String, emailAddress: String): Boolean {
     val report = ReportStorage.getReport(context, reportId) ?: return false
     return try {
-        val html = convertReportToHtml(context, report, getAppVersion(context), developerMode)
+        val html = convertReportToHtml(context, report, getAppVersion(context))
         val file = writeToCache(context, "ai_report_${timestamp()}.html", html)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -74,10 +74,10 @@ internal fun emailReportAsHtml(context: android.content.Context, reportId: Strin
     } catch (e: Exception) { Toast.makeText(context, "Error emailing: ${e.message}", Toast.LENGTH_SHORT).show(); false }
 }
 
-internal fun openReportInChrome(context: android.content.Context, reportId: String, developerMode: Boolean = false) {
+internal fun openReportInChrome(context: android.content.Context, reportId: String) {
     val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
     try {
-        val html = convertReportToHtml(context, report, getAppVersion(context), developerMode)
+        val html = convertReportToHtml(context, report, getAppVersion(context))
         val file = writeToCache(context, "ai_${timestamp()}.html", html)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "text/html"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
@@ -87,7 +87,7 @@ internal fun openReportInChrome(context: android.content.Context, reportId: Stri
 
 // ===== HTML Conversion =====
 
-private fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String, developerMode: Boolean = false): String {
+private fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
     val agents = report.agents
         .filter { it.reportStatus != ReportStatus.STOPPED && it.reportStatus != ReportStatus.PENDING }
         .sortedBy { it.agentName.lowercase() }
@@ -110,7 +110,7 @@ private fun convertReportToHtml(context: android.content.Context, report: Report
     val data = HtmlReportData(
         title = report.title, prompt = report.prompt,
         timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
-        rapportText = report.rapportText, closeText = report.closeText, developerMode = developerMode,
+        rapportText = report.rapportText, closeText = report.closeText,
         agents = agents, reportType = report.reportType
     )
 
@@ -153,10 +153,8 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
             qs.forEachIndexed { qi, q -> sb.append("<div class='related-question'>${qi + 1}. ${esc(q)}</div>") }
             sb.append("</div>")
         }
-        if (data.developerMode) {
-            a.rawUsageJson?.let { sb.append("<div class='usage-label'>API Usage:</div><pre class='usage-json'>${esc(it)}</pre>") }
-            a.responseHeaders?.let { sb.append("<div class='usage-label'>HTTP Headers:</div><pre class='headers-text'>${esc(it)}</pre>") }
-        }
+        a.rawUsageJson?.let { sb.append("<div class='usage-label'>API Usage:</div><pre class='usage-json'>${esc(it)}</pre>") }
+        a.responseHeaders?.let { sb.append("<div class='usage-label'>HTTP Headers:</div><pre class='headers-text'>${esc(it)}</pre>") }
         sb.append("</div></div>")
     }
 

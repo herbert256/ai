@@ -146,11 +146,9 @@ fun AppNavHost(
                 initialTitle = title, initialPrompt = prompt)
         }
         composable(NavRoutes.AI_REPORTS) {
-            val uiState by appViewModel.uiState.collectAsState()
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
-                developerMode = uiState.generalSettings.developerMode)
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
@@ -159,9 +157,7 @@ fun AppNavHost(
 
         // ===== History =====
         composable(NavRoutes.AI_HISTORY) {
-            val uiState by appViewModel.uiState.collectAsState()
-            HistoryScreenNav(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                developerMode = uiState.generalSettings.developerMode)
+            HistoryScreenNav(onNavigateBack = safePopBack, onNavigateHome = navigateHome)
         }
 
         // ===== Usage =====
@@ -173,14 +169,14 @@ fun AppNavHost(
         }
         composable(NavRoutes.AI_COST_CONFIG) {
             val uiState by appViewModel.uiState.collectAsState()
-            CostConfigurationScreen(aiSettings = uiState.aiSettings, developerMode = uiState.generalSettings.developerMode,
+            CostConfigurationScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome)
         }
 
         // ===== Models =====
         composable(NavRoutes.AI_MODEL_SEARCH) {
             val uiState by appViewModel.uiState.collectAsState()
-            ModelSearchScreen(aiSettings = uiState.aiSettings, developerMode = uiState.generalSettings.developerMode,
+            ModelSearchScreen(aiSettings = uiState.aiSettings,
                 loadingModelsFor = uiState.loadingModelsFor, onBackToAiSetup = safePopBack, onBackToHome = navigateHome,
                 onSaveSettings = { appViewModel.updateSettings(it) }, onTestAiModel = { s, k, m -> appViewModel.testAiModel(s, k, m) },
                 onFetchModels = appViewModel::fetchModels,
