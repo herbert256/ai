@@ -52,23 +52,43 @@ data class UiState(
     val genericReportsSelectedAgents: Set<String> = emptySet(),
     val currentReportId: String? = null,
     val reportAdvancedParameters: AgentParameters? = null,
-    // External intent
-    val externalSystemPrompt: String? = null,
-    val externalCloseHtml: String? = null,
-    val externalReportType: String? = null,
-    val externalEmail: String? = null,
-    val externalNextAction: String? = null,
-    val externalReturn: Boolean = false,
-    val externalEdit: Boolean = false,
-    val externalSelect: Boolean = false,
-    val externalOpenHtml: String? = null,
-    val externalAgentNames: List<String> = emptyList(),
-    val externalFlockNames: List<String> = emptyList(),
-    val externalSwarmNames: List<String> = emptyList(),
-    val externalModelSpecs: List<String> = emptyList(),
+    val externalIntent: ExternalIntent = ExternalIntent(),
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),
     val dualChatConfig: DualChatConfig? = null
+) {
+    // Flat accessors preserved so call sites don't need updating. Grouping the 13 external
+    // fields into a nested ExternalIntent struct makes "is anything external set?" checks
+    // and reset operations trivial, and shrinks the top-level UiState surface.
+    val externalSystemPrompt: String? get() = externalIntent.systemPrompt
+    val externalCloseHtml: String? get() = externalIntent.closeHtml
+    val externalReportType: String? get() = externalIntent.reportType
+    val externalEmail: String? get() = externalIntent.email
+    val externalNextAction: String? get() = externalIntent.nextAction
+    val externalReturn: Boolean get() = externalIntent.returnAfterNext
+    val externalEdit: Boolean get() = externalIntent.edit
+    val externalSelect: Boolean get() = externalIntent.select
+    val externalOpenHtml: String? get() = externalIntent.openHtml
+    val externalAgentNames: List<String> get() = externalIntent.agentNames
+    val externalFlockNames: List<String> get() = externalIntent.flockNames
+    val externalSwarmNames: List<String> get() = externalIntent.swarmNames
+    val externalModelSpecs: List<String> get() = externalIntent.modelSpecs
+}
+
+data class ExternalIntent(
+    val systemPrompt: String? = null,
+    val closeHtml: String? = null,
+    val reportType: String? = null,
+    val email: String? = null,
+    val nextAction: String? = null,
+    val returnAfterNext: Boolean = false,
+    val edit: Boolean = false,
+    val select: Boolean = false,
+    val openHtml: String? = null,
+    val agentNames: List<String> = emptyList(),
+    val flockNames: List<String> = emptyList(),
+    val swarmNames: List<String> = emptyList(),
+    val modelSpecs: List<String> = emptyList()
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -226,25 +246,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         edit: Boolean = false, select: Boolean = false, openHtml: String? = null,
         systemPrompt: String? = null
     ) {
-        _uiState.update { it.copy(
-            externalSystemPrompt = systemPrompt, externalCloseHtml = closeHtml,
-            externalReportType = reportType, externalEmail = email,
-            externalNextAction = nextAction, externalReturn = returnAfterNext,
-            externalEdit = edit, externalSelect = select, externalOpenHtml = openHtml,
-            externalAgentNames = agentNames, externalFlockNames = flockNames,
-            externalSwarmNames = swarmNames, externalModelSpecs = modelSpecs
-        ) }
+        _uiState.update { it.copy(externalIntent = ExternalIntent(
+            systemPrompt = systemPrompt, closeHtml = closeHtml,
+            reportType = reportType, email = email,
+            nextAction = nextAction, returnAfterNext = returnAfterNext,
+            edit = edit, select = select, openHtml = openHtml,
+            agentNames = agentNames, flockNames = flockNames,
+            swarmNames = swarmNames, modelSpecs = modelSpecs
+        )) }
     }
 
     fun clearExternalInstructions() {
-        _uiState.update { it.copy(
-            externalSystemPrompt = null, externalCloseHtml = null,
-            externalReportType = null, externalEmail = null,
-            externalNextAction = null, externalReturn = false,
-            externalEdit = false, externalSelect = false, externalOpenHtml = null,
-            externalAgentNames = emptyList(), externalFlockNames = emptyList(),
-            externalSwarmNames = emptyList(), externalModelSpecs = emptyList()
-        ) }
+        _uiState.update { it.copy(externalIntent = ExternalIntent()) }
     }
 
     // ===== Chat Parameters =====
