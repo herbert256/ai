@@ -17,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -232,7 +234,9 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = {
                 if (hasPrev) { currentFilename = traceFiles[currentIndex - 1]; currentView = TraceContentView.ALL }
-            }, enabled = hasPrev, contentPadding = PaddingValues(0.dp), modifier = Modifier.width(36.dp)) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+            }, enabled = hasPrev, contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }
+            ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clip.setPrimaryClip(ClipData.newPlainText("trace", displayContent))
@@ -253,7 +257,9 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
             OutlinedButton(onClick = { shareTrace(context, rawJson, currentFilename) }, modifier = Modifier.weight(1f)) { Text("Share", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.ALL }
-            }, enabled = hasNext, contentPadding = PaddingValues(0.dp), modifier = Modifier.width(36.dp)) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+            }, enabled = hasNext, contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.width(36.dp).semantics { contentDescription = "Next trace" }
+            ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
         }
     }
 }

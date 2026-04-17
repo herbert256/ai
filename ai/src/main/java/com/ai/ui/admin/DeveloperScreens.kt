@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,7 +123,10 @@ fun ApiTestScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = apiUrl, onValueChange = { apiUrl = it }, label = { Text("Endpoint URL") },
                     modifier = Modifier.weight(1f), singleLine = true, colors = AppColors.outlinedFieldColors())
-                OutlinedButton(onClick = { showEndpointDialog = true }) { Text("...", maxLines = 1, softWrap = false) }
+                OutlinedButton(
+                    onClick = { showEndpointDialog = true },
+                    modifier = Modifier.semantics { contentDescription = "Pick endpoint" }
+                ) { Text("...", maxLines = 1, softWrap = false) }
             }
 
             // API Key
@@ -132,15 +137,18 @@ fun ApiTestScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("Model") },
                     modifier = Modifier.weight(1f), singleLine = true, colors = AppColors.outlinedFieldColors())
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        isLoadingModels = true
-                        availableModels = try {
-                            withContext(Dispatchers.IO) { AnalysisRepository().fetchModels(selectedProvider, apiKey) }
-                        } catch (_: Exception) { emptyList() }
-                        isLoadingModels = false; showModelDialog = true
-                    }
-                }) { Text("...", maxLines = 1, softWrap = false) }
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            isLoadingModels = true
+                            availableModels = try {
+                                withContext(Dispatchers.IO) { AnalysisRepository().fetchModels(selectedProvider, apiKey) }
+                            } catch (_: Exception) { emptyList() }
+                            isLoadingModels = false; showModelDialog = true
+                        }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Pick model" }
+                ) { Text("...", maxLines = 1, softWrap = false) }
             }
 
             // Prompt
