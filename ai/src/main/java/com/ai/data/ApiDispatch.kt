@@ -11,6 +11,22 @@ import okhttp3.RequestBody.Companion.toRequestBody
 // ============================================================================
 
 /**
+ * Anthropic requires max_tokens on every request. The API caps differ by model;
+ * sending 4096 for a Claude 4 Sonnet/Opus silently truncates long completions.
+ * This returns a safe default when the user didn't specify one.
+ */
+internal fun defaultClaudeMaxTokens(model: String): Int {
+    val m = model.lowercase()
+    return when {
+        "opus-4" in m -> 32_000
+        "sonnet-4" in m -> 8_192
+        "haiku-4" in m -> 8_192
+        "claude-3-5" in m || "claude-3.5" in m -> 8_192
+        else -> 4_096
+    }
+}
+
+/**
  * Analyze a prompt using the appropriate API format.
  */
 suspend fun AnalysisRepository.analyze(
@@ -117,7 +133,7 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
     val request = ClaudeRequest(
         model = model,
         messages = listOf(ClaudeMessage("user", prompt)),
-        max_tokens = params?.maxTokens ?: 4096,
+        max_tokens = params?.maxTokens ?: defaultClaudeMaxTokens(model),
         temperature = params?.temperature, top_p = params?.topP, top_k = params?.topK,
         system = params?.systemPrompt?.takeIf { it.isNotBlank() },
         stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() },
@@ -232,7 +248,7 @@ private suspend fun AnalysisRepository.chatAnthropic(
     val claudeMessages = messages.filter { it.role != "system" }.map { ClaudeMessage(it.role, it.content) }
     val systemPrompt = messages.find { it.role == "system" }?.content
     val request = ClaudeRequest(
-        model = model, messages = claudeMessages, max_tokens = params.maxTokens ?: 4096,
+        model = model, messages = claudeMessages, max_tokens = params.maxTokens ?: defaultClaudeMaxTokens(model),
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
         system = systemPrompt, search = if (params.searchEnabled) true else null
     )

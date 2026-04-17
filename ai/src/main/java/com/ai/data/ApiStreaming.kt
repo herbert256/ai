@@ -161,7 +161,7 @@ private fun AnalysisRepository.streamAnthropic(
     val systemPrompt = messages.find { it.role == "system" }?.content
     val request = ClaudeRequest(
         model = model, messages = claudeMessages, stream = true,
-        max_tokens = params.maxTokens ?: 4096,
+        max_tokens = params.maxTokens ?: defaultClaudeMaxTokens(model),
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
         system = systemPrompt,
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
