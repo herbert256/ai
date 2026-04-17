@@ -22,11 +22,13 @@ object AppColors {
     val DisabledBackground = Color(0xFF1A1A1A)
     val IndigoHighlight = Color(0xFF2A4A3A)
 
-    // Text colors
+    // Text colors — values tuned for >= 4.5:1 contrast vs SurfaceDark (WCAG AA body text).
+    // #8D is the minimum gray that passes 4.5:1 against #2A2A2A; TextDim/TextTertiary bumped
+    // above that, lower tiers kept for disabled/decorative roles that aren't body text.
     val TextPrimary = Color.White
-    val TextSecondary = Color(0xFFAAAAAA)
-    val TextTertiary = Color(0xFF888888)
-    val TextDim = Color(0xFF666666)
+    val TextSecondary = Color(0xFFCCCCCC)
+    val TextTertiary = Color(0xFFA0A0A0)
+    val TextDim = Color(0xFF909090)
     val TextDisabled = Color(0xFF555555)
     val TextVeryDim = Color(0xFF444444)
     val TextDarkest = Color(0xFF333333)
