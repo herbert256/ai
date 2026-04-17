@@ -162,7 +162,10 @@ private fun AnalysisRepository.streamAnthropic(
         response.body()?.let { body ->
             parseSseStream(body, ::extractClaudeContent).collect { emit(it) }
         } ?: throw Exception("Empty response body")
-    } else throw Exception("API error: ${response.code()} ${response.message()}")
+    } else {
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+    }
 }
 
 private fun AnalysisRepository.streamGemini(
@@ -183,5 +186,8 @@ private fun AnalysisRepository.streamGemini(
         response.body()?.let { body ->
             parseSseStream(body, ::extractGeminiContent).collect { emit(it) }
         } ?: throw Exception("Empty response body")
-    } else throw Exception("API error: ${response.code()} ${response.message()}")
+    } else {
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+    }
 }

@@ -199,7 +199,10 @@ private suspend fun AnalysisRepository.chatOpenAi(
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
         return response.body()?.choices?.firstOrNull()?.message?.content ?: throw Exception("No response content")
-    } else throw Exception("API error: ${response.code()} ${response.message()}")
+    } else {
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+    }
 }
 
 private suspend fun AnalysisRepository.chatResponsesApi(
@@ -236,7 +239,10 @@ private suspend fun AnalysisRepository.chatAnthropic(
     val response = api.createMessage(apiKey, request = request)
     if (response.isSuccessful) {
         return response.body()?.content?.firstOrNull { it.type == "text" }?.text ?: throw Exception("No response content")
-    } else throw Exception("API error: ${response.code()} ${response.message()}")
+    } else {
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+    }
 }
 
 private suspend fun AnalysisRepository.chatGemini(
@@ -254,7 +260,10 @@ private suspend fun AnalysisRepository.chatGemini(
     val response = api.generateContent(model, apiKey, request)
     if (response.isSuccessful) {
         return response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: throw Exception("No response content")
-    } else throw Exception("API error: ${response.code()} ${response.message()}")
+    } else {
+        val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+        throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
+    }
 }
 
 // ============================================================================
