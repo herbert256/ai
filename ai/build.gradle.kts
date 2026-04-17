@@ -129,5 +129,8 @@ dependencies {
     // Navigation
     implementation(libs.navigation.compose)
 
+    // Baseline profile installer (apply AOT profiles when bundled)
+    implementation(libs.androidx.profileinstaller)
+
     debugImplementation(libs.androidx.ui.tooling)
 }

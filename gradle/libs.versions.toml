@@ -11,6 +11,7 @@ coroutines = "1.9.0"
 viewmodel = "2.10.0"
 composeMarkdown = "0.5.8"
 navigationCompose = "2.9.7"
+profileinstaller = "1.4.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +41,9 @@ compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown",
 
 # Navigation
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+
+# Baseline profile installer — applies any bundled baseline-prof.txt to AOT-compile hot paths at install.
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
