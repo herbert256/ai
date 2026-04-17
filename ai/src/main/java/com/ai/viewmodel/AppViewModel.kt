@@ -101,6 +101,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         ApiTracer.isTracingEnabled = true
+        PricingCache.preloadAsync(application, viewModelScope)
         viewModelScope.launch(Dispatchers.IO) {
             val bs = bootstrap(application)
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }

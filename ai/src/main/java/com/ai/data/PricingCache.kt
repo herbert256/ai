@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.google.gson.reflect.TypeToken
 import java.lang.reflect.Type
+import kotlinx.coroutines.launch
 
 /**
  * Cached model pricing with six-tier lookup: API > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT.
@@ -32,6 +33,7 @@ object PricingCache {
     @Volatile private var fallbackPricing: Map<String, ModelPricing>? = null
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
+    @Volatile private var preloadCompleted = false
 
     data class ModelPricing(val modelId: String, val promptPrice: Double, val completionPrice: Double, val source: String = "unknown")
 
@@ -89,9 +91,27 @@ object PricingCache {
     private val DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6, "DEFAULT")
 
     /**
+     * Warm the in-memory caches in the background. Safe to call repeatedly; only runs once.
+     * Compose code that calls [getPricing] synchronously won't have to block on a 1.2MB
+     * asset parse on first use.
+     */
+    fun preloadAsync(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
+        if (preloadCompleted) return
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            ensureLoaded(context)
+            preloadCompleted = true
+        }
+    }
+
+    /**
      * Get pricing for a model using six-tier lookup.
+     *
+     * If preload hasn't finished (caches still null) and this was called from the main thread,
+     * avoid the synchronous 1.2MB parse by returning DEFAULT_PRICING — the UI will refresh
+     * once the preload completes and recomposition reads fresh values.
      */
     fun getPricing(context: Context, provider: AppService, model: String): ModelPricing {
+        if (!preloadCompleted && isMainThread()) return DEFAULT_PRICING
         ensureLoaded(context)
         val isOpenRouter = provider.id == "OPENROUTER"
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
@@ -104,6 +124,9 @@ object PricingCache {
         fallbackPricing?.get(model)?.let { return it }
         return DEFAULT_PRICING
     }
+
+    private fun isMainThread(): Boolean =
+        android.os.Looper.myLooper() == android.os.Looper.getMainLooper()
 
     fun getPricingWithoutOverride(context: Context, provider: AppService, model: String): ModelPricing {
         ensureLoaded(context)
