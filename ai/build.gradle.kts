@@ -88,6 +88,13 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        unitTests {
+            // Let unit tests exercise code that touches android.util.Log etc. without Robolectric;
+            // unstubbed framework calls return defaults instead of throwing.
+            isReturnDefaultValues = true
+        }
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -133,4 +140,8 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
 
     debugImplementation(libs.androidx.ui.tooling)
+
+    // Unit tests
+    testImplementation(libs.junit)
+    testImplementation(libs.truth)
 }
