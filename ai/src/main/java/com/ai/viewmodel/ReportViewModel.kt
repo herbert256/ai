@@ -11,6 +11,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -25,6 +29,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private var reportGenerationJob: Job? = null
     @Volatile private var reportRunningInBackground = false
 
+    // Separate flow from UiState so per-task completions don't force the UiState equality
+    // checker to re-compare every other field. UI subscribers observe this independently.
+    private val _agentResults = MutableStateFlow<Map<String, AnalysisResponse>>(emptyMap())
+    val agentResults: StateFlow<Map<String, AnalysisResponse>> = _agentResults.asStateFlow()
+
     private data class ReportTask(
         val resultId: String,
         val reportAgent: ReportAgent,
@@ -33,11 +42,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     )
 
     fun showGenericAgentSelection(title: String, prompt: String) {
+        _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
             genericPromptTitle = title, genericPromptText = prompt,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
-            genericReportsSelectedAgents = emptySet(), genericReportsAgentResults = emptyMap(),
+            genericReportsSelectedAgents = emptySet(),
             currentReportId = null
         ) }
     }
@@ -82,11 +92,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
             val reportTasks = buildReportTasks(aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt)
 
+            _agentResults.value = emptyMap()
             appViewModel.updateUiState { it.copy(
                 showGenericAgentSelection = false, showGenericReportsDialog = true,
                 genericReportsProgress = 0, genericReportsTotal = reportTasks.size,
                 genericReportsSelectedAgents = selectedAgentIds + allModelIds,
-                genericReportsAgentResults = emptyMap(), currentReportId = null
+                currentReportId = null
             ) }
 
             val userMatch = AppViewModel.USER_TAG_REGEX.find(prompt)
@@ -209,11 +220,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 usage.inputTokens, usage.outputTokens, usage.totalTokens)
         }
 
+        _agentResults.update { it + (task.resultId to response) }
         appViewModel.updateUiState { state ->
-            state.copy(
-                genericReportsProgress = state.genericReportsProgress + 1,
-                genericReportsAgentResults = state.genericReportsAgentResults + (task.resultId to response)
-            )
+            state.copy(genericReportsProgress = state.genericReportsProgress + 1)
         }
     }
 
@@ -230,7 +239,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportGenerationJob = null
         val state = appViewModel.uiState.value
         val selected = state.genericReportsSelectedAgents
-        val current = state.genericReportsAgentResults
+        val current = _agentResults.value
         val reportId = state.currentReportId
 
         val updatedResults = selected.associate { agentId ->
@@ -253,17 +262,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
         }
 
-        appViewModel.updateUiState { it.copy(
-            genericReportsProgress = state.genericReportsTotal, genericReportsAgentResults = updatedResults
-        ) }
+        _agentResults.value = updatedResults
+        appViewModel.updateUiState { it.copy(genericReportsProgress = state.genericReportsTotal) }
     }
 
     fun dismissGenericReportsDialog() {
         ApiTracer.currentReportId = null
+        _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
             showGenericReportsDialog = false, genericPromptTitle = "", genericPromptText = "",
             genericReportsProgress = 0, genericReportsTotal = 0,
-            genericReportsSelectedAgents = emptySet(), genericReportsAgentResults = emptyMap(),
+            genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null
         ) }
     }

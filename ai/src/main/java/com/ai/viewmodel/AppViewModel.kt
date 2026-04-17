@@ -50,7 +50,6 @@ data class UiState(
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),
-    val genericReportsAgentResults: Map<String, AnalysisResponse> = emptyMap(),
     val currentReportId: String? = null,
     val reportAdvancedParameters: AgentParameters? = null,
     // External intent

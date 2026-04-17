@@ -37,6 +37,7 @@ fun ReportsScreenNav(
     onNavigateToTrace: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val agentResults by reportViewModel.agentResults.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
@@ -56,6 +57,7 @@ fun ReportsScreenNav(
 
     ReportsScreen(
         uiState = uiState,
+        reportsAgentResults = agentResults,
         initialModels = initialModels,
         onGenerate = { models, paramsIds, reportType ->
             val agentIds = models.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
@@ -127,6 +129,7 @@ private fun decodeSavedReportModelSelection(selection: String, aiSettings: Setti
 @Composable
 fun ReportsScreen(
     uiState: UiState,
+    reportsAgentResults: Map<String, AnalysisResponse>,
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onStop: () -> Unit,
@@ -144,7 +147,6 @@ fun ReportsScreen(
 
     val reportsTotal = uiState.genericReportsTotal
     val reportsProgress = uiState.genericReportsProgress
-    val reportsAgentResults = uiState.genericReportsAgentResults
     val isGenerating = reportsTotal > 0
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
     val currentReportId = uiState.currentReportId
