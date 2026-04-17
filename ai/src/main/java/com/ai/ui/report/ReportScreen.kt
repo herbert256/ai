@@ -367,7 +367,7 @@ private fun ColumnScope.SelectionPhase(
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("Flock" to onAddFlock, "Agent" to onAddAgent, "Swarm" to onAddSwarm, "Model" to onAddModel, "All Models" to onAddAllModels).forEach { (label, action) ->
-            OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp), modifier = Modifier.height(32.dp)) {
+            OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp)) {
                 Text("+$label", fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
         }

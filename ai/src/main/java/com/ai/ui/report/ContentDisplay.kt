@@ -69,7 +69,7 @@ fun ReportsViewerScreen(
                     Button(
                         onClick = { selectedAgentId = agent.agentId },
                         colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Purple else Color(0xFF3A3A4A)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp), modifier = Modifier.height(32.dp)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp)
                     ) { Text(agent.agentName, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) }
                 }
             }
