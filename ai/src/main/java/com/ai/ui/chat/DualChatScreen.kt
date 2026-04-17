@@ -352,7 +352,7 @@ fun DualChatSessionScreen(
                     thinkingModel = 2
                     val m2Messages = buildMessagesForModel(2).toMutableList()
                     if (currentInteraction == 0 && m2Messages.lastOrNull()?.role == "user") {
-                        val last = m2Messages.removeLast()
+                        val last = m2Messages.removeAt(m2Messages.lastIndex)
                         m2Messages.add(ChatMessage(role = "user", content = config.secondPrompt.replace("%answer%", last.content)))
                     }
                     val apiKey2 = aiSettings.getApiKey(config.model2Provider)
