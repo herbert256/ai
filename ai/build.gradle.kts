@@ -139,6 +139,9 @@ dependencies {
     // Baseline profile installer (apply AOT profiles when bundled)
     implementation(libs.androidx.profileinstaller)
 
+    // Preferences DataStore
+    implementation(libs.androidx.datastore.preferences)
+
     debugImplementation(libs.androidx.ui.tooling)
 
     // Unit tests
