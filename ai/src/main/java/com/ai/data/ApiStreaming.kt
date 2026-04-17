@@ -41,18 +41,28 @@ private fun parseSseStream(
     val reader = body.charStream().buffered()
     try {
         var eventType: String? = null
+        var sawTerminator = false
+        var sawAnyData = false
         var line: String?
         while (reader.readLine().also { line = it } != null) {
             val currentLine = line ?: continue
             if (currentLine.isBlank()) { eventType = null; continue }
-            if (currentLine.startsWith("event:")) { eventType = currentLine.removePrefix("event:").trim(); continue }
+            if (currentLine.startsWith("event:")) {
+                eventType = currentLine.removePrefix("event:").trim()
+                if (eventType == "message_stop") sawTerminator = true
+                continue
+            }
             if (currentLine.startsWith(":")) continue  // SSE comment
             if (currentLine.startsWith("data:")) {
                 val data = currentLine.removePrefix("data:").trim()
-                if (data == "[DONE]") break
+                if (data == "[DONE]") { sawTerminator = true; break }
+                sawAnyData = true
                 val content = extractContent(eventType, data)
                 if (!content.isNullOrEmpty()) emit(content)
             }
+        }
+        if (!sawTerminator && sawAnyData) {
+            throw java.io.IOException("SSE stream ended without terminator — response likely truncated")
         }
     } finally {
         try { reader.close() } catch (_: Exception) {}
