@@ -1,0 +1,254 @@
+{
+  "deepseek-chat": {
+    "input": 1.4e-07,
+    "output": 2.8e-07
+  },
+  "deepseek-coder": {
+    "input": 1.4e-07,
+    "output": 2.8e-07
+  },
+  "deepseek-reasoner": {
+    "input": 5.5e-07,
+    "output": 2.19e-06
+  },
+  "llama-3.3-70b-versatile": {
+    "input": 5.9e-07,
+    "output": 7.9e-07
+  },
+  "llama-3.1-8b-instant": {
+    "input": 5e-08,
+    "output": 8e-08
+  },
+  "llama3-70b-8192": {
+    "input": 5.9e-07,
+    "output": 7.9e-07
+  },
+  "llama3-8b-8192": {
+    "input": 5e-08,
+    "output": 8e-08
+  },
+  "mixtral-8x7b-32768": {
+    "input": 2.4e-07,
+    "output": 2.4e-07
+  },
+  "gemma2-9b-it": {
+    "input": 2e-07,
+    "output": 2e-07
+  },
+  "grok-3": {
+    "input": 3e-06,
+    "output": 1.5e-05
+  },
+  "grok-3-mini": {
+    "input": 3e-07,
+    "output": 5e-07
+  },
+  "grok-2": {
+    "input": 2e-06,
+    "output": 1e-05
+  },
+  "grok-beta": {
+    "input": 5e-06,
+    "output": 1.5e-05
+  },
+  "mistral-small-latest": {
+    "input": 1e-07,
+    "output": 3e-07
+  },
+  "mistral-medium-latest": {
+    "input": 4e-07,
+    "output": 2e-06
+  },
+  "mistral-large-latest": {
+    "input": 2e-06,
+    "output": 6e-06
+  },
+  "open-mistral-7b": {
+    "input": 2.5e-07,
+    "output": 2.5e-07
+  },
+  "open-mixtral-8x7b": {
+    "input": 7e-07,
+    "output": 7e-07
+  },
+  "open-mixtral-8x22b": {
+    "input": 2e-06,
+    "output": 6e-06
+  },
+  "codestral-latest": {
+    "input": 3e-07,
+    "output": 9e-07
+  },
+  "sonar": {
+    "input": 1e-06,
+    "output": 1e-06
+  },
+  "sonar-pro": {
+    "input": 3e-06,
+    "output": 1.5e-05
+  },
+  "sonar-reasoning": {
+    "input": 1e-06,
+    "output": 5e-06
+  },
+  "Qwen/Qwen2.5-7B-Instruct": {
+    "input": 3.5e-07,
+    "output": 3.5e-07
+  },
+  "Qwen/Qwen2.5-72B-Instruct": {
+    "input": 1.26e-06,
+    "output": 1.26e-06
+  },
+  "deepseek-ai/DeepSeek-V3": {
+    "input": 5e-07,
+    "output": 2e-06
+  },
+  "deepseek-ai/DeepSeek-R1": {
+    "input": 5.5e-07,
+    "output": 2.19e-06
+  },
+  "glm-4": {
+    "input": 1.4e-06,
+    "output": 1.4e-06
+  },
+  "glm-4-plus": {
+    "input": 7e-07,
+    "output": 7e-07
+  },
+  "glm-4-flash": {
+    "input": 7e-09,
+    "output": 7e-09
+  },
+  "glm-4-long": {
+    "input": 1.4e-07,
+    "output": 1.4e-07
+  },
+  "glm-4.5-flash": {
+    "input": 7e-09,
+    "output": 7e-09
+  },
+  "glm-4.7-flash": {
+    "input": 7e-09,
+    "output": 7e-09
+  },
+  "kimi-latest": {
+    "input": 5.5e-07,
+    "output": 2.19e-06
+  },
+  "moonshot-v1-8k": {
+    "input": 5.5e-07,
+    "output": 2.19e-06
+  },
+  "moonshot-v1-32k": {
+    "input": 1.1e-06,
+    "output": 4.38e-06
+  },
+  "moonshot-v1-128k": {
+    "input": 4.38e-06,
+    "output": 8.76e-06
+  },
+  "command-a-03-2025": {
+    "input": 2.5e-06,
+    "output": 1e-05
+  },
+  "command-r-plus-08-2024": {
+    "input": 2.5e-06,
+    "output": 1e-05
+  },
+  "command-r-08-2024": {
+    "input": 1.5e-07,
+    "output": 6e-07
+  },
+  "command-r7b-12-2024": {
+    "input": 3.75e-08,
+    "output": 1.5e-07
+  },
+  "jamba-mini": {
+    "input": 2e-07,
+    "output": 4e-07
+  },
+  "jamba-large": {
+    "input": 2e-06,
+    "output": 8e-06
+  },
+  "qwen-plus": {
+    "input": 8e-07,
+    "output": 2e-06
+  },
+  "qwen-max": {
+    "input": 2.4e-06,
+    "output": 9.6e-06
+  },
+  "qwen-turbo": {
+    "input": 3e-07,
+    "output": 6e-07
+  },
+  "accounts/fireworks/models/llama-v3p3-70b-instruct": {
+    "input": 9e-07,
+    "output": 9e-07
+  },
+  "llama-3.3-70b": {
+    "input": 8.5e-07,
+    "output": 1.2e-06
+  },
+  "Meta-Llama-3.3-70B-Instruct": {
+    "input": 6e-07,
+    "output": 1.2e-06
+  },
+  "Baichuan4-Turbo": {
+    "input": 5.5e-07,
+    "output": 2.19e-06
+  },
+  "step-2-16k": {
+    "input": 1.33e-06,
+    "output": 1.6e-05
+  },
+  "step-1-8k": {
+    "input": 8e-07,
+    "output": 2e-06
+  },
+  "MiniMax-M2.1": {
+    "input": 1.1e-06,
+    "output": 4.4e-06
+  },
+  "MiniMax-M1": {
+    "input": 3e-07,
+    "output": 1.1e-06
+  },
+  "nvidia/llama-3.1-nemotron-70b-instruct": {
+    "input": 9e-07,
+    "output": 9e-07
+  },
+  "meta/meta-llama-3-70b-instruct": {
+    "input": 6.5e-07,
+    "output": 2.75e-06
+  },
+  "meta-llama/Llama-3.1-70B-Instruct": {
+    "input": 9e-07,
+    "output": 9e-07
+  },
+  "hermes-3-llama-3.1-405b-fp8": {
+    "input": 8e-07,
+    "output": 8e-07
+  },
+  "llama3-1-70b": {
+    "input": 9e-07,
+    "output": 9e-07
+  },
+  "yi-lightning": {
+    "input": 9.9e-07,
+    "output": 9.9e-07
+  },
+  "doubao-pro-32k": {
+    "input": 5.6e-07,
+    "output": 2.24e-06
+  },
+  "reka-flash": {
+    "input": 8e-07,
+    "output": 2e-06
+  },
+  "palmyra-x-004": {
+    "input": 5e-06,
+    "output": 1.5e-05
+  }
+}

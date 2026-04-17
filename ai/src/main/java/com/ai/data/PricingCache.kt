@@ -29,6 +29,7 @@ object PricingCache {
     @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
     @Volatile private var openRouterPricing: Map<String, ModelPricing>? = null
     @Volatile private var litellmPricing: Map<String, ModelPricing>? = null
+    @Volatile private var fallbackPricing: Map<String, ModelPricing>? = null
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
 
@@ -100,7 +101,7 @@ object PricingCache {
             p[model]?.let { return it }
             provider.litellmPrefix?.let { prefix -> p["$prefix/$model"]?.let { return it } }
         }
-        FALLBACK_PRICING[model]?.let { return it }
+        fallbackPricing?.get(model)?.let { return it }
         return DEFAULT_PRICING
     }
 
@@ -111,7 +112,7 @@ object PricingCache {
             p[model]?.let { return it }
             provider.litellmPrefix?.let { prefix -> p["$prefix/$model"]?.let { return it } }
         }
-        FALLBACK_PRICING[model]?.let { return it }
+        fallbackPricing?.get(model)?.let { return it }
         return DEFAULT_PRICING
     }
 
@@ -127,7 +128,7 @@ object PricingCache {
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
         ensureLoaded(context)
         val merged = mutableMapOf<String, ModelPricing>()
-        merged.putAll(FALLBACK_PRICING)
+        fallbackPricing?.let { merged.putAll(it) }
         litellmPricing?.let { merged.putAll(it) }
         openRouterPricing?.let { merged.putAll(it) }
         manualPricing?.let { merged.putAll(it) }
@@ -140,13 +141,13 @@ object PricingCache {
         manualPricing?.let { if (it.isNotEmpty()) sources.add("Manual (${it.size})") }
         openRouterPricing?.let { if (it.isNotEmpty()) sources.add("OpenRouter (${it.size})") }
         litellmPricing?.let { if (it.isNotEmpty()) sources.add("LiteLLM (${it.size})") }
-        sources.add("Fallback (${FALLBACK_PRICING.size})")
+        fallbackPricing?.let { sources.add("Fallback (${it.size})") }
         return sources.joinToString(" + ")
     }
 
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
     fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return litellmPricing?.toMap() ?: emptyMap() }
-    fun getFallbackPricing(): Map<String, ModelPricing> = FALLBACK_PRICING.toMap()
+    fun getFallbackPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return fallbackPricing?.toMap() ?: emptyMap() }
 
     fun refreshLiteLLMPricing(context: Context) {
         litellmPricing = parseLiteLLMPricing(context)
@@ -178,6 +179,7 @@ object PricingCache {
     private fun ensureLoaded(context: Context) = synchronized(lock) {
         if (manualPricing == null) loadManualPricing(context)
         if (openRouterPricing == null) loadFromPrefs(context)
+        if (fallbackPricing == null) fallbackPricing = loadFallbackPricing(context)
         if (litellmPricing == null) {
             val prefs = getPrefs(context)
             val json = prefs.getString(KEY_LITELLM_PRICING, null)
@@ -186,6 +188,20 @@ object PricingCache {
                 catch (_: Exception) {}
             }
             if (litellmPricing == null) refreshLiteLLMPricing(context)
+        }
+    }
+
+    private data class FallbackPricingEntry(val input: Double, val output: Double)
+    private val mapFallbackEntryType: Type = object : TypeToken<Map<String, FallbackPricingEntry>>() {}.type
+
+    private fun loadFallbackPricing(context: Context): Map<String, ModelPricing> {
+        return try {
+            val json = context.assets.open("fallback_pricing.json").bufferedReader().use { it.readText() }
+            val raw: Map<String, FallbackPricingEntry> = gson.fromJson(json, mapFallbackEntryType)
+            raw.mapValues { (id, e) -> ModelPricing(id, e.input, e.output, "FALLBACK") }
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "Failed to load fallback_pricing.json: ${e.message}")
+            emptyMap()
         }
     }
 
@@ -216,73 +232,6 @@ object PricingCache {
             }.toMap()
         } catch (_: Exception) { emptyMap() }
     }
-
-    // Hardcoded FALLBACK pricing for common models (per token)
-    private val FALLBACK_PRICING = mapOf(
-        "deepseek-chat" to ModelPricing("deepseek-chat", 0.14e-6, 0.28e-6, "FALLBACK"),
-        "deepseek-coder" to ModelPricing("deepseek-coder", 0.14e-6, 0.28e-6, "FALLBACK"),
-        "deepseek-reasoner" to ModelPricing("deepseek-reasoner", 0.55e-6, 2.19e-6, "FALLBACK"),
-        "llama-3.3-70b-versatile" to ModelPricing("llama-3.3-70b-versatile", 0.59e-6, 0.79e-6, "FALLBACK"),
-        "llama-3.1-8b-instant" to ModelPricing("llama-3.1-8b-instant", 0.05e-6, 0.08e-6, "FALLBACK"),
-        "llama3-70b-8192" to ModelPricing("llama3-70b-8192", 0.59e-6, 0.79e-6, "FALLBACK"),
-        "llama3-8b-8192" to ModelPricing("llama3-8b-8192", 0.05e-6, 0.08e-6, "FALLBACK"),
-        "mixtral-8x7b-32768" to ModelPricing("mixtral-8x7b-32768", 0.24e-6, 0.24e-6, "FALLBACK"),
-        "gemma2-9b-it" to ModelPricing("gemma2-9b-it", 0.20e-6, 0.20e-6, "FALLBACK"),
-        "grok-3" to ModelPricing("grok-3", 3.0e-6, 15.0e-6, "FALLBACK"),
-        "grok-3-mini" to ModelPricing("grok-3-mini", 0.30e-6, 0.50e-6, "FALLBACK"),
-        "grok-2" to ModelPricing("grok-2", 2.0e-6, 10.0e-6, "FALLBACK"),
-        "grok-beta" to ModelPricing("grok-beta", 5.0e-6, 15.0e-6, "FALLBACK"),
-        "mistral-small-latest" to ModelPricing("mistral-small-latest", 0.1e-6, 0.3e-6, "FALLBACK"),
-        "mistral-medium-latest" to ModelPricing("mistral-medium-latest", 0.4e-6, 2.0e-6, "FALLBACK"),
-        "mistral-large-latest" to ModelPricing("mistral-large-latest", 2.0e-6, 6.0e-6, "FALLBACK"),
-        "open-mistral-7b" to ModelPricing("open-mistral-7b", 0.25e-6, 0.25e-6, "FALLBACK"),
-        "open-mixtral-8x7b" to ModelPricing("open-mixtral-8x7b", 0.7e-6, 0.7e-6, "FALLBACK"),
-        "open-mixtral-8x22b" to ModelPricing("open-mixtral-8x22b", 2.0e-6, 6.0e-6, "FALLBACK"),
-        "codestral-latest" to ModelPricing("codestral-latest", 0.3e-6, 0.9e-6, "FALLBACK"),
-        "sonar" to ModelPricing("sonar", 1.0e-6, 1.0e-6, "FALLBACK"),
-        "sonar-pro" to ModelPricing("sonar-pro", 3.0e-6, 15.0e-6, "FALLBACK"),
-        "sonar-reasoning" to ModelPricing("sonar-reasoning", 1.0e-6, 5.0e-6, "FALLBACK"),
-        "Qwen/Qwen2.5-7B-Instruct" to ModelPricing("Qwen/Qwen2.5-7B-Instruct", 0.35e-6, 0.35e-6, "FALLBACK"),
-        "Qwen/Qwen2.5-72B-Instruct" to ModelPricing("Qwen/Qwen2.5-72B-Instruct", 1.26e-6, 1.26e-6, "FALLBACK"),
-        "deepseek-ai/DeepSeek-V3" to ModelPricing("deepseek-ai/DeepSeek-V3", 0.5e-6, 2.0e-6, "FALLBACK"),
-        "deepseek-ai/DeepSeek-R1" to ModelPricing("deepseek-ai/DeepSeek-R1", 0.55e-6, 2.19e-6, "FALLBACK"),
-        "glm-4" to ModelPricing("glm-4", 1.4e-6, 1.4e-6, "FALLBACK"),
-        "glm-4-plus" to ModelPricing("glm-4-plus", 0.7e-6, 0.7e-6, "FALLBACK"),
-        "glm-4-flash" to ModelPricing("glm-4-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
-        "glm-4-long" to ModelPricing("glm-4-long", 0.14e-6, 0.14e-6, "FALLBACK"),
-        "glm-4.5-flash" to ModelPricing("glm-4.5-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
-        "glm-4.7-flash" to ModelPricing("glm-4.7-flash", 0.007e-6, 0.007e-6, "FALLBACK"),
-        "kimi-latest" to ModelPricing("kimi-latest", 0.55e-6, 2.19e-6, "FALLBACK"),
-        "moonshot-v1-8k" to ModelPricing("moonshot-v1-8k", 0.55e-6, 2.19e-6, "FALLBACK"),
-        "moonshot-v1-32k" to ModelPricing("moonshot-v1-32k", 1.1e-6, 4.38e-6, "FALLBACK"),
-        "moonshot-v1-128k" to ModelPricing("moonshot-v1-128k", 4.38e-6, 8.76e-6, "FALLBACK"),
-        "command-a-03-2025" to ModelPricing("command-a-03-2025", 2.5e-6, 10.0e-6, "FALLBACK"),
-        "command-r-plus-08-2024" to ModelPricing("command-r-plus-08-2024", 2.5e-6, 10.0e-6, "FALLBACK"),
-        "command-r-08-2024" to ModelPricing("command-r-08-2024", 0.15e-6, 0.6e-6, "FALLBACK"),
-        "command-r7b-12-2024" to ModelPricing("command-r7b-12-2024", 0.0375e-6, 0.15e-6, "FALLBACK"),
-        "jamba-mini" to ModelPricing("jamba-mini", 0.2e-6, 0.4e-6, "FALLBACK"),
-        "jamba-large" to ModelPricing("jamba-large", 2.0e-6, 8.0e-6, "FALLBACK"),
-        "qwen-plus" to ModelPricing("qwen-plus", 0.8e-6, 2.0e-6, "FALLBACK"),
-        "qwen-max" to ModelPricing("qwen-max", 2.4e-6, 9.6e-6, "FALLBACK"),
-        "qwen-turbo" to ModelPricing("qwen-turbo", 0.3e-6, 0.6e-6, "FALLBACK"),
-        "accounts/fireworks/models/llama-v3p3-70b-instruct" to ModelPricing("accounts/fireworks/models/llama-v3p3-70b-instruct", 0.9e-6, 0.9e-6, "FALLBACK"),
-        "llama-3.3-70b" to ModelPricing("llama-3.3-70b", 0.85e-6, 1.2e-6, "FALLBACK"),
-        "Meta-Llama-3.3-70B-Instruct" to ModelPricing("Meta-Llama-3.3-70B-Instruct", 0.6e-6, 1.2e-6, "FALLBACK"),
-        "Baichuan4-Turbo" to ModelPricing("Baichuan4-Turbo", 0.55e-6, 2.19e-6, "FALLBACK"),
-        "step-2-16k" to ModelPricing("step-2-16k", 1.33e-6, 16.0e-6, "FALLBACK"),
-        "step-1-8k" to ModelPricing("step-1-8k", 0.8e-6, 2.0e-6, "FALLBACK"),
-        "MiniMax-M2.1" to ModelPricing("MiniMax-M2.1", 1.1e-6, 4.4e-6, "FALLBACK"),
-        "MiniMax-M1" to ModelPricing("MiniMax-M1", 0.3e-6, 1.1e-6, "FALLBACK"),
-        "nvidia/llama-3.1-nemotron-70b-instruct" to ModelPricing("nvidia/llama-3.1-nemotron-70b-instruct", 0.9e-6, 0.9e-6, "FALLBACK"),
-        "meta/meta-llama-3-70b-instruct" to ModelPricing("meta/meta-llama-3-70b-instruct", 0.65e-6, 2.75e-6, "FALLBACK"),
-        "meta-llama/Llama-3.1-70B-Instruct" to ModelPricing("meta-llama/Llama-3.1-70B-Instruct", 0.9e-6, 0.9e-6, "FALLBACK"),
-        "hermes-3-llama-3.1-405b-fp8" to ModelPricing("hermes-3-llama-3.1-405b-fp8", 0.8e-6, 0.8e-6, "FALLBACK"),
-        "llama3-1-70b" to ModelPricing("llama3-1-70b", 0.9e-6, 0.9e-6, "FALLBACK"),
-        "yi-lightning" to ModelPricing("yi-lightning", 0.99e-6, 0.99e-6, "FALLBACK"),
-        "doubao-pro-32k" to ModelPricing("doubao-pro-32k", 0.56e-6, 2.24e-6, "FALLBACK"),
-        "reka-flash" to ModelPricing("reka-flash", 0.8e-6, 2.0e-6, "FALLBACK"),
-        "palmyra-x-004" to ModelPricing("palmyra-x-004", 5.0e-6, 15.0e-6, "FALLBACK")
-    )
 
     // Model specifications from OpenRouter
     data class ModelPricingEntry(val provider: String, val model: String, val pricing: OpenRouterPricing?)
