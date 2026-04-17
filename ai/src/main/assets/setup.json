@@ -10,16 +10,22 @@
       "adminUrl": "https://platform.openai.com/settings/organization/api-keys",
       "defaultModel": "gpt-4o-mini",
       "openRouterName": "openai",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_openai",
       "modelFilter": "gpt|o1|o3|o4",
       "defaultModelSource": "API",
       "endpointRules": [
-        {"modelPrefix": "gpt-5", "endpointType": "responses"},
-        {"modelPrefix": "o3", "endpointType": "responses"},
-        {"modelPrefix": "o4", "endpointType": "responses"}
+        {
+          "modelPrefix": "gpt-5",
+          "endpointType": "responses"
+        },
+        {
+          "modelPrefix": "o3",
+          "endpointType": "responses"
+        },
+        {
+          "modelPrefix": "o4",
+          "endpointType": "responses"
+        }
       ]
     },
     {
@@ -66,9 +72,6 @@
       "adminUrl": "https://console.x.ai/",
       "defaultModel": "grok-3-mini",
       "openRouterName": "x-ai",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_xai",
       "costTicksDivisor": 10000000000.0,
       "modelFilter": "grok",
@@ -81,9 +84,6 @@
       "baseUrl": "https://api.groq.com/openai/",
       "adminUrl": "https://console.groq.com/keys",
       "defaultModel": "llama-3.3-70b-versatile",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_groq",
       "litellmPrefix": "groq",
       "defaultModelSource": "API"
@@ -95,7 +95,6 @@
       "adminUrl": "https://platform.deepseek.com/api_keys",
       "defaultModel": "deepseek-chat",
       "openRouterName": "deepseek",
-      "apiFormat": "OPENAI_COMPATIBLE",
       "chatPath": "chat/completions",
       "modelsPath": "models",
       "prefsKey": "ai_deepseek",
@@ -110,9 +109,6 @@
       "adminUrl": "https://console.mistral.ai/api-keys/",
       "defaultModel": "mistral-small-latest",
       "openRouterName": "mistralai",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_mistral",
       "seedFieldName": "random_seed",
       "modelFilter": "mistral|open-mistral|codestral|pixtral",
@@ -125,7 +121,6 @@
       "adminUrl": "https://www.perplexity.ai/settings/api",
       "defaultModel": "sonar",
       "openRouterName": "perplexity",
-      "apiFormat": "OPENAI_COMPATIBLE",
       "chatPath": "chat/completions",
       "modelsPath": "models",
       "prefsKey": "ai_perplexity",
@@ -145,9 +140,6 @@
       "baseUrl": "https://api.together.xyz/",
       "adminUrl": "https://api.together.xyz/settings/api-keys",
       "defaultModel": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_together",
       "modelListFormat": "array",
       "modelFilter": "chat|instruct|llama",
@@ -160,9 +152,6 @@
       "baseUrl": "https://openrouter.ai/api/",
       "adminUrl": "https://openrouter.ai/keys",
       "defaultModel": "anthropic/claude-3.5-sonnet",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_openrouter",
       "extractApiCost": true,
       "defaultModelSource": "API"
@@ -173,9 +162,6 @@
       "baseUrl": "https://api.siliconflow.cn/",
       "adminUrl": "https://cloud.siliconflow.cn/account/ak",
       "defaultModel": "Qwen/Qwen2.5-7B-Instruct",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_siliconflow",
       "defaultModelSource": "API",
       "hardcodedModels": [
@@ -197,7 +183,6 @@
       "adminUrl": "https://open.bigmodel.cn/usercenter/apikeys",
       "defaultModel": "glm-4.7-flash",
       "openRouterName": "z-ai",
-      "apiFormat": "OPENAI_COMPATIBLE",
       "chatPath": "chat/completions",
       "modelsPath": "models",
       "prefsKey": "ai_zai",
@@ -220,9 +205,6 @@
       "adminUrl": "https://platform.moonshot.ai/console/api-keys",
       "defaultModel": "kimi-latest",
       "openRouterName": "moonshot",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_moonshot",
       "defaultModelSource": "API",
       "hardcodedModels": [
@@ -239,9 +221,6 @@
       "adminUrl": "https://dashboard.cohere.com/",
       "defaultModel": "command-a-03-2025",
       "openRouterName": "cohere",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_cohere",
       "hardcodedModels": [
         "command-a-03-2025",
@@ -257,9 +236,6 @@
       "adminUrl": "https://studio.ai21.com/",
       "defaultModel": "jamba-mini",
       "openRouterName": "ai21",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_ai21",
       "hardcodedModels": [
         "jamba-mini",
@@ -274,9 +250,6 @@
       "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/",
       "adminUrl": "https://dashscope.console.aliyun.com/",
       "defaultModel": "qwen-plus",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_dashscope",
       "hardcodedModels": [
         "qwen-plus",
@@ -293,9 +266,6 @@
       "baseUrl": "https://api.fireworks.ai/inference/",
       "adminUrl": "https://app.fireworks.ai/",
       "defaultModel": "accounts/fireworks/models/llama-v3p3-70b-instruct",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_fireworks",
       "hardcodedModels": [
         "accounts/fireworks/models/llama-v3p3-70b-instruct",
@@ -310,9 +280,6 @@
       "baseUrl": "https://api.cerebras.ai/",
       "adminUrl": "https://cloud.cerebras.ai/",
       "defaultModel": "llama-3.3-70b",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_cerebras",
       "hardcodedModels": [
         "llama-3.3-70b",
@@ -328,9 +295,6 @@
       "baseUrl": "https://api.sambanova.ai/",
       "adminUrl": "https://cloud.sambanova.ai/",
       "defaultModel": "Meta-Llama-3.3-70B-Instruct",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_sambanova",
       "hardcodedModels": [
         "Meta-Llama-3.3-70B-Instruct",
@@ -346,9 +310,6 @@
       "baseUrl": "https://api.baichuan-ai.com/",
       "adminUrl": "https://platform.baichuan-ai.com/",
       "defaultModel": "Baichuan4-Turbo",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_baichuan",
       "hardcodedModels": [
         "Baichuan4-Turbo",
@@ -364,9 +325,6 @@
       "baseUrl": "https://api.stepfun.com/",
       "adminUrl": "https://platform.stepfun.com/",
       "defaultModel": "step-2-16k",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_stepfun",
       "hardcodedModels": [
         "step-3",
@@ -384,9 +342,6 @@
       "adminUrl": "https://platform.minimax.io/",
       "defaultModel": "MiniMax-M2.1",
       "openRouterName": "minimax",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_minimax",
       "hardcodedModels": [
         "MiniMax-M2.1",
@@ -401,9 +356,6 @@
       "baseUrl": "https://integrate.api.nvidia.com/",
       "adminUrl": "https://build.nvidia.com/",
       "defaultModel": "nvidia/llama-3.1-nemotron-70b-instruct",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_nvidia",
       "defaultModelSource": "API"
     },
@@ -413,7 +365,6 @@
       "baseUrl": "https://api.replicate.com/v1/",
       "adminUrl": "https://replicate.com/account/api-tokens",
       "defaultModel": "meta/meta-llama-3-70b-instruct",
-      "apiFormat": "OPENAI_COMPATIBLE",
       "chatPath": "chat/completions",
       "prefsKey": "ai_replicate",
       "hardcodedModels": [
@@ -428,8 +379,6 @@
       "baseUrl": "https://api-inference.huggingface.co/",
       "adminUrl": "https://huggingface.co/settings/tokens",
       "defaultModel": "meta-llama/Llama-3.1-70B-Instruct",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
       "prefsKey": "ai_huggingface_inference",
       "hardcodedModels": [
         "meta-llama/Llama-3.1-70B-Instruct",
@@ -444,9 +393,6 @@
       "baseUrl": "https://api.lambdalabs.com/",
       "adminUrl": "https://cloud.lambdalabs.com/api-keys",
       "defaultModel": "hermes-3-llama-3.1-405b-fp8",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_lambda",
       "defaultModelSource": "API"
     },
@@ -456,8 +402,6 @@
       "baseUrl": "https://api.lepton.ai/",
       "adminUrl": "https://dashboard.lepton.ai/",
       "defaultModel": "llama3-1-70b",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
       "prefsKey": "ai_lepton",
       "hardcodedModels": [
         "llama3-1-70b",
@@ -472,9 +416,6 @@
       "baseUrl": "https://api.01.ai/",
       "adminUrl": "https://platform.01.ai/",
       "defaultModel": "yi-lightning",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_yi",
       "defaultModelSource": "API",
       "hardcodedModels": [
@@ -490,7 +431,6 @@
       "baseUrl": "https://ark.cn-beijing.volces.com/api/",
       "adminUrl": "https://console.volcengine.com/",
       "defaultModel": "doubao-pro-32k",
-      "apiFormat": "OPENAI_COMPATIBLE",
       "chatPath": "v3/chat/completions",
       "prefsKey": "ai_doubao",
       "hardcodedModels": [
@@ -506,8 +446,6 @@
       "baseUrl": "https://api.reka.ai/",
       "adminUrl": "https://platform.reka.ai/",
       "defaultModel": "reka-flash",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
       "prefsKey": "ai_reka",
       "hardcodedModels": [
         "reka-core",
@@ -521,9 +459,6 @@
       "baseUrl": "https://api.writer.com/",
       "adminUrl": "https://app.writer.com/",
       "defaultModel": "palmyra-x-004",
-      "apiFormat": "OPENAI_COMPATIBLE",
-      "chatPath": "v1/chat/completions",
-      "modelsPath": "v1/models",
       "prefsKey": "ai_writer",
       "hardcodedModels": [
         "palmyra-x-004",
