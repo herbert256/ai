@@ -26,14 +26,26 @@ android {
     compileSdk = 36
     buildToolsVersion = "36.1.0"
 
+    val keystoreFileName = keystoreProperties["KEYSTORE_FILE"]?.toString()
     signingConfigs {
         create("release") {
-            val ksFile = keystoreProperties["KEYSTORE_FILE"]?.toString()
-            if (ksFile != null) {
-                storeFile = rootProject.file(ksFile)
+            if (keystoreFileName != null) {
+                storeFile = rootProject.file(keystoreFileName)
                 storePassword = keystoreProperties["KEYSTORE_PASSWORD"]?.toString()
                 keyAlias = keystoreProperties["KEY_ALIAS"]?.toString()
                 keyPassword = keystoreProperties["KEY_PASSWORD"]?.toString()
+            }
+        }
+    }
+    // Fail loudly rather than emit an unsigned APK when the release build is requested without keys.
+    if (keystoreFileName == null) {
+        gradle.taskGraph.whenReady {
+            val releaseTaskNames = setOf("assembleRelease", "packageRelease", "bundleRelease", "installRelease")
+            if (allTasks.any { it.name in releaseTaskNames }) {
+                throw GradleException(
+                    "Release build requested but local.properties is missing KEYSTORE_FILE, " +
+                    "KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD. Add them before running assembleRelease."
+                )
             }
         }
     }
