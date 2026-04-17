@@ -35,7 +35,8 @@ fun SystemPromptsListScreen(
         onBack = onBackToAiSetup,
         onHome = onBackToHome,
         deleteEntityType = "System Prompt",
-        deleteEntityName = { it.name }
+        deleteEntityName = { it.name },
+        itemKey = { it.id }
     )
 }
 

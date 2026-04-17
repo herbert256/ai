@@ -44,7 +44,8 @@ fun AgentsScreen(
         onBack = onBackToAiSetup,
         onHome = onBackToHome,
         deleteEntityType = "Agent",
-        deleteEntityName = { it.name }
+        deleteEntityName = { it.name },
+        itemKey = { it.id }
     )
 }
 

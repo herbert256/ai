@@ -42,7 +42,8 @@ fun SwarmsScreen(
         onBack = onBackToAiSetup,
         onHome = onBackToHome,
         deleteEntityType = "Swarm",
-        deleteEntityName = { it.name }
+        deleteEntityName = { it.name },
+        itemKey = { it.id }
     )
 }
 

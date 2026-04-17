@@ -45,7 +45,8 @@ fun FlocksScreen(
         onBack = onBackToAiSetup,
         onHome = onBackToHome,
         deleteEntityType = "Flock",
-        deleteEntityName = { it.name }
+        deleteEntityName = { it.name },
+        itemKey = { it.id }
     )
 }
 

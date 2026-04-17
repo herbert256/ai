@@ -44,7 +44,8 @@ fun ParametersListScreen(
         onBack = onBackToAiSetup,
         onHome = onBackToHome,
         deleteEntityType = "Parameter Preset",
-        deleteEntityName = { it.name }
+        deleteEntityName = { it.name },
+        itemKey = { it.id }
     )
 }
 

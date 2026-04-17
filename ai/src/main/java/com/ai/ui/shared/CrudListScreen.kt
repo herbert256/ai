@@ -2,8 +2,8 @@ package com.ai.ui.shared
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,7 +48,8 @@ fun <T> CrudListScreen(
     onBack: () -> Unit,
     onHome: () -> Unit,
     deleteEntityType: String,
-    deleteEntityName: (T) -> String
+    deleteEntityName: (T) -> String,
+    itemKey: (T) -> Any = { it as Any }
 ) {
     var showDeleteDialog by remember { mutableStateOf<T?>(null) }
 
@@ -80,14 +81,12 @@ fun <T> CrudListScreen(
                 Text(text = emptyMessage, color = AppColors.TextTertiary, fontSize = 16.sp)
             }
         } else {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
+            val sorted = remember(items) { items.sortedBy { sortKey(it).lowercase() } }
+            LazyColumn(
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val sorted = remember(items) { items.sortedBy { sortKey(it).lowercase() } }
-                sorted.forEach { item ->
+                items(sorted, key = { itemKey(it) }) { item ->
                     SettingsListItemCard(
                         title = itemTitle(item),
                         subtitle = itemSubtitle(item),

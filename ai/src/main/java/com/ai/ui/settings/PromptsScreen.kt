@@ -41,7 +41,8 @@ fun PromptsScreen(
         onBack = onBackToAiSetup,
         onHome = onBackToHome,
         deleteEntityType = "Prompt",
-        deleteEntityName = { it.name }
+        deleteEntityName = { it.name },
+        itemKey = { it.id }
     )
 }
 
