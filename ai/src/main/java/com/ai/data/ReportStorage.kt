@@ -183,7 +183,6 @@ object ReportStorage {
     }
 
     private fun saveReport(report: Report) {
-        try { File(reportsDir ?: return, "${report.id}.json").writeText(gson.toJson(report)) }
-        catch (e: Exception) { android.util.Log.e("ReportStorage", "Failed to save ${report.id}: ${e.message}") }
+        File(reportsDir ?: return, "${report.id}.json").writeTextAtomic(gson.toJson(report))
     }
 }

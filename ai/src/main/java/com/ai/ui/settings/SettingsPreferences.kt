@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.ai.data.AppService
 import com.ai.data.createAppGson
+import com.ai.data.writeTextAtomic
 import com.ai.model.*
 import com.ai.viewmodel.GeneralSettings
 import com.ai.viewmodel.PromptHistoryEntry
@@ -139,7 +140,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun savePromptHistoryList(entries: List<PromptHistoryEntry>) {
         val file = filesDir?.let { File(it, FILE_PROMPT_HISTORY) } ?: return
-        try { file.writeText(gson.toJson(entries)) } catch (_: Exception) {}
+        file.writeTextAtomic(gson.toJson(entries))
     }
 
     fun clearPromptHistory() {
@@ -161,7 +162,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun saveUsageStats(stats: Map<String, UsageStats>) {
         val file = filesDir?.let { File(it, FILE_USAGE_STATS) } ?: return
-        try { file.writeText(gson.toJson(stats.values.toList())) } catch (_: Exception) {}
+        file.writeTextAtomic(gson.toJson(stats.values.toList()))
     }
 
     fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens) {

@@ -31,7 +31,7 @@ object ChatHistoryManager {
         return lock.withLock {
             if (!dir.exists()) dir.mkdirs()
             try {
-                File(dir, "${session.id}.json").writeText(gson.toJson(session))
+                File(dir, "${session.id}.json").writeTextAtomic(gson.toJson(session))
                 cachedSessions = null
                 notifyHistoryChanged(); true
             } catch (e: Exception) {
