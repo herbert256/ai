@@ -348,9 +348,9 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
     try {
         val client = OkHttpClient.Builder()
             .addInterceptor(TracingInterceptor())
-            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .connectTimeout(com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC.toLong(), java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(com.ai.BuildConfig.TEST_CONNECTION_READ_TIMEOUT_SEC.toLong(), java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(com.ai.BuildConfig.NETWORK_WRITE_TIMEOUT_SEC.toLong(), java.util.concurrent.TimeUnit.SECONDS)
             .build()
         val effectiveJson = try {
             @Suppress("DEPRECATION")

@@ -61,6 +61,12 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Network timeouts in seconds — tuned for streaming (long reads), short connect.
+        buildConfigField("int", "NETWORK_CONNECT_TIMEOUT_SEC", "30")
+        buildConfigField("int", "NETWORK_READ_TIMEOUT_SEC", "600")
+        buildConfigField("int", "NETWORK_WRITE_TIMEOUT_SEC", "30")
+        buildConfigField("int", "TEST_CONNECTION_READ_TIMEOUT_SEC", "120")
     }
 
     buildTypes {
@@ -80,6 +86,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
