@@ -230,7 +230,7 @@ fun ChatSessionScreen(
     var userInput by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
-    var streamingContent by remember { mutableStateOf("") }
+    val streamingContentState = remember { mutableStateOf("") }
     var totalCost by remember { mutableDoubleStateOf(0.0) }
 
     val pricing = remember(provider, model) { PricingCache.getPricing(context, provider, model) }
@@ -252,11 +252,19 @@ fun ChatSessionScreen(
         try { focusRequester.requestFocus() } catch (_: Exception) {}
     }
 
-    // Auto-scroll
+    // Auto-scroll — parent only reads messages.size and isStreaming (booleans); chunk updates
+    // are observed via snapshotFlow so the parent doesn't recompose per chunk.
     val displayMessages = messages.filter { it.role != "system" }
-    val bottomItemCount = displayMessages.size + (if (isStreaming && streamingContent.isNotEmpty()) 1 else 0) + (if (isStreaming && streamingContent.isEmpty()) 1 else 0)
-    LaunchedEffect(messages.size, streamingContent) {
+    val bottomItemCount = displayMessages.size + (if (isStreaming) 1 else 0)
+    LaunchedEffect(bottomItemCount) {
         if (bottomItemCount > 0) listState.animateScrollToItem(bottomItemCount - 1)
+    }
+    LaunchedEffect(isStreaming) {
+        if (isStreaming) {
+            snapshotFlow { streamingContentState.value.length }.collect {
+                if (bottomItemCount > 0) listState.animateScrollToItem(bottomItemCount - 1)
+            }
+        }
     }
 
     fun sendMessage(input: String) {
@@ -268,14 +276,14 @@ fun ChatSessionScreen(
         val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
 
         scope.launch {
-            isStreaming = true; streamingContent = ""
+            isStreaming = true; streamingContentState.value = ""
             val sb = StringBuilder()
             try {
-                onSendMessageStream(messages).collect { chunk -> sb.append(chunk); streamingContent = sb.toString() }
-                val assistantMsg = ChatMessage(role = "assistant", content = streamingContent)
+                onSendMessageStream(messages).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
+                val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
                 messages = messages + assistantMsg
                 saveSession(messages)
-                val outputTokens = AppViewModel.estimateTokens(streamingContent)
+                val outputTokens = AppViewModel.estimateTokens(streamingContentState.value)
                 totalCost += inputTokens * pricing.promptPrice * 100 + outputTokens * pricing.completionPrice * 100
                 onRecordStatistics(inputTokens, outputTokens)
             } catch (e: Exception) {
@@ -285,7 +293,7 @@ fun ChatSessionScreen(
                     saveSession(messages)
                 }
             } finally {
-                isStreaming = false; streamingContent = ""
+                isStreaming = false; streamingContentState.value = ""
             }
         }
     }
@@ -319,15 +327,17 @@ fun ChatSessionScreen(
                         val msg = displayMessages[idx]
                         ChatMessageBubble(msg, userName)
                     }
-                    if (isStreaming && streamingContent.isNotEmpty()) {
-                        item(key = "streaming") { StreamingMessageBubble(streamingContent) }
-                    }
-                    if (isStreaming && streamingContent.isEmpty()) {
-                        item(key = "loading") {
-                            Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AppColors.Blue, strokeWidth = 2.dp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Thinking...", color = AppColors.TextTertiary, fontSize = 13.sp)
+                    if (isStreaming) {
+                        item(key = "streaming") {
+                            val content = streamingContentState.value
+                            if (content.isEmpty()) {
+                                Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AppColors.Blue, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Thinking...", color = AppColors.TextTertiary, fontSize = 13.sp)
+                                }
+                            } else {
+                                StreamingMessageBubble(content)
                             }
                         }
                     }
