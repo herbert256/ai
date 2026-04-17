@@ -151,13 +151,22 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     // ===== Usage Statistics =====
 
-    fun loadUsageStats(): Map<String, UsageStats> {
-        val file = filesDir?.let { File(it, FILE_USAGE_STATS) } ?: return emptyMap()
-        if (!file.exists()) return emptyMap()
-        return try {
-            val list: List<UsageStats>? = gson.fromJson(file.readText(), TypeTokens.listUsageStatsType)
-            list?.associateBy { it.key } ?: emptyMap()
-        } catch (_: Exception) { emptyMap() }
+    fun loadUsageStats(): Map<String, UsageStats> = HashMap(ensureUsageStatsCache())
+
+    private fun ensureUsageStatsCache(): java.util.concurrent.ConcurrentHashMap<String, UsageStats> {
+        usageStatsCache?.let { return it }
+        return synchronized(usageStatsLock) {
+            usageStatsCache?.let { return@synchronized it }
+            val file = filesDir?.let { File(it, FILE_USAGE_STATS) }
+            val parsed = if (file != null && file.exists()) {
+                try {
+                    val list: List<UsageStats>? = gson.fromJson(file.readText(), TypeTokens.listUsageStatsType)
+                    list?.associateBy { it.key } ?: emptyMap()
+                } catch (_: Exception) { emptyMap() }
+            } else emptyMap()
+            java.util.concurrent.ConcurrentHashMap<String, UsageStats>().apply { putAll(parsed) }
+                .also { usageStatsCache = it }
+        }
     }
 
     fun saveUsageStats(stats: Map<String, UsageStats>) {
@@ -165,13 +174,43 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         file.writeTextAtomic(gson.toJson(stats.values.toList()))
     }
 
+    /**
+     * updateUsageStats used to hold a lock, re-read the whole JSON file, mutate, and re-write
+     * on every API call. Under concurrent report generation that serialized every worker and
+     * allocated a new Map-of-all-stats per token-usage event. Now we keep stats in an in-memory
+     * ConcurrentHashMap and debounce disk writes to once per USAGE_STATS_FLUSH_MS window.
+     */
     fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens) {
+        val stats = ensureUsageStatsCache()
+        val key = "${provider.id}::$model"
+        stats.compute(key) { _, existing ->
+            val base = existing ?: UsageStats(provider, model)
+            base.copy(
+                callCount = base.callCount + 1,
+                inputTokens = base.inputTokens + inputTokens,
+                outputTokens = base.outputTokens + outputTokens
+            )
+        }
+        scheduleUsageStatsFlush()
+    }
+
+    private fun scheduleUsageStatsFlush() {
+        val now = System.currentTimeMillis()
+        val last = lastUsageStatsFlush
+        if (now - last < USAGE_STATS_FLUSH_MS) return
         synchronized(usageStatsLock) {
-            val stats = loadUsageStats().toMutableMap()
-            val key = "${provider.id}::$model"
-            val existing = stats[key] ?: UsageStats(provider, model)
-            stats[key] = existing.copy(callCount = existing.callCount + 1, inputTokens = existing.inputTokens + inputTokens, outputTokens = existing.outputTokens + outputTokens)
-            saveUsageStats(stats)
+            if (System.currentTimeMillis() - lastUsageStatsFlush < USAGE_STATS_FLUSH_MS) return
+            lastUsageStatsFlush = System.currentTimeMillis()
+            val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
+            saveUsageStats(snapshot)
+        }
+    }
+
+    fun flushUsageStats() {
+        synchronized(usageStatsLock) {
+            val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
+            lastUsageStatsFlush = System.currentTimeMillis()
+            saveUsageStats(snapshot)
         }
     }
 
@@ -179,6 +218,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens) }
 
     fun clearUsageStats() {
+        usageStatsCache?.clear()
         filesDir?.let { File(it, FILE_USAGE_STATS) }?.let { if (it.exists()) it.delete() }
     }
 
@@ -225,6 +265,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     companion object {
         private val usageStatsLock = Any()
+        @Volatile private var usageStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageStats>? = null
+        @Volatile private var lastUsageStatsFlush: Long = 0L
+        private const val USAGE_STATS_FLUSH_MS = 2_000L
         const val PREFS_NAME = "eval_prefs"
 
         private const val KEY_USER_NAME = "user_name"
