@@ -41,7 +41,10 @@ fun ReportsScreenNav(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
-    val initialModels = remember(aiSettings) { loadSavedReportModels(viewModel, aiSettings) }
+    // A new report always starts with an empty model selection — no auto-fill from the
+    // previous run. Save/load helpers are kept so an explicit "reuse previous" action can
+    // be wired later, but they're intentionally not invoked here.
+    val initialModels = emptyList<ReportModel>()
 
     val handleDismiss = {
         reportViewModel.dismissGenericReportsDialog()
