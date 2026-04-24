@@ -304,7 +304,11 @@ fun ReportsScreen(
 
     // Main UI
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "AI Reports", onBackClick = onDismiss, onAiClick = onNavigateHome)
+        // Title reflects the phase: selection (adding models) vs generation (showing results).
+        TitleBar(
+            title = if (isGenerating) "AI Reports" else "AI Report - Models",
+            onBackClick = onDismiss, onAiClick = onNavigateHome
+        )
         Spacer(modifier = Modifier.height(8.dp))
 
         if (!isGenerating) {
@@ -371,7 +375,16 @@ private fun ColumnScope.SelectionPhase(
     // Add buttons
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Flock" to onAddFlock, "Agent" to onAddAgent, "Swarm" to onAddSwarm, "Model" to onAddModel, "All Models" to onAddAllModels).forEach { (label, action) ->
+        // Button order: Agent, Flock, Swarm, Provider, Model. Note: onAddModel opens the provider
+        // selector (hence "+Provider") and onAddAllModels opens the all-models picker (renamed
+        // to the simpler "+Model" label per the new naming scheme).
+        listOf(
+            "Agent" to onAddAgent,
+            "Flock" to onAddFlock,
+            "Swarm" to onAddSwarm,
+            "Provider" to onAddModel,
+            "Model" to onAddAllModels
+        ).forEach { (label, action) ->
             OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp)) {
                 Text("+$label", fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
