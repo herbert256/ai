@@ -428,21 +428,15 @@ private fun ColumnScope.SelectionPhase(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Generate buttons
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(
-            onClick = { onGenerate(ReportType.CLASSIC) },
-            enabled = models.isNotEmpty(),
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text("Classic", maxLines = 1, softWrap = false) }
-        Button(
-            onClick = { onGenerate(ReportType.TABLE) },
-            enabled = models.isNotEmpty(),
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-        ) { Text("Table", maxLines = 1, softWrap = false) }
-    }
+    // Generate — the layout ("One by one" vs "All together") is now chosen in the exported
+    // HTML via a toggle, so we no longer split this into two buttons. Pass CLASSIC as the
+    // default ReportType since both renderers now share the same HTML output.
+    Button(
+        onClick = { onGenerate(ReportType.CLASSIC) },
+        enabled = models.isNotEmpty(),
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+    ) { Text("Generate", maxLines = 1, softWrap = false) }
 }
 
 // ===== Generation Phase =====
