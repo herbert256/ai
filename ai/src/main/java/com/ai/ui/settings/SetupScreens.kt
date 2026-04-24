@@ -36,6 +36,9 @@ fun SetupScreen(
     BackHandler { onBackToSettings() }
     val context = LocalContext.current
     val hasApiKey = remember(aiSettings) { aiSettings.hasAnyApiKey() }
+    val modelProviderCount = remember(aiSettings) {
+        AppService.entries.count { aiSettings.getProvider(it).models.isNotEmpty() }
+    }
     val agentCount = remember(aiSettings.agents) { aiSettings.agents.count { aiSettings.isProviderActive(it.provider) } }
     val costCount = remember { PricingCache.getAllManualPricing(context).size }
     val externalCount = remember(huggingFaceApiKey, openRouterApiKey) {
@@ -51,6 +54,8 @@ fun SetupScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "Configure API keys and models", "${AppService.entries.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
+            SetupNavCard("\uD83E\uDDE0", "Models", "Default model, source, and model list per provider", "$modelProviderCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODELS) })
             SetupNavCard("\uD83E\uDD16", "Agents", "Named AI model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
             SetupNavCard("\uD83E\uDD86", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
@@ -106,6 +111,14 @@ fun ProvidersScreen(
 ) {
     BackHandler { onBackToAiSetup() }
     val allProviders = AppService.entries
+    // "Active" = providers that have been tested and have a working API key (state == "ok").
+    var showActiveOnly by remember { mutableStateOf(true) }
+    val activeCount = remember(aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
+
+    val visibleProviders = remember(showActiveOnly, aiSettings) {
+        (if (showActiveOnly) allProviders.filter { aiSettings.getProviderState(it) == "ok" } else allProviders)
+            .sortedBy { it.displayName }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -113,8 +126,27 @@ fun ProvidersScreen(
         TitleBar(title = "Providers", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
         Spacer(modifier = Modifier.height(12.dp))
 
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = showActiveOnly,
+                onClick = { showActiveOnly = true },
+                label = { Text("Active ($activeCount)") }
+            )
+            FilterChip(
+                selected = !showActiveOnly,
+                onClick = { showActiveOnly = false },
+                label = { Text("All (${allProviders.size})") }
+            )
+        }
+
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            allProviders.sortedBy { it.displayName }.forEach { provider ->
+            if (visibleProviders.isEmpty()) {
+                Text(
+                    "No active providers yet. Switch to All and set an API key.",
+                    fontSize = 13.sp, color = AppColors.TextTertiary
+                )
+            }
+            visibleProviders.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)
                 val stateEmoji = when (state) {
                     "ok" -> "\uD83D\uDD11"; "error" -> "\u274C"; "inactive" -> "\uD83D\uDCA4"; else -> "\u2B55"

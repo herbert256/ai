@@ -132,7 +132,7 @@ private fun AnalysisRepository.streamOpenAi(
         } else throw Exception("API error: ${response.code()} ${response.message()}")
     } else {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-        val chatUrl = normalizeUrl(baseUrl) + service.chatPath
+        val chatUrl = buildChatUrl(baseUrl, service.chatPath)
         val openAiMessages = messages.map { OpenAiMessage(it.role, it.content) }
         val request = OpenAiRequest(
             model = model, messages = openAiMessages, stream = true,

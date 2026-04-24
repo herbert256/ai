@@ -16,7 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
-import com.ai.data.AppService
 import com.ai.data.ReportStorage
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
@@ -43,9 +42,6 @@ fun HubScreen(
     BackHandler { (context as? Activity)?.moveTaskToBack(true) }
 
     val hasAnyAgent = remember(uiState.aiSettings.agents) { uiState.aiSettings.agents.isNotEmpty() }
-    val hasAnyProviderApiKey = remember(uiState.aiSettings) {
-        AppService.entries.any { uiState.aiSettings.getApiKey(it).isNotBlank() }
-    }
     val hasStatisticsData by produceState(initialValue = false, uiState) {
         val sp = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
         value = sp.loadUsageStats().isNotEmpty()
@@ -79,7 +75,7 @@ fun HubScreen(
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping, enabled = hasAnyProviderApiKey)
+            HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))

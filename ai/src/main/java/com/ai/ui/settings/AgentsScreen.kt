@@ -58,7 +58,8 @@ fun AgentEditScreen(
     onFetchModels: (AppService, String) -> Unit,
     onSave: (Agent) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    loadingModelsFor: Set<AppService> = emptySet()
 ) {
     BackHandler { onBack() }
     val scope = rememberCoroutineScope()
@@ -97,8 +98,17 @@ fun AgentEditScreen(
     // Full-screen overlays
     when (overlayMode) {
         1 -> { SelectProviderScreen(aiSettings = aiSettings, onSelectProvider = { selectedProvider = it; model = ""; overlayMode = 0 }, onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome); return }
-        2 -> { SelectModelScreen(provider = selectedProvider, aiSettings = aiSettings, currentModel = model, showDefaultOption = true,
-            onSelectModel = { model = it; overlayMode = 0 }, onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome); return }
+        2 -> {
+            val effectiveKey = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
+            SelectModelScreen(
+                provider = selectedProvider, aiSettings = aiSettings, currentModel = model, showDefaultOption = true,
+                onSelectModel = { model = it; overlayMode = 0 },
+                onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome,
+                onRefresh = if (effectiveKey.isNotBlank()) ({ onFetchModels(selectedProvider, effectiveKey) }) else null,
+                isRefreshing = selectedProvider in loadingModelsFor
+            )
+            return
+        }
     }
 
     Column(

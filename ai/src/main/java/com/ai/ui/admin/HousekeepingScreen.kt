@@ -19,12 +19,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.google.gson.JsonSyntaxException
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.settings.exportAiConfig
 import com.ai.ui.settings.importAiConfigFromFile
 import com.ai.ui.shared.*
 import com.ai.viewmodel.GeneralSettings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
@@ -58,7 +64,9 @@ fun HousekeepingScreen(
     var showResultsDialog by remember { mutableStateOf(false) }
     var showProviderStateDialog by remember { mutableStateOf(false) }
     var showOpenRouterDialog by remember { mutableStateOf(false) }
-    var generationResults by remember { mutableStateOf<List<Pair<String, Boolean>>?>(null) }
+    // Ordered list of (providerName, result) where result: null = pending, true = ok, false = failed.
+    // SnapshotStateList of Pair so the dialog recomposes on each incremental update.
+    val generationRows = remember { mutableStateListOf<Pair<String, Boolean?>>() }
     var showGenerationDialog by remember { mutableStateOf(false) }
 
     // File import/export
@@ -89,8 +97,10 @@ fun HousekeepingScreen(
             val apiKey = aiSettings.getApiKey(service)
             if (apiKey.isNotBlank()) keys[service.id] = apiKey
         }
-        if (huggingFaceApiKey.isNotBlank()) keys["HUGGINGFACE"] = huggingFaceApiKey
-        if (openRouterApiKey.isNotBlank()) keys["OPENROUTER_KEY"] = openRouterApiKey
+        // External-services keys use an "EXT_" prefix so they can't collide with provider IDs
+        // (note: "HUGGINGFACE" is also an AppService id — the old key name was ambiguous).
+        if (huggingFaceApiKey.isNotBlank()) keys["EXT_HUGGINGFACE"] = huggingFaceApiKey
+        if (openRouterApiKey.isNotBlank()) keys["EXT_OPENROUTER"] = openRouterApiKey
         writeToUri(uri, createAppGson(prettyPrint = true).toJson(keys))
         Toast.makeText(context, "${keys.size} API keys exported", Toast.LENGTH_SHORT).show()
     }
@@ -122,18 +132,48 @@ fun HousekeepingScreen(
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
                 try {
-                    val keys: Map<String, String> = createAppGson().fromJson(json, object : com.google.gson.reflect.TypeToken<Map<String, String>>() {}.type)
-                    var updated = aiSettings; var count = 0
-                    for ((id, key) in keys) {
-                        if (id == "HUGGINGFACE") { onSaveHuggingFaceApiKey(key); count++; continue }
-                        if (id == "OPENROUTER_KEY") { onSaveOpenRouterApiKey(key); count++; continue }
-                        val service = AppService.findById(id) ?: continue
-                        updated = updated.withApiKey(service, key); count++
+                    // Parse as JsonObject so we can be robust about value types and detect the
+                    // common mistake of picking a full config JSON in the "API Keys" button.
+                    @Suppress("DEPRECATION")
+                    val root = JsonParser().parse(json)
+                    if (!root.isJsonObject) {
+                        Toast.makeText(context, "Expected a JSON object like {\"OPENAI\": \"sk-...\"}", Toast.LENGTH_LONG).show()
+                        return@rememberLauncherForActivityResult
+                    }
+                    val obj: JsonObject = root.asJsonObject
+                    if (obj.has("version") && obj.has("providers")) {
+                        Toast.makeText(context, "This looks like a full config — use the Config import button instead.", Toast.LENGTH_LONG).show()
+                        return@rememberLauncherForActivityResult
+                    }
+                    var updated = aiSettings; var count = 0; var skipped = 0
+                    for (entry in obj.entrySet()) {
+                        val id = entry.key
+                        val valueEl = entry.value
+                        val prim = if (valueEl != null && valueEl.isJsonPrimitive) valueEl.asJsonPrimitive else null
+                        val key = if (prim != null && prim.isString) prim.asString else { skipped++; continue }
+                        if (key.isBlank()) { skipped++; continue }
+                        when (id) {
+                            // New canonical names.
+                            "EXT_HUGGINGFACE" -> { onSaveHuggingFaceApiKey(key); count++ }
+                            "EXT_OPENROUTER" -> { onSaveOpenRouterApiKey(key); count++ }
+                            // Legacy aliases kept for backward-compatible imports of older keys.json files.
+                            "HUGGINGFACE" -> { onSaveHuggingFaceApiKey(key); count++ }
+                            "OPENROUTER_KEY" -> { onSaveOpenRouterApiKey(key); count++ }
+                            else -> {
+                                val service = AppService.findById(id)
+                                if (service != null) { updated = updated.withApiKey(service, key); count++ } else skipped++
+                            }
+                        }
                     }
                     onSave(updated)
-                    Toast.makeText(context, "$count API keys imported", Toast.LENGTH_SHORT).show()
+                    val msg = "$count API keys imported" + if (skipped > 0) ", $skipped skipped" else ""
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                } catch (e: JsonSyntaxException) {
+                    android.util.Log.e("Housekeeping", "API keys import parse error", e)
+                    Toast.makeText(context, "Not valid JSON", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Invalid keys file: ${e.message}", Toast.LENGTH_SHORT).show()
+                    android.util.Log.e("Housekeeping", "API keys import error", e)
+                    Toast.makeText(context, "Import failed (${e.javaClass.simpleName}); see logcat", Toast.LENGTH_LONG).show()
                 }
             }
             "costs" -> {
@@ -209,13 +249,26 @@ fun HousekeepingScreen(
             confirmButton = { TextButton(onClick = { showOpenRouterDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
-    if (showGenerationDialog && generationResults != null) {
-        AlertDialog(onDismissRequest = { showGenerationDialog = false }, title = { Text("Default Agent Generation") },
-            text = { Column {
-                generationResults!!.forEach { (name, success) ->
-                    Text("$name: ${if (success) "OK" else "failed"}", fontSize = 13.sp, color = if (success) AppColors.Green else AppColors.Red)
+    if (showGenerationDialog) {
+        val doneCount = generationRows.count { it.second != null }
+        val totalCount = generationRows.size
+        AlertDialog(
+            onDismissRequest = { showGenerationDialog = false },
+            title = { Text(if (totalCount > 0 && doneCount < totalCount) "Default Agent Generation — $doneCount / $totalCount" else "Default Agent Generation") },
+            text = {
+                Column {
+                    generationRows.forEach { (name, result) ->
+                        val (text, color) = when (result) {
+                            null  -> "pending" to AppColors.TextTertiary
+                            true  -> "OK" to AppColors.Green
+                            false -> "failed" to AppColors.Red
+                        }
+                        Text("$name: $text", fontSize = 13.sp, color = color)
+                    }
                 }
-            }}, confirmButton = { TextButton(onClick = { showGenerationDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+            },
+            confirmButton = { TextButton(onClick = { showGenerationDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } }
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -227,52 +280,6 @@ fun HousekeepingScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Refresh", fontWeight = FontWeight.Bold, color = Color.White)
-
-                    // Refresh All
-                    Button(onClick = {
-                        launchTask("Refreshing All") {
-                            withContext(Dispatchers.IO) {
-                                supervisorScope {
-                                    // 1. Provider state test
-                                    progressText = "Testing providers..."
-                                    val stateResults = mutableMapOf<String, String>()
-                                    for (service in AppService.entries) {
-                                        val state = aiSettings.getProviderState(service)
-                                        if (state == "inactive") { stateResults[service.displayName] = "inactive"; continue }
-                                        val apiKey = aiSettings.getApiKey(service)
-                                        if (apiKey.isBlank()) { stateResults[service.displayName] = "not-used"; continue }
-                                        progressText = "Testing: ${service.displayName}"
-                                        val error = onTestApiKey(service, apiKey, aiSettings.getModel(service))
-                                        val newState = if (error == null) "ok" else "error"
-                                        stateResults[service.displayName] = newState
-                                        onProviderStateChange(service, newState)
-                                    }
-                                    providerStateResults = stateResults
-
-                                    // 2. Model lists
-                                    progressText = "Refreshing model lists..."
-                                    refreshResults = onRefreshAllModels(aiSettings, true) { msg: String -> progressText = "Models: $msg" }
-
-                                    // 3. OpenRouter data
-                                    if (openRouterApiKey.isNotBlank()) {
-                                        progressText = "Refreshing OpenRouter..."
-                                        val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                                        if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
-                                        val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
-                                        openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
-                                    }
-
-                                    // 4. LiteLLM pricing
-                                    progressText = "Refreshing pricing..."
-                                    PricingCache.refreshLiteLLMPricing(context)
-                                }
-                            }
-                            Toast.makeText(context, "Refresh complete", Toast.LENGTH_SHORT).show()
-                            showProviderStateDialog = true
-                        }
-                    }, enabled = !isAnyRunning && aiSettings.hasAnyApiKey(),
-                        modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-                    ) { Text("Refresh All", maxLines = 1, softWrap = false) }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
@@ -318,21 +325,51 @@ fun HousekeepingScreen(
                         }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f)) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
+                            // Only test providers whose API key is set — skip the rest immediately.
+                            val candidates = AppService.entries.mapNotNull { s ->
+                                val key = aiSettings.getApiKey(s)
+                                if (key.isBlank()) null else Triple(s, key, aiSettings.getModel(s))
+                            }
+                            // Seed the dialog with every candidate in "pending" state and open it right away
+                            // so the user can see the work as it happens.
+                            generationRows.clear()
+                            generationRows.addAll(candidates.map { it.first.displayName to null })
+                            showGenerationDialog = true
+
                             launchTask("Generating Agents") {
+                                val total = candidates.size
+                                val completed = java.util.concurrent.atomic.AtomicInteger(0)
+                                progressText = "0 / $total"
+
+                                // Fan out all tests in parallel; supervisorScope keeps one failure from
+                                // cancelling the other in-flight checks.
+                                val results: List<Pair<String, Boolean>> = supervisorScope {
+                                    candidates.mapIndexed { idx, (service, key, model) ->
+                                        async(Dispatchers.IO) {
+                                            val error = try { onTestApiKey(service, key, model) } catch (e: Exception) { e.message ?: "error" }
+                                            val success = error == null
+                                            // Update the row for THIS service so the dialog recomposes immediately.
+                                            withContext(Dispatchers.Main) {
+                                                if (idx < generationRows.size) {
+                                                    generationRows[idx] = service.displayName to success
+                                                }
+                                            }
+                                            val done = completed.incrementAndGet()
+                                            progressText = "$done / $total — ${service.displayName}"
+                                            service.displayName to success
+                                        }
+                                    }.awaitAll()
+                                }
+
                                 withContext(Dispatchers.IO) {
-                                    val results = mutableListOf<Pair<String, Boolean>>()
+                                    // Build the updated Settings sequentially (cheap, no network).
                                     var updatedSettings = aiSettings
-                                    for (service in AppService.entries) {
-                                        val apiKey = updatedSettings.getApiKey(service)
-                                        if (apiKey.isBlank()) continue
-                                        progressText = service.displayName
-                                        val error = onTestApiKey(service, apiKey, updatedSettings.getModel(service))
-                                        val success = error == null
-                                        results.add(service.displayName to success)
+                                    for ((service, _, model) in candidates) {
+                                        val success = results.find { it.first == service.displayName }?.second == true
                                         if (success) {
                                             val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
                                             if (existing == null) {
-                                                val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, updatedSettings.getModel(service), "")
+                                                val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
                                                 updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
                                             }
                                         }
@@ -347,11 +384,9 @@ fun HousekeepingScreen(
                                         updatedSettings.copy(flocks = updatedSettings.flocks + flock)
                                     }
                                     onSave(updatedSettings)
-                                    generationResults = results
                                 }
-                                showGenerationDialog = true
                             }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Generate", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Default agents", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                 }
             }

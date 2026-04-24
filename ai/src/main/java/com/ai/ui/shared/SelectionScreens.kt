@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.model.Agent
+import com.ai.model.ModelSource
 import com.ai.model.Settings
 
 private fun formatPrice(pricePerToken: Double): String {
@@ -42,10 +43,20 @@ fun SelectModelScreen(
     showDefaultOption: Boolean = false,
     onSelectModel: (String) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onRefresh: (() -> Unit)? = null,
+    isRefreshing: Boolean = false
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
+
+    // If this screen opens for a single provider whose model source is API, kick off a
+    // background refresh of the model list so the user sees the freshest catalog. The
+    // list updates reactively as aiSettings.getModels returns new data.
+    val providerSource = aiSettings.getProvider(provider).modelSource
+    LaunchedEffect(provider.id) {
+        if (providerSource == ModelSource.API) onRefresh?.invoke()
+    }
 
     val allModels = aiSettings.getModels(provider)
     val filteredModels = remember(searchQuery, allModels) {
@@ -58,11 +69,18 @@ fun SelectModelScreen(
     ) {
         TitleBar(title = "Select Model", onBackClick = onBack, onAiClick = onNavigateHome)
 
-        Text(
-            text = "${provider.displayName} — ${allModels.size} models",
-            style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            Text(
+                text = "${provider.displayName} — ${allModels.size} models",
+                style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
+                modifier = Modifier.weight(1f)
+            )
+            if (isRefreshing) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.Blue, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Refreshing…", fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
+        }
 
         OutlinedTextField(
             value = searchQuery, onValueChange = { searchQuery = it },

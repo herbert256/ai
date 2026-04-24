@@ -87,7 +87,7 @@ private suspend fun AnalysisRepository.analyzeOpenAi(
     if (usesResponsesApi(service, model)) return analyzeResponsesApi(service, apiKey, prompt, model, params)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-    val chatUrl = normalizeUrl(baseUrl) + service.chatPath
+    val chatUrl = buildChatUrl(baseUrl, service.chatPath)
     val messages = buildMessages(params?.systemPrompt, prompt)
     val request = buildOpenAiRequest(service, model, messages, params)
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
@@ -203,7 +203,7 @@ private suspend fun AnalysisRepository.chatOpenAi(
     if (usesResponsesApi(service, model)) return chatResponsesApi(service, apiKey, model, messages, params)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-    val chatUrl = normalizeUrl(baseUrl) + service.chatPath
+    val chatUrl = buildChatUrl(baseUrl, service.chatPath)
     val openAiMessages = messages.map { OpenAiMessage(it.role, it.content) }
     val request = OpenAiRequest(
         model = model, messages = openAiMessages,
@@ -449,3 +449,25 @@ internal fun extractResponsesApiContent(body: OpenAiResponsesApiResponse?): Stri
 }
 
 internal fun normalizeUrl(url: String): String = if (url.endsWith("/")) url else "$url/"
+
+/**
+ * Build the full chat-completions URL from a caller-supplied URL and the provider's chatPath.
+ *
+ * Callers may pass either:
+ *  - a bare base URL ("https://api.example.com/"), in which case we append chatPath, or
+ *  - a full endpoint URL ("https://api.example.com/v1/chat/completions"), e.g. from
+ *    Settings.getEffectiveEndpointUrlForAgent(), in which case we must NOT append chatPath
+ *    (that was the "/v1/chat/completions/v1/chat/completions" 404 bug in reports).
+ *
+ * We detect the second case by checking whether the URL already ends with chatPath.
+ */
+internal fun buildChatUrl(baseUrl: String, chatPath: String): String {
+    val cleanedChatPath = chatPath.trim('/')
+    if (cleanedChatPath.isEmpty()) return baseUrl
+    val trimmedUrl = baseUrl.trimEnd('/')
+    return if (trimmedUrl.endsWith("/$cleanedChatPath") || trimmedUrl.endsWith(cleanedChatPath)) {
+        trimmedUrl
+    } else {
+        "$trimmedUrl/$cleanedChatPath"
+    }
+}

@@ -17,6 +17,7 @@ import com.ai.viewmodel.GeneralSettings
 
 enum class SettingsSubScreen {
     MAIN, AI_PROVIDER_EDIT, AI_SETUP, AI_PROVIDERS,
+    AI_MODELS, AI_MODEL_EDIT,
     AI_AGENTS, AI_AGENT_EDIT,
     AI_FLOCKS, AI_FLOCK_EDIT,
     AI_SWARMS, AI_SWARM_EDIT,
@@ -54,13 +55,21 @@ fun SettingsScreen(
     var editingPromptId by remember { mutableStateOf<String?>(null) }
     var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
+    // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
+    // pressing back returns to the provider edit rather than the Models list.
+    var modelEditFromProvider by remember { mutableStateOf(false) }
 
     val goBack: () -> Unit = {
         when (currentSubScreen) {
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_SETUP -> if (initialSubScreen == SettingsSubScreen.AI_SETUP) onBack() else currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
+            SettingsSubScreen.AI_MODEL_EDIT -> {
+                val from = modelEditFromProvider
+                modelEditFromProvider = false
+                currentSubScreen = if (from) SettingsSubScreen.AI_PROVIDER_EDIT else SettingsSubScreen.AI_MODELS
+            }
+            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PROMPTS, SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
@@ -110,7 +119,28 @@ fun SettingsScreen(
                     onCreateAgent = {
                         editingAgentId = null
                         currentSubScreen = SettingsSubScreen.AI_AGENT_EDIT
+                    },
+                    onNavigateToModels = {
+                        // Jump directly into the Models sub-screen for this provider; back returns here.
+                        modelEditFromProvider = true
+                        currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT
                     }
+                )
+            } ?: goBack()
+        }
+        SettingsSubScreen.AI_MODELS -> {
+            ModelsListScreen(
+                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
+                onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT }
+            )
+        }
+        SettingsSubScreen.AI_MODEL_EDIT -> {
+            selectedProvider?.let { provider ->
+                ProviderModelSettingsScreen(
+                    service = provider, aiSettings = aiSettings,
+                    isLoadingModels = provider in loadingModelsFor,
+                    onBack = goBack, onBackToHome = onNavigateHome,
+                    onSave = onSaveAi, onFetchModels = { onFetchModels(provider, it) }
                 )
             } ?: goBack()
         }
@@ -134,7 +164,8 @@ fun SettingsScreen(
                     else aiSettings.copy(agents = aiSettings.agents + saved)
                     onSaveAi(updated); goBack()
                 },
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                loadingModelsFor = loadingModelsFor
             )
         }
         SettingsSubScreen.AI_FLOCKS -> {
