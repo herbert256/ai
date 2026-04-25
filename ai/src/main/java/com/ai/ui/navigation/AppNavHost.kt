@@ -117,12 +117,14 @@ fun AppNavHost(
         composable(NavRoutes.SETTINGS) {
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
-                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) })
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
         composable(NavRoutes.AI_SETUP) {
             SetupScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
-                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) })
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
 
         // ===== Reports =====
@@ -178,9 +180,6 @@ fun AppNavHost(
             val uiState by appViewModel.uiState.collectAsState()
             ModelSearchScreen(aiSettings = uiState.aiSettings,
                 loadingModelsFor = uiState.loadingModelsFor, onBackToAiSetup = safePopBack, onBackToHome = navigateHome,
-                onSaveSettings = { appViewModel.updateSettings(it) }, onTestAiModel = { s, k, m -> appViewModel.testAiModel(s, k, m) },
-                onFetchModels = appViewModel::fetchModels,
-                onNavigateToChatParams = { p, m -> navController.navigate(NavRoutes.aiChatParams(p.id, m)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
         composable(NavRoutes.AI_MODEL_INFO) { entry ->
@@ -192,6 +191,11 @@ fun AppNavHost(
                     openRouterApiKey = AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
                     huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey, aiSettings = uiState.aiSettings,
                     repository = appViewModel.repository,
+                    onSaveSettings = { appViewModel.updateSettings(it) },
+                    onTestAiModel = { s, k, m -> appViewModel.testAiModel(s, k, m) },
+                    onFetchModels = appViewModel::fetchModels,
+                    onStartChat = { p, m -> navController.navigate(NavRoutes.aiChatParams(p.id, m)) },
+                    onNavigateToTracesForModel = { p, m -> navController.navigate(NavRoutes.traceListForModel(p.id, m)) },
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
         }
@@ -335,6 +339,12 @@ fun AppNavHost(
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, reportId = reportId)
         }
+        composable(NavRoutes.TRACE_LIST_FOR_MODEL) { entry ->
+            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+                onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onClearTraces = { appViewModel.clearTraces() }, modelFilter = model)
+        }
         composable(NavRoutes.TRACE_DETAIL) { entry ->
             val filename = entry.arguments?.getString("filename") ?: ""
             TraceDetailScreen(filename = filename, onBack = safePopBack, onNavigateHome = navigateHome,
@@ -357,6 +367,7 @@ fun AppNavHost(
 fun SettingsScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -372,17 +383,21 @@ fun SettingsScreenNav(
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },
         onNavigateToCostConfig = onNavigateToCostConfig,
         onTestModelWithPrompt = { s, k, m, p -> viewModel.testModelWithPrompt(s, k, m, p) },
-        onNavigateToTrace = onNavigateToTrace, initialSubScreen = initialSubScreen
+        onNavigateToTrace = onNavigateToTrace,
+        onNavigateToModelInfo = onNavigateToModelInfo,
+        initialSubScreen = initialSubScreen
     )
 }
 
 @Composable
 fun SetupScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
-    onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {}
+    onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     SettingsScreenNav(viewModel = viewModel, onNavigateBack = onNavigateBack, onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig, onNavigateToTrace = onNavigateToTrace,
+        onNavigateToModelInfo = onNavigateToModelInfo,
         initialSubScreen = SettingsSubScreen.AI_SETUP)
 }
 

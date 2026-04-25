@@ -21,9 +21,11 @@ import com.ai.data.*
 import com.ai.model.*
 import com.ai.ui.report.formatPricingPerMillion
 import com.ai.ui.settings.AgentEditScreen
+import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 private data class ModelSearchItem(val provider: AppService, val providerName: String, val modelName: String)
 
@@ -57,18 +59,10 @@ fun ModelSearchScreen(
     loadingModelsFor: Set<AppService>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
-    onSaveSettings: (Settings) -> Unit,
-    onTestAiModel: suspend (AppService, String, String) -> String?,
-    onFetchModels: (AppService, String) -> Unit,
-    onNavigateToChatParams: (AppService, String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit
 ) {
     BackHandler { onBackToAiSetup() }
-    val context = LocalContext.current
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedModel by remember { mutableStateOf<ModelSearchItem?>(null) }
-    var showActionDialog by remember { mutableStateOf(false) }
-    var showAgentEdit by remember { mutableStateOf(false) }
 
     // Build aggregated model list from all active providers
     val allModels = remember(aiSettings) {
@@ -88,39 +82,6 @@ fun ModelSearchScreen(
     }
 
     val isLoading = loadingModelsFor.isNotEmpty()
-
-    // Full-screen overlay for creating agent from model
-    if (showAgentEdit && selectedModel != null) {
-        val m = selectedModel!!
-        AgentEditScreen(
-            agent = Agent("", "${m.providerName} ${m.modelName}", m.provider, m.modelName, aiSettings.getApiKey(m.provider)),
-            aiSettings = aiSettings,
-            existingNames = aiSettings.agents.map { it.name.lowercase() }.toSet(),
-            onTestAiModel = onTestAiModel,
-            onFetchModels = onFetchModels,
-            onSave = { agent ->
-                val updated = aiSettings.copy(agents = aiSettings.agents + agent)
-                onSaveSettings(updated)
-                showAgentEdit = false; selectedModel = null
-            },
-            onBack = { showAgentEdit = false; selectedModel = null },
-            onNavigateHome = onBackToHome
-        )
-        return
-    }
-
-    // Action dialog for selected model
-    if (showActionDialog && selectedModel != null) {
-        val m = selectedModel!!
-        AlertDialog(onDismissRequest = { showActionDialog = false; selectedModel = null },
-            title = { Text("${m.providerName} / ${m.modelName}", maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showActionDialog = false; onNavigateToChatParams(m.provider, m.modelName) }, modifier = Modifier.fillMaxWidth()) { Text("Start AI Chat", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = { showActionDialog = false; showAgentEdit = true }, modifier = Modifier.fillMaxWidth()) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = { showActionDialog = false; onNavigateToModelInfo(m.provider, m.modelName); selectedModel = null }, modifier = Modifier.fillMaxWidth()) { Text("Model Info", maxLines = 1, softWrap = false) }
-            }},
-            confirmButton = {}, dismissButton = { TextButton(onClick = { showActionDialog = false; selectedModel = null }) { Text("Cancel", maxLines = 1, softWrap = false) } })
-    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "Models", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
@@ -144,7 +105,7 @@ fun ModelSearchScreen(
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             items(filteredModels, key = { "${it.provider.id}:${it.modelName}" }) { item ->
-                ModelSearchResultCard(item = item, onClick = { selectedModel = item; showActionDialog = true })
+                ModelSearchResultCard(item = item, onClick = { onNavigateToModelInfo(item.provider, item.modelName) })
             }
         }
     }
@@ -177,6 +138,11 @@ fun ModelInfoScreen(
     huggingFaceApiKey: String,
     aiSettings: Settings,
     repository: com.ai.data.AnalysisRepository,
+    onSaveSettings: (Settings) -> Unit,
+    onTestAiModel: suspend (AppService, String, String) -> String?,
+    onFetchModels: (AppService, String) -> Unit,
+    onStartChat: (AppService, String) -> Unit,
+    onNavigateToTracesForModel: (AppService, String) -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -187,6 +153,42 @@ fun ModelInfoScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var aiDescription by remember { mutableStateOf<String?>(null) }
     var isAiLoading by remember { mutableStateOf(false) }
+    var showAgentEdit by remember { mutableStateOf(false) }
+
+    // Trace count + usage entry are loaded once per (provider, model). They reflect
+    // on-disk state at screen open; updates only land on next visit.
+    val traceCount = remember(provider, modelName) {
+        ApiTracer.getTraceFiles().count { it.model == modelName }
+    }
+    val usageEntry = remember(provider, modelName) {
+        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        SettingsPreferences(prefs, context.filesDir).loadUsageStats()["${provider.id}::$modelName"]
+    }
+    val usageCost = remember(usageEntry) {
+        usageEntry?.let {
+            val pricing = PricingCache.getPricing(context, it.provider, it.model)
+            it.inputTokens * pricing.promptPrice + it.outputTokens * pricing.completionPrice
+        }
+    }
+
+    // Full-screen overlay for creating an agent from this model. Mirrors the pattern
+    // ModelSearchScreen used to use before its popup was retired.
+    if (showAgentEdit) {
+        AgentEditScreen(
+            agent = Agent("", "${provider.displayName} $modelName", provider, modelName, aiSettings.getApiKey(provider)),
+            aiSettings = aiSettings,
+            existingNames = aiSettings.agents.map { it.name.lowercase() }.toSet(),
+            onTestAiModel = onTestAiModel,
+            onFetchModels = onFetchModels,
+            onSave = { agent ->
+                onSaveSettings(aiSettings.copy(agents = aiSettings.agents + agent))
+                showAgentEdit = false
+            },
+            onBack = { showAgentEdit = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
 
     // Fetch model info from OpenRouter + HuggingFace
     LaunchedEffect(provider, modelName) {
@@ -274,6 +276,67 @@ fun ModelInfoScreen(
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Text(modelName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 Text(provider.displayName, fontSize = 14.sp, color = AppColors.Blue)
+                            }
+                        }
+                    }
+
+                    // Action buttons: start a chat, or create an agent for this model.
+                    item {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { onStartChat(provider, modelName) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                            ) { Text("Start AI Chat", maxLines = 1, softWrap = false) }
+                            Button(
+                                onClick = { showAgentEdit = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                            ) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
+                        }
+                    }
+
+                    // Trace count card — clickable, opens the Traces list filtered to this model.
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = traceCount > 0) {
+                                onNavigateToTracesForModel(provider, modelName)
+                            },
+                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
+                        ) {
+                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("API Traces", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    Text(
+                                        if (traceCount == 0) "No traces recorded for this model" else "$traceCount traces — tap to view",
+                                        fontSize = 12.sp, color = AppColors.TextTertiary
+                                    )
+                                }
+                                Text("$traceCount", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                if (traceCount > 0) Text(" >", fontSize = 16.sp, color = AppColors.Blue)
+                            }
+                        }
+                    }
+
+                    // Usage entry for this provider/model (cumulative across reports + chats).
+                    item {
+                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("AI Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                if (usageEntry == null) {
+                                    Text("No usage recorded yet for this model", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                } else {
+                                    Text(
+                                        "${usageEntry.callCount} calls, ${formatCompactNumber(usageEntry.inputTokens)} in / ${formatCompactNumber(usageEntry.outputTokens)} out",
+                                        fontSize = 13.sp, color = Color.White
+                                    )
+                                    usageCost?.let {
+                                        Text(
+                                            "Cost: " + if (it < 0.01 && it > 0) String.format(Locale.US, "$%.6f", it) else String.format(Locale.US, "$%.4f", it),
+                                            fontSize = 13.sp, color = AppColors.Green
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

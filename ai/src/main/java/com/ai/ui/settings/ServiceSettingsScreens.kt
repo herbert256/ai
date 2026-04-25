@@ -86,7 +86,8 @@ fun ProviderModelSettingsScreen(
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
-    onFetchModels: (String) -> Unit = {}
+    onFetchModels: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val config = aiSettings.getProvider(service)
@@ -191,15 +192,11 @@ fun ProviderModelSettingsScreen(
                 Text("${models.size} models available", fontSize = 12.sp, color = AppColors.TextTertiary)
                 HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 4.dp))
                 models.sorted().forEach { modelId ->
-                    val rowModifier = if (modelSource == ModelSource.MANUAL) {
-                        Modifier.fillMaxWidth().clickable {
-                            manualInput = modelId; editingOriginal = modelId
-                        }
-                    } else {
-                        Modifier.fillMaxWidth()
-                    }
                     Row(
-                        modifier = rowModifier.padding(vertical = 2.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToModelInfo(service, modelId) }
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(

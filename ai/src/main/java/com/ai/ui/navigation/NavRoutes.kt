@@ -8,6 +8,7 @@ object NavRoutes {
     const val HELP = "help"
     const val TRACE_LIST = "trace_list"
     const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
+    const val TRACE_LIST_FOR_MODEL = "trace_list_for_model/{provider}/{model}"
     const val TRACE_DETAIL = "trace_detail/{filename}"
     const val AI_HISTORY = "ai_history"
     const val AI_REPORTS_HUB = "ai_reports_hub"
@@ -41,6 +42,7 @@ object NavRoutes {
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
+    fun traceListForModel(provider: String, model: String) = "trace_list_for_model/$provider/${encode(model)}"
     fun aiModelInfo(provider: String, model: String) = "ai_model_info/$provider/${encode(model)}"
     fun aiChatContinue(sessionId: String) = "ai_chat_continue/$sessionId"
     fun aiChatWithAgent(agentId: String) = "ai_chat_with_agent/$agentId"

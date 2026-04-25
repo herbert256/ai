@@ -47,6 +47,7 @@ fun SettingsScreen(
     onNavigateToCostConfig: () -> Unit = {},
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
@@ -143,7 +144,8 @@ fun SettingsScreen(
                     service = provider, aiSettings = aiSettings,
                     isLoadingModels = provider in loadingModelsFor,
                     onBack = goBack, onBackToHome = onNavigateHome,
-                    onSave = onSaveAi, onFetchModels = { onFetchModels(provider, it) }
+                    onSave = onSaveAi, onFetchModels = { onFetchModels(provider, it) },
+                    onNavigateToModelInfo = onNavigateToModelInfo
                 )
             } ?: goBack()
         }

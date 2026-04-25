@@ -47,11 +47,16 @@ fun TraceListScreen(
     onNavigateHome: () -> Unit,
     onSelectTrace: (String) -> Unit,
     onClearTraces: () -> Unit,
-    reportId: String? = null
+    reportId: String? = null,
+    modelFilter: String? = null
 ) {
     BackHandler { onBack() }
     var traceFiles by remember { mutableStateOf(
-        if (reportId != null) ApiTracer.getTraceFilesForReport(reportId) else ApiTracer.getTraceFiles()
+        when {
+            reportId != null -> ApiTracer.getTraceFilesForReport(reportId)
+            modelFilter != null -> ApiTracer.getTraceFiles().filter { it.model == modelFilter }
+            else -> ApiTracer.getTraceFiles()
+        }
     ) }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
@@ -67,7 +72,12 @@ fun TraceListScreen(
         val pageItems = traceFiles.subList(startIndex.coerceAtMost(traceFiles.size), (startIndex + pageSize).coerceAtMost(traceFiles.size))
 
         Column(modifier = Modifier.fillMaxSize()) {
-            TitleBar(title = if (reportId != null) "Report Traces" else "API Traces", onBackClick = onBack, onAiClick = onNavigateHome)
+            val title = when {
+                reportId != null -> "Report Traces"
+                modelFilter != null -> "Traces — $modelFilter"
+                else -> "API Traces"
+            }
+            TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
 
             if (totalPages > 1) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -94,7 +104,7 @@ fun TraceListScreen(
                 }
             }
 
-            if (reportId == null) {
+            if (reportId == null && modelFilter == null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(onClick = {
                     onClearTraces(); traceFiles = emptyList(); currentPage = 0
