@@ -24,7 +24,8 @@ enum class SettingsSubScreen {
     AI_PROMPTS, AI_PROMPT_EDIT,
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
-    AI_EXTERNAL_SERVICES
+    AI_EXTERNAL_SERVICES,
+    AI_IMPORT_EXPORT
 }
 
 @Composable
@@ -71,7 +72,8 @@ fun SettingsScreen(
             }
             SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PROMPTS, SettingsSubScreen.AI_PARAMETERS,
-            SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES -> currentSubScreen = SettingsSubScreen.AI_SETUP
+            SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
+            SettingsSubScreen.AI_IMPORT_EXPORT -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
             SettingsSubScreen.AI_SWARM_EDIT -> { editingSwarmId = null; currentSubScreen = SettingsSubScreen.AI_SWARMS }
@@ -271,6 +273,15 @@ fun SettingsScreen(
         SettingsSubScreen.AI_EXTERNAL_SERVICES -> {
             ExternalServicesScreen(
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
+                onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_IMPORT_EXPORT -> {
+            ImportExportScreen(
+                aiSettings = aiSettings,
+                huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
+                onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
