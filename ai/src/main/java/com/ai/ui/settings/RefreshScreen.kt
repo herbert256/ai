@@ -45,11 +45,13 @@ fun RefreshScreen(
     var taskError by remember { mutableStateOf<String?>(null) }
 
     var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
-    var providerStateResults by remember { mutableStateOf<Map<String, String>?>(null) }
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
     var showResultsDialog by remember { mutableStateOf(false) }
     var showProviderStateDialog by remember { mutableStateOf(false) }
     var showOpenRouterDialog by remember { mutableStateOf(false) }
+    // (providerName, state) where state == null means "pending" (still being tested);
+    // any other string is the final state ("ok"/"error"/"inactive"/"not-used").
+    val providerStateRows = remember { mutableStateListOf<Pair<String, String?>>() }
     // Ordered list of (providerName, result) where result: null = pending, true = ok, false = failed.
     // SnapshotStateList of Pair so the dialog recomposes on each incremental update.
     val generationRows = remember { mutableStateListOf<Pair<String, Boolean?>>() }
@@ -87,14 +89,25 @@ fun RefreshScreen(
             }}, confirmButton = { TextButton(onClick = { showResultsDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
-    if (showProviderStateDialog && providerStateResults != null) {
-        AlertDialog(onDismissRequest = { showProviderStateDialog = false }, title = { Text("Provider State Results") },
+    if (showProviderStateDialog) {
+        val doneCount = providerStateRows.count { it.second != null }
+        val totalCount = providerStateRows.size
+        AlertDialog(
+            onDismissRequest = { showProviderStateDialog = false },
+            title = { Text(if (totalCount > 0 && doneCount < totalCount) "Provider State Results — $doneCount / $totalCount" else "Provider State Results") },
             text = { Column {
-                providerStateResults!!.entries.sortedBy { it.key }.forEach { (name, state) ->
-                    val color = when (state) { "ok" -> AppColors.Green; "error" -> AppColors.Red; else -> AppColors.TextTertiary }
-                    Text("$name: $state", fontSize = 13.sp, color = color)
+                providerStateRows.forEach { (name, state) ->
+                    val (text, color) = when (state) {
+                        null -> "pending" to AppColors.TextTertiary
+                        "ok" -> "ok" to AppColors.Green
+                        "error" -> "error" to AppColors.Red
+                        else -> state to AppColors.TextTertiary
+                    }
+                    Text("$name: $text", fontSize = 13.sp, color = color)
                 }
-            }}, confirmButton = { TextButton(onClick = { showProviderStateDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+            }},
+            confirmButton = { TextButton(onClick = { showProviderStateDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } }
+        )
     }
 
     if (showOpenRouterDialog && openRouterResult != null) {
@@ -137,23 +150,49 @@ fun RefreshScreen(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
-                            launchTask("Testing Providers") {
-                                withContext(Dispatchers.IO) {
-                                    val results = mutableMapOf<String, String>()
-                                    for (service in AppService.entries) {
-                                        val state = aiSettings.getProviderState(service)
-                                        if (state == "inactive") { results[service.displayName] = "inactive"; continue }
-                                        val apiKey = aiSettings.getApiKey(service)
-                                        if (apiKey.isBlank()) { results[service.displayName] = "not-used"; continue }
-                                        progressText = service.displayName
-                                        val error = onTestApiKey(service, apiKey, aiSettings.getModel(service))
-                                        val newState = if (error == null) "ok" else "error"
-                                        results[service.displayName] = newState
-                                        onProviderStateChange(service, newState)
-                                    }
-                                    providerStateResults = results
+                            // Build a single ordered list of every provider, with already-known
+                            // outcomes ("inactive", "not-used") seeded as their final state and the
+                            // rest seeded as pending. Show the dialog right away so the user can
+                            // watch results land as each test finishes.
+                            data class Seed(val service: AppService, val final: String?, val testModel: String?)
+                            val seeds = AppService.entries.sortedBy { it.displayName }.map { service ->
+                                val state = aiSettings.getProviderState(service)
+                                val apiKey = aiSettings.getApiKey(service)
+                                when {
+                                    state == "inactive" -> Seed(service, "inactive", null)
+                                    apiKey.isBlank() -> Seed(service, "not-used", null)
+                                    else -> Seed(service, null, aiSettings.getModel(service))
                                 }
-                                showProviderStateDialog = true
+                            }
+                            providerStateRows.clear()
+                            providerStateRows.addAll(seeds.map { it.service.displayName to it.final })
+                            showProviderStateDialog = true
+
+                            val testable = seeds.withIndex().filter { it.value.final == null }
+                            launchTask("Testing Providers") {
+                                val total = testable.size
+                                val completed = java.util.concurrent.atomic.AtomicInteger(0)
+                                progressText = "0 / $total"
+
+                                supervisorScope {
+                                    testable.map { (idx, seed) ->
+                                        val service = seed.service
+                                        val apiKey = aiSettings.getApiKey(service)
+                                        val model = seed.testModel ?: ""
+                                        async(Dispatchers.IO) {
+                                            val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
+                                            val newState = if (error == null) "ok" else "error"
+                                            withContext(Dispatchers.Main) {
+                                                if (idx < providerStateRows.size) {
+                                                    providerStateRows[idx] = service.displayName to newState
+                                                }
+                                            }
+                                            onProviderStateChange(service, newState)
+                                            val done = completed.incrementAndGet()
+                                            progressText = "$done / $total — ${service.displayName}"
+                                        }
+                                    }.awaitAll()
+                                }
                             }
                         }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Providers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
