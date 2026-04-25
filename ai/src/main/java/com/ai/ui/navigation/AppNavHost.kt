@@ -388,13 +388,5 @@ fun SetupScreenNav(
 
 @Composable
 fun HousekeepingScreenNav(viewModel: AppViewModel, onNavigateHome: () -> Unit) {
-    val uiState by viewModel.uiState.collectAsState()
-    HousekeepingScreen(
-        aiSettings = uiState.aiSettings,
-        openRouterApiKey = uiState.generalSettings.openRouterApiKey, onBackToHome = onNavigateHome,
-        onSave = { viewModel.updateSettings(it) },
-        onRefreshAllModels = { settings, force, progress -> viewModel.refreshAllModelLists(settings, force, progress) },
-        onTestApiKey = { s, k, m -> viewModel.testAiModel(s, k, m) },
-        onProviderStateChange = { s, st -> viewModel.updateProviderState(s, st) }
-    )
+    HousekeepingScreen(onBackToHome = onNavigateHome)
 }

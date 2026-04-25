@@ -74,6 +74,8 @@ fun SetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
             SetupNavCard("📦", "Export / Import", "Configuration, API keys, and costs", "",
                 onClick = { onNavigate(SettingsSubScreen.AI_IMPORT_EXPORT) })
+            SetupNavCard("🔄", "Refresh", "Providers, models, OpenRouter, default agents", "",
+                onClick = { onNavigate(SettingsSubScreen.AI_REFRESH) })
         }
     }
 }
