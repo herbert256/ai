@@ -199,7 +199,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun refreshAllModelLists(settings: Settings, forceRefresh: Boolean = false, onProgress: ((String) -> Unit)? = null): Map<String, Int> {
         return withContext(Dispatchers.IO) {
             val toRefresh = AppService.entries.filter { service ->
-                settings.getModelSource(service) == ModelSource.API &&
+                settings.getProviderState(service) != "inactive" &&
+                    settings.getModelSource(service) == ModelSource.API &&
                     settings.getApiKey(service).isNotBlank() &&
                     (forceRefresh || !settingsPrefs.isModelListCacheValid(service))
             }

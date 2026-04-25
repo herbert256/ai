@@ -218,8 +218,9 @@ fun RefreshScreen(
                         }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f)) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
-                            // Only test providers whose API key is set — skip the rest immediately.
+                            // Only test providers that are not inactive and have an API key set.
                             val candidates = AppService.entries.mapNotNull { s ->
+                                if (aiSettings.getProviderState(s) == "inactive") return@mapNotNull null
                                 val key = aiSettings.getApiKey(s)
                                 if (key.isBlank()) null else Triple(s, key, aiSettings.getModel(s))
                             }
