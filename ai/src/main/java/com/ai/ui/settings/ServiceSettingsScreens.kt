@@ -97,6 +97,12 @@ fun ProviderModelSettingsScreen(
     var manualInput by remember { mutableStateOf("") }
     var editingOriginal by remember { mutableStateOf<String?>(null) }
 
+    // Mirror external updates (e.g. completed Fetch Models) into local state so the count
+    // and list refresh as soon as the new model list lands in settings.
+    LaunchedEffect(config.models) {
+        if (config.models != models) models = config.models
+    }
+
     // Auto-save — only the fields this screen exposes; other config fields preserved via copy of the current provider config.
     LaunchedEffect(modelSource, models) {
         val current = aiSettings.getProvider(service)
