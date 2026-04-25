@@ -25,6 +25,12 @@ import com.ai.ui.shared.TitleBar
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private fun exportTimestamp(): String =
+    SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
 
 @Composable
 fun ImportExportScreen(
@@ -178,13 +184,13 @@ fun ImportExportScreen(
                     Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
-                            exportConfigLauncher.launch("ai_config.json")
+                            exportConfigLauncher.launch("ai_config-${exportTimestamp()}.json")
                         }, modifier = Modifier.weight(1f)) { Text("Config", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         OutlinedButton(onClick = {
-                            exportKeysLauncher.launch("ai_keys.json")
+                            exportKeysLauncher.launch("ai_keys-${exportTimestamp()}.json")
                         }, modifier = Modifier.weight(1f)) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         OutlinedButton(onClick = {
-                            exportCostsLauncher.launch("ai_costs.csv")
+                            exportCostsLauncher.launch("ai_costs-${exportTimestamp()}.csv")
                         }, modifier = Modifier.weight(1f)) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                 }
