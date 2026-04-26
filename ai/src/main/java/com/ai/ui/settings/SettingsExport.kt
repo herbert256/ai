@@ -81,12 +81,14 @@ fun importAiConfigFromClipboard(context: Context, json: String, currentSettings:
  * Export current AI configuration to JSON string (v21 format).
  */
 fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai.viewmodel.GeneralSettings): String {
+    // API keys are intentionally stripped from the config export — use the dedicated
+    // "API Keys" export to share keys, so an accidentally shared config can't leak them.
     val providerExports = mutableMapOf<String, ProviderConfigExport>()
     for (service in AppService.entries) {
         val config = settings.getProvider(service)
         providerExports[service.id] = ProviderConfigExport(
             modelSource = config.modelSource.name, models = config.models,
-            apiKey = config.apiKey, defaultModel = config.model, adminUrl = config.adminUrl,
+            apiKey = "", defaultModel = config.model, adminUrl = config.adminUrl,
             modelListUrl = config.modelListUrl, parametersIds = config.parametersIds.ifEmpty { null },
             displayName = service.displayName, baseUrl = service.baseUrl,
             apiFormat = service.apiFormat.name, chatPath = service.chatPath,
@@ -97,18 +99,18 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
 
     val export = ConfigExport(
         version = 21, providers = providerExports,
-        agents = settings.agents.map { AgentExport(it.id, it.name, it.provider.id, it.model, it.apiKey, it.paramsIds.ifEmpty { null }, it.endpointId, it.systemPromptId) },
+        agents = settings.agents.map { AgentExport(it.id, it.name, it.provider.id, it.model, "", it.paramsIds.ifEmpty { null }, it.endpointId, it.systemPromptId) },
         flocks = settings.flocks.ifEmpty { null }?.map { FlockExport(it.id, it.name, it.agentIds, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
         swarms = settings.swarms.ifEmpty { null }?.map { SwarmExport(it.id, it.name, it.members.map { m -> SwarmMemberExport(m.provider.id, m.model) }, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
         parameters = settings.parameters.ifEmpty { null }?.map { ParametersExport(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency) },
         systemPrompts = settings.systemPrompts.ifEmpty { null }?.map { SystemPromptExport(it.id, it.name, it.prompt) },
-        huggingFaceApiKey = generalSettings.huggingFaceApiKey.ifBlank { null },
+        huggingFaceApiKey = null,
         aiPrompts = settings.prompts.ifEmpty { null }?.map { PromptExport(it.id, it.name, it.agentId, it.promptText) },
         manualPricing = PricingCache.getAllManualPricing(context).map { (key, pricing) ->
             ManualPricingExport(key, pricing.promptPrice, pricing.completionPrice)
         }.ifEmpty { null },
         providerEndpoints = settings.endpoints.entries.map { (provider, eps) -> ProviderEndpointsExport(provider.id, eps.map { EndpointExport(it.id, it.name, it.url, it.isDefault) }) }.ifEmpty { null },
-        openRouterApiKey = generalSettings.openRouterApiKey.ifBlank { null },
+        openRouterApiKey = null,
         providerDefinitions = ProviderRegistry.getCustomProviders().ifEmpty { null },
         providerStates = settings.providerStates.ifEmpty { null }
     )
