@@ -48,6 +48,32 @@ fun ReportsViewerScreen(
         return
     }
 
+    // Single-section variants: just the prompt, or just the cost table — no agent picker,
+    // no per-agent body. These come from the View row's Prompt / Costs buttons.
+    if (initialSection == "prompt" || initialSection == "costs") {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
+            TitleBar(title = title, onBackClick = onDismiss, onAiClick = onNavigateHome)
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+                if (initialSection == "prompt") {
+                    if (report.prompt.isBlank()) {
+                        Text("(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
+                    } else {
+                        Text(report.prompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
+                    }
+                } else {
+                    val hasCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
+                    if (!hasCosts) {
+                        Text("(no usage recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
+                    } else {
+                        ReportCostTable(report = report)
+                    }
+                }
+            }
+        }
+        return
+    }
+
     val agentsWithResults = remember(report) {
         report.agents.filter { it.reportStatus == ReportStatus.SUCCESS }.sortedBy { it.agentName.lowercase() }
     }
@@ -123,24 +149,6 @@ fun ReportsViewerScreen(
                     selectedReportAgent.searchResults?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); SearchResultsSection(it) }
                     selectedReportAgent.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); RelatedQuestionsSection(it) }
 
-                    // Prompt / Costs sections are driven by the parent (initialSection)
-                    // — the Report Result screen's View row replaces the inline toggles.
-                    val hasPrompt = report.prompt.isNotBlank()
-                    val hasCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
-                    if (initialSection == "prompt" && hasPrompt) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.Blue)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(report.prompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-                    if (initialSection == "costs" && hasCosts) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Cost summary", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.Blue)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        ReportCostTable(report = report)
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
                 }
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
