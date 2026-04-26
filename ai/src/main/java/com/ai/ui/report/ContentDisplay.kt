@@ -30,6 +30,7 @@ private val motivationTagRegex = Regex("<motivation>.*?</motivation>", RegexOpti
 fun ReportsViewerScreen(
     reportId: String,
     initialSelectedAgentId: String? = null,
+    initialSection: String? = null,  // "prompt" / "costs" — driven from the Report Result View buttons
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss
 ) {
@@ -122,33 +123,22 @@ fun ReportsViewerScreen(
                     selectedReportAgent.searchResults?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); SearchResultsSection(it) }
                     selectedReportAgent.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); RelatedQuestionsSection(it) }
 
-                    // Prompt & Costs toggles
-                    var activeSection by remember { mutableStateOf<String?>(null) }
+                    // Prompt / Costs sections are driven by the parent (initialSection)
+                    // — the Report Result screen's View row replaces the inline toggles.
                     val hasPrompt = report.prompt.isNotBlank()
                     val hasCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
-
-                    if (hasPrompt || hasCosts) {
+                    if (initialSection == "prompt" && hasPrompt) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (hasPrompt) {
-                                val isActive = activeSection == "prompt"
-                                Button(onClick = { activeSection = if (isActive) null else "prompt" },
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (isActive) AppColors.Blue else Color.Transparent),
-                                    border = if (!isActive) BorderStroke(1.dp, AppColors.BorderUnfocused) else null,
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                                ) { Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AppColors.DisabledBackground else AppColors.Blue, maxLines = 1, softWrap = false) }
-                            }
-                            if (hasCosts) {
-                                val isActive = activeSection == "costs"
-                                Button(onClick = { activeSection = if (isActive) null else "costs" },
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (isActive) AppColors.Blue else Color.Transparent),
-                                    border = if (!isActive) BorderStroke(1.dp, AppColors.BorderUnfocused) else null,
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                                ) { Text("Costs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isActive) AppColors.DisabledBackground else AppColors.Blue, maxLines = 1, softWrap = false) }
-                            }
-                        }
-                        if (activeSection == "prompt") { Spacer(modifier = Modifier.height(8.dp)); Text(report.prompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp) }
-                        if (activeSection == "costs") ReportCostTable(report = report)
+                        Text("Prompt", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.Blue)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(report.prompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    if (initialSection == "costs" && hasCosts) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Cost summary", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.Blue)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        ReportCostTable(report = report)
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }

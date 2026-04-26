@@ -193,9 +193,8 @@ fun ReportsScreen(
 
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
+    var viewerSection by remember { mutableStateOf<String?>(null) }
     var showExport by remember { mutableStateOf(false) }
-    var showEmailDialog by remember { mutableStateOf(false) }
-    var emailSent by remember { mutableStateOf(false) }
     var showAdvancedParameters by remember { mutableStateOf(false) }
 
     var models by remember { mutableStateOf(initialModels) }
@@ -306,7 +305,7 @@ fun ReportsScreen(
 
     // Full-screen overlays
     if (showViewer && currentReportId != null) {
-        ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, onDismiss = { showViewer = false }, onNavigateHome = onNavigateHome)
+        ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome)
         return
     }
     if (showAdvancedParameters) {
@@ -349,24 +348,6 @@ fun ReportsScreen(
         return
     }
 
-    // Email dialog
-    if (showEmailDialog && currentReportId != null) {
-        val emailAddress = uiState.generalSettings.defaultEmail
-        LaunchedEffect(currentReportId) {
-            emailSent = false
-            emailReportAsHtml(context, currentReportId, emailAddress)
-            emailSent = true
-            delay(2000)
-            showEmailDialog = false
-        }
-        AlertDialog(
-            onDismissRequest = { showEmailDialog = false },
-            title = { Text(if (emailSent) "Email Sent" else "Sending...") },
-            text = { Text(if (emailSent) "Report emailed to $emailAddress" else "Emailing report to $emailAddress...") },
-            confirmButton = { TextButton(onClick = { showEmailDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } }
-        )
-    }
-
     // Main UI
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Title reflects the phase: selection (adding models) vs generation (showing results).
@@ -405,12 +386,12 @@ fun ReportsScreen(
                 currentReportId = currentReportId,
                 onStop = onStop,
                 onContinueInBackground = onContinueInBackground,
-                onView = { agentId -> selectedAgentForViewer = agentId; showViewer = true },
+                onViewResults = { selectedAgentForViewer = null; viewerSection = null; showViewer = true },
+                onViewPrompt = { selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true },
+                onViewCosts = { selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true },
+                onViewAgent = { agentId -> selectedAgentForViewer = agentId; viewerSection = null; showViewer = true },
                 onShare = { showExport = true },
-                onBrowser = { currentReportId?.let { openReportInChrome(context, it) } },
-                onEmail = { showEmailDialog = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
-                hasDefaultEmail = uiState.generalSettings.defaultEmail.isNotBlank(),
                 onEditPrompt = onEditPrompt,
                 onEditModels = { currentReportId?.let(onEditModels) },
                 onEditParameters = { currentReportId?.let(onEditParameters) },
@@ -521,12 +502,12 @@ private fun ColumnScope.GenerationPhase(
     currentReportId: String?,
     onStop: () -> Unit,
     onContinueInBackground: () -> Unit,
-    onView: (String?) -> Unit,
+    onViewResults: () -> Unit,
+    onViewPrompt: () -> Unit,
+    onViewCosts: () -> Unit,
+    onViewAgent: (String) -> Unit,
     onShare: () -> Unit,
-    onBrowser: () -> Unit,
-    onEmail: () -> Unit,
     onTrace: () -> Unit,
-    hasDefaultEmail: Boolean,
     onEditPrompt: () -> Unit,
     onEditModels: () -> Unit,
     onEditParameters: () -> Unit,
@@ -570,7 +551,7 @@ private fun ColumnScope.GenerationPhase(
             val displayName = result?.displayName ?: agent?.name ?: agentId.removePrefix("swarm:").replace(":", " / ")
 
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(
-                if (result != null) Modifier.clickable { onView(agentId) } else Modifier
+                if (result != null) Modifier.clickable { onViewAgent(agentId) } else Modifier
             ), verticalAlignment = Alignment.CenterVertically) {
                 // Status icon - pending hourglass spins, success/failure are static.
                 if (result == null) {
@@ -621,19 +602,28 @@ private fun ColumnScope.GenerationPhase(
             OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Background", maxLines = 1, softWrap = false) }
         }
     } else {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onView(null) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("View", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onBrowser, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Browser", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            if (hasDefaultEmail) Button(onClick = onEmail, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Email", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            if (currentReportId != null) Button(onClick = onTrace, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        // Section: View
+        Text("View", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = onViewResults, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Results", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onViewPrompt, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Prompt", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onViewCosts, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Costs", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onTrace, enabled = currentReportId != null, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Trace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+
+        // Section: Edit
+        Text("Edit", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Button(onClick = onEditPrompt, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Prompt", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onEditModels, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Models", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onEditParameters, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Params", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onRegenerate, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Regen", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onEditParameters, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Parameters", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+        }
+
+        // Section: Actions
+        Text("Actions", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = onRegenerate, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Regenerate", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Export", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Delete", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
     }
