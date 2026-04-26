@@ -235,6 +235,82 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /**
+     * Reverse the persisted ReportAgent rows into ReportModel entries the selection screen
+     * understands. Real-agent rows (UUID id, still resolvable in aiSettings) come back as
+     * agent-typed models; "swarm:provider:model" rows and orphaned ones come back as
+     * direct provider/model entries.
+     */
+    private fun reportToModels(report: com.ai.data.Report, aiSettings: Settings): List<ReportModel> {
+        return report.agents.mapNotNull { ra ->
+            val provider = AppService.findById(ra.provider) ?: return@mapNotNull null
+            if (ra.agentId.startsWith("swarm:")) toReportModel(provider, ra.model)
+            else aiSettings.getAgentById(ra.agentId)?.let { expandAgentToModel(it, aiSettings) }
+                ?: toReportModel(provider, ra.model)
+        }
+    }
+
+    /**
+     * Tear down the current finished-report state and pre-fill the selection screen with
+     * the prompt + model list from a saved report so the user can edit which models run
+     * before re-generating.
+     */
+    suspend fun prepareEditModels(context: Context, reportId: String) {
+        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
+        val ai = appViewModel.uiState.value.aiSettings
+        val rebuilt = reportToModels(report, ai)
+        _agentResults.value = emptyMap()
+        appViewModel.updateUiState { it.copy(
+            showGenericReportsDialog = false,
+            genericPromptTitle = report.title, genericPromptText = report.prompt,
+            genericReportsProgress = 0, genericReportsTotal = 0,
+            genericReportsSelectedAgents = emptySet(),
+            currentReportId = null, reportAdvancedParameters = null,
+            pendingReportModels = rebuilt
+        ) }
+    }
+
+    /**
+     * Re-run a previously generated report end-to-end with the same prompt, agent set,
+     * and parameter selections.
+     */
+    fun regenerateReport(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
+        scope.launch {
+            val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return@launch
+            val ai = appViewModel.uiState.value.aiSettings
+            val rebuilt = reportToModels(report, ai)
+            val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
+            val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
+            val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            // Reset the screen state, then drive a normal generation pass.
+            _agentResults.value = emptyMap()
+            appViewModel.updateUiState { it.copy(
+                showGenericReportsDialog = false, currentReportId = null,
+                genericReportsProgress = 0, genericReportsTotal = 0,
+                genericReportsSelectedAgents = emptySet(),
+                genericPromptTitle = report.title, genericPromptText = report.prompt,
+                pendingReportModels = emptyList()
+            ) }
+            generateGenericReports(
+                scope = scope, context = context, selectedAgentIds = agentIds,
+                selectedSwarmIds = swarmIds, directModelIds = directIds,
+                parametersIds = emptyList(), reportType = report.reportType
+            )
+        }
+    }
+
+    /** Delete a report file and, if it's the one currently shown, dismiss the screen state. */
+    fun deleteReport(context: Context, reportId: String) {
+        val cleared = appViewModel.uiState.value.currentReportId == reportId
+        ReportStorage.deleteReport(context, reportId)
+        if (cleared) dismissGenericReportsDialog()
+    }
+
+    fun clearPendingReportModels() {
+        if (appViewModel.uiState.value.pendingReportModels.isEmpty()) return
+        appViewModel.updateUiState { it.copy(pendingReportModels = emptyList()) }
+    }
+
+    /**
      * Open a previously generated report on the Reports result screen. Pulls the report
      * back out of ReportStorage, rebuilds _agentResults, and seeds the UiState fields the
      * Reports screen reads (currentReportId, genericReports* counters, prompt/title) so

@@ -52,6 +52,10 @@ data class UiState(
     val genericReportsSelectedAgents: Set<String> = emptySet(),
     val currentReportId: String? = null,
     val reportAdvancedParameters: AgentParameters? = null,
+    // One-shot signal: when non-empty, the Reports selection screen pre-fills its model
+    // list from this and clears it via clearPendingReportModels(). Used for Edit-models
+    // and Regenerate flows kicked off from a finished report.
+    val pendingReportModels: List<ReportModel> = emptyList(),
     val externalIntent: ExternalIntent = ExternalIntent(),
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),
