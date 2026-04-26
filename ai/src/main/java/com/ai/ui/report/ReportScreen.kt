@@ -108,8 +108,8 @@ fun ReportsScreenNav(
             onNavigateBack()
         },
         onConsumePendingModels = { reportViewModel.clearPendingReportModels() },
-        onSharePdf = { rid, onProgress ->
-            shareReportAsPdf(context, rid, uiState.aiSettings, viewModel.repository, onProgress)
+        onExport = { rid, fmt, det, onProgress ->
+            shareReportAsExport(context, rid, fmt, det, uiState.aiSettings, viewModel.repository, onProgress)
         }
     )
 }
@@ -179,7 +179,7 @@ fun ReportsScreen(
     onRegenerate: (String) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onSharePdf: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> }
+    onExport: suspend (String, ReportExportFormat, ReportExportDetail, (Int, Int) -> Unit) -> Unit = { _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -193,15 +193,13 @@ fun ReportsScreen(
 
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
-    var showShareDialog by remember { mutableStateOf(false) }
+    var showExport by remember { mutableStateOf(false) }
     var showEmailDialog by remember { mutableStateOf(false) }
     var emailSent by remember { mutableStateOf(false) }
     var showAdvancedParameters by remember { mutableStateOf(false) }
 
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var pdfProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    val pdfScope = rememberCoroutineScope()
 
     // One-shot consumer: when ReportViewModel (Edit models / Edit parameters / Regenerate
     // flows) drops a pre-built model list into uiState.pendingReportModels, copy it into
@@ -341,47 +339,14 @@ fun ReportsScreen(
         )
     }
 
-    if (showShareDialog && currentReportId != null) {
-        AlertDialog(
-            onDismissRequest = { showShareDialog = false },
-            title = { Text("Share Report") },
-            text = { Text("Choose format:") },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { shareReportAsJson(context, currentReportId); showShareDialog = false }) { Text("JSON", maxLines = 1, softWrap = false) }
-                    TextButton(onClick = { shareReportAsHtml(context, currentReportId); showShareDialog = false }) { Text("HTML", maxLines = 1, softWrap = false) }
-                    TextButton(onClick = {
-                        showShareDialog = false
-                        val rid = currentReportId
-                        pdfScope.launch {
-                            pdfProgress = 0 to 1
-                            try { onSharePdf(rid) { d, t -> pdfProgress = d to t } }
-                            catch (e: Exception) { android.widget.Toast.makeText(context, "PDF failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show() }
-                            finally { pdfProgress = null }
-                        }
-                    }) { Text("PDF", maxLines = 1, softWrap = false) }
-                }
-            },
-            dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+    if (showExport && currentReportId != null) {
+        val rid = currentReportId
+        ReportExportScreen(
+            onBack = { showExport = false },
+            onNavigateHome = onNavigateHome,
+            onExport = { fmt, det, onProgress -> onExport(rid, fmt, det, onProgress) }
         )
-    }
-
-    pdfProgress?.let { (done, total) ->
-        AlertDialog(
-            onDismissRequest = { /* block — generation in progress */ },
-            title = { Text("Generating PDF") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LinearProgressIndicator(
-                        progress = { if (total > 0) done.toFloat() / total else 0f },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text("$done / $total — ${if (done < total - 1) "fetching introductions" else "rendering"}",
-                        fontSize = 12.sp, color = AppColors.TextTertiary)
-                }
-            },
-            confirmButton = {}
-        )
+        return
     }
 
     // Email dialog
@@ -441,7 +406,7 @@ fun ReportsScreen(
                 onStop = onStop,
                 onContinueInBackground = onContinueInBackground,
                 onView = { agentId -> selectedAgentForViewer = agentId; showViewer = true },
-                onShare = { showShareDialog = true },
+                onShare = { showExport = true },
                 onBrowser = { currentReportId?.let { openReportInChrome(context, it) } },
                 onEmail = { showEmailDialog = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
@@ -658,7 +623,7 @@ private fun ColumnScope.GenerationPhase(
     } else {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { onView(null) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("View", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Share", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onBrowser, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Browser", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             if (hasDefaultEmail) Button(onClick = onEmail, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Email", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             if (currentReportId != null) Button(onClick = onTrace, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }

@@ -87,7 +87,7 @@ internal fun openReportInChrome(context: android.content.Context, reportId: Stri
 
 // ===== HTML Conversion =====
 
-private fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
+internal fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
     val agents = report.agents
         .filter { it.reportStatus != ReportStatus.STOPPED && it.reportStatus != ReportStatus.PENDING }
         .sortedBy { it.agentName.lowercase() }

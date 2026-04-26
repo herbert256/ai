@@ -42,32 +42,74 @@ private data class IntroCostRow(
     val cost: Double
 )
 
+enum class ReportExportFormat { HTML, PDF, JSON }
+enum class ReportExportDetail { SHORT, MEDIUM, COMPREHENSIVE }
+
 private const val REDACTED = "[REDACTED]"
 private val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
 private val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
 
 /**
- * Build a comprehensive HTML for the report and hand it to the Android print framework so
- * the user lands on the system "Save as PDF" sheet. Page-break-before:always CSS keeps each
- * model on its own page; the print framework honours that.
+ * Top-level dispatcher: build the right document for (format × detail) and hand it to
+ * Android's standard share sheet. JSON ignores the detail level. PDF and HTML support
+ * SHORT (title + prompt + per-model results), MEDIUM (current rich HTML report), or
+ * COMPREHENSIVE (index + prompt + cost table + per-model: intro / MD result / redacted
+ * request+response JSON+headers / links + about footer).
  *
- * Per-model: intro (from the 'intro' Internal prompt, cached via PromptCache for 48h),
- * MD-rendered result, redacted request/response JSON + headers, optional links.
- * Document head: index, prompt, cost table. Document tail: about-this-app block.
- *
- * `onProgress(done, total)` advances as the per-model intro fetches complete, so the caller
- * can show a progress dialog. Once intros are ready and the WebView's loaded the HTML,
- * PrintManager.print(...) opens the system save sheet.
+ * `onProgress(done, total)` advances during the per-model intro fetches that the
+ * comprehensive variants kick off. Other variants report 0/1 and 1/1 only.
  */
+suspend fun shareReportAsExport(
+    context: Context,
+    reportId: String,
+    format: ReportExportFormat,
+    detail: ReportExportDetail,
+    aiSettings: Settings,
+    repository: AnalysisRepository,
+    onProgress: (Int, Int) -> Unit
+): Boolean {
+    val report = ReportStorage.getReport(context, reportId) ?: return false
+
+    if (format == ReportExportFormat.JSON) {
+        onProgress(0, 1)
+        shareReportAsJson(context, reportId)
+        onProgress(1, 1)
+        return true
+    }
+
+    val html = when (detail) {
+        ReportExportDetail.SHORT -> { onProgress(0, 1); buildShortHtml(report).also { onProgress(1, 1) } }
+        ReportExportDetail.MEDIUM -> { onProgress(0, 1); convertReportToHtml(context, report, getAppVersion(context)).also { onProgress(1, 1) } }
+        ReportExportDetail.COMPREHENSIVE -> buildComprehensiveHtml(context, report, aiSettings, repository, onProgress)
+    }
+
+    val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+    val baseName = "ai_report_${safeTitle}_${pdfTimestamp()}"
+    return when (format) {
+        ReportExportFormat.HTML -> { shareHtmlFile(context, html, "$baseName.html", report.title); true }
+        ReportExportFormat.PDF -> { sharePdfFromHtml(context, html, "$baseName.pdf", report.title); true }
+        ReportExportFormat.JSON -> true // unreachable
+    }
+}
+
+/** Original entry point — kept for backwards compatibility with any caller that still
+ *  asks for the comprehensive PDF directly. */
 suspend fun shareReportAsPdf(
     context: Context,
     reportId: String,
     aiSettings: Settings,
     repository: AnalysisRepository,
     onProgress: (Int, Int) -> Unit
-): Boolean {
-    val report = ReportStorage.getReport(context, reportId) ?: return false
-    val traces = ApiTracer.getTraceFilesForReport(reportId)
+): Boolean = shareReportAsExport(context, reportId, ReportExportFormat.PDF, ReportExportDetail.COMPREHENSIVE, aiSettings, repository, onProgress)
+
+private suspend fun buildComprehensiveHtml(
+    context: Context,
+    report: Report,
+    aiSettings: Settings,
+    repository: AnalysisRepository,
+    onProgress: (Int, Int) -> Unit
+): String {
+    val traces = ApiTracer.getTraceFilesForReport(report.id)
         .mapNotNull { ApiTracer.readTraceFile(it.filename) }
 
     val successfulAgents = report.agents.filter {
@@ -123,24 +165,69 @@ suspend fun shareReportAsPdf(
             resp.analysis?.also { PromptCache.put(cacheKey, it) }
         } catch (_: Exception) { null }
     }
-    onProgress(uniqueModels.size, totalSteps)
-
-    val html = buildPdfHtml(context, report, traces, intros, introCosts, getAppVersion(context))
-
-    val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
-    val output = File(context.cacheDir, "ai_report_${safeTitle}_${pdfTimestamp()}.pdf")
-    withContext(Dispatchers.Main) { renderHtmlToPdfFile(context, html, output) }
     onProgress(totalSteps, totalSteps)
+    return buildPdfHtml(context, report, traces, intros, introCosts, getAppVersion(context))
+}
 
+// ===== Short HTML — title + prompt + per-model results =====
+
+private fun buildShortHtml(report: Report): String {
+    val agents = report.agents.filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
+    val sb = StringBuilder()
+    sb.append("<!DOCTYPE html><html><head><meta charset='utf-8'><style>")
+    sb.append("""
+        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 12pt; color: #1d1d1d; line-height: 1.5; margin: 18px; }
+        h1 { font-size: 20pt; margin: 0 0 8px 0; }
+        h2 { font-size: 14pt; color: #0b2c5a; border-bottom: 1px solid #cfcfcf; padding-bottom: 4px; margin: 18px 0 6px 0; }
+        h3 { font-size: 12pt; color: #0b2c5a; margin: 12px 0 4px 0; }
+        .prompt { font-family: 'Courier New', 'Menlo', monospace; font-size: 10pt; background: #f5f5f7; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; border-left: 3px solid #b0c4de; }
+        .err { color: #b00020; }
+    """.trimIndent())
+    sb.append("</style></head><body>")
+    sb.append("<h1>").append(esc(report.title)).append("</h1>")
+    sb.append("<h2>Prompt</h2><div class='prompt'>").append(esc(report.prompt)).append("</div>")
+    sb.append("<h2>Results</h2>")
+    for (a in agents) {
+        val provider = AppService.findById(a.provider)
+        sb.append("<h3>").append(esc(provider?.displayName ?: a.provider))
+            .append(" / ").append(esc(a.model)).append("</h3>")
+        if (a.reportStatus == ReportStatus.ERROR) {
+            sb.append("<p class='err'>Error: ").append(esc(a.errorMessage ?: "unknown")).append("</p>")
+        }
+        if (!a.responseBody.isNullOrBlank()) {
+            sb.append("<div>").append(convertMarkdownToHtmlForExport(a.responseBody!!)).append("</div>")
+        }
+    }
+    sb.append("</body></html>")
+    return sb.toString()
+}
+
+// ===== Sharers =====
+
+private fun shareHtmlFile(context: Context, html: String, fileName: String, reportTitle: String) {
+    val file = File(context.cacheDir, fileName)
+    file.writeText(html)
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/html"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, "AI Report - $reportTitle")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share AI Report (HTML)"))
+}
+
+private suspend fun sharePdfFromHtml(context: Context, html: String, fileName: String, reportTitle: String) {
+    val output = File(context.cacheDir, fileName)
+    withContext(Dispatchers.Main) { renderHtmlToPdfFile(context, html, output) }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", output)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"
         putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
+        putExtra(Intent.EXTRA_SUBJECT, "AI Report - $reportTitle")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(Intent.createChooser(intent, "Share AI Report (PDF)"))
-    return true
 }
 
 // ===== HTML composition =====
