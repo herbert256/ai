@@ -14,7 +14,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ApiFormat
 import com.ai.data.AppService
+import com.ai.data.EndpointRule
+import com.ai.data.ProviderRegistry
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
@@ -255,6 +258,88 @@ fun ProviderSettingsScreen(
     var showParamsDialog by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
 
+    // ===== Provider definition (catalog) state =====
+    // Mirrors every field on ProviderDefinition / AppService so the user can edit the
+    // catalog entry that ships in setup.json. Auto-saves via ProviderRegistry.update().
+    var defDisplayName by remember(service.id) { mutableStateOf(service.displayName) }
+    var defBaseUrl by remember(service.id) { mutableStateOf(service.baseUrl) }
+    var defAdminUrl by remember(service.id) { mutableStateOf(service.adminUrl) }
+    var defDefaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
+    var defOpenRouterName by remember(service.id) { mutableStateOf(service.openRouterName ?: "") }
+    var defApiFormat by remember(service.id) { mutableStateOf(service.apiFormat) }
+    var defChatPath by remember(service.id) { mutableStateOf(service.chatPath) }
+    var defModelsPath by remember(service.id) { mutableStateOf(service.modelsPath ?: "") }
+    var defSeedFieldName by remember(service.id) { mutableStateOf(service.seedFieldName) }
+    var defModelListFormat by remember(service.id) { mutableStateOf(service.modelListFormat) }
+    var defDefaultModelSource by remember(service.id) { mutableStateOf(service.defaultModelSource ?: "API") }
+    var defModelFilter by remember(service.id) { mutableStateOf(service.modelFilter ?: "") }
+    var defLitellmPrefix by remember(service.id) { mutableStateOf(service.litellmPrefix ?: "") }
+    var defCostTicksDivisor by remember(service.id) { mutableStateOf(service.costTicksDivisor?.toString() ?: "") }
+    var defExtractApiCost by remember(service.id) { mutableStateOf(service.extractApiCost) }
+    var defSupportsCitations by remember(service.id) { mutableStateOf(service.supportsCitations) }
+    var defSupportsSearchRecency by remember(service.id) { mutableStateOf(service.supportsSearchRecency) }
+    var defHardcodedModelsText by remember(service.id) {
+        mutableStateOf(service.hardcodedModels?.joinToString(", ") ?: "")
+    }
+    var defEndpointRules by remember(service.id) { mutableStateOf(service.endpointRules) }
+    var newRulePrefix by remember(service.id) { mutableStateOf("") }
+    var newRuleType by remember(service.id) { mutableStateOf("responses") }
+
+    LaunchedEffect(
+        defDisplayName, defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
+        defChatPath, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
+        defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
+        defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText, defEndpointRules
+    ) {
+        // Don't push back garbage during the very first composition. Only update if the user
+        // actually changed something — i.e. a field differs from its catalog source value.
+        val same = defDisplayName == service.displayName &&
+            defBaseUrl == service.baseUrl &&
+            defAdminUrl == service.adminUrl &&
+            defDefaultModel == service.defaultModel &&
+            defOpenRouterName == (service.openRouterName ?: "") &&
+            defApiFormat == service.apiFormat &&
+            defChatPath == service.chatPath &&
+            defModelsPath == (service.modelsPath ?: "") &&
+            defSeedFieldName == service.seedFieldName &&
+            defModelListFormat == service.modelListFormat &&
+            defDefaultModelSource == (service.defaultModelSource ?: "API") &&
+            defModelFilter == (service.modelFilter ?: "") &&
+            defLitellmPrefix == (service.litellmPrefix ?: "") &&
+            defCostTicksDivisor == (service.costTicksDivisor?.toString() ?: "") &&
+            defExtractApiCost == service.extractApiCost &&
+            defSupportsCitations == service.supportsCitations &&
+            defSupportsSearchRecency == service.supportsSearchRecency &&
+            defHardcodedModelsText == (service.hardcodedModels?.joinToString(", ") ?: "") &&
+            defEndpointRules == service.endpointRules
+        if (same) return@LaunchedEffect
+        if (defDisplayName.isBlank() || defBaseUrl.isBlank() || defDefaultModel.isBlank()) return@LaunchedEffect
+        val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        ProviderRegistry.update(AppService(
+            id = service.id,
+            displayName = defDisplayName.trim(),
+            baseUrl = defBaseUrl.trim(),
+            adminUrl = defAdminUrl.trim(),
+            defaultModel = defDefaultModel.trim(),
+            openRouterName = defOpenRouterName.trim().ifBlank { null },
+            apiFormat = defApiFormat,
+            chatPath = defChatPath.trim().ifBlank { "v1/chat/completions" },
+            modelsPath = defModelsPath.trim().ifBlank { null },
+            prefsKey = service.prefsKey,
+            seedFieldName = defSeedFieldName.trim().ifBlank { "seed" },
+            supportsCitations = defSupportsCitations,
+            supportsSearchRecency = defSupportsSearchRecency,
+            extractApiCost = defExtractApiCost,
+            costTicksDivisor = defCostTicksDivisor.trim().toDoubleOrNull(),
+            modelListFormat = defModelListFormat,
+            modelFilter = defModelFilter.trim().ifBlank { null },
+            litellmPrefix = defLitellmPrefix.trim().ifBlank { null },
+            hardcodedModels = hardcoded.ifEmpty { null },
+            defaultModelSource = defDefaultModelSource,
+            endpointRules = defEndpointRules
+        ))
+    }
+
     // Model count shown on the Models link — read live from settings so it reflects updates
     // made on the Models sub-screen.
     val modelsCount = aiSettings.getProvider(service).models.size
@@ -408,8 +493,8 @@ fun ProviderSettingsScreen(
                 }
             }
 
-            // Model List URL
-            CollapsibleCard(title = "Advanced", summary = null) {
+            // Per-config overrides — these stay in the user's runtime ProviderConfig.
+            CollapsibleCard(title = "Advanced (per-config overrides)", summary = null) {
                 OutlinedTextField(
                     value = modelListUrl, onValueChange = { modelListUrl = it },
                     label = { Text("Custom model list URL") }, modifier = Modifier.fillMaxWidth(),
@@ -417,9 +502,140 @@ fun ProviderSettingsScreen(
                 )
                 OutlinedTextField(
                     value = adminUrl, onValueChange = { adminUrl = it },
-                    label = { Text("Admin URL") }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Admin URL (override)") }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
+            }
+
+            // ===== Provider definition (catalog) =====
+            // Edits here flow into ProviderRegistry — the same store that loads from
+            // assets/setup.json on first launch — so every field that ships in the
+            // bundled catalog is editable.
+
+            CollapsibleCard(title = "Definition · Basics", summary = null) {
+                OutlinedTextField(value = defDisplayName, onValueChange = { defDisplayName = it },
+                    label = { Text("Display name") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defBaseUrl, onValueChange = { defBaseUrl = it },
+                    label = { Text("Base URL") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defAdminUrl, onValueChange = { defAdminUrl = it },
+                    label = { Text("Admin URL") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defDefaultModel, onValueChange = { defDefaultModel = it },
+                    label = { Text("Default model") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+            }
+
+            CollapsibleCard(title = "Definition · API", summary = defApiFormat.name) {
+                Text("Format", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ApiFormat.entries.forEach { fmt ->
+                        FilterChip(selected = defApiFormat == fmt, onClick = { defApiFormat = fmt },
+                            label = { Text(fmt.name, fontSize = 11.sp) })
+                    }
+                }
+                OutlinedTextField(value = defChatPath, onValueChange = { defChatPath = it },
+                    label = { Text("Chat path") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defModelsPath, onValueChange = { defModelsPath = it },
+                    label = { Text("Models path (blank = no list API)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                Text("Model list format", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("object", "array").forEach {
+                        FilterChip(selected = defModelListFormat == it,
+                            onClick = { defModelListFormat = it }, label = { Text(it) })
+                    }
+                }
+                OutlinedTextField(value = defSeedFieldName, onValueChange = { defSeedFieldName = it },
+                    label = { Text("Seed field name") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+            }
+
+            CollapsibleCard(title = "Definition · Models", summary = defDefaultModelSource) {
+                Text("Default source", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("API", "MANUAL").forEach {
+                        FilterChip(selected = defDefaultModelSource == it,
+                            onClick = { defDefaultModelSource = it }, label = { Text(it) })
+                    }
+                }
+                OutlinedTextField(value = defModelFilter, onValueChange = { defModelFilter = it },
+                    label = { Text("Model filter regex (optional)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defHardcodedModelsText, onValueChange = { defHardcodedModelsText = it },
+                    label = { Text("Hardcoded models (comma-separated)") },
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+            }
+
+            CollapsibleCard(title = "Definition · Pricing & cost", summary = null) {
+                OutlinedTextField(value = defOpenRouterName, onValueChange = { defOpenRouterName = it },
+                    label = { Text("OpenRouter name") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defLitellmPrefix, onValueChange = { defLitellmPrefix = it },
+                    label = { Text("LiteLLM prefix") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defCostTicksDivisor, onValueChange = { defCostTicksDivisor = it },
+                    label = { Text("Cost ticks divisor") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Extract API cost", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = defExtractApiCost, onCheckedChange = { defExtractApiCost = it })
+                }
+            }
+
+            CollapsibleCard(title = "Definition · Features", summary = null) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Supports citations", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = defSupportsCitations, onCheckedChange = { defSupportsCitations = it })
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Supports search recency", color = Color.White, modifier = Modifier.weight(1f))
+                    Switch(checked = defSupportsSearchRecency, onCheckedChange = { defSupportsSearchRecency = it })
+                }
+            }
+
+            CollapsibleCard(title = "Definition · Endpoint rules", summary = "${defEndpointRules.size}") {
+                defEndpointRules.forEachIndexed { idx, rule ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${rule.modelPrefix} → ${rule.endpointType}", color = Color.White, modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            defEndpointRules = defEndpointRules.toMutableList().apply { removeAt(idx) }
+                        }) { Text("✕", color = AppColors.TextTertiary) }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedTextField(value = newRulePrefix, onValueChange = { newRulePrefix = it },
+                        label = { Text("Prefix") }, singleLine = true,
+                        modifier = Modifier.weight(1f), colors = AppColors.outlinedFieldColors())
+                    listOf("responses", "chat").forEach {
+                        FilterChip(selected = newRuleType == it, onClick = { newRuleType = it },
+                            label = { Text(it, fontSize = 11.sp) })
+                    }
+                }
+                Button(
+                    onClick = {
+                        val p = newRulePrefix.trim()
+                        if (p.isNotBlank()) {
+                            defEndpointRules = defEndpointRules + EndpointRule(p, newRuleType)
+                            newRulePrefix = ""
+                        }
+                    },
+                    enabled = newRulePrefix.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Add rule", maxLines = 1, softWrap = false) }
+            }
+
+            CollapsibleCard(title = "Definition · Storage", summary = "id=${service.id}") {
+                Text("ID and prefs key are immutable — changing them would orphan stored API keys, models, and usage statistics.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary)
+                OutlinedTextField(value = service.id, onValueChange = {},
+                    label = { Text("ID") }, singleLine = true, readOnly = true, enabled = false,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = service.prefsKey, onValueChange = {},
+                    label = { Text("Prefs key") }, singleLine = true, readOnly = true, enabled = false,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
         }
     }
