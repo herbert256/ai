@@ -175,6 +175,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                     cache[stat.key] = stat
                 } catch (_: Exception) { /* skip rows that reference an unknown provider id */ }
             }
+            // If the file had rows but every single one failed to deserialise — most likely
+            // ProviderRegistry hasn't initialised yet so AppServiceAdapter throws on every
+            // provider id — refuse to commit the empty cache and let the next call retry.
+            if (cache.isEmpty() && arr.size() > 0) return@synchronized cache
             usageStatsCache = cache
             cache
         }
