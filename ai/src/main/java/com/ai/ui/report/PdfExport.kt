@@ -1,10 +1,13 @@
 package com.ai.ui.report
 
 import android.content.Context
-import android.print.PrintAttributes
-import android.print.PrintManager
+import android.content.Intent
+import android.graphics.Color as AndroidColor
+import android.graphics.pdf.PdfDocument
+import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.core.content.FileProvider
 import com.ai.data.AnalysisRepository
 import com.ai.data.ApiTrace
 import com.ai.data.ApiTracer
@@ -22,10 +25,13 @@ import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 private data class IntroCostRow(
     val introducedFor: String,
@@ -121,9 +127,19 @@ suspend fun shareReportAsPdf(
 
     val html = buildPdfHtml(context, report, traces, intros, introCosts, getAppVersion(context))
 
-    val jobName = "AI Report - ${report.title.ifBlank { "Untitled" }} - ${pdfTimestamp()}"
-    withContext(Dispatchers.Main) { openPrintDialog(context, html, jobName) }
+    val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+    val output = File(context.cacheDir, "ai_report_${safeTitle}_${pdfTimestamp()}.pdf")
+    withContext(Dispatchers.Main) { renderHtmlToPdfFile(context, html, output) }
     onProgress(totalSteps, totalSteps)
+
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", output)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "application/pdf"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(intent, "Share AI Report (PDF)"))
     return true
 }
 
@@ -354,28 +370,57 @@ private fun getAppVersion(context: Context): String = try {
 
 // ===== HTML → PDF via WebView print adapter (must run on Main) =====
 
-// Hold the WebView until the system print spooler is done with the adapter, otherwise the
-// adapter starts driving a GC'd view and the print job fails silently.
-private val webViewKeepalive = mutableListOf<WebView>()
-
-private suspend fun openPrintDialog(context: Context, html: String, jobName: String): Unit =
+/**
+ * Render the HTML into a multi-page PDF file we can hand to a standard share intent.
+ *
+ * The HTML is loaded into an off-screen WebView at A4 width (1240px ≈ A4 at 150 DPI). We
+ * then measure the full content height with UNSPECIFIED, lay out, and slice the rendered
+ * canvas into PDF pages of (1240 × 1754) px. CSS `page-break-before: always` isn't honoured
+ * by this slicing path — content flows naturally and may split mid-section — but every line
+ * remains readable and the per-model headings remain intact.
+ *
+ * Must be called from Main since WebView's measure / layout / draw require the UI thread.
+ */
+private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File): Unit =
     suspendCancellableCoroutine { cont ->
+        val pageWidth = 1240
+        val pageHeight = 1754
         val webView = WebView(context.applicationContext)
-        webViewKeepalive += webView
         webView.settings.javaScriptEnabled = false
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String?) {
-                try {
-                    val attrs = PrintAttributes.Builder()
-                        .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
-                        .build()
-                    val adapter = view.createPrintDocumentAdapter(jobName)
-                    val pm = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-                    pm.print(jobName, adapter, attrs)
-                    if (cont.isActive) cont.resume(Unit)
-                } catch (e: Exception) {
-                    webViewKeepalive.remove(webView)
-                    if (cont.isActive) cont.resume(Unit)
+                view.post {
+                    try {
+                        view.measure(
+                            View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                        )
+                        val totalHeight = view.measuredHeight.coerceAtLeast(pageHeight)
+                        view.layout(0, 0, pageWidth, totalHeight)
+
+                        val pdf = PdfDocument()
+                        var rendered = 0
+                        var pageNum = 1
+                        while (rendered < totalHeight) {
+                            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
+                            val page = pdf.startPage(pageInfo)
+                            val canvas = page.canvas
+                            canvas.drawColor(AndroidColor.WHITE)
+                            canvas.save()
+                            canvas.translate(0f, -rendered.toFloat())
+                            view.draw(canvas)
+                            canvas.restore()
+                            pdf.finishPage(page)
+                            rendered += pageHeight
+                            pageNum++
+                        }
+                        if (output.exists()) output.delete()
+                        FileOutputStream(output).use { pdf.writeTo(it) }
+                        pdf.close()
+                        if (cont.isActive) cont.resume(Unit)
+                    } catch (e: Exception) {
+                        if (cont.isActive) cont.resumeWithException(e)
+                    }
                 }
             }
         }
