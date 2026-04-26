@@ -10,6 +10,7 @@
       "adminUrl": "https://platform.openai.com/settings/organization/api-keys",
       "defaultModel": "gpt-4o-mini",
       "openRouterName": "openai",
+      "responsesPath": "v1/responses",
       "prefsKey": "ai_openai",
       "modelFilter": "gpt|o1|o3|o4",
       "defaultModelSource": "API",

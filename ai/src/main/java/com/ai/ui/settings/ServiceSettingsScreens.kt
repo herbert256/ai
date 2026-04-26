@@ -267,6 +267,7 @@ fun ProviderSettingsScreen(
     var defOpenRouterName by remember(service.id) { mutableStateOf(service.openRouterName ?: "") }
     var defApiFormat by remember(service.id) { mutableStateOf(service.apiFormat) }
     var defChatPath by remember(service.id) { mutableStateOf(service.chatPath) }
+    var defResponsesPath by remember(service.id) { mutableStateOf(service.responsesPath ?: "") }
     var defModelsPath by remember(service.id) { mutableStateOf(service.modelsPath ?: "") }
     var defSeedFieldName by remember(service.id) { mutableStateOf(service.seedFieldName) }
     var defModelListFormat by remember(service.id) { mutableStateOf(service.modelListFormat) }
@@ -286,7 +287,7 @@ fun ProviderSettingsScreen(
 
     LaunchedEffect(
         defDisplayName, defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
-        defChatPath, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
+        defChatPath, defResponsesPath, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
         defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
         defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText, defEndpointRules
     ) {
@@ -299,6 +300,7 @@ fun ProviderSettingsScreen(
             defOpenRouterName == (service.openRouterName ?: "") &&
             defApiFormat == service.apiFormat &&
             defChatPath == service.chatPath &&
+            defResponsesPath == (service.responsesPath ?: "") &&
             defModelsPath == (service.modelsPath ?: "") &&
             defSeedFieldName == service.seedFieldName &&
             defModelListFormat == service.modelListFormat &&
@@ -323,6 +325,7 @@ fun ProviderSettingsScreen(
             openRouterName = defOpenRouterName.trim().ifBlank { null },
             apiFormat = defApiFormat,
             chatPath = defChatPath.trim().ifBlank { "v1/chat/completions" },
+            responsesPath = defResponsesPath.trim().ifBlank { null },
             modelsPath = defModelsPath.trim().ifBlank { null },
             prefsKey = service.prefsKey,
             seedFieldName = defSeedFieldName.trim().ifBlank { "seed" },
@@ -569,7 +572,10 @@ fun ProviderSettingsScreen(
                     }
                 }
                 OutlinedTextField(value = defChatPath, onValueChange = { defChatPath = it },
-                    label = { Text("Chat path") }, singleLine = true,
+                    label = { Text("Chat completion path") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defResponsesPath, onValueChange = { defResponsesPath = it },
+                    label = { Text("Responses path (blank = none)") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
                 OutlinedTextField(value = defModelsPath, onValueChange = { defModelsPath = it },
                     label = { Text("Models path (blank = no list API)") }, singleLine = true,

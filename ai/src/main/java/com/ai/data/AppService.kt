@@ -31,6 +31,7 @@ class AppService(
     val openRouterName: String? = null,
     val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE,
     val chatPath: String = "v1/chat/completions",
+    val responsesPath: String? = null,
     val modelsPath: String? = "v1/models",
     val prefsKey: String = "",
     val seedFieldName: String = "seed",
