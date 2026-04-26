@@ -30,8 +30,10 @@ class AppService(
     val defaultModel: String,
     val openRouterName: String? = null,
     val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE,
-    val chatPath: String = "v1/chat/completions",
-    val responsesPath: String? = null,
+    /** Per-type API paths the provider exposes ("chat" → "v1/chat/completions",
+     *  "embedding" → "v1/embeddings", etc.). `chatPath` and `responsesPath` are
+     *  computed views over this map for back-compat. */
+    val typePaths: Map<String, String> = emptyMap(),
     val modelsPath: String? = "v1/models",
     val prefsKey: String = "",
     val seedFieldName: String = "seed",
@@ -47,6 +49,18 @@ class AppService(
     val endpointRules: List<EndpointRule> = emptyList()
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
+
+    /** Path used for the /chat/completions style endpoint. */
+    val chatPath: String get() = pathFor(ModelType.CHAT) ?: ModelType.DEFAULT_PATHS[ModelType.CHAT]!!
+
+    /** Path used for OpenAI-style Responses API. Null when neither the provider
+     *  nor the user-supplied defaults declare one. */
+    val responsesPath: String? get() = typePaths[ModelType.RESPONSES] ?: ModelType.userDefaults[ModelType.RESPONSES]
+
+    /** Resolve a path for any model type. Per-provider override → user-supplied
+     *  global default (from AI Setup → Model Types) → hardcoded ModelType.DEFAULT_PATHS. */
+    fun pathFor(type: String): String? =
+        typePaths[type] ?: ModelType.userDefaults[type] ?: ModelType.DEFAULT_PATHS[type]
 
     override fun equals(other: Any?): Boolean = other is AppService && other.id == id
     override fun hashCode(): Int = id.hashCode()

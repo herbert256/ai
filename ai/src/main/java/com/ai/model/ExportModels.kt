@@ -19,6 +19,7 @@ data class ProviderConfigExport(
     val baseUrl: String? = null,
     val apiFormat: String? = null,
     val chatPath: String? = null,
+    val typePaths: Map<String, String>? = null,
     val modelsPath: String? = null,
     val openRouterName: String? = null,
     val endpointRules: List<EndpointRule>? = null

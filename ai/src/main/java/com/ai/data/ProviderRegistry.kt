@@ -110,7 +110,11 @@ data class ProviderDefinition(
     val defaultModel: String,
     val openRouterName: String? = null,
     val apiFormat: String? = "OPENAI_COMPATIBLE",
-    val chatPath: String? = "v1/chat/completions",
+    /** Canonical per-type path map. */
+    val typePaths: Map<String, String>? = null,
+    /** Legacy field — folded into typePaths during deserialization for existing prefs / setup.json. */
+    val chatPath: String? = null,
+    /** Legacy field — folded into typePaths during deserialization. */
     val responsesPath: String? = null,
     val modelsPath: String? = "v1/models",
     val prefsKey: String? = "",
@@ -126,27 +130,37 @@ data class ProviderDefinition(
     val defaultModelSource: String? = null,
     val endpointRules: List<EndpointRule>? = null
 ) {
-    fun toAppService(): AppService = AppService(
-        id = id, displayName = displayName, baseUrl = baseUrl, adminUrl = adminUrl ?: "",
-        defaultModel = defaultModel, openRouterName = openRouterName,
-        apiFormat = try { ApiFormat.valueOf(apiFormat ?: "OPENAI_COMPATIBLE") } catch (_: Exception) { ApiFormat.OPENAI_COMPATIBLE },
-        chatPath = chatPath ?: "v1/chat/completions",
-        responsesPath = responsesPath?.takeIf { it.isNotBlank() },
-        modelsPath = modelsPath,
-        prefsKey = prefsKey ?: id.lowercase(), seedFieldName = seedFieldName ?: "seed",
-        supportsCitations = supportsCitations ?: false, supportsSearchRecency = supportsSearchRecency ?: false,
-        extractApiCost = extractApiCost ?: false, costTicksDivisor = costTicksDivisor,
-        modelListFormat = modelListFormat ?: "object", modelFilter = modelFilter,
-        litellmPrefix = litellmPrefix, hardcodedModels = hardcodedModels,
-        defaultModelSource = defaultModelSource, endpointRules = endpointRules ?: emptyList()
-    )
+    fun toAppService(): AppService {
+        // Migrate legacy chatPath/responsesPath into the typePaths map. Explicit
+        // map entries always win; legacy fields only fill in if the corresponding
+        // type isn't already declared.
+        val paths = (typePaths ?: emptyMap()).toMutableMap()
+        chatPath?.takeIf { it.isNotBlank() }?.let { paths.putIfAbsent(ModelType.CHAT, it) }
+        responsesPath?.takeIf { it.isNotBlank() }?.let { paths.putIfAbsent(ModelType.RESPONSES, it) }
+        return AppService(
+            id = id, displayName = displayName, baseUrl = baseUrl, adminUrl = adminUrl ?: "",
+            defaultModel = defaultModel, openRouterName = openRouterName,
+            apiFormat = try { ApiFormat.valueOf(apiFormat ?: "OPENAI_COMPATIBLE") } catch (_: Exception) { ApiFormat.OPENAI_COMPATIBLE },
+            typePaths = paths,
+            modelsPath = modelsPath,
+            prefsKey = prefsKey ?: id.lowercase(), seedFieldName = seedFieldName ?: "seed",
+            supportsCitations = supportsCitations ?: false, supportsSearchRecency = supportsSearchRecency ?: false,
+            extractApiCost = extractApiCost ?: false, costTicksDivisor = costTicksDivisor,
+            modelListFormat = modelListFormat ?: "object", modelFilter = modelFilter,
+            litellmPrefix = litellmPrefix, hardcodedModels = hardcodedModels,
+            defaultModelSource = defaultModelSource, endpointRules = endpointRules ?: emptyList()
+        )
+    }
 
     companion object {
         fun fromAppService(s: AppService) = ProviderDefinition(
             id = s.id, displayName = s.displayName, baseUrl = s.baseUrl, adminUrl = s.adminUrl,
             defaultModel = s.defaultModel, openRouterName = s.openRouterName,
-            apiFormat = s.apiFormat.name, chatPath = s.chatPath,
-            responsesPath = s.responsesPath, modelsPath = s.modelsPath,
+            apiFormat = s.apiFormat.name,
+            typePaths = s.typePaths.takeIf { it.isNotEmpty() },
+            // Legacy fields no longer written — typePaths is canonical now.
+            chatPath = null, responsesPath = null,
+            modelsPath = s.modelsPath,
             prefsKey = s.prefsKey, seedFieldName = s.seedFieldName,
             supportsCitations = s.supportsCitations, supportsSearchRecency = s.supportsSearchRecency,
             extractApiCost = s.extractApiCost, costTicksDivisor = s.costTicksDivisor,

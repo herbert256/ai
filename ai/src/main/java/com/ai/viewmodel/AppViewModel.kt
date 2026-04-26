@@ -25,7 +25,11 @@ data class GeneralSettings(
     val userName: String = "user",
     val huggingFaceApiKey: String = "",
     val openRouterApiKey: String = "",
-    val defaultEmail: String = ""
+    val defaultEmail: String = "",
+    /** Default API path per model type. Used when a provider doesn't declare a
+     *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS
+     *  when this map is empty for a given type. */
+    val defaultTypePaths: Map<String, String> = emptyMap()
 )
 
 // Prompt history entry
@@ -122,6 +126,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         PricingCache.preloadAsync(application, viewModelScope)
         viewModelScope.launch(Dispatchers.IO) {
             val bs = bootstrap(application)
+            // Publish user-supplied default type paths to the global resolver so dispatch
+            // (which doesn't see GeneralSettings directly) can fall back through them.
+            ModelType.userDefaults = bs.first.defaultTypePaths
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             refreshAllModelLists(bs.second)
         }
@@ -171,6 +178,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ===== Settings =====
 
     fun updateGeneralSettings(settings: GeneralSettings) {
+        ModelType.userDefaults = settings.defaultTypePaths
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
     }
@@ -215,19 +223,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val fetched = repository.fetchModelsWithKinds(service, apiKey)
                 _uiState.update { state ->
-                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.kinds)
+                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types)
                     // Cross-pollinate OpenRouter labels — covers two flows:
                     //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
                     //   • OpenRouter fetch propagates fresh labels to every other provider
-                    state.copy(aiSettings = withSelf.applyOpenRouterKinds(), loadingModelsFor = state.loadingModelsFor - service)
+                    state.copy(aiSettings = withSelf.applyOpenRouterTypes(), loadingModelsFor = state.loadingModelsFor - service)
                 }
                 val final = _uiState.value.aiSettings
-                settingsPrefs.saveModelsForProvider(service, fetched.ids, final.getProvider(service).modelKinds)
+                settingsPrefs.saveModelsForProvider(service, fetched.ids, final.getProvider(service).modelTypes)
                 if (service.id == "OPENROUTER") {
                     // Persist the freshly cross-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->
                         val cfg = final.getProvider(other)
-                        if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelKinds)
+                        if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelTypes)
                     }
                 }
             } catch (e: Exception) {
@@ -253,8 +261,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         onProgress?.invoke(service.displayName)
                         try {
                             val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
-                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.kinds)) }
-                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.kinds)
+                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types)) }
+                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types)
                             service to fetched.ids.size
                         } catch (_: Exception) { service to -1 }
                     }
@@ -265,11 +273,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (successful.isNotEmpty()) settingsPrefs.updateModelListTimestamps(successful)
             // Final cross-lookup pass — guarantees that whichever order the parallel
             // fetches finished in, OpenRouter's labels end up applied everywhere.
-            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.applyOpenRouterKinds()) }
+            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.applyOpenRouterTypes()) }
             val final = _uiState.value.aiSettings
             successful.forEach { service ->
                 val cfg = final.getProvider(service)
-                if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelKinds)
+                if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelTypes)
             }
             results.associate { it.first.displayName to it.second }
         }

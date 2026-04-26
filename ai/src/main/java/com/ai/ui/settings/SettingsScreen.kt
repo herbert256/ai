@@ -18,6 +18,7 @@ import com.ai.viewmodel.GeneralSettings
 enum class SettingsSubScreen {
     MAIN, AI_PROVIDER_EDIT, AI_PROVIDER_ADD, AI_SETUP, AI_PROVIDERS,
     AI_MODELS, AI_MODEL_EDIT,
+    AI_MODEL_TYPES,
     AI_AGENTS, AI_AGENT_EDIT,
     AI_FLOCKS, AI_FLOCK_EDIT,
     AI_SWARMS, AI_SWARM_EDIT,
@@ -76,7 +77,8 @@ fun SettingsScreen(
                 modelEditFromProvider = false
                 currentSubScreen = if (from) SettingsSubScreen.AI_PROVIDER_EDIT else SettingsSubScreen.AI_MODELS
             }
-            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
+            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_MODEL_TYPES,
+            SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PROMPTS, SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
@@ -162,6 +164,13 @@ fun SettingsScreen(
                     onNavigateToTrace = onNavigateToTrace
                 )
             } ?: goBack()
+        }
+        SettingsSubScreen.AI_MODEL_TYPES -> {
+            ModelTypesScreen(
+                generalSettings = generalSettings,
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onSave = onSaveGeneral
+            )
         }
         SettingsSubScreen.AI_AGENTS -> {
             AgentsScreen(

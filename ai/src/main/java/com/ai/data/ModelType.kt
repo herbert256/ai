@@ -1,17 +1,21 @@
 package com.ai.data
 
 /**
- * Single-string taxonomy for model capabilities. Models can in reality span multiple
- * categories (a vision model is "chat with image input"), but the app uses one kind
- * per model to drive dispatch — pick the dominant capability.
+ * Single-string taxonomy for what a model does. A model gets one type per the
+ * dominant capability — vision-capable chat is still CHAT, dated chat snapshots
+ * routed via OpenAI's Responses API are RESPONSES, and so on.
  *
  * Detection happens in two passes:
  *   1. Native list-API fields where the provider exposes them
  *      (`fromOpenRouterModality`, `fromCohereEndpoints`, `fromGeminiMethods`).
  *   2. Naming heuristic on the model id (`infer`) for everyone else.
+ *
+ * Each type also has a default path on the provider — see GeneralSettings
+ * defaultTypePaths and the per-provider typePaths map.
  */
-object ModelKind {
+object ModelType {
     const val CHAT = "chat"
+    const val RESPONSES = "responses"
     const val EMBEDDING = "embedding"
     const val RERANK = "rerank"
     const val IMAGE = "image"
@@ -20,6 +24,29 @@ object ModelKind {
     const val MODERATION = "moderation"
     const val CLASSIFY = "classify"
     const val UNKNOWN = "unknown"
+
+    /** Every type the user can configure paths for, in display order. UNKNOWN is
+     *  intentionally excluded — it's a runtime fallback, not a configurable kind. */
+    val ALL: List<String> = listOf(CHAT, RESPONSES, EMBEDDING, RERANK, IMAGE, TTS, STT, MODERATION, CLASSIFY)
+
+    /** User-supplied global defaults from AI Setup → Model Types. Sits between the
+     *  per-provider override and the hardcoded DEFAULT_PATHS. AppViewModel keeps
+     *  this in sync with GeneralSettings.defaultTypePaths on every settings save. */
+    @Volatile var userDefaults: Map<String, String> = emptyMap()
+
+    /** Sensible default path for each type; used as the last-resort fallback if
+     *  neither the per-provider override nor the GeneralSettings default is set. */
+    val DEFAULT_PATHS: Map<String, String> = mapOf(
+        CHAT to "v1/chat/completions",
+        RESPONSES to "v1/responses",
+        EMBEDDING to "v1/embeddings",
+        RERANK to "v1/rerank",
+        IMAGE to "v1/images/generations",
+        TTS to "v1/audio/speech",
+        STT to "v1/audio/transcriptions",
+        MODERATION to "v1/moderations",
+        CLASSIFY to "v1/classify"
+    )
 
     /**
      * Naming-based fallback. Conservative: anything not matching a non-chat pattern
@@ -39,10 +66,7 @@ object ModelKind {
         }
     }
 
-    /**
-     * Map an OpenRouter `architecture.modality` value (e.g. "text->text",
-     * "text+image->text", "text->image") to a kind.
-     */
+    /** Map an OpenRouter `architecture.modality` value to a type. */
     fun fromOpenRouterModality(modality: String?): String? {
         if (modality.isNullOrBlank()) return null
         val output = modality.substringAfter("->", missingDelimiterValue = modality)
@@ -54,7 +78,7 @@ object ModelKind {
         }
     }
 
-    /** Pick the most specific kind from a Cohere `endpoints` array. */
+    /** Pick the most specific type from a Cohere `endpoints` array. */
     fun fromCohereEndpoints(endpoints: List<String>?): String? {
         if (endpoints.isNullOrEmpty()) return null
         val lower = endpoints.map { it.lowercase() }
@@ -67,7 +91,7 @@ object ModelKind {
         }
     }
 
-    /** Map Gemini `supportedGenerationMethods` to a kind. */
+    /** Map Gemini `supportedGenerationMethods` to a type. */
     fun fromGeminiMethods(methods: List<String>?): String? {
         if (methods.isNullOrEmpty()) return null
         return when {
@@ -78,5 +102,5 @@ object ModelKind {
     }
 }
 
-/** Result type for model-list fetches: ids in their native order plus a kind map. */
-data class FetchedModels(val ids: List<String>, val kinds: Map<String, String>)
+/** Result type for model-list fetches: ids in their native order plus a type map. */
+data class FetchedModels(val ids: List<String>, val types: Map<String, String>)

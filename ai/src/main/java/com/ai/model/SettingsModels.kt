@@ -10,11 +10,11 @@ data class ProviderConfig(
     val model: String = "",
     val modelSource: ModelSource = ModelSource.API,
     val models: List<String> = emptyList(),
-    /** Kind classification per model id ("chat", "embedding", "rerank", ...). Sidecar
+    /** Type classification per model id ("chat", "embedding", "rerank", ...). Sidecar
      *  to `models` rather than embedded so existing screens can keep treating models
      *  as a plain id list. Sourced from native list APIs where possible, naming
      *  heuristic otherwise. */
-    val modelKinds: Map<String, String> = emptyMap(),
+    val modelTypes: Map<String, String> = emptyMap(),
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -137,35 +137,35 @@ data class Settings(
     fun getModelSource(service: AppService) = getProvider(service).modelSource
     fun getModels(service: AppService) = getProvider(service).models
     fun withModels(service: AppService, models: List<String>) = withProvider(service, getProvider(service).copy(models = models))
-    fun withModels(service: AppService, models: List<String>, kinds: Map<String, String>) =
-        withProvider(service, getProvider(service).copy(models = models, modelKinds = kinds))
-    fun getModelKind(service: AppService, modelId: String): String? = getProvider(service).modelKinds[modelId]
+    fun withModels(service: AppService, models: List<String>, types: Map<String, String>) =
+        withProvider(service, getProvider(service).copy(models = models, modelTypes = types))
+    fun getModelType(service: AppService, modelId: String): String? = getProvider(service).modelTypes[modelId]
 
     /**
-     * Cross-pollinate per-provider kind labels from OpenRouter's catalog: for any model
+     * Cross-pollinate per-provider type labels from OpenRouter's catalog: for any model
      * we currently treat as plain CHAT (the heuristic / unknown default), look up
      * `${service.openRouterName}/${modelId}` in OpenRouter's labeled list and adopt
-     * its kind if it's something more specific. Native non-chat kinds we already
+     * its type if it's something more specific. Native non-chat kinds we already
      * inferred from the provider itself (Cohere endpoints, Gemini methods) are left
      * untouched. Re-call this after any OpenRouter or per-provider fetch.
      */
-    fun applyOpenRouterKinds(): Settings {
+    fun applyOpenRouterTypes(): Settings {
         val orProvider = AppService.findById("OPENROUTER") ?: return this
-        val orKinds = getProvider(orProvider).modelKinds
-        if (orKinds.isEmpty()) return this
+        val orTypes = getProvider(orProvider).modelTypes
+        if (orTypes.isEmpty()) return this
         var updated = this
         for (service in AppService.entries) {
             if (service.id == "OPENROUTER") continue
             val orPrefix = service.openRouterName ?: continue
             val cfg = getProvider(service)
             if (cfg.models.isEmpty()) continue
-            val newKinds = cfg.models.associateWith { id ->
-                val current = cfg.modelKinds[id] ?: com.ai.data.ModelKind.CHAT
-                val orKind = orKinds["$orPrefix/$id"]
-                if (current == com.ai.data.ModelKind.CHAT && orKind != null && orKind != com.ai.data.ModelKind.CHAT) orKind else current
+            val newTypes = cfg.models.associateWith { id ->
+                val current = cfg.modelTypes[id] ?: com.ai.data.ModelType.CHAT
+                val orKind = orTypes["$orPrefix/$id"]
+                if (current == com.ai.data.ModelType.CHAT && orKind != null && orKind != com.ai.data.ModelType.CHAT) orKind else current
             }
-            if (newKinds != cfg.modelKinds) {
-                updated = updated.withModels(service, cfg.models, newKinds)
+            if (newTypes != cfg.modelTypes) {
+                updated = updated.withModels(service, cfg.models, newTypes)
             }
         }
         return updated

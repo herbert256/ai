@@ -207,7 +207,7 @@ fun ProviderAddScreen(
                     defaultModel = defaultModel.trim(),
                     openRouterName = openRouterName.trim().ifBlank { null },
                     apiFormat = apiFormat,
-                    chatPath = chatPath.trim().ifBlank { "v1/chat/completions" },
+                    typePaths = chatPath.trim().ifBlank { null }?.let { mapOf(com.ai.data.ModelType.CHAT to it) } ?: emptyMap(),
                     modelsPath = modelsPath.trim().ifBlank { null },
                     prefsKey = prefsKey.trim().ifBlank { normalizedId.lowercase() },
                     seedFieldName = seedFieldName.trim().ifBlank { "seed" },

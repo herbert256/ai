@@ -35,18 +35,18 @@ import kotlinx.coroutines.launch
  *  users can tell at a glance which entries in a long list are non-chat. Color-coded
  *  for the common kinds and falls back to a neutral gray for anything unexpected. */
 @Composable
-private fun ModelKindChip(kind: String) {
-    val color = when (kind) {
-        com.ai.data.ModelKind.CHAT -> AppColors.Blue
-        com.ai.data.ModelKind.EMBEDDING -> AppColors.Purple
-        com.ai.data.ModelKind.RERANK -> AppColors.Indigo
-        com.ai.data.ModelKind.IMAGE -> AppColors.Orange
-        com.ai.data.ModelKind.TTS, com.ai.data.ModelKind.STT -> AppColors.Green
-        com.ai.data.ModelKind.MODERATION, com.ai.data.ModelKind.CLASSIFY -> AppColors.Red
+private fun ModelTypeChip(type: String) {
+    val color = when (type) {
+        com.ai.data.ModelType.CHAT -> AppColors.Blue
+        com.ai.data.ModelType.EMBEDDING -> AppColors.Purple
+        com.ai.data.ModelType.RERANK -> AppColors.Indigo
+        com.ai.data.ModelType.IMAGE -> AppColors.Orange
+        com.ai.data.ModelType.TTS, com.ai.data.ModelType.STT -> AppColors.Green
+        com.ai.data.ModelType.MODERATION, com.ai.data.ModelType.CLASSIFY -> AppColors.Red
         else -> AppColors.TextDim
     }
     Text(
-        text = kind,
+        text = type,
         fontSize = 9.sp,
         color = Color.White,
         modifier = Modifier
@@ -303,7 +303,7 @@ fun ProviderModelSettingsScreen(
             if (models.isNotEmpty()) {
                 Text("${models.size} models available", fontSize = 12.sp, color = AppColors.TextTertiary)
                 HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 4.dp))
-                val rowKinds = config.modelKinds
+                val rowTypes = config.modelTypes
                 models.sorted().forEach { modelId ->
                     Row(
                         modifier = Modifier
@@ -318,8 +318,8 @@ fun ProviderModelSettingsScreen(
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        rowKinds[modelId]?.let { kind ->
-                            ModelKindChip(kind)
+                        rowTypes[modelId]?.let { kind ->
+                            ModelTypeChip(kind)
                         }
                         // Test-status icon when a Test all models run has touched this row.
                         ModelTestStatusIcon(
@@ -386,8 +386,11 @@ fun ProviderSettingsScreen(
     var defDefaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
     var defOpenRouterName by remember(service.id) { mutableStateOf(service.openRouterName ?: "") }
     var defApiFormat by remember(service.id) { mutableStateOf(service.apiFormat) }
-    var defChatPath by remember(service.id) { mutableStateOf(service.chatPath) }
-    var defResponsesPath by remember(service.id) { mutableStateOf(service.responsesPath ?: "") }
+    // One path-state entry per ModelType — provider-level overrides for the global
+    // default paths configured in AI Setup → Model Types.
+    var defTypePaths by remember(service.id) {
+        mutableStateOf(com.ai.data.ModelType.ALL.associateWith { service.typePaths[it] ?: "" })
+    }
     var defModelsPath by remember(service.id) { mutableStateOf(service.modelsPath ?: "") }
     var defSeedFieldName by remember(service.id) { mutableStateOf(service.seedFieldName) }
     var defModelListFormat by remember(service.id) { mutableStateOf(service.modelListFormat) }
@@ -407,7 +410,7 @@ fun ProviderSettingsScreen(
 
     LaunchedEffect(
         defDisplayName, defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
-        defChatPath, defResponsesPath, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
+        defTypePaths, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
         defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
         defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText, defEndpointRules
     ) {
@@ -419,8 +422,7 @@ fun ProviderSettingsScreen(
             defDefaultModel == service.defaultModel &&
             defOpenRouterName == (service.openRouterName ?: "") &&
             defApiFormat == service.apiFormat &&
-            defChatPath == service.chatPath &&
-            defResponsesPath == (service.responsesPath ?: "") &&
+            defTypePaths.filterValues { it.isNotBlank() } == service.typePaths &&
             defModelsPath == (service.modelsPath ?: "") &&
             defSeedFieldName == service.seedFieldName &&
             defModelListFormat == service.modelListFormat &&
@@ -444,8 +446,7 @@ fun ProviderSettingsScreen(
             defaultModel = defDefaultModel.trim(),
             openRouterName = defOpenRouterName.trim().ifBlank { null },
             apiFormat = defApiFormat,
-            chatPath = defChatPath.trim().ifBlank { "v1/chat/completions" },
-            responsesPath = defResponsesPath.trim().ifBlank { null },
+            typePaths = defTypePaths.mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
             modelsPath = defModelsPath.trim().ifBlank { null },
             prefsKey = service.prefsKey,
             seedFieldName = defSeedFieldName.trim().ifBlank { "seed" },
@@ -691,12 +692,24 @@ fun ProviderSettingsScreen(
                             label = { Text(fmt.name, fontSize = 11.sp) })
                     }
                 }
-                OutlinedTextField(value = defChatPath, onValueChange = { defChatPath = it },
-                    label = { Text("Chat completion path") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
-                OutlinedTextField(value = defResponsesPath, onValueChange = { defResponsesPath = it },
-                    label = { Text("Responses path (blank = none)") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                // Per-type path overrides — one row per ModelType. Blank means "use the
+                // default from AI Setup → Model Types" (or the hardcoded fallback if that's
+                // also blank). The placeholder shows the eventual fallback so the user
+                // sees what will be used if they leave the field empty.
+                Text("Type paths", fontSize = 12.sp, color = AppColors.TextTertiary)
+                com.ai.data.ModelType.ALL.forEach { type ->
+                    val current = defTypePaths[type] ?: ""
+                    val placeholder = com.ai.data.ModelType.DEFAULT_PATHS[type] ?: ""
+                    OutlinedTextField(
+                        value = current,
+                        onValueChange = { defTypePaths = defTypePaths + (type to it) },
+                        label = { Text(type.replaceFirstChar { c -> c.uppercase() }) },
+                        placeholder = { Text(placeholder, fontSize = 11.sp, color = AppColors.TextDim) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedFieldColors()
+                    )
+                }
                 OutlinedTextField(value = defModelsPath, onValueChange = { defModelsPath = it },
                     label = { Text("Models path (blank = no list API)") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())

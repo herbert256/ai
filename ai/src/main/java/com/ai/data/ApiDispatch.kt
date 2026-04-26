@@ -71,7 +71,7 @@ suspend fun AnalysisRepository.fetchModels(
 ): List<String> = fetchModelsWithKinds(service, apiKey).ids
 
 /**
- * Fetch available models plus a per-model kind classification. Native list-API
+ * Fetch available models plus a per-model type classification. Native list-API
  * fields are preferred (OpenRouter modality, Cohere endpoints, Gemini supported
  * methods); naming heuristic fills in for everything else.
  */
@@ -301,10 +301,10 @@ private suspend fun AnalysisRepository.chatGemini(
 private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, apiKey: String): FetchedModels {
     if (service.hardcodedModels != null && service.modelsPath == null) {
         val ids = service.hardcodedModels
-        return FetchedModels(ids, ids.associateWith { ModelKind.infer(it) })
+        return FetchedModels(ids, ids.associateWith { ModelType.infer(it) })
     }
 
-    // OpenRouter exposes architecture.modality on its detailed list — use that for kinds.
+    // OpenRouter exposes architecture.modality on its detailed list — use that for types.
     if (service.id == "OPENROUTER") {
         val orApi = ApiFactory.createOpenRouterModelsApi(service.baseUrl)
         val response = try { orApi.listModelsDetailed("Bearer $apiKey") } catch (_: Exception) { null }
@@ -312,11 +312,11 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         if (data.isNotEmpty()) {
             val filtered = service.modelFilterRegex?.let { regex -> data.filter { regex.containsMatchIn(it.id) } } ?: data
             val ids = filtered.map { it.id }.sorted()
-            val kinds = ids.associateWith { id ->
+            val types = ids.associateWith { id ->
                 val info = filtered.firstOrNull { it.id == id }
-                ModelKind.fromOpenRouterModality(info?.architecture?.modality) ?: ModelKind.infer(id)
+                ModelType.fromOpenRouterModality(info?.architecture?.modality) ?: ModelType.infer(id)
             }
-            return FetchedModels(ids, kinds)
+            return FetchedModels(ids, types)
         }
         // Fall through to the basic /v1/models call below if the detailed call failed.
     }
@@ -334,22 +334,22 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     val ids = filtered.sorted()
 
     // Cohere's compatibility endpoint strips the `endpoints` field. Hit the native
-    // api.cohere.com/v1/models to recover per-model kinds; fall back to heuristic.
-    val nativeKinds: Map<String, String?> = if (service.id == "COHERE") {
+    // api.cohere.com/v1/models to recover per-model types; fall back to heuristic.
+    val nativeTypes: Map<String, String?> = if (service.id == "COHERE") {
         try {
             val cohere = ApiFactory.createCohereNativeApi()
             val resp = cohere.listModels("Bearer $apiKey")
             if (resp.isSuccessful) {
                 resp.body()?.models.orEmpty().mapNotNull { m ->
                     val name = m.name ?: return@mapNotNull null
-                    name to ModelKind.fromCohereEndpoints(m.endpoints)
+                    name to ModelType.fromCohereEndpoints(m.endpoints)
                 }.toMap()
             } else emptyMap()
         } catch (_: Exception) { emptyMap() }
     } else emptyMap()
 
-    val kinds = ids.associateWith { id -> nativeKinds[id] ?: ModelKind.infer(id) }
-    return FetchedModels(ids, kinds)
+    val types = ids.associateWith { id -> nativeTypes[id] ?: ModelType.infer(id) }
+    return FetchedModels(ids, types)
 }
 
 private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService, apiKey: String): FetchedModels {
@@ -359,7 +359,7 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         val ids = if (response.isSuccessful)
             response.body()?.data?.mapNotNull { it.id }?.filter { it.startsWith("claude") }?.sorted().orEmpty()
         else emptyList()
-        FetchedModels(ids, ids.associateWith { ModelKind.CHAT })
+        FetchedModels(ids, ids.associateWith { ModelType.CHAT })
     } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }
 }
 
@@ -373,8 +373,8 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
             // expose neither (countTokens-only, etc.) since the app can't drive them.
             val all = response.body()?.models.orEmpty().mapNotNull { m ->
                 val name = m.name?.removePrefix("models/") ?: return@mapNotNull null
-                val kind = ModelKind.fromGeminiMethods(m.supportedGenerationMethods)
-                if (kind != null) name to kind else null
+                val type = ModelType.fromGeminiMethods(m.supportedGenerationMethods)
+                if (type != null) name to type else null
             }.toMap()
             val ids = all.keys.sorted()
             FetchedModels(ids, all)

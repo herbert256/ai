@@ -10,7 +10,6 @@
       "adminUrl": "https://platform.openai.com/settings/organization/api-keys",
       "defaultModel": "gpt-4o-mini",
       "openRouterName": "openai",
-      "responsesPath": "v1/responses",
       "prefsKey": "ai_openai",
       "modelFilter": "gpt|o1|o3|o4",
       "defaultModelSource": "API",
@@ -27,7 +26,10 @@
           "modelPrefix": "o4",
           "endpointType": "responses"
         }
-      ]
+      ],
+      "typePaths": {
+        "responses": "v1/responses"
+      }
     },
     {
       "id": "ANTHROPIC",
@@ -37,7 +39,9 @@
       "defaultModel": "claude-sonnet-4-20250514",
       "openRouterName": "anthropic",
       "apiFormat": "ANTHROPIC",
-      "chatPath": "v1/messages",
+      "typePaths": {
+        "chat": "v1/messages"
+      },
       "modelsPath": "v1/models",
       "prefsKey": "ai_anthropic",
       "modelFilter": "claude",
@@ -60,7 +64,9 @@
       "defaultModel": "gemini-2.0-flash",
       "openRouterName": "google",
       "apiFormat": "GOOGLE",
-      "chatPath": "v1beta/models/{model}:generateContent",
+      "typePaths": {
+        "chat": "v1beta/models/{model}:generateContent"
+      },
       "modelsPath": "v1beta/models",
       "prefsKey": "ai_google",
       "litellmPrefix": "gemini",
@@ -96,7 +102,9 @@
       "adminUrl": "https://platform.deepseek.com/api_keys",
       "defaultModel": "deepseek-chat",
       "openRouterName": "deepseek",
-      "chatPath": "chat/completions",
+      "typePaths": {
+        "chat": "chat/completions"
+      },
       "modelsPath": "models",
       "prefsKey": "ai_deepseek",
       "modelFilter": "deepseek",
@@ -122,7 +130,9 @@
       "adminUrl": "https://www.perplexity.ai/settings/api",
       "defaultModel": "sonar",
       "openRouterName": "perplexity",
-      "chatPath": "chat/completions",
+      "typePaths": {
+        "chat": "chat/completions"
+      },
       "modelsPath": "models",
       "prefsKey": "ai_perplexity",
       "supportsCitations": true,
@@ -184,7 +194,9 @@
       "adminUrl": "https://open.bigmodel.cn/usercenter/apikeys",
       "defaultModel": "glm-4.7-flash",
       "openRouterName": "z-ai",
-      "chatPath": "chat/completions",
+      "typePaths": {
+        "chat": "chat/completions"
+      },
       "modelsPath": "models",
       "prefsKey": "ai_zai",
       "modelFilter": "glm|codegeex|charglm",
@@ -366,13 +378,15 @@
       "baseUrl": "https://api.replicate.com/v1/",
       "adminUrl": "https://replicate.com/account/api-tokens",
       "defaultModel": "meta/meta-llama-3-70b-instruct",
-      "chatPath": "chat/completions",
       "prefsKey": "ai_replicate",
       "hardcodedModels": [
         "meta/meta-llama-3-70b-instruct",
         "meta/meta-llama-3-8b-instruct",
         "mistralai/mistral-7b-instruct-v0.2"
-      ]
+      ],
+      "typePaths": {
+        "chat": "chat/completions"
+      }
     },
     {
       "id": "HUGGINGFACE",
@@ -432,14 +446,16 @@
       "baseUrl": "https://ark.cn-beijing.volces.com/api/",
       "adminUrl": "https://console.volcengine.com/",
       "defaultModel": "doubao-pro-32k",
-      "chatPath": "v3/chat/completions",
       "prefsKey": "ai_doubao",
       "hardcodedModels": [
         "doubao-pro-32k",
         "doubao-pro-128k",
         "doubao-lite-32k",
         "doubao-lite-128k"
-      ]
+      ],
+      "typePaths": {
+        "chat": "v3/chat/completions"
+      }
     },
     {
       "id": "REKA",

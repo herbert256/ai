@@ -91,7 +91,8 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
             apiKey = "", defaultModel = config.model, adminUrl = config.adminUrl,
             modelListUrl = config.modelListUrl, parametersIds = config.parametersIds.ifEmpty { null },
             displayName = service.displayName, baseUrl = service.baseUrl,
-            apiFormat = service.apiFormat.name, chatPath = service.chatPath,
+            apiFormat = service.apiFormat.name,
+            typePaths = service.typePaths.takeIf { it.isNotEmpty() },
             modelsPath = service.modelsPath, openRouterName = service.openRouterName,
             endpointRules = service.endpointRules?.ifEmpty { null }
         )
