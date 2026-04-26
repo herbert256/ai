@@ -101,6 +101,7 @@ fun ReportsScreenNav(
         onClearExternalInstructions = viewModel::clearExternalInstructions,
         onEditPrompt = { onNavigateToEditPrompt(uiState.genericPromptTitle, uiState.genericPromptText) },
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
+        onEditParameters = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid, alsoOpenParameters = true) } },
         onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid, scope) },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)
@@ -171,6 +172,7 @@ fun ReportsScreen(
     onClearExternalInstructions: () -> Unit = {},
     onEditPrompt: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
+    onEditParameters: (String) -> Unit = {},
     onRegenerate: (String) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {}
@@ -195,12 +197,18 @@ fun ReportsScreen(
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
-    // pre-built model list into uiState.pendingReportModels, copy it into the local
-    // selection state and clear the signal so we don't keep re-applying it.
-    LaunchedEffect(uiState.pendingReportModels) {
+    // One-shot consumer: when ReportViewModel (Edit models / Edit parameters / Regenerate
+    // flows) drops a pre-built model list into uiState.pendingReportModels, copy it into
+    // the local selection state and clear the signal so we don't keep re-applying it. If
+    // pendingShowParameters is also set, pop the Advanced Parameters overlay on entry.
+    LaunchedEffect(uiState.pendingReportModels, uiState.pendingShowParameters) {
         if (uiState.pendingReportModels.isNotEmpty()) {
             models = deduplicateModels(uiState.pendingReportModels)
+        }
+        if (uiState.pendingShowParameters) {
+            showAdvancedParameters = true
+        }
+        if (uiState.pendingReportModels.isNotEmpty() || uiState.pendingShowParameters) {
             onConsumePendingModels()
         }
     }
@@ -406,6 +414,7 @@ fun ReportsScreen(
                 hasDefaultEmail = uiState.generalSettings.defaultEmail.isNotBlank(),
                 onEditPrompt = onEditPrompt,
                 onEditModels = { currentReportId?.let(onEditModels) },
+                onEditParameters = { currentReportId?.let(onEditParameters) },
                 onRegenerate = { currentReportId?.let(onRegenerate) },
                 onDelete = { showDeleteConfirm = true }
             )
@@ -521,6 +530,7 @@ private fun ColumnScope.GenerationPhase(
     hasDefaultEmail: Boolean,
     onEditPrompt: () -> Unit,
     onEditModels: () -> Unit,
+    onEditParameters: () -> Unit,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -620,11 +630,12 @@ private fun ColumnScope.GenerationPhase(
             if (currentReportId != null) Button(onClick = onTrace, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(6.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onEditPrompt, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Edit prompt", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onEditModels, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Edit models", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onRegenerate, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Regenerate", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = onEditPrompt, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Prompt", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onEditModels, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Models", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onEditParameters, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Params", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onRegenerate, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Regen", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Delete", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
     }
 }

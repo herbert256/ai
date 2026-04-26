@@ -254,7 +254,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * the prompt + model list from a saved report so the user can edit which models run
      * before re-generating.
      */
-    suspend fun prepareEditModels(context: Context, reportId: String) {
+    suspend fun prepareEditModels(context: Context, reportId: String, alsoOpenParameters: Boolean = false) {
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
         val ai = appViewModel.uiState.value.aiSettings
         val rebuilt = reportToModels(report, ai)
@@ -265,7 +265,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null,
-            pendingReportModels = rebuilt
+            pendingReportModels = rebuilt,
+            pendingShowParameters = alsoOpenParameters
         ) }
     }
 
@@ -306,8 +307,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun clearPendingReportModels() {
-        if (appViewModel.uiState.value.pendingReportModels.isEmpty()) return
-        appViewModel.updateUiState { it.copy(pendingReportModels = emptyList()) }
+        val cur = appViewModel.uiState.value
+        if (cur.pendingReportModels.isEmpty() && !cur.pendingShowParameters) return
+        appViewModel.updateUiState { it.copy(pendingReportModels = emptyList(), pendingShowParameters = false) }
     }
 
     /**
