@@ -195,11 +195,14 @@ fun SelectProviderScreen(
     aiSettings: Settings,
     onSelectProvider: (AppService) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    activeOnly: Boolean = false
 ) {
     BackHandler { onBack() }
     var searchQuery by remember { mutableStateOf("") }
-    val allProviders = AppService.entries
+    val allProviders = remember(activeOnly, aiSettings) {
+        if (activeOnly) aiSettings.getActiveServices() else AppService.entries
+    }
     val filteredProviders = remember(searchQuery, allProviders) {
         if (searchQuery.isBlank()) allProviders
         else { val lq = searchQuery.lowercase(); allProviders.filter { it.displayName.lowercase().contains(lq) } }

@@ -121,9 +121,9 @@ fun DualChatSetupScreen(
 
     // Full-screen overlays for model selection
     when (overlayMode) {
-        1 -> { SelectProviderScreen(aiSettings = aiSettings, onSelectProvider = { model1Provider = it; model1Name = ""; overlayMode = 2 }, onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome); return }
+        1 -> { SelectProviderScreen(aiSettings = aiSettings, onSelectProvider = { model1Provider = it; model1Name = ""; overlayMode = 2 }, onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome, activeOnly = true); return }
         2 -> if (model1Provider != null) { SelectModelScreen(provider = model1Provider!!, aiSettings = aiSettings, currentModel = model1Name, onSelectModel = { model1Name = it; overlayMode = 0 }, onBack = { overlayMode = 1 }, onNavigateHome = onNavigateHome); return }
-        3 -> { SelectProviderScreen(aiSettings = aiSettings, onSelectProvider = { model2Provider = it; model2Name = ""; overlayMode = 4 }, onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome); return }
+        3 -> { SelectProviderScreen(aiSettings = aiSettings, onSelectProvider = { model2Provider = it; model2Name = ""; overlayMode = 4 }, onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome, activeOnly = true); return }
         4 -> if (model2Provider != null) { SelectModelScreen(provider = model2Provider!!, aiSettings = aiSettings, currentModel = model2Name, onSelectModel = { model2Name = it; overlayMode = 0 }, onBack = { overlayMode = 3 }, onNavigateHome = onNavigateHome); return }
     }
 
