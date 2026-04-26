@@ -274,7 +274,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     suspend fun hydrateAgentResultsFromStorage(context: Context, reportId: String) {
         if (_agentResults.value.isNotEmpty()) return
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
-        val rebuilt = report.agents.mapNotNull { ra ->
+        // Only restore agents that have actually finished (SUCCESS / ERROR / STOPPED).
+        // PENDING and RUNNING entries stay missing so the screen renders the spinning
+        // hourglass instead of a stale ❌ during a fresh generation.
+        val rebuilt = report.agents.filter {
+            it.reportStatus == ReportStatus.SUCCESS ||
+                it.reportStatus == ReportStatus.ERROR ||
+                it.reportStatus == ReportStatus.STOPPED
+        }.mapNotNull { ra ->
             val service = AppService.findById(ra.provider) ?: return@mapNotNull null
             ra.agentId to AnalysisResponse(
                 service = service,
