@@ -162,7 +162,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateProviderState(service: AppService, state: String) {
-        val updated = _uiState.value.aiSettings.withProviderState(service, state)
+        var updated = _uiState.value.aiSettings.withProviderState(service, state)
+        // When a provider goes inactive, drop its default agent (the one named after the
+        // provider's displayName) so flocks/swarms don't keep referencing a disabled path.
+        if (state == "inactive") {
+            val pruned = updated.agents.filterNot { it.provider.id == service.id && it.name == service.displayName }
+            if (pruned.size != updated.agents.size) {
+                val droppedIds = updated.agents.filter { it !in pruned }.map { it.id }.toSet()
+                val flocks = updated.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
+                updated = updated.copy(agents = pruned, flocks = flocks)
+            }
+        }
         _uiState.update { it.copy(aiSettings = updated) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
     }
