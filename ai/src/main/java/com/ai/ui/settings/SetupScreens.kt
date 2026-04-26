@@ -114,7 +114,8 @@ fun ProvidersScreen(
     aiSettings: Settings,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
-    onProviderSelected: (AppService) -> Unit
+    onProviderSelected: (AppService) -> Unit,
+    onAddProvider: () -> Unit = {}
 ) {
     BackHandler { onBackToAiSetup() }
     val allProviders = AppService.entries
@@ -153,6 +154,14 @@ fun ProvidersScreen(
                     fontSize = 13.sp, color = AppColors.TextTertiary
                 )
             }
+            if (!showActiveOnly) {
+                Button(
+                    onClick = onAddProvider,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
+            }
+
             visibleProviders.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)
                 val stateEmoji = when (state) {

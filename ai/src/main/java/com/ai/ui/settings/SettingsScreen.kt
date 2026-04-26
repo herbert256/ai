@@ -16,7 +16,7 @@ import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.GeneralSettings
 
 enum class SettingsSubScreen {
-    MAIN, AI_PROVIDER_EDIT, AI_SETUP, AI_PROVIDERS,
+    MAIN, AI_PROVIDER_EDIT, AI_PROVIDER_ADD, AI_SETUP, AI_PROVIDERS,
     AI_MODELS, AI_MODEL_EDIT,
     AI_AGENTS, AI_AGENT_EDIT,
     AI_FLOCKS, AI_FLOCK_EDIT,
@@ -67,6 +67,7 @@ fun SettingsScreen(
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_SETUP -> if (initialSubScreen == SettingsSubScreen.AI_SETUP) onBack() else currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            SettingsSubScreen.AI_PROVIDER_ADD -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             SettingsSubScreen.AI_MODEL_EDIT -> {
                 val from = modelEditFromProvider
                 modelEditFromProvider = false
@@ -107,7 +108,17 @@ fun SettingsScreen(
         SettingsSubScreen.AI_PROVIDERS -> {
             ProvidersScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
-                onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT }
+                onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
+                onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD }
+            )
+        }
+        SettingsSubScreen.AI_PROVIDER_ADD -> {
+            ProviderAddScreen(
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onSaved = { service ->
+                    selectedProvider = service
+                    currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+                }
             )
         }
         SettingsSubScreen.AI_PROVIDER_EDIT -> {
