@@ -351,7 +351,17 @@ fun ProviderSettingsScreen(
             apiKey = apiKey, model = defaultModel, adminUrl = adminUrl,
             modelListUrl = modelListUrl, parametersIds = selectedParametersIds
         )
-        if (updated != current) onSave(aiSettings.withProvider(service, updated))
+        if (updated == current) return@LaunchedEffect
+        var newSettings = aiSettings.withProvider(service, updated)
+        // Keep the default agent named after the provider in sync with the provider's
+        // default model, so changing the model here also updates the matching default agent.
+        if (current.model != defaultModel) {
+            val updatedAgents = newSettings.agents.map { a ->
+                if (a.provider.id == service.id && a.name == service.displayName) a.copy(model = defaultModel) else a
+            }
+            if (updatedAgents != newSettings.agents) newSettings = newSettings.copy(agents = updatedAgents)
+        }
+        onSave(newSettings)
     }
 
     if (showParamsDialog) {
