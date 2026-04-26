@@ -539,13 +539,12 @@ private fun ColumnScope.GenerationPhase(
             OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f)) { Text("Background", maxLines = 1, softWrap = false) }
         }
     } else {
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = { onView(null) }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)) { Text("View", maxLines = 1, softWrap = false) }
-            Button(onClick = onShare, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)) { Text("Share", maxLines = 1, softWrap = false) }
-            Button(onClick = onBrowser, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)) { Text("Browser", maxLines = 1, softWrap = false) }
-            if (hasDefaultEmail) Button(onClick = onEmail, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)) { Text("Email", maxLines = 1, softWrap = false) }
-            if (currentReportId != null) OutlinedButton(onClick = onTrace) { Text("Trace", maxLines = 1, softWrap = false) }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { onView(null) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("View", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Share", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onBrowser, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Browser", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            if (hasDefaultEmail) Button(onClick = onEmail, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Email", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            if (currentReportId != null) Button(onClick = onTrace, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
     }
 }
