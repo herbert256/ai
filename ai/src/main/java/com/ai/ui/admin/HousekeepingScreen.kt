@@ -5,8 +5,10 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -25,6 +27,8 @@ fun HousekeepingScreen(
     val context = LocalContext.current
     var showClearAllConfirm by remember { mutableStateOf(false) }
     var showClearConfigConfirm by remember { mutableStateOf(false) }
+    var daysToKeepText by remember { mutableStateOf("30") }
+    val daysToKeep = daysToKeepText.toIntOrNull()
 
     if (showClearConfigConfirm) {
         AlertDialog(
@@ -75,29 +79,48 @@ fun HousekeepingScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // ===== Clean Up Card =====
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Clean Up", fontWeight = FontWeight.Bold, color = Color.White)
+                    OutlinedTextField(
+                        value = daysToKeepText,
+                        onValueChange = { v -> daysToKeepText = v.filter { it.isDigit() }.take(4) },
+                        label = { Text("Days to keep") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedFieldColors()
+                    )
 
-                    OutlinedButton(onClick = {
-                        val deleted = ApiTracer.deleteTracesOlderThan(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000)
-                        Toast.makeText(context, "Deleted $deleted old traces", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("Delete Traces Older Than 7 Days", maxLines = 1, softWrap = false) }
+                    Button(
+                        onClick = {
+                            val days = daysToKeep ?: return@Button
+                            val cutoff = System.currentTimeMillis() - days.toLong() * 24 * 60 * 60 * 1000
+                            val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
+                            reports.forEach { ReportStorage.deleteReport(context, it.id) }
+                            val chats = ChatHistoryManager.getAllSessions().filter { it.updatedAt < cutoff }
+                            chats.forEach { ChatHistoryManager.deleteSession(it.id) }
+                            val traces = ApiTracer.deleteTracesOlderThan(cutoff)
+                            Toast.makeText(
+                                context,
+                                "Deleted ${reports.size} reports, ${chats.size} chats, $traces traces older than $days days",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        },
+                        enabled = daysToKeep != null && daysToKeep > 0,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    ) { Text("Clear Reports/Chats/Traces", maxLines = 1, softWrap = false) }
 
-                    OutlinedButton(onClick = {
-                        val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
-                        val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
-                        reports.forEach { ReportStorage.deleteReport(context, it.id) }
-                        Toast.makeText(context, "Deleted ${reports.size} old reports", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("Delete Reports Older Than 30 Days", maxLines = 1, softWrap = false) }
-
-                    OutlinedButton(onClick = {
-                        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-                        val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
-                        settingsPrefs.clearUsageStats()
-                        Toast.makeText(context, "Usage statistics cleared", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
+                    Button(
+                        onClick = {
+                            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+                            val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
+                            settingsPrefs.clearUsageStats()
+                            Toast.makeText(context, "Usage statistics cleared", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    ) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
 
                     Button(
                         onClick = { showClearAllConfirm = true },
@@ -108,7 +131,7 @@ fun HousekeepingScreen(
                     Button(
                         onClick = { showClearConfigConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                     ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
                 }
             }
