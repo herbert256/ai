@@ -37,8 +37,10 @@ fun SetupScreen(
     val context = LocalContext.current
     val hasApiKey = remember(aiSettings) { aiSettings.hasAnyApiKey() }
     val hasActiveProvider = remember(aiSettings) { aiSettings.getActiveServices().isNotEmpty() }
-    val modelProviderCount = remember(aiSettings) {
-        AppService.entries.count { aiSettings.getProvider(it).models.isNotEmpty() }
+    // Total models across active providers — matches the per-provider counts shown on the
+    // Models sub-screen, which only lists active providers.
+    val modelCount = remember(aiSettings) {
+        aiSettings.getActiveServices().sumOf { aiSettings.getProvider(it).models.size }
     }
     val agentCount = remember(aiSettings.agents) { aiSettings.agents.count { aiSettings.isProviderActive(it.provider) } }
     val costCount = remember { PricingCache.getAllManualPricing(context).size }
@@ -55,7 +57,7 @@ fun SetupScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "Configure API keys and models", "${AppService.entries.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
-            SetupNavCard("\uD83E\uDDE0", "Models", "Default model, source, and model list per provider", "$modelProviderCount",
+            SetupNavCard("\uD83E\uDDE0", "Models", "Default model, source, and model list per provider", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
             SetupNavCard("\uD83E\uDD16", "Agents", "Named AI model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
