@@ -248,30 +248,103 @@ private fun buildPdfHtml(
     val sb = StringBuilder(8 * 1024)
     sb.append("<!DOCTYPE html><html><head><meta charset='utf-8'><style>")
     sb.append("""
-        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; color: #1d1d1d; line-height: 1.45; margin: 0; padding: 0; }
-        h1 { font-size: 22pt; margin: 0 0 6px 0; }
-        h2 { font-size: 16pt; margin: 12px 0 6px 0; padding-bottom: 4px; border-bottom: 1px solid #cfcfcf; color: #0b2c5a; }
-        h3 { font-size: 12pt; margin: 14px 0 4px 0; color: #1a73e8; }
-        .meta { color: #666; font-size: 9pt; margin-bottom: 12px; }
-        .page { page-break-before: always; }
-        .toc a { display: block; color: #1a73e8; text-decoration: none; padding: 3px 0; font-size: 11pt; }
-        .toc a.sub { padding-left: 14px; color: #444; }
-        .code { font-family: 'Courier New', 'Menlo', monospace; font-size: 9pt; background: #f5f5f7; padding: 8px 10px; white-space: pre-wrap; word-break: break-all; border-left: 3px solid #b0c4de; margin: 6px 0; }
-        table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10pt; }
-        th, td { border: 1px solid #d0d0d0; padding: 5px 8px; text-align: left; vertical-align: top; }
-        th { background: #efefef; }
+        @page { margin: 14mm; }
+        html { background: #ece6d6; }
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            font-size: 11pt; color: #2a2622; line-height: 1.5;
+            margin: 0; padding: 0; background: #ece6d6;
+        }
+        .page {
+            page-break-before: always;
+            background: #fbfbf6;
+            border: 1px solid #c8b894;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            margin: 14px 18px;
+            padding: 26px 32px 32px 32px;
+            position: relative;
+        }
+        .page::before {
+            content: ""; display: block; height: 6px;
+            background: linear-gradient(90deg, #0b2c5a 0%, #1a73e8 50%, #c8b27a 100%);
+            margin: -26px -32px 22px -32px;
+        }
+        h1 {
+            font-family: 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+            font-size: 26pt; margin: 0 0 10px 0; color: #0b2c5a;
+            border-bottom: 2px solid #c8b27a; padding-bottom: 8px;
+            letter-spacing: -0.2px;
+        }
+        h2 {
+            font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
+            font-size: 17pt; margin: 18px 0 10px 0;
+            color: #0b2c5a; padding: 0 0 4px 12px;
+            border-left: 4px solid #c8b27a;
+            border-bottom: 1px solid #d8d2bf;
+        }
+        h3 {
+            font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
+            font-size: 12pt; margin: 16px 0 4px 0; color: #1a73e8;
+            text-transform: uppercase; letter-spacing: 0.6px;
+        }
+        .meta {
+            color: #888; font-size: 9pt; margin-bottom: 16px;
+            font-style: italic; border-bottom: 1px dotted #c8b894; padding-bottom: 8px;
+        }
+        .toc {
+            background: rgba(255, 252, 240, 0.7); padding: 14px 18px;
+            border: 1px solid #c8b894;
+            margin: 8px 0;
+        }
+        .toc a {
+            display: block; color: #0b2c5a; text-decoration: none;
+            padding: 5px 0; font-size: 11pt; border-bottom: 1px dotted #d8d2bf;
+        }
+        .toc a:last-child { border-bottom: none; }
+        .toc a.sub { padding-left: 22px; color: #555; font-size: 10pt; }
+        .code {
+            font-family: 'Courier New', 'Menlo', 'Monaco', monospace; font-size: 9pt;
+            background: #f4f0e0; padding: 10px 14px;
+            white-space: pre-wrap; word-break: break-all;
+            border-left: 3px solid #1a73e8;
+            margin: 8px 0; color: #2a2622;
+        }
+        table {
+            border-collapse: collapse; width: 100%; margin: 10px 0;
+            font-family: 'Helvetica Neue', 'Helvetica', sans-serif; font-size: 10pt;
+            border: 1px solid #c8b894;
+        }
+        th, td { border: 1px solid #e0d8c2; padding: 6px 10px; text-align: left; vertical-align: top; }
+        th {
+            background: #0b2c5a; color: #fbfbf6; font-weight: 600;
+            text-transform: uppercase; font-size: 9pt; letter-spacing: 0.5px;
+        }
+        tr:nth-child(even) td { background: rgba(232, 224, 200, 0.4); }
         td.num, th.num { text-align: right; font-family: 'Courier New', monospace; }
-        .total td { font-weight: bold; background: #fafafa; }
-        .intro { background: #f0f6ff; border-left: 3px solid #1a73e8; padding: 8px 10px; margin: 8px 0; font-size: 11pt; color: #333; }
-        .links { margin: 6px 0 14px 0; font-size: 10pt; }
-        .links a { color: #1a73e8; margin-right: 14px; text-decoration: none; }
-        .err { color: #b00020; }
-        .about { color: #555; font-size: 10pt; }
-        ul, ol { margin: 4px 0 8px 22px; }
-        p { margin: 4px 0; }
-        .result h1 { font-size: 14pt; margin: 10px 0 4px 0; }
-        .result h2 { font-size: 13pt; border-bottom: none; padding-bottom: 0; color: #0b2c5a; margin: 8px 0 4px 0; }
-        .result h3 { font-size: 12pt; color: #0b2c5a; margin: 8px 0 4px 0; }
+        .total td {
+            font-weight: bold; background: #f0e8c8 !important;
+            border-top: 2px solid #0b2c5a;
+        }
+        .intro {
+            background: linear-gradient(180deg, #fff8e8 0%, #faf2d8 100%);
+            border-left: 4px solid #1a73e8; padding: 12px 16px;
+            margin: 10px 0; font-style: italic; color: #333;
+        }
+        .links { margin: 10px 0 18px 0; font-size: 10pt; }
+        .links a {
+            display: inline-block; color: #fbfbf6 !important; background: #0b2c5a;
+            margin: 0 6px 4px 0; padding: 4px 12px;
+            text-decoration: none; font-size: 9pt; font-family: 'Helvetica', sans-serif;
+            letter-spacing: 0.3px;
+        }
+        .err { color: #b00020; font-weight: bold; }
+        .about { color: #555; font-size: 10pt; line-height: 1.65; }
+        ul, ol { margin: 4px 0 10px 22px; }
+        p { margin: 6px 0; }
+        .result h1 { font-size: 15pt; margin: 12px 0 6px 0; border-bottom: none; padding-bottom: 0; }
+        .result h2 { font-size: 13pt; border-bottom: none; border-left: none; padding: 0; color: #0b2c5a; margin: 10px 0 4px 0; }
+        .result h3 { font-size: 12pt; color: #0b2c5a; margin: 8px 0 4px 0; text-transform: none; letter-spacing: 0; }
+        blockquote { border-left: 3px solid #c8b27a; padding: 4px 12px; margin: 8px 0; color: #555; font-style: italic; }
     """.trimIndent())
     sb.append("</style></head><body>")
 
