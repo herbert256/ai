@@ -45,7 +45,8 @@ fun SelectModelScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onRefresh: (() -> Unit)? = null,
-    isRefreshing: Boolean = false
+    isRefreshing: Boolean = false,
+    onNavigateToProviderModels: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -79,6 +80,14 @@ fun SelectModelScreen(
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.Blue, strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Refreshing…", fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
+            if (onNavigateToProviderModels != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = onNavigateToProviderModels,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                ) { Text("Open Models", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             }
         }
 

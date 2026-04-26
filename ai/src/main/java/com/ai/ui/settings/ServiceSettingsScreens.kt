@@ -373,7 +373,8 @@ fun ProviderSettingsScreen(
             // Auto-refresh on entry when the provider's model source is API; the screen
             // shows an inline spinner while the fetch runs.
             onRefresh = if (apiKey.isNotBlank()) ({ onFetchModels(apiKey) }) else null,
-            isRefreshing = isLoadingModels
+            isRefreshing = isLoadingModels,
+            onNavigateToProviderModels = { showModelSelector = false; onNavigateToModels() }
         )
         return
     }
