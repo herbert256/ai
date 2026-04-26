@@ -18,11 +18,32 @@ import com.ai.ui.shared.*
 
 @Composable
 fun HousekeepingScreen(
-    onBackToHome: () -> Unit
+    onBackToHome: () -> Unit,
+    onClearConfiguration: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
     var showClearAllConfirm by remember { mutableStateOf(false) }
+    var showClearConfigConfirm by remember { mutableStateOf(false) }
+
+    if (showClearConfigConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfigConfirm = false },
+            title = { Text("Clear all configuration?") },
+            text = { Text("This permanently deletes every provider's API key, models, endpoints, plus all agents, flocks, swarms, parameters, prompts, system prompts, External Services keys (HuggingFace, OpenRouter), user name, and default email. Reports, chats, traces, and usage statistics are kept.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearConfiguration()
+                        showClearConfigConfirm = false
+                        Toast.makeText(context, "Configuration cleared", Toast.LENGTH_LONG).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Clear all", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { showClearConfigConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
 
     if (showClearAllConfirm) {
         AlertDialog(
@@ -83,6 +104,12 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                     ) { Text("Clear all runtime data", maxLines = 1, softWrap = false) }
+
+                    Button(
+                        onClick = { showClearConfigConfirm = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
                 }
             }
         }

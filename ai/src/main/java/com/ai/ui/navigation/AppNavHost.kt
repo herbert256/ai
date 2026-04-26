@@ -403,5 +403,11 @@ fun SetupScreenNav(
 
 @Composable
 fun HousekeepingScreenNav(viewModel: AppViewModel, onNavigateHome: () -> Unit) {
-    HousekeepingScreen(onBackToHome = onNavigateHome)
+    HousekeepingScreen(
+        onBackToHome = onNavigateHome,
+        onClearConfiguration = {
+            viewModel.updateSettings(Settings())
+            viewModel.updateGeneralSettings(GeneralSettings())
+        }
+    )
 }
