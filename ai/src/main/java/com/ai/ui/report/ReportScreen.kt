@@ -107,7 +107,10 @@ fun ReportsScreenNav(
             reportViewModel.deleteReport(context, rid)
             onNavigateBack()
         },
-        onConsumePendingModels = { reportViewModel.clearPendingReportModels() }
+        onConsumePendingModels = { reportViewModel.clearPendingReportModels() },
+        onSharePdf = { rid, onProgress ->
+            shareReportAsPdf(context, rid, uiState.aiSettings, viewModel.repository, onProgress)
+        }
     )
 }
 
@@ -175,7 +178,8 @@ fun ReportsScreen(
     onEditParameters: (String) -> Unit = {},
     onRegenerate: (String) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
-    onConsumePendingModels: () -> Unit = {}
+    onConsumePendingModels: () -> Unit = {},
+    onSharePdf: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -196,6 +200,8 @@ fun ReportsScreen(
 
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var pdfProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    val pdfScope = rememberCoroutineScope()
 
     // One-shot consumer: when ReportViewModel (Edit models / Edit parameters / Regenerate
     // flows) drops a pre-built model list into uiState.pendingReportModels, copy it into
@@ -344,9 +350,37 @@ fun ReportsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { shareReportAsJson(context, currentReportId); showShareDialog = false }) { Text("JSON", maxLines = 1, softWrap = false) }
                     TextButton(onClick = { shareReportAsHtml(context, currentReportId); showShareDialog = false }) { Text("HTML", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = {
+                        showShareDialog = false
+                        val rid = currentReportId
+                        pdfScope.launch {
+                            pdfProgress = 0 to 1
+                            try { onSharePdf(rid) { d, t -> pdfProgress = d to t } }
+                            catch (e: Exception) { android.widget.Toast.makeText(context, "PDF failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show() }
+                            finally { pdfProgress = null }
+                        }
+                    }) { Text("PDF", maxLines = 1, softWrap = false) }
                 }
             },
             dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
+    pdfProgress?.let { (done, total) ->
+        AlertDialog(
+            onDismissRequest = { /* block — generation in progress */ },
+            title = { Text("Generating PDF") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LinearProgressIndicator(
+                        progress = { if (total > 0) done.toFloat() / total else 0f },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("$done / $total — ${if (done < total - 1) "fetching introductions" else "rendering"}",
+                        fontSize = 12.sp, color = AppColors.TextTertiary)
+                }
+            },
+            confirmButton = {}
         )
     }
 
