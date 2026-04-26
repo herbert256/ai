@@ -26,10 +26,7 @@
           "modelPrefix": "o4",
           "endpointType": "responses"
         }
-      ],
-      "typePaths": {
-        "responses": "v1/responses"
-      }
+      ]
     },
     {
       "id": "ANTHROPIC",
