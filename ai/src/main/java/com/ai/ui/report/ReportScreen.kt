@@ -593,13 +593,23 @@ private fun ColumnScope.GenerationPhase(
         }
     }
 
-    // Progress
-    Text("$reportsProgress / $reportsTotal complete", color = AppColors.TextSecondary, fontSize = 14.sp)
-    LinearProgressIndicator(
-        progress = { if (reportsTotal > 0) reportsProgress.toFloat() / reportsTotal else 0f },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        color = if (isComplete) AppColors.Green else AppColors.Purple
-    )
+    // When the user staged a new model list via Edit / Models, the result rows below
+    // are derived from the staged list (not the on-disk agent set) so added rows appear
+    // and removed rows disappear immediately. The progress bar is hidden in that mode
+    // because the X/Y count is meaningless until they re-run.
+    val staged = uiState.stagedReportModels
+    val isStagedMode = isComplete && staged.isNotEmpty()
+
+    // Progress (hidden when a staged model edit is pending — the banner above already
+    // tells the user a Regenerate is needed; the green bar would just be misleading).
+    if (!isStagedMode) {
+        Text("$reportsProgress / $reportsTotal complete", color = AppColors.TextSecondary, fontSize = 14.sp)
+        LinearProgressIndicator(
+            progress = { if (reportsTotal > 0) reportsProgress.toFloat() / reportsTotal else 0f },
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            color = if (isComplete) AppColors.Green else AppColors.Purple
+        )
+    }
 
     // Agent results
     val selectedAgents = uiState.genericReportsSelectedAgents
@@ -614,17 +624,38 @@ private fun ColumnScope.GenerationPhase(
         }
     }
 
+    data class DisplayRow(val rowId: String, val displayName: String, val isNew: Boolean)
+    val displayRows: List<DisplayRow> = if (isStagedMode) {
+        staged.map { m ->
+            val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
+                        else "swarm:${m.provider.id}:${m.model}"
+            val name = if (m.type == "agent") (aiSettings.getAgentById(m.agentId ?: "")?.name ?: m.model)
+                       else "${m.provider.displayName} / ${m.model}"
+            DisplayRow(rowId, name, !reportsAgentResults.containsKey(rowId))
+        }
+    } else {
+        selectedAgents.sorted().map { agentId ->
+            val name = reportsAgentResults[agentId]?.displayName
+                ?: aiSettings.getAgentById(agentId)?.name
+                ?: agentId.removePrefix("swarm:").replace(":", " / ")
+            DisplayRow(agentId, name, false)
+        }
+    }
+
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-        selectedAgents.sorted().forEach { agentId ->
+        displayRows.forEach { row ->
+            val agentId = row.rowId
             val result = reportsAgentResults[agentId]
-            val agent = aiSettings.getAgentById(agentId)
-            val displayName = result?.displayName ?: agent?.name ?: agentId.removePrefix("swarm:").replace(":", " / ")
+            val displayName = row.displayName
 
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(
                 if (result != null) Modifier.clickable { onViewAgent(agentId) } else Modifier
             ), verticalAlignment = Alignment.CenterVertically) {
-                // Status icon - pending hourglass spins, success/failure are static.
-                if (result == null) {
+                // Status icon - newly-staged rows get a NEW badge (no result yet because
+                // the user hasn't re-run); pending hourglass spins; success/failure static.
+                if (row.isNew) {
+                    Text(text = "🆕", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                } else if (result == null) {
                     val transition = rememberInfiniteTransition(label = "hourglass")
                     val angle by transition.animateFloat(
                         initialValue = 0f, targetValue = 360f,
