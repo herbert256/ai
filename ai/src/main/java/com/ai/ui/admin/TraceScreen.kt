@@ -224,11 +224,28 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
             else -> null
         }
 
+        val headerEntries: List<Pair<String, String>>? = when (currentView) {
+            TraceContentView.REQ_HEADERS -> t?.request?.headers?.entries?.map { it.key to it.value }
+            TraceContentView.RSP_HEADERS -> t?.response?.headers?.entries?.map { it.key to it.value }
+            else -> null
+        }
+
         Box(modifier = Modifier.weight(1f)) {
             if (useTree && treeNodes != null) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     items(treeNodes.size) { index ->
                         JsonTreeNodeView(node = treeNodes[index], depth = 0)
+                    }
+                }
+            } else if (headerEntries != null) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    items(headerEntries.size) { index ->
+                        val (name, value) = headerEntries[index]
+                        Row(modifier = Modifier.padding(vertical = 1.dp)) {
+                            Text("$name: ", fontSize = 11.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+                            Text(value, fontSize = 11.sp, color = Color(0xFF6A8759), fontFamily = FontFamily.Monospace,
+                                maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             } else {
