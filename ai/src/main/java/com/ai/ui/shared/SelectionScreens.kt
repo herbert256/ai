@@ -1,5 +1,6 @@
 package com.ai.ui.shared
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -51,6 +52,7 @@ fun SelectModelScreen(
     isRefreshing: Boolean = false,
     onNavigateToProviderModels: (() -> Unit)? = null
 ) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
 
@@ -195,6 +197,7 @@ fun SelectProviderScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
+    BackHandler { onBack() }
     var searchQuery by remember { mutableStateOf("") }
     val allProviders = AppService.entries
     val filteredProviders = remember(searchQuery, allProviders) {
@@ -263,6 +266,7 @@ fun SelectAgentScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
 

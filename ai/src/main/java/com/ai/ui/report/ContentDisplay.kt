@@ -1,5 +1,6 @@
 package com.ai.ui.report
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -32,6 +33,7 @@ fun ReportsViewerScreen(
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss
 ) {
+    BackHandler { onDismiss() }
     val context = LocalContext.current
     val report = remember(reportId) { ReportStorage.getReport(context, reportId) }
 
