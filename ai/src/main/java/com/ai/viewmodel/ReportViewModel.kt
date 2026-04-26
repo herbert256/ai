@@ -297,7 +297,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         withContext(Dispatchers.IO) {
             ReportStorage.updateReportPromptAndTitle(context, reportId, newTitle, newPrompt)
         }
-        appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle, genericPromptText = newPrompt) }
+        appViewModel.updateUiState { it.copy(
+            genericPromptTitle = newTitle, genericPromptText = newPrompt,
+            hasPendingPromptChange = true
+        ) }
     }
 
     /**
@@ -322,7 +325,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 genericReportsSelectedAgents = emptySet(),
                 genericPromptTitle = report.title, genericPromptText = report.prompt,
                 pendingReportModels = emptyList(),
-                stagedReportModels = emptyList()
+                stagedReportModels = emptyList(),
+                hasPendingPromptChange = false,
+                hasPendingParametersChange = false
             ) }
             generateGenericReports(
                 scope = scope, context = context, selectedAgentIds = agentIds,
@@ -452,7 +457,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null,
             stagedReportModels = emptyList(), editModeReportId = null,
-            pendingReportModels = emptyList()
+            pendingReportModels = emptyList(),
+            hasPendingPromptChange = false, hasPendingParametersChange = false
         ) }
     }
 

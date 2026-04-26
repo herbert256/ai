@@ -102,6 +102,9 @@ fun ReportsScreenNav(
         onUpdateModelList = { rid, edited ->
             scope.launch { reportViewModel.stageModelListForRegenerate(context, rid, edited) }
         },
+        onMarkParametersChanged = {
+            viewModel.updateUiState { it.copy(hasPendingParametersChange = true) }
+        },
         onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid, scope) },
         onUpdatePrompt = { rid, title, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, title, prompt) }
@@ -178,6 +181,7 @@ fun ReportsScreen(
     onClearExternalInstructions: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
+    onMarkParametersChanged: () -> Unit = {},
     onRegenerate: (String) -> Unit = {},
     onUpdatePrompt: (String, String, String) -> Unit = { _, _, _ -> },
     onDeleteReport: (String) -> Unit = {},
@@ -350,7 +354,11 @@ fun ReportsScreen(
     if (showEditParameters) {
         ReportAdvancedParametersScreen(
             currentParameters = uiState.reportAdvancedParameters,
-            onApply = { onAdvancedParametersChange(it); showEditParameters = false },
+            onApply = {
+                onAdvancedParametersChange(it)
+                onMarkParametersChanged()
+                showEditParameters = false
+            },
             onBack = { showEditParameters = false }
         )
         return
@@ -558,6 +566,31 @@ private fun ColumnScope.GenerationPhase(
         return aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
             ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
             ?: result.service.defaultModel
+    }
+
+    // Pending-changes banner: surfaces edits the user made (prompt / models / parameters)
+    // since the report ran, so they know a Regenerate is needed to see the new outputs.
+    val pendingPrompt = uiState.hasPendingPromptChange
+    val pendingModels = uiState.stagedReportModels.isNotEmpty()
+    val pendingParams = uiState.hasPendingParametersChange
+    if (isComplete && (pendingPrompt || pendingModels || pendingParams)) {
+        val parts = listOfNotNull(
+            "prompt".takeIf { pendingPrompt },
+            "models".takeIf { pendingModels },
+            "parameters".takeIf { pendingParams }
+        )
+        Card(
+            colors = CardDefaults.cardColors(containerColor = AppColors.Orange.copy(alpha = 0.18f)),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        ) {
+            Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("⚠", fontSize = 16.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 8.dp))
+                Text(
+                    "Changes pending: ${parts.joinToString(", ")}. Tap Regenerate to apply.",
+                    fontSize = 12.sp, color = AppColors.TextSecondary
+                )
+            }
+        }
     }
 
     // Progress

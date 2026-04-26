@@ -64,6 +64,12 @@ data class UiState(
     // Model list staged by the Edit-models flow. When non-empty, regenerateReport uses
     // it instead of rebuilding from the on-disk report.agents.
     val stagedReportModels: List<ReportModel> = emptyList(),
+    // Set when Edit / Prompt or Edit / Parameters changes the saved title/prompt or
+    // reportAdvancedParameters after a report has finished, so the Result screen can
+    // surface a "changes pending" banner. Both flags are cleared when regenerateReport
+    // kicks off the new run, or when the report is dismissed.
+    val hasPendingPromptChange: Boolean = false,
+    val hasPendingParametersChange: Boolean = false,
     val externalIntent: ExternalIntent = ExternalIntent(),
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),
