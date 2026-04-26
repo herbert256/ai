@@ -199,6 +199,43 @@ fun TraceDetailScreen(
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
 
+        // Resolve provider from the request hostname so we can offer a Provider/Model/Agent
+        // shortcut. Provider lookup matches AppService.baseUrl's host to t.hostname; model
+        // comes from the captured trace; agent is matched by (provider, model) — if multiple
+        // agents share the same pair, the first one wins.
+        val provider = remember(t?.hostname) {
+            t?.hostname?.let { host ->
+                AppService.entries.firstOrNull { svc ->
+                    runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()?.equals(host, ignoreCase = true) == true
+                }
+            }
+        }
+        val matchingAgent = remember(provider, t?.model, aiSettings.agents) {
+            if (provider == null || t?.model == null) null
+            else aiSettings.agents.firstOrNull { it.provider.id == provider.id && it.model == t.model }
+        }
+        if (provider != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Button(onClick = { onNavigateToProvider(provider) }, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) { Text("Provider", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                if (!t?.model.isNullOrBlank()) {
+                    Button(onClick = { onNavigateToModelInfo(provider, t!!.model!!) }, modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) { Text("Model", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                }
+                if (matchingAgent != null) {
+                    Button(onClick = { onNavigateToEditAgent(matchingAgent.id) }, modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) { Text("Agent", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         // View selector buttons

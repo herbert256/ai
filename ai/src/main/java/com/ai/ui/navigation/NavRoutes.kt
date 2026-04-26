@@ -5,6 +5,8 @@ import java.net.URLEncoder
 object NavRoutes {
     const val AI = "ai"
     const val SETTINGS = "settings"
+    const val SETTINGS_PROVIDER_EDIT = "settings_provider_edit/{providerId}"
+    const val SETTINGS_AGENT_EDIT = "settings_agent_edit/{agentId}"
     const val HELP = "help"
     const val TRACE_LIST = "trace_list"
     const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
@@ -42,6 +44,8 @@ object NavRoutes {
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
+    fun settingsProviderEdit(providerId: String) = "settings_provider_edit/$providerId"
+    fun settingsAgentEdit(agentId: String) = "settings_agent_edit/$agentId"
     fun traceListForModel(provider: String, model: String) = "trace_list_for_model/$provider/${encode(model)}"
     fun aiModelInfo(provider: String, model: String) = "ai_model_info/$provider/${encode(model)}"
     fun aiChatContinue(sessionId: String) = "ai_chat_continue/$sessionId"

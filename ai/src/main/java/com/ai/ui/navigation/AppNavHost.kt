@@ -347,8 +347,33 @@ fun AppNavHost(
         }
         composable(NavRoutes.TRACE_DETAIL) { entry ->
             val filename = entry.arguments?.getString("filename") ?: ""
-            TraceDetailScreen(filename = filename, onBack = safePopBack, onNavigateHome = navigateHome,
-                onEditRequest = { navController.navigate(NavRoutes.AI_API_TEST_EDIT) })
+            val uiState by appViewModel.uiState.collectAsState()
+            TraceDetailScreen(
+                filename = filename, aiSettings = uiState.aiSettings,
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onEditRequest = { navController.navigate(NavRoutes.AI_API_TEST_EDIT) },
+                onNavigateToProvider = { p -> navController.navigate(NavRoutes.settingsProviderEdit(p.id)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToEditAgent = { id -> navController.navigate(NavRoutes.settingsAgentEdit(id)) }
+            )
+        }
+        composable(NavRoutes.SETTINGS_PROVIDER_EDIT) { entry ->
+            val pid = entry.arguments?.getString("providerId")
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                initialSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT,
+                initialProviderId = pid)
+        }
+        composable(NavRoutes.SETTINGS_AGENT_EDIT) { entry ->
+            val aid = entry.arguments?.getString("agentId")
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                initialSubScreen = SettingsSubScreen.AI_AGENT_EDIT,
+                initialEditingAgentId = aid)
         }
         composable(NavRoutes.AI_API_TEST) {
             ApiTestScreen(onBackClick = safePopBack, onNavigateHome = navigateHome,
@@ -368,7 +393,9 @@ fun SettingsScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
+    initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
+    initialProviderId: String? = null,
+    initialEditingAgentId: String? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     SettingsScreen(
@@ -385,7 +412,9 @@ fun SettingsScreenNav(
         onTestModelWithPrompt = { s, k, m, p -> viewModel.testModelWithPrompt(s, k, m, p) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToModelInfo = onNavigateToModelInfo,
-        initialSubScreen = initialSubScreen
+        initialSubScreen = initialSubScreen,
+        initialProviderId = initialProviderId,
+        initialEditingAgentId = initialEditingAgentId
     )
 }
 

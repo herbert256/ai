@@ -48,11 +48,13 @@ fun SettingsScreen(
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN
+    initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
+    initialProviderId: String? = null,
+    initialEditingAgentId: String? = null
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
-    var selectedProvider by remember { mutableStateOf<AppService?>(null) }
-    var editingAgentId by remember { mutableStateOf<String?>(null) }
+    var selectedProvider by remember { mutableStateOf(initialProviderId?.let { AppService.findById(it) }) }
+    var editingAgentId by remember { mutableStateOf(initialEditingAgentId) }
     var editingFlockId by remember { mutableStateOf<String?>(null) }
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
     var editingPromptId by remember { mutableStateOf<String?>(null) }
