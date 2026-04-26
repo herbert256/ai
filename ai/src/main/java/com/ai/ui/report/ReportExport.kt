@@ -163,8 +163,6 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
             qs.forEachIndexed { qi, q -> sb.append("<div class='related-question'>${qi + 1}. ${esc(q)}</div>") }
             sb.append("</div>")
         }
-        a.rawUsageJson?.let { sb.append("<div class='usage-label'>API Usage:</div><pre class='usage-json'>${esc(it)}</pre>") }
-        a.responseHeaders?.let { sb.append("<div class='usage-label'>HTTP Headers:</div><pre class='headers-text'>${esc(it)}</pre>") }
         sb.append("</div></div>")
     }
     sb.append("</div>") // /#layout-oneByOne
