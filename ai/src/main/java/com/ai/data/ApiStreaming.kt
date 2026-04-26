@@ -36,7 +36,8 @@ fun AnalysisRepository.sendChatStream(
 
 private fun parseSseStream(
     body: ResponseBody,
-    extractContent: (eventType: String?, data: String) -> String?
+    extractContent: (eventType: String?, data: String) -> String?,
+    isFinalChunk: (eventType: String?, data: String) -> Boolean = { _, _ -> false }
 ): Flow<String> = flow {
     val reader = body.charStream().buffered()
     try {
@@ -59,6 +60,7 @@ private fun parseSseStream(
                 sawAnyData = true
                 val content = extractContent(eventType, data)
                 if (!content.isNullOrEmpty()) emit(content)
+                if (isFinalChunk(eventType, data)) sawTerminator = true
             }
         }
         if (!sawTerminator && sawAnyData) {
@@ -68,6 +70,16 @@ private fun parseSseStream(
         try { reader.close() } catch (_: Exception) {}
         body.close()
     }
+}
+
+/** Gemini SSE terminator: a candidate chunk with a non-null `finishReason`. Gemini doesn't
+ *  send a [DONE] line — it just closes the connection after this chunk. */
+private fun isGeminiFinalChunk(@Suppress("UNUSED_PARAMETER") eventType: String?, data: String): Boolean {
+    return try {
+        val obj = gson.fromJson(data, com.google.gson.JsonObject::class.java) ?: return false
+        val candidates = obj.getAsJsonArray("candidates") ?: return false
+        candidates.any { c -> c.asJsonObject?.get("finishReason")?.takeIf { !it.isJsonNull } != null }
+    } catch (_: Exception) { false }
 }
 
 // ============================================================================
@@ -194,7 +206,7 @@ private fun AnalysisRepository.streamGemini(
     val response = withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) }
     if (response.isSuccessful) {
         response.body()?.let { body ->
-            parseSseStream(body, ::extractGeminiContent).collect { emit(it) }
+            parseSseStream(body, ::extractGeminiContent, ::isGeminiFinalChunk).collect { emit(it) }
         } ?: throw Exception("Empty response body")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
