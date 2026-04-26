@@ -55,9 +55,9 @@ fun SetupScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SetupNavCard("\u2699\uFE0F", "Providers", "Configure API keys and models", "${AppService.entries.size}",
+            SetupNavCard("\u2699\uFE0F", "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
-            SetupNavCard("\uD83E\uDDE0", "Models", "Default model, source, and model list per provider", "$modelCount",
+            SetupNavCard("\uD83E\uDDE0", "Models", "Source and model list per active provider", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
             SetupNavCard("\uD83E\uDD16", "Agents", "Named AI model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
