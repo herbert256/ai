@@ -27,6 +27,15 @@ import java.util.Date
 import java.util.Locale
 import kotlin.coroutines.resume
 
+private data class IntroCostRow(
+    val introducedFor: String,
+    val runProvider: String,
+    val runModel: String,
+    val inputTokens: Long,
+    val outputTokens: Long,
+    val cost: Double
+)
+
 private const val REDACTED = "[REDACTED]"
 private val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
 private val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
@@ -64,6 +73,7 @@ suspend fun shareReportAsPdf(
 
     val totalSteps = uniqueModels.size + 1
     val intros = mutableMapOf<String, String?>()
+    val introCosts = mutableListOf<IntroCostRow>()
 
     val introPrompt = aiSettings.prompts.find { it.name.equals("intro", ignoreCase = true) }
         ?: aiSettings.prompts.find { it.name.lowercase().contains("intro") }
@@ -90,12 +100,26 @@ suspend fun shareReportAsPdf(
             val resp = withContext(Dispatchers.IO) {
                 repository.analyzePlayerWithAgent(effective, resolved, aiSettings.resolveAgentParameters(introAgent))
             }
+            // Live (non-cached) intro call — record its cost so it shows up in the PDF
+            // cost table separately from the report's own agent calls.
+            resp.tokenUsage?.let { tu ->
+                val pricing = PricingCache.getPricing(context, effective.provider, effective.model)
+                val cost = tu.apiCost ?: (tu.inputTokens * pricing.promptPrice + tu.outputTokens * pricing.completionPrice)
+                introCosts += IntroCostRow(
+                    introducedFor = "${provider.displayName} / $model",
+                    runProvider = effective.provider.displayName,
+                    runModel = effective.model,
+                    inputTokens = tu.inputTokens.toLong(),
+                    outputTokens = tu.outputTokens.toLong(),
+                    cost = cost
+                )
+            }
             resp.analysis?.also { PromptCache.put(cacheKey, it) }
         } catch (_: Exception) { null }
     }
     onProgress(uniqueModels.size, totalSteps)
 
-    val html = buildPdfHtml(context, report, traces, intros, getAppVersion(context))
+    val html = buildPdfHtml(context, report, traces, intros, introCosts, getAppVersion(context))
 
     val jobName = "AI Report - ${report.title.ifBlank { "Untitled" }} - ${pdfTimestamp()}"
     withContext(Dispatchers.Main) { openPrintDialog(context, html, jobName) }
@@ -110,6 +134,7 @@ private fun buildPdfHtml(
     report: Report,
     traces: List<ApiTrace>,
     intros: Map<String, String?>,
+    introCosts: List<IntroCostRow>,
     appVersion: String
 ): String {
     val agents = report.agents.filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
@@ -182,6 +207,19 @@ private fun buildPdfHtml(
             .append(inT).append("</td><td class='num'>")
             .append(outT).append("</td><td class='num'>")
             .append("%.2f".format(cost * 100)).append("</td></tr>")
+    }
+    if (introCosts.isNotEmpty()) {
+        sb.append("<tr><td colspan='6' style='background:#fafafa; font-style:italic; color:#444;'>")
+            .append("Introductions (live calls — cached intros cost nothing)</td></tr>")
+        for (ic in introCosts) {
+            totalIn += ic.inputTokens; totalOut += ic.outputTokens; totalCost += ic.cost
+            sb.append("<tr><td>Intro: ").append(esc(ic.introducedFor)).append("</td><td>")
+                .append(esc(ic.runProvider)).append("</td><td>")
+                .append(esc(ic.runModel)).append("</td><td class='num'>")
+                .append(ic.inputTokens).append("</td><td class='num'>")
+                .append(ic.outputTokens).append("</td><td class='num'>")
+                .append("%.2f".format(ic.cost * 100)).append("</td></tr>")
+        }
     }
     sb.append("<tr class='total'><td colspan='3'>Total</td><td class='num'>")
         .append(totalIn).append("</td><td class='num'>")
