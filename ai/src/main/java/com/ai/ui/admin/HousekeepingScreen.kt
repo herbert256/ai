@@ -81,6 +81,7 @@ fun HousekeepingScreen(
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Trim by age", fontWeight = FontWeight.Bold, color = Color.White)
                     OutlinedTextField(
                         value = daysToKeepText,
                         onValueChange = { v -> daysToKeepText = v.filter { it.isDigit() }.take(4) },
@@ -115,6 +116,7 @@ fun HousekeepingScreen(
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Usage statistics", fontWeight = FontWeight.Bold, color = Color.White)
                     Button(
                         onClick = {
                             val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
@@ -125,7 +127,12 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                     ) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
+                }
+            }
 
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Full reset", fontWeight = FontWeight.Bold, color = Color.White)
                     Button(
                         onClick = { showClearAllConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
