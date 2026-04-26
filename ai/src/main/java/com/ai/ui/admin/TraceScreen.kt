@@ -141,7 +141,16 @@ private fun TraceListItem(trace: TraceFileInfo, onClick: () -> Unit) {
 private enum class TraceContentView { ALL, REQ_HEADERS, RSP_HEADERS, REQ_DATA, RSP_DATA }
 
 @Composable
-fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -> Unit, onEditRequest: () -> Unit) {
+fun TraceDetailScreen(
+    filename: String,
+    aiSettings: com.ai.model.Settings,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onEditRequest: () -> Unit,
+    onNavigateToProvider: (AppService) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToEditAgent: (String) -> Unit = {}
+) {
     BackHandler { onBack() }
     val context = LocalContext.current
     var currentFilename by remember { mutableStateOf(filename) }
