@@ -62,10 +62,11 @@ fun HousekeepingScreen(
                         }
                         val chats = ChatHistoryManager.deleteAllSessions()
                         ApiTracer.clearTraces()
+                        PromptCache.clearAll()
                         val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
                         SettingsPreferences(prefs, context.filesDir).clearUsageStats()
                         showClearAllConfirm = false
-                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces & usage stats", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces, prompt cache & usage stats", Toast.LENGTH_LONG).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }

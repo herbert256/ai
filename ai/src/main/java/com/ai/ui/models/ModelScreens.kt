@@ -234,22 +234,32 @@ fun ModelInfoScreen(
         }
     }
 
-    // AI description (independent load)
+    // AI description (independent load) — cached for 48h via PromptCache, keyed by
+    // (resolvedPrompt, agent.id). Different agent ⇒ cache miss; different model ⇒
+    // different resolvedPrompt ⇒ cache miss.
     LaunchedEffect(provider, modelName) {
         val modelInfoPrompt = aiSettings.prompts.find { it.name.lowercase().contains("model_info") || it.name.lowercase().contains("model info") }
         if (modelInfoPrompt != null) {
             val agent = aiSettings.getAgentById(modelInfoPrompt.agentId) ?: return@LaunchedEffect
             val effectiveAgent = agent.copy(apiKey = aiSettings.getEffectiveApiKeyForAgent(agent), model = aiSettings.getEffectiveModelForAgent(agent))
             if (effectiveAgent.apiKey.isBlank()) return@LaunchedEffect
+            val resolvedPrompt = modelInfoPrompt.promptText
+                .replace("@MODEL@", modelName).replace("@PROVIDER@", provider.displayName)
+                .replace("@AGENT@", agent.name)
+            val cacheKey = PromptCache.keyFor(resolvedPrompt, agent.id)
+            PromptCache.get(cacheKey)?.let { cached ->
+                aiDescription = cached
+                return@LaunchedEffect
+            }
             isAiLoading = true
             try {
-                val resolvedPrompt = modelInfoPrompt.promptText
-                    .replace("@MODEL@", modelName).replace("@PROVIDER@", provider.displayName)
-                    .replace("@AGENT@", agent.name)
                 val response = withContext(Dispatchers.IO) {
                     repository.analyzePlayerWithAgent(effectiveAgent, resolvedPrompt, aiSettings.resolveAgentParameters(agent))
                 }
-                if (response.isSuccess) aiDescription = response.analysis
+                if (response.isSuccess) {
+                    aiDescription = response.analysis
+                    response.analysis?.let { PromptCache.put(cacheKey, it) }
+                }
             } catch (_: Exception) {} finally { isAiLoading = false }
         }
     }

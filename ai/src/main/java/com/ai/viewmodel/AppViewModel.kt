@@ -127,6 +127,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ChatHistoryManager.init(application)
         ReportStorage.init(application)
         ProviderRegistry.init(application)
+        PromptCache.init(application)
 
         var gs = settingsPrefs.loadGeneralSettings()
         var ai = settingsPrefs.loadSettingsWithMigration()
