@@ -152,8 +152,7 @@ fun AppNavHost(
         composable(NavRoutes.AI_REPORTS) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
-                onNavigateToEditPrompt = { title, prompt -> navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt)) })
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,

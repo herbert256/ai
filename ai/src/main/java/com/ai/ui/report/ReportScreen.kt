@@ -41,8 +41,7 @@ fun ReportsScreenNav(
     reportViewModel: ReportViewModel,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
-    onNavigateToTrace: (String) -> Unit = {},
-    onNavigateToEditPrompt: (String, String) -> Unit = { _, _ -> }
+    onNavigateToTrace: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -99,10 +98,12 @@ fun ReportsScreenNav(
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
         onClearExternalInstructions = viewModel::clearExternalInstructions,
-        onEditPrompt = { onNavigateToEditPrompt(uiState.genericPromptTitle, uiState.genericPromptText) },
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onEditParameters = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid, alsoOpenParameters = true) } },
         onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid, scope) },
+        onRegenerateWithPrompt = { rid, title, prompt ->
+            reportViewModel.regenerateReportWithPrompt(context, rid, title, prompt, scope)
+        },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)
             onNavigateBack()
@@ -173,10 +174,10 @@ fun ReportsScreen(
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
     onClearExternalInstructions: () -> Unit = {},
-    onEditPrompt: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
     onEditParameters: (String) -> Unit = {},
     onRegenerate: (String) -> Unit = {},
+    onRegenerateWithPrompt: (String, String, String) -> Unit = { _, _, _ -> },
     onDeleteReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> }
@@ -195,6 +196,7 @@ fun ReportsScreen(
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
     var viewerSection by remember { mutableStateOf<String?>(null) }
     var showExport by remember { mutableStateOf(false) }
+    var showEditPrompt by remember { mutableStateOf(false) }
     var showAdvancedParameters by remember { mutableStateOf(false) }
 
     var models by remember { mutableStateOf(initialModels) }
@@ -348,6 +350,21 @@ fun ReportsScreen(
         return
     }
 
+    if (showEditPrompt && currentReportId != null) {
+        val rid = currentReportId
+        ReportEditPromptScreen(
+            initialTitle = uiState.genericPromptTitle,
+            initialPrompt = uiState.genericPromptText,
+            onBack = { showEditPrompt = false },
+            onNavigateHome = onNavigateHome,
+            onRegenerate = { newTitle, newPrompt ->
+                showEditPrompt = false
+                onRegenerateWithPrompt(rid, newTitle, newPrompt)
+            }
+        )
+        return
+    }
+
     // Main UI
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Title reflects the phase: selection (adding models) vs generation (showing results).
@@ -392,7 +409,7 @@ fun ReportsScreen(
                 onViewAgent = { agentId -> selectedAgentForViewer = agentId; viewerSection = null; showViewer = true },
                 onShare = { showExport = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
-                onEditPrompt = onEditPrompt,
+                onEditPrompt = { showEditPrompt = true },
                 onEditModels = { currentReportId?.let(onEditModels) },
                 onEditParameters = { currentReportId?.let(onEditParameters) },
                 onRegenerate = { currentReportId?.let(onRegenerate) },

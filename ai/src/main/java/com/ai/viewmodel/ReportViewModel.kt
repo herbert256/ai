@@ -271,6 +271,38 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /**
+     * Re-run a previously generated report with a new title / prompt while reusing the
+     * model selection (agents, swarm members, direct models) from the original report.
+     * Used by the Edit-prompt overlay so the user only edits text, not the model list.
+     */
+    fun regenerateReportWithPrompt(
+        context: Context, reportId: String, newTitle: String, newPrompt: String,
+        scope: kotlinx.coroutines.CoroutineScope
+    ) {
+        scope.launch {
+            val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return@launch
+            val ai = appViewModel.uiState.value.aiSettings
+            val rebuilt = reportToModels(report, ai)
+            val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
+            val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
+            val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            _agentResults.value = emptyMap()
+            appViewModel.updateUiState { it.copy(
+                showGenericReportsDialog = false, currentReportId = null,
+                genericReportsProgress = 0, genericReportsTotal = 0,
+                genericReportsSelectedAgents = emptySet(),
+                genericPromptTitle = newTitle, genericPromptText = newPrompt,
+                pendingReportModels = emptyList()
+            ) }
+            generateGenericReports(
+                scope = scope, context = context, selectedAgentIds = agentIds,
+                selectedSwarmIds = swarmIds, directModelIds = directIds,
+                parametersIds = emptyList(), reportType = report.reportType
+            )
+        }
+    }
+
+    /**
      * Re-run a previously generated report end-to-end with the same prompt, agent set,
      * and parameter selections.
      */
