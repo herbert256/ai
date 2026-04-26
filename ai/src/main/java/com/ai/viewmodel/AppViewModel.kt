@@ -56,10 +56,14 @@ data class UiState(
     // list from this and clears it via clearPendingReportModels(). Used for Edit-models
     // and Regenerate flows kicked off from a finished report.
     val pendingReportModels: List<ReportModel> = emptyList(),
-    // One-shot signal: when true, the Reports selection screen pops the Advanced
-    // Parameters overlay on entry. Used by the Edit-parameters action on a finished
-    // report. Cleared via clearPendingReportModels() (paired flag).
-    val pendingShowParameters: Boolean = false,
+    // When non-null, the Reports selection screen is in "edit mode" for that reportId —
+    // the bottom button reads "Update model list" and only stages the new model list
+    // instead of running. Set by ReportViewModel.prepareEditModels and cleared once
+    // the user taps Update or backs out.
+    val editModeReportId: String? = null,
+    // Model list staged by the Edit-models flow. When non-empty, regenerateReport uses
+    // it instead of rebuilding from the on-disk report.agents.
+    val stagedReportModels: List<ReportModel> = emptyList(),
     val externalIntent: ExternalIntent = ExternalIntent(),
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),

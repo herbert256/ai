@@ -99,7 +99,9 @@ fun ReportsScreenNav(
         onNavigateToTrace = onNavigateToTrace,
         onClearExternalInstructions = viewModel::clearExternalInstructions,
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
-        onEditParameters = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid, alsoOpenParameters = true) } },
+        onUpdateModelList = { rid, edited ->
+            scope.launch { reportViewModel.stageModelListForRegenerate(context, rid, edited) }
+        },
         onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid, scope) },
         onUpdatePrompt = { rid, title, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, title, prompt) }
@@ -175,7 +177,7 @@ fun ReportsScreen(
     onNavigateToTrace: (String) -> Unit = {},
     onClearExternalInstructions: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
-    onEditParameters: (String) -> Unit = {},
+    onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
     onRegenerate: (String) -> Unit = {},
     onUpdatePrompt: (String, String, String) -> Unit = { _, _, _ -> },
     onDeleteReport: (String) -> Unit = {},
@@ -197,23 +199,18 @@ fun ReportsScreen(
     var viewerSection by remember { mutableStateOf<String?>(null) }
     var showExport by remember { mutableStateOf(false) }
     var showEditPrompt by remember { mutableStateOf(false) }
+    var showEditParameters by remember { mutableStateOf(false) }
     var showAdvancedParameters by remember { mutableStateOf(false) }
 
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    // One-shot consumer: when ReportViewModel (Edit models / Edit parameters / Regenerate
-    // flows) drops a pre-built model list into uiState.pendingReportModels, copy it into
-    // the local selection state and clear the signal so we don't keep re-applying it. If
-    // pendingShowParameters is also set, pop the Advanced Parameters overlay on entry.
-    LaunchedEffect(uiState.pendingReportModels, uiState.pendingShowParameters) {
+    // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
+    // pre-built model list into uiState.pendingReportModels, copy it into the local
+    // selection state and clear the signal so we don't keep re-applying it.
+    LaunchedEffect(uiState.pendingReportModels) {
         if (uiState.pendingReportModels.isNotEmpty()) {
             models = deduplicateModels(uiState.pendingReportModels)
-        }
-        if (uiState.pendingShowParameters) {
-            showAdvancedParameters = true
-        }
-        if (uiState.pendingReportModels.isNotEmpty() || uiState.pendingShowParameters) {
             onConsumePendingModels()
         }
     }
@@ -350,6 +347,15 @@ fun ReportsScreen(
         return
     }
 
+    if (showEditParameters) {
+        ReportAdvancedParametersScreen(
+            currentParameters = uiState.reportAdvancedParameters,
+            onApply = { onAdvancedParametersChange(it); showEditParameters = false },
+            onBack = { showEditParameters = false }
+        )
+        return
+    }
+
     if (showEditPrompt && currentReportId != null) {
         val rid = currentReportId
         ReportEditPromptScreen(
@@ -376,11 +382,13 @@ fun ReportsScreen(
 
         if (!isGenerating) {
             // Selection phase
+            val editModeRid = uiState.editModeReportId
             SelectionPhase(
                 models = models,
                 aiSettings = aiSettings,
                 selectedParametersIds = selectedParametersIds,
                 advancedParameters = advancedParameters,
+                editModeReportId = editModeRid,
                 onAddFlock = { showSelectFlock = true },
                 onAddAgent = { showSelectAgent = true },
                 onAddSwarm = { showSelectSwarm = true },
@@ -390,7 +398,8 @@ fun ReportsScreen(
                 onClearAll = { models = emptyList() },
                 onAdvancedParams = { showAdvancedParameters = true },
                 onParametersChange = { selectedParametersIds = it },
-                onGenerate = { type -> if (models.isNotEmpty()) onGenerate(models, selectedParametersIds, type) }
+                onGenerate = { type -> if (models.isNotEmpty()) onGenerate(models, selectedParametersIds, type) },
+                onUpdateModelList = { if (editModeRid != null) onUpdateModelList(editModeRid, models) }
             )
         } else {
             // Generation phase
@@ -411,7 +420,7 @@ fun ReportsScreen(
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
                 onEditPrompt = { showEditPrompt = true },
                 onEditModels = { currentReportId?.let(onEditModels) },
-                onEditParameters = { currentReportId?.let(onEditParameters) },
+                onEditParameters = { showEditParameters = true },
                 onRegenerate = { currentReportId?.let(onRegenerate) },
                 onDelete = { showDeleteConfirm = true }
             )
@@ -427,6 +436,7 @@ private fun ColumnScope.SelectionPhase(
     aiSettings: Settings,
     selectedParametersIds: List<String>,
     advancedParameters: AgentParameters?,
+    editModeReportId: String?,
     onAddFlock: () -> Unit,
     onAddAgent: () -> Unit,
     onAddSwarm: () -> Unit,
@@ -436,7 +446,8 @@ private fun ColumnScope.SelectionPhase(
     onClearAll: () -> Unit,
     onAdvancedParams: () -> Unit,
     onParametersChange: (List<String>) -> Unit,
-    onGenerate: (ReportType) -> Unit
+    onGenerate: (ReportType) -> Unit,
+    onUpdateModelList: () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -496,15 +507,24 @@ private fun ColumnScope.SelectionPhase(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Generate — the layout ("One by one" vs "All together") is now chosen in the exported
-    // HTML via a toggle, so we no longer split this into two buttons. Pass CLASSIC as the
-    // default ReportType since both renderers now share the same HTML output.
-    Button(
-        onClick = { onGenerate(ReportType.CLASSIC) },
-        enabled = models.isNotEmpty(),
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-    ) { Text("Generate", maxLines = 1, softWrap = false) }
+    // Bottom action — Generate for a fresh report, or Update model list when the user
+    // entered via Edit / Models on a finished report. The Update path stages the new
+    // list and pops back without running; the user re-runs from Actions / Regenerate.
+    if (editModeReportId != null) {
+        Button(
+            onClick = onUpdateModelList,
+            enabled = models.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update model list", maxLines = 1, softWrap = false) }
+    } else {
+        Button(
+            onClick = { onGenerate(ReportType.CLASSIC) },
+            enabled = models.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) { Text("Generate", maxLines = 1, softWrap = false) }
+    }
 }
 
 // ===== Generation Phase =====

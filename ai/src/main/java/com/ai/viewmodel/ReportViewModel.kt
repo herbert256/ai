@@ -254,20 +254,37 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * the prompt + model list from a saved report so the user can edit which models run
      * before re-generating.
      */
-    suspend fun prepareEditModels(context: Context, reportId: String, alsoOpenParameters: Boolean = false) {
+    suspend fun prepareEditModels(context: Context, reportId: String) {
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
         val ai = appViewModel.uiState.value.aiSettings
-        val rebuilt = reportToModels(report, ai)
+        // Prefer an already-staged list (so the user comes back to whatever they were
+        // editing), fall back to the report's persisted agent set.
+        val rebuilt = appViewModel.uiState.value.stagedReportModels
+            .ifEmpty { reportToModels(report, ai) }
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
             showGenericReportsDialog = false,
             genericPromptTitle = report.title, genericPromptText = report.prompt,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
-            currentReportId = null, reportAdvancedParameters = null,
+            currentReportId = null,
             pendingReportModels = rebuilt,
-            pendingShowParameters = alsoOpenParameters
+            editModeReportId = reportId
         ) }
+    }
+
+    /**
+     * Save the user's edited model list as the staged set for a future Regenerate, then
+     * restore the Result-phase state for `reportId` so the user lands back on the Report
+     * Result screen. Called from the selection screen's "Update model list" button.
+     */
+    suspend fun stageModelListForRegenerate(context: Context, reportId: String, models: List<ReportModel>) {
+        appViewModel.updateUiState { it.copy(
+            stagedReportModels = models,
+            pendingReportModels = emptyList(),
+            editModeReportId = null
+        ) }
+        restoreCompletedReport(context, reportId)
     }
 
     /**
@@ -291,18 +308,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         scope.launch {
             val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return@launch
             val ai = appViewModel.uiState.value.aiSettings
-            val rebuilt = reportToModels(report, ai)
+            val staged = appViewModel.uiState.value.stagedReportModels
+            // Prefer a staged list from Edit Models — falls back to the on-disk agent set.
+            val rebuilt = if (staged.isNotEmpty()) staged else reportToModels(report, ai)
             val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
             val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
             val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            // Reset the screen state, then drive a normal generation pass.
+            // Reset the screen state and consume the staged list, then drive a generation pass.
             _agentResults.value = emptyMap()
             appViewModel.updateUiState { it.copy(
                 showGenericReportsDialog = false, currentReportId = null,
                 genericReportsProgress = 0, genericReportsTotal = 0,
                 genericReportsSelectedAgents = emptySet(),
                 genericPromptTitle = report.title, genericPromptText = report.prompt,
-                pendingReportModels = emptyList()
+                pendingReportModels = emptyList(),
+                stagedReportModels = emptyList()
             ) }
             generateGenericReports(
                 scope = scope, context = context, selectedAgentIds = agentIds,
@@ -321,8 +341,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     fun clearPendingReportModels() {
         val cur = appViewModel.uiState.value
-        if (cur.pendingReportModels.isEmpty() && !cur.pendingShowParameters) return
-        appViewModel.updateUiState { it.copy(pendingReportModels = emptyList(), pendingShowParameters = false) }
+        if (cur.pendingReportModels.isEmpty()) return
+        appViewModel.updateUiState { it.copy(pendingReportModels = emptyList()) }
     }
 
     /**
@@ -430,7 +450,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             showGenericReportsDialog = false, genericPromptTitle = "", genericPromptText = "",
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
-            currentReportId = null, reportAdvancedParameters = null
+            currentReportId = null, reportAdvancedParameters = null,
+            stagedReportModels = emptyList(), editModeReportId = null,
+            pendingReportModels = emptyList()
         ) }
     }
 
