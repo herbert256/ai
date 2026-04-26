@@ -485,12 +485,29 @@ fun ProviderSettingsScreen(
                 }
             }
 
-            // Parameters
+            // Parameters — same blue-card pattern as Default Model / Models so a long
+            // list of selected presets wraps onto a second line instead of overflowing
+            // the row width.
             val pNames = selectedParametersIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-            OutlinedButton(
-                onClick = { showParamsDialog = true }, modifier = Modifier.fillMaxWidth(),
-                colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-            ) { Text(if (pNames.isNotEmpty()) "Parameters: ${pNames.joinToString(", ")}" else "Parameters (none)", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { showParamsDialog = true },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Parameters", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            text = if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Tap to select",
+                            fontSize = 12.sp,
+                            color = if (pNames.isEmpty()) AppColors.TextTertiary else AppColors.Blue
+                        )
+                    }
+                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                }
+            }
 
             // Models — link to the dedicated per-provider Models screen (AI Setup → Models → this provider)
             Card(
