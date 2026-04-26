@@ -36,6 +36,7 @@ fun SetupScreen(
     BackHandler { onBackToSettings() }
     val context = LocalContext.current
     val hasApiKey = remember(aiSettings) { aiSettings.hasAnyApiKey() }
+    val hasActiveProvider = remember(aiSettings) { aiSettings.getActiveServices().isNotEmpty() }
     val modelProviderCount = remember(aiSettings) {
         AppService.entries.count { aiSettings.getProvider(it).models.isNotEmpty() }
     }
@@ -55,7 +56,7 @@ fun SetupScreen(
             SetupNavCard("\u2699\uFE0F", "Providers", "Configure API keys and models", "${AppService.entries.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
             SetupNavCard("\uD83E\uDDE0", "Models", "Default model, source, and model list per provider", "$modelProviderCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_MODELS) })
+                onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
             SetupNavCard("\uD83E\uDD16", "Agents", "Named AI model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
             SetupNavCard("\uD83E\uDD86", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
