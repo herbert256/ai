@@ -504,9 +504,6 @@ private fun ColumnScope.GenerationPhase(
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(displayName, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (result?.tokenUsage != null) {
-                        Text("${result.tokenUsage.inputTokens}/${result.tokenUsage.outputTokens} tok", fontSize = 10.sp, color = AppColors.TextTertiary)
-                    }
                 }
                 if (result?.tokenUsage != null) {
                     val cost = result.tokenUsage.apiCost ?: run {
