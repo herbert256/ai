@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -120,7 +121,9 @@ fun ProvidersScreen(
     BackHandler { onBackToAiSetup() }
     val allProviders = AppService.entries
     // "Active" = providers that have been tested and have a working API key (state == "ok").
-    var showActiveOnly by remember { mutableStateOf(true) }
+    // rememberSaveable so the Active/All choice survives a navigation hop into a Provider's
+    // detail screen (which causes ProvidersScreen to leave composition) and back.
+    var showActiveOnly by rememberSaveable { mutableStateOf(true) }
     val activeCount = remember(aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
 
     val visibleProviders = remember(showActiveOnly, aiSettings) {
