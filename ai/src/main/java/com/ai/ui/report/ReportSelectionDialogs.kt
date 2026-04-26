@@ -49,7 +49,10 @@ internal fun ReportSelectFlockDialog(aiSettings: Settings, onSelectFlock: (Flock
                 Spacer(modifier = Modifier.height(6.dp))
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(filtered, key = { it.id }) { flock ->
-                        val agents = aiSettings.getAgentsForFlock(flock)
+                        // Mirror what expandFlockToModels actually feeds the report: skip
+                        // agents whose provider isn't active so the displayed count matches
+                        // the worker count shown after Generate.
+                        val agents = aiSettings.getAgentsForFlock(flock).filter { aiSettings.isProviderActive(it.provider) }
                         var tIn = 0.0; var tOut = 0.0; var real = false
                         agents.forEach { a ->
                             val p = PricingCache.getPricing(context, a.provider, aiSettings.getEffectiveModelForAgent(a))
