@@ -47,6 +47,16 @@ fun ReportsScreenNav(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
+
+    // If we re-enter the screen on a finished report whose in-memory agent results were
+    // lost (Activity recreation, process death), rebuild them from ReportStorage so the
+    // status icons reflect actual outcomes instead of spinning hourglasses forever.
+    LaunchedEffect(uiState.currentReportId, agentResults.isEmpty(), uiState.genericReportsTotal) {
+        val rid = uiState.currentReportId
+        if (rid != null && agentResults.isEmpty() && uiState.genericReportsTotal > 0) {
+            reportViewModel.hydrateAgentResultsFromStorage(context, rid)
+        }
+    }
     // A new report always starts with an empty model selection — no auto-fill from the
     // previous run. Save/load helpers are kept so an explicit "reuse previous" action can
     // be wired later, but they're intentionally not invoked here.

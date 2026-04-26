@@ -234,6 +234,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /**
+     * Rebuild _agentResults from a persisted ReportStorage entry. Called when the screen
+     * comes back to a finished report whose in-memory results were lost (e.g. after Activity
+     * recreation or process death) — UiState still has currentReportId and the
+     * genericReports* counters, but our StateFlow restarted empty.
+     */
+    suspend fun hydrateAgentResultsFromStorage(context: Context, reportId: String) {
+        if (_agentResults.value.isNotEmpty()) return
+        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
+        val rebuilt = report.agents.mapNotNull { ra ->
+            val service = AppService.findById(ra.provider) ?: return@mapNotNull null
+            ra.agentId to AnalysisResponse(
+                service = service,
+                analysis = ra.responseBody,
+                error = ra.errorMessage,
+                agentName = ra.agentName,
+                tokenUsage = ra.tokenUsage,
+                citations = ra.citations,
+                searchResults = ra.searchResults,
+                relatedQuestions = ra.relatedQuestions,
+                rawUsageJson = ra.rawUsageJson,
+                httpHeaders = ra.responseHeaders,
+                httpStatusCode = ra.httpStatus
+            )
+        }.toMap()
+        if (rebuilt.isNotEmpty()) _agentResults.value = rebuilt
+    }
+
     fun stopGenericReports(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
         reportGenerationJob?.cancel()
         reportGenerationJob = null
