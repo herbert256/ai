@@ -31,6 +31,31 @@ import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.launch
 
+/** Tiny pill showing the inferred model kind ("chat", "embedding", "rerank", ...) so
+ *  users can tell at a glance which entries in a long list are non-chat. Color-coded
+ *  for the common kinds and falls back to a neutral gray for anything unexpected. */
+@Composable
+private fun ModelKindChip(kind: String) {
+    val color = when (kind) {
+        com.ai.data.ModelKind.CHAT -> AppColors.Blue
+        com.ai.data.ModelKind.EMBEDDING -> AppColors.Purple
+        com.ai.data.ModelKind.RERANK -> AppColors.Indigo
+        com.ai.data.ModelKind.IMAGE -> AppColors.Orange
+        com.ai.data.ModelKind.TTS, com.ai.data.ModelKind.STT -> AppColors.Green
+        com.ai.data.ModelKind.MODERATION, com.ai.data.ModelKind.CLASSIFY -> AppColors.Red
+        else -> AppColors.TextDim
+    }
+    Text(
+        text = kind,
+        fontSize = 9.sp,
+        color = Color.White,
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .background(color.copy(alpha = 0.4f), MaterialTheme.shapes.extraSmall)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    )
+}
+
 /** Prompt sent to every model by the "Test all models" action — short, deterministic,
  *  cheap, and surfaces shaping issues (refusal, JSON wrapping, mode-locked models). */
 private const val MODEL_TEST_PROMPT =
@@ -278,6 +303,7 @@ fun ProviderModelSettingsScreen(
             if (models.isNotEmpty()) {
                 Text("${models.size} models available", fontSize = 12.sp, color = AppColors.TextTertiary)
                 HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 4.dp))
+                val rowKinds = config.modelKinds
                 models.sorted().forEach { modelId ->
                     Row(
                         modifier = Modifier
@@ -292,6 +318,9 @@ fun ProviderModelSettingsScreen(
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        rowKinds[modelId]?.let { kind ->
+                            ModelKindChip(kind)
+                        }
                         // Test-status icon when a Test all models run has touched this row.
                         ModelTestStatusIcon(
                             status = testStatuses[modelId],

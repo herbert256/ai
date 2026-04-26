@@ -82,11 +82,20 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 loadJsonList("${key}_manual_models") ?: defaults.models
             else
                 loadJsonList("${key}_manual_models") ?: emptyList()
+            val storedKinds: Map<String, String> = prefs.getString("${key}_model_kinds", null)?.let {
+                try {
+                    @Suppress("UNCHECKED_CAST")
+                    gson.fromJson(it, Map::class.java) as? Map<String, String>
+                } catch (_: Exception) { null }
+            } ?: emptyMap()
+            // Backfill heuristic kinds for any models loaded from old prefs that pre-date
+            // the kinds column, so the UI / dispatcher always has *some* classification.
+            val kinds = models.associateWith { id -> storedKinds[id] ?: com.ai.data.ModelKind.infer(id) }
 
             ProviderConfig(
                 apiKey = prefs.getString("${key}_api_key", "") ?: "",
                 model = prefs.getString("${key}_model", service.defaultModel) ?: service.defaultModel,
-                modelSource = modelSource, models = models,
+                modelSource = modelSource, models = models, modelKinds = kinds,
                 adminUrl = prefs.getString("${key}_admin_url", service.adminUrl) ?: service.adminUrl,
                 modelListUrl = prefs.getString("${key}_model_list_url", "") ?: "",
                 parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList()
@@ -104,6 +113,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 putString("${key}_model", config.model)
                 putString("${key}_model_source", config.modelSource.name)
                 putString("${key}_manual_models", gson.toJson(config.models))
+                putString("${key}_model_kinds", gson.toJson(config.modelKinds))
                 putString("${key}_admin_url", config.adminUrl)
                 putString("${key}_model_list_url", config.modelListUrl)
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
@@ -119,8 +129,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    fun saveModelsForProvider(service: AppService, models: List<String>) {
-        prefs.edit { putString("${service.prefsKey}_manual_models", gson.toJson(models)) }
+    fun saveModelsForProvider(service: AppService, models: List<String>, kinds: Map<String, String> = emptyMap()) {
+        prefs.edit {
+            putString("${service.prefsKey}_manual_models", gson.toJson(models))
+            putString("${service.prefsKey}_model_kinds", gson.toJson(kinds))
+        }
     }
 
     // ===== Prompt History =====

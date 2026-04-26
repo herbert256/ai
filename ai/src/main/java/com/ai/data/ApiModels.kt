@@ -229,6 +229,9 @@ data class GeminiError(val code: Int?, val message: String?, val status: String?
 data class OpenAiModelsResponse(val data: List<OpenAiModel>?)
 data class OpenAiModel(val id: String?, val owned_by: String?)
 
+data class CohereModelsResponse(val models: List<CohereModelInfo>?)
+data class CohereModelInfo(val name: String?, val endpoints: List<String>?)
+
 data class ClaudeModelsResponse(val data: List<ClaudeModelInfo>?)
 data class ClaudeModelInfo(val id: String?, val display_name: String?, val type: String?)
 

@@ -10,6 +10,11 @@ data class ProviderConfig(
     val model: String = "",
     val modelSource: ModelSource = ModelSource.API,
     val models: List<String> = emptyList(),
+    /** Kind classification per model id ("chat", "embedding", "rerank", ...). Sidecar
+     *  to `models` rather than embedded so existing screens can keep treating models
+     *  as a plain id list. Sourced from native list APIs where possible, naming
+     *  heuristic otherwise. */
+    val modelKinds: Map<String, String> = emptyMap(),
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -132,6 +137,9 @@ data class Settings(
     fun getModelSource(service: AppService) = getProvider(service).modelSource
     fun getModels(service: AppService) = getProvider(service).models
     fun withModels(service: AppService, models: List<String>) = withProvider(service, getProvider(service).copy(models = models))
+    fun withModels(service: AppService, models: List<String>, kinds: Map<String, String>) =
+        withProvider(service, getProvider(service).copy(models = models, modelKinds = kinds))
+    fun getModelKind(service: AppService, modelId: String): String? = getProvider(service).modelKinds[modelId]
     fun hasAnyApiKey() = providers.values.any { it.apiKey.isNotBlank() }
 
     fun getAgentById(id: String) = agents.find { it.id == id }

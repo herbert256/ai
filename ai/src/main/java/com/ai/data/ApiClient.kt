@@ -136,6 +136,17 @@ interface OpenRouterModelsApi {
     ): Response<OpenRouterModelsDetailedResponse>
 }
 
+/** Cohere native model list — has the `endpoints` field per model that the
+ *  /compatibility endpoint strips. Always points at api.cohere.com regardless
+ *  of which Cohere base URL the user has configured. */
+interface CohereNativeApi {
+    @GET("v1/models")
+    suspend fun listModels(
+        @Header("Authorization") authorization: String,
+        @retrofit2.http.Query("page_size") pageSize: Int = 1000
+    ): Response<CohereModelsResponse>
+}
+
 /** Hugging Face model info. */
 interface HuggingFaceApi {
     @GET("models/{modelId}")
@@ -176,5 +187,6 @@ object ApiFactory {
     fun createGeminiApi(baseUrl: String): GeminiApi = getRetrofit(baseUrl).create(GeminiApi::class.java)
     fun createOpenAiCompatibleApi(baseUrl: String): OpenAiCompatibleApi = getRetrofit(baseUrl).create(OpenAiCompatibleApi::class.java)
     fun createOpenRouterModelsApi(baseUrl: String): OpenRouterModelsApi = getRetrofit(baseUrl).create(OpenRouterModelsApi::class.java)
+    fun createCohereNativeApi(): CohereNativeApi = getRetrofit("https://api.cohere.com/").create(CohereNativeApi::class.java)
     fun createHuggingFaceApi(): HuggingFaceApi = getRetrofit("https://huggingface.co/api/").create(HuggingFaceApi::class.java)
 }

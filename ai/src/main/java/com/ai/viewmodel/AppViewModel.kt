@@ -213,11 +213,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor + service) }
             try {
-                val models = repository.fetchModels(service, apiKey)
+                val fetched = repository.fetchModelsWithKinds(service, apiKey)
                 _uiState.update { state ->
-                    state.copy(aiSettings = state.aiSettings.withModels(service, models), loadingModelsFor = state.loadingModelsFor - service)
+                    state.copy(
+                        aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.kinds),
+                        loadingModelsFor = state.loadingModelsFor - service
+                    )
                 }
-                settingsPrefs.saveModelsForProvider(service, models)
+                settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.kinds)
             } catch (e: Exception) {
                 android.util.Log.w("AppViewModel", "Failed to fetch models for ${service.displayName}: ${e.message}")
                 _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor - service) }
@@ -240,10 +243,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     async {
                         onProgress?.invoke(service.displayName)
                         try {
-                            val models = repository.fetchModels(service, settings.getApiKey(service))
-                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, models)) }
-                            settingsPrefs.saveModelsForProvider(service, models)
-                            service to models.size
+                            val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
+                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.kinds)) }
+                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.kinds)
+                            service to fetched.ids.size
                         } catch (_: Exception) { service to -1 }
                     }
                 }.awaitAll()
