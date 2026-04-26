@@ -354,10 +354,20 @@ fun ProviderSettingsScreen(
         if (updated == current) return@LaunchedEffect
         var newSettings = aiSettings.withProvider(service, updated)
         // Keep the default agent named after the provider in sync with the provider's
-        // default model, so changing the model here also updates the matching default agent.
-        if (current.model != defaultModel) {
-            val updatedAgents = newSettings.agents.map { a ->
-                if (a.provider.id == service.id && a.name == service.displayName) a.copy(model = defaultModel) else a
+        // default model — update it if it exists, create it if it doesn't (so a freshly
+        // configured provider automatically gets a usable default agent).
+        if (current.model != defaultModel && defaultModel.isNotBlank()) {
+            val idx = newSettings.agents.indexOfFirst { it.provider.id == service.id && it.name == service.displayName }
+            val updatedAgents = if (idx >= 0) {
+                newSettings.agents.toMutableList().also { it[idx] = it[idx].copy(model = defaultModel) }
+            } else {
+                newSettings.agents + Agent(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = service.displayName,
+                    provider = service,
+                    model = defaultModel,
+                    apiKey = ""
+                )
             }
             if (updatedAgents != newSettings.agents) newSettings = newSettings.copy(agents = updatedAgents)
         }
