@@ -232,7 +232,7 @@ private fun dispatchHtml(context: Context, html: String, fileName: String, repor
                 setDataAndType(uri, "text/html")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Open AI Report (HTML)"))
+            context.startActivity(intent)
         }
     }
 }
@@ -256,7 +256,7 @@ private suspend fun dispatchPdf(context: Context, html: String, fileName: String
                 setDataAndType(uri, "application/pdf")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Open AI Report (PDF)"))
+            context.startActivity(intent)
         }
     }
 }
@@ -270,7 +270,7 @@ private fun openReportAsJson(context: Context, report: Report) {
         setDataAndType(uri, "application/json")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, "Open AI Report (JSON)"))
+    context.startActivity(intent)
 }
 
 // ===== HTML composition =====
