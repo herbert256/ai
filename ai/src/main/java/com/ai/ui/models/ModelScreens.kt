@@ -211,16 +211,14 @@ fun ModelInfoScreen(
 
                 // HuggingFace lookup
                 if (huggingFaceApiKey.isNotBlank()) {
-                    val hfApi = ApiFactory.createHuggingFaceApi()
-                    val candidates = listOfNotNull(
-                        modelName,
-                        modelName.takeIf { "/" !in it }?.let { "${provider.openRouterName ?: provider.displayName}/$it" }
-                    ).distinct()
-                    for (candidate in candidates) {
+                    // Every HF repo is "<owner>/<repo>" — a bare model name with no slash is
+                    // guaranteed to 404, so build the only path that has any chance of resolving.
+                    val candidate = if ("/" in modelName) modelName
+                        else (provider.openRouterName ?: provider.displayName).takeIf { it.isNotBlank() }?.let { "$it/$modelName" }
+                    if (candidate != null) {
                         try {
-                            val auth = "Bearer $huggingFaceApiKey"
-                            val resp = hfApi.getModelInfo(candidate, auth)
-                            if (resp.isSuccessful) { hfInfo = resp.body(); break }
+                            val resp = ApiFactory.createHuggingFaceApi().getModelInfo(candidate, "Bearer $huggingFaceApiKey")
+                            if (resp.isSuccessful) hfInfo = resp.body()
                         } catch (_: Exception) {}
                     }
                 }
