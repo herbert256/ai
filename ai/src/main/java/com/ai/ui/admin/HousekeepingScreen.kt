@@ -83,21 +83,21 @@ fun HousekeepingScreen(
                     OutlinedButton(onClick = {
                         val deleted = ApiTracer.deleteTracesOlderThan(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000)
                         Toast.makeText(context, "Deleted $deleted old traces", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Delete Traces Older Than 7 Days", maxLines = 1, softWrap = false) }
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("Delete Traces Older Than 7 Days", maxLines = 1, softWrap = false) }
 
                     OutlinedButton(onClick = {
                         val cutoff = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
                         val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
                         reports.forEach { ReportStorage.deleteReport(context, it.id) }
                         Toast.makeText(context, "Deleted ${reports.size} old reports", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Delete Reports Older Than 30 Days", maxLines = 1, softWrap = false) }
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("Delete Reports Older Than 30 Days", maxLines = 1, softWrap = false) }
 
                     OutlinedButton(onClick = {
                         val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
                         val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
                         settingsPrefs.clearUsageStats()
                         Toast.makeText(context, "Usage statistics cleared", Toast.LENGTH_SHORT).show()
-                    }, modifier = Modifier.fillMaxWidth()) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
 
                     Button(
                         onClick = { showClearAllConfirm = true },

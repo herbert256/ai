@@ -391,7 +391,7 @@ private fun ColumnScope.SelectionPhase(
             "Provider" to onAddModel,
             "Model" to onAddAllModels
         ).forEach { (label, action) ->
-            OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp)) {
+            OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp), colors = AppColors.outlinedButtonColors()) {
                 Text("+$label", fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
         }
@@ -426,8 +426,8 @@ private fun ColumnScope.SelectionPhase(
 
     // Bottom buttons
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (models.isNotEmpty()) OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f)) { Text("Clear", maxLines = 1, softWrap = false) }
-        OutlinedButton(onClick = onAdvancedParams, modifier = Modifier.weight(1f)) {
+        if (models.isNotEmpty()) OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
+        OutlinedButton(onClick = onAdvancedParams, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
             Text(if (advancedParameters != null) "Params \u2713" else "Params", fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
     }
@@ -549,7 +549,7 @@ private fun ColumnScope.GenerationPhase(
     if (!isComplete) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onStop, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)) { Text("STOP", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f)) { Text("Background", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Background", maxLines = 1, softWrap = false) }
         }
     } else {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

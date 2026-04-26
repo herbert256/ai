@@ -150,7 +150,7 @@ fun DualChatSetupScreen(
                     val tp = model1Provider; val tn = model1Name; val tpi = model1ParamsIds; val tsp = model1SystemPromptId
                     model1Provider = model2Provider; model1Name = model2Name; model1ParamsIds = model2ParamsIds; model1SystemPromptId = model2SystemPromptId
                     model2Provider = tp; model2Name = tn; model2ParamsIds = tpi; model2SystemPromptId = tsp
-                }) { Text("\u2B05 Swap \u27A1", maxLines = 1, softWrap = false) }
+                }, colors = AppColors.outlinedButtonColors()) { Text("\u2B05 Swap \u27A1", maxLines = 1, softWrap = false) }
             }
 
             // Model 2

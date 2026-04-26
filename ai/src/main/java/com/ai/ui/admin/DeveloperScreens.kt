@@ -114,7 +114,7 @@ fun ApiTestScreen(
                 OutlinedButton(onClick = {
                     val idx = AppService.entries.indexOf(selectedProvider)
                     selectedProvider = AppService.entries[(idx + 1) % AppService.entries.size]
-                }, modifier = Modifier.weight(1f)) {
+                }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
                     Text(selectedProvider.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -125,7 +125,7 @@ fun ApiTestScreen(
                     modifier = Modifier.weight(1f), singleLine = true, colors = AppColors.outlinedFieldColors())
                 OutlinedButton(
                     onClick = { showEndpointDialog = true },
-                    modifier = Modifier.semantics { contentDescription = "Pick endpoint" }
+                    modifier = Modifier.semantics { contentDescription = "Pick endpoint" }, colors = AppColors.outlinedButtonColors()
                 ) { Text("...", maxLines = 1, softWrap = false) }
             }
 
@@ -147,7 +147,7 @@ fun ApiTestScreen(
                             isLoadingModels = false; showModelDialog = true
                         }
                     },
-                    modifier = Modifier.semantics { contentDescription = "Pick model" }
+                    modifier = Modifier.semantics { contentDescription = "Pick model" }, colors = AppColors.outlinedButtonColors()
                 ) { Text("...", maxLines = 1, softWrap = false) }
             }
 

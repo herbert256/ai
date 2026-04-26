@@ -245,13 +245,13 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
             OutlinedButton(onClick = {
                 if (hasPrev) { currentFilename = traceFiles[currentIndex - 1]; currentView = TraceContentView.ALL }
             }, enabled = hasPrev, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }
+                modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }, colors = AppColors.outlinedButtonColors()
             ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clip.setPrimaryClip(ClipData.newPlainText("trace", displayContent))
                 Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-            }, modifier = Modifier.weight(1f)) { Text("Copy", maxLines = 1, softWrap = false) }
+            }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Copy", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 // Save provider/model/key to prefs for EditApiRequestScreen
                 t?.let { trace ->
@@ -263,12 +263,12 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
                         }.apply()
                     }
                 onEditRequest()
-            }, modifier = Modifier.weight(1f)) { Text("Edit", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = { shareTrace(context, rawJson, currentFilename) }, modifier = Modifier.weight(1f)) { Text("Share", maxLines = 1, softWrap = false) }
+            }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = { shareTrace(context, rawJson, currentFilename) }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.ALL }
             }, enabled = hasNext, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp).semantics { contentDescription = "Next trace" }
+                modifier = Modifier.width(36.dp).semantics { contentDescription = "Next trace" }, colors = AppColors.outlinedButtonColors()
             ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
         }
     }

@@ -127,13 +127,13 @@ fun AgentEditScreen(
             )
 
             // Provider selection
-            OutlinedButton(onClick = { overlayMode = 1 }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { overlayMode = 1 }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                 Text("Provider: ${selectedProvider.displayName}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             // Model selection
             val effectiveModel = model.ifBlank { aiSettings.getModel(selectedProvider) }
-            OutlinedButton(onClick = { overlayMode = 2 }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { overlayMode = 2 }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                 Text("Model: ${effectiveModel.ifBlank { "(default)" }}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
@@ -150,7 +150,7 @@ fun AgentEditScreen(
                 val epName = selectedEndpointId?.let { id -> endpoints.find { it.id == id }?.name } ?: "Default"
                 OutlinedButton(onClick = {
                     selectedEndpointId = if (selectedEndpointId == null) endpoints.firstOrNull { !it.isDefault }?.id else null
-                }, modifier = Modifier.fillMaxWidth()) {
+                }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                     Text("Endpoint: $epName", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }

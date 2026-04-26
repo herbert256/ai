@@ -194,14 +194,14 @@ fun RefreshScreen(
                                     }.awaitAll()
                                 }
                             }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Providers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Providers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
                             launchTask("Refreshing Models") {
                                 refreshResults = onRefreshAllModels(aiSettings, true) { msg: String -> progressText = msg }
                                 showResultsDialog = true
                             }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Models", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Models", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -215,7 +215,7 @@ fun RefreshScreen(
                                 }
                                 showOpenRouterDialog = true
                             }
-                        }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f)) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
                             // Only test providers that are not inactive and have an API key set.
@@ -280,7 +280,7 @@ fun RefreshScreen(
                                     onSave(updatedSettings)
                                 }
                             }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f)) { Text("Default agents", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Default agents", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                 }
             }

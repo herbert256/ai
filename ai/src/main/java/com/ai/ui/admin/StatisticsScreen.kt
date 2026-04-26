@@ -246,7 +246,7 @@ private fun CostConfigCard(
                     label = { Text("Output $/1M tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onCancel) { Text("Cancel", maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = onCancel, colors = AppColors.outlinedButtonColors()) { Text("Cancel", maxLines = 1, softWrap = false) }
                     Button(onClick = onSave, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)) { Text("Save", maxLines = 1, softWrap = false) }
                 }
             } else {
@@ -255,8 +255,8 @@ private fun CostConfigCard(
                 Text("Output: ${formatTokenPricePerMillion(outputPrice)}", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onRemove) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = onEdit) { Text("Edit", maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = onRemove, colors = AppColors.outlinedButtonColors()) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = onEdit, colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
                 }
             }
         }
@@ -297,14 +297,14 @@ private fun AddManualOverrideScreen(
         TitleBar(title = "Add Override", onBackClick = onBack, onAiClick = onNavigateHome)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { showProviderSelect = true }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { showProviderSelect = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                 Text("Provider: ${selectedProvider?.displayName ?: "Select"}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = model, onValueChange = { model = it },
                     label = { Text("Model") }, modifier = Modifier.weight(1f), singleLine = true, colors = AppColors.outlinedFieldColors())
-                OutlinedButton(onClick = { showModelSelect = true }) { Text("Select", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { showModelSelect = true }, colors = AppColors.outlinedButtonColors()) { Text("Select", maxLines = 1, softWrap = false) }
             }
 
             // Show current pricing for reference

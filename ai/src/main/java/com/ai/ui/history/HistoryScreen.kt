@@ -78,7 +78,7 @@ fun HistoryScreenNav(
 
             // Search toggle
             if (!searchExpanded) {
-                OutlinedButton(onClick = { searchExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = { searchExpanded = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                     Text(if (isSearchActive) "Search (active)" else "Search")
                 }
             } else {
@@ -91,8 +91,8 @@ fun HistoryScreenNav(
                         OutlinedTextField(value = searchReport, onValueChange = { searchReport = it; currentPage = 0 },
                             label = { Text("Response") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { searchTitle = ""; searchPrompt = ""; searchReport = "" }) { Text("Clear", maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { searchExpanded = false }) { Text("Close", maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { searchTitle = ""; searchPrompt = ""; searchReport = "" }, colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { searchExpanded = false }, colors = AppColors.outlinedButtonColors()) { Text("Close", maxLines = 1, softWrap = false) }
                         }
                     }
                 }
@@ -155,8 +155,8 @@ private fun HistoryReportRow(report: Report, onViewReport: () -> Unit, onDeleteR
     if (showShareDialog) {
         AlertDialog(onDismissRequest = { showShareDialog = false }, title = { Text("Share Format") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { shareReportAsJson(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("JSON", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = { shareReportAsHtml(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("HTML", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { shareReportAsJson(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("JSON", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { shareReportAsHtml(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("HTML", maxLines = 1, softWrap = false) }
             }},
             confirmButton = {}, dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } })
     }
@@ -175,10 +175,10 @@ private fun HistoryReportRow(report: Report, onViewReport: () -> Unit, onDeleteR
             if (showActions) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = onViewReport, modifier = Modifier.weight(1f)) { Text("View", fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { showShareDialog = true }, modifier = Modifier.weight(1f)) { Text("Share", fontSize = 12.sp, color = AppColors.Green, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { openReportInChrome(context, report.id) }, modifier = Modifier.weight(1f)) { Text("Browser", fontSize = 12.sp, color = AppColors.Purple, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { showDeleteConfirm = true }) { Text("X", fontSize = 12.sp, color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = onViewReport, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("View", fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = { showShareDialog = true }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", fontSize = 12.sp, color = AppColors.Green, maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = { openReportInChrome(context, report.id) }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Browser", fontSize = 12.sp, color = AppColors.Purple, maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = { showDeleteConfirm = true }, colors = AppColors.outlinedButtonColors()) { Text("X", fontSize = 12.sp, color = AppColors.Red, maxLines = 1, softWrap = false) }
                 }
             }
         }

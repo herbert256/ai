@@ -58,7 +58,7 @@ fun ReportAdvancedParametersScreen(
                     systemPrompt = ""; seed = ""; searchEnabled = false; returnCitations = true; searchRecency = ""
                     onApply(null)
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()
             ) { Text("Clear all", maxLines = 1, softWrap = false) }
         }
 

@@ -174,7 +174,7 @@ fun NewReportScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { title = ""; prompt = "" }, modifier = Modifier.weight(1f)) { Text("Clear", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = { title = ""; prompt = "" }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
             Button(
                 onClick = {
                     if (title.isNotBlank() && prompt.isNotBlank()) {

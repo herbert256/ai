@@ -1,5 +1,7 @@
 package com.ai.ui.shared
 
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -55,6 +57,16 @@ object AppColors {
 
     // Success count
     val CountGreen = Color(0xFF00E676)
+
+    /** Default filled style for OutlinedButton — gives every "neutral" button a subtle
+     *  background instead of the Material default transparent container. */
+    @Composable
+    fun outlinedButtonColors(
+        containerColor: Color = CardBackgroundAlt,
+        contentColor: Color = Color.White
+    ): ButtonColors = ButtonDefaults.outlinedButtonColors(
+        containerColor = containerColor, contentColor = contentColor
+    )
 
     @Composable
     fun outlinedFieldColors() = OutlinedTextFieldDefaults.colors(

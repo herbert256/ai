@@ -96,7 +96,7 @@ fun PromptEditScreen(
             )
 
             val agentName = if (selectedAgentId.isNotBlank()) aiSettings.getAgentById(selectedAgentId)?.name ?: "Not found" else "None"
-            OutlinedButton(onClick = { showSelectAgent = true }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { showSelectAgent = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                 Text("Agent: $agentName", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
