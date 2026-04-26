@@ -10,6 +10,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -51,12 +54,29 @@ fun SelectModelScreen(
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
 
-    // If this screen opens for a single provider whose model source is API, kick off a
-    // background refresh of the model list so the user sees the freshest catalog. The
-    // list updates reactively as aiSettings.getModels returns new data.
+    // For an API-mode provider, hold the model list behind a refresh: kick off the fetch,
+    // wait for it to complete (observed via the parent-supplied isRefreshing flag), then
+    // unveil the list. A 15s timeout makes sure the screen doesn't hang on a stalled call.
     val providerSource = aiSettings.getProvider(provider).modelSource
+    val refreshingState = rememberUpdatedState(isRefreshing)
+    var initialRefreshDone by remember(provider.id) {
+        mutableStateOf(providerSource != ModelSource.API || onRefresh == null)
+    }
     LaunchedEffect(provider.id) {
-        if (providerSource == ModelSource.API) onRefresh?.invoke()
+        if (providerSource == ModelSource.API && onRefresh != null) {
+            onRefresh()
+            try {
+                withTimeout(15_000) {
+                    if (!refreshingState.value) {
+                        snapshotFlow { refreshingState.value }.first { it }
+                    }
+                    snapshotFlow { refreshingState.value }.first { !it }
+                }
+            } catch (_: TimeoutCancellationException) {
+                // Stalled fetch: unveil what we have rather than blocking forever.
+            }
+            initialRefreshDone = true
+        }
     }
 
     val allModels = aiSettings.getModels(provider)
@@ -103,6 +123,17 @@ fun SelectModelScreen(
         )
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        if (!initialRefreshDone) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = AppColors.Blue)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Refreshing model list…", color = AppColors.TextTertiary, fontSize = 12.sp)
+                }
+            }
+            return@Column
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
