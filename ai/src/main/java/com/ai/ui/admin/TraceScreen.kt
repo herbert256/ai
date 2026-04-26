@@ -167,6 +167,7 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
     // Parse JSON trees
     val requestTreeNodes = remember(t?.request?.body) { t?.request?.body?.let { parseJsonTree(it) } }
     val responseTreeNodes = remember(t?.response?.body) { t?.response?.body?.let { parseJsonTree(it) } }
+    val allTreeNodes = remember(rawJson) { if (rawJson.isNotBlank()) parseJsonTree(rawJson) else null }
 
     // Build content for current view
     val displayContent = remember(t, currentView) {
@@ -211,10 +212,13 @@ fun TraceDetailScreen(filename: String, onBack: () -> Unit, onNavigateHome: () -
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Content area - use JSON tree for request/response data if parseable
-        val useTree = (currentView == TraceContentView.REQ_DATA && requestTreeNodes != null) ||
+        // Content area — render the colored JSON tree whenever the current view's payload is
+        // valid JSON (the whole trace file always is, so ALL gets the tree too).
+        val useTree = (currentView == TraceContentView.ALL && allTreeNodes != null) ||
+            (currentView == TraceContentView.REQ_DATA && requestTreeNodes != null) ||
             (currentView == TraceContentView.RSP_DATA && responseTreeNodes != null)
         val treeNodes = when (currentView) {
+            TraceContentView.ALL -> allTreeNodes
             TraceContentView.REQ_DATA -> requestTreeNodes
             TraceContentView.RSP_DATA -> responseTreeNodes
             else -> null
