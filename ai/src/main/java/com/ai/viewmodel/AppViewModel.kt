@@ -215,12 +215,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val fetched = repository.fetchModelsWithKinds(service, apiKey)
                 _uiState.update { state ->
-                    state.copy(
-                        aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.kinds),
-                        loadingModelsFor = state.loadingModelsFor - service
-                    )
+                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.kinds)
+                    // Cross-pollinate OpenRouter labels — covers two flows:
+                    //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
+                    //   • OpenRouter fetch propagates fresh labels to every other provider
+                    state.copy(aiSettings = withSelf.applyOpenRouterKinds(), loadingModelsFor = state.loadingModelsFor - service)
                 }
-                settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.kinds)
+                val final = _uiState.value.aiSettings
+                settingsPrefs.saveModelsForProvider(service, fetched.ids, final.getProvider(service).modelKinds)
+                if (service.id == "OPENROUTER") {
+                    // Persist the freshly cross-applied labels for every other provider.
+                    AppService.entries.filter { it.id != service.id }.forEach { other ->
+                        val cfg = final.getProvider(other)
+                        if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelKinds)
+                    }
+                }
             } catch (e: Exception) {
                 android.util.Log.w("AppViewModel", "Failed to fetch models for ${service.displayName}: ${e.message}")
                 _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor - service) }
@@ -254,6 +263,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             val successful = results.filter { it.second > 0 }.map { it.first }
             if (successful.isNotEmpty()) settingsPrefs.updateModelListTimestamps(successful)
+            // Final cross-lookup pass — guarantees that whichever order the parallel
+            // fetches finished in, OpenRouter's labels end up applied everywhere.
+            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.applyOpenRouterKinds()) }
+            val final = _uiState.value.aiSettings
+            successful.forEach { service ->
+                val cfg = final.getProvider(service)
+                if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelKinds)
+            }
             results.associate { it.first.displayName to it.second }
         }
     }
