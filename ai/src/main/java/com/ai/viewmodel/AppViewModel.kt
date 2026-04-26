@@ -276,6 +276,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } catch (_: Exception) { Pair(false, ApiTracer.getTraceFiles().firstOrNull()?.filename) }
     }
 
+    /**
+     * Per-model test variant safe to run concurrently. Captures startTime before the
+     * call and then resolves the trace file by matching model name + timestamp, so
+     * five parallel "Test all models" calls don't all collapse onto whichever trace
+     * happened to land last globally.
+     */
+    suspend fun testSpecificModel(service: AppService, apiKey: String, model: String, prompt: String): Pair<Boolean, String?> {
+        val startTime = System.currentTimeMillis()
+        return try {
+            val (responseText, _) = repository.testModelWithPrompt(service, apiKey, model, prompt)
+            val traceFile = ApiTracer.getTraceFiles()
+                .firstOrNull { it.model == model && it.timestamp >= startTime }
+                ?.filename
+            Pair(responseText != null && responseText.isNotBlank(), traceFile)
+        } catch (_: Exception) {
+            val traceFile = ApiTracer.getTraceFiles()
+                .firstOrNull { it.model == model && it.timestamp >= startTime }
+                ?.filename
+            Pair(false, traceFile)
+        }
+    }
+
     // ===== External Intent =====
 
     fun setExternalInstructions(

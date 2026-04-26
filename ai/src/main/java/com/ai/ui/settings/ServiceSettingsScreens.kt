@@ -1,12 +1,18 @@
 package com.ai.ui.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -24,6 +30,46 @@ import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.launch
+
+/** Prompt sent to every model by the "Test all models" action — short, deterministic,
+ *  cheap, and surfaces shaping issues (refusal, JSON wrapping, mode-locked models). */
+private const val MODEL_TEST_PROMPT =
+    "This is a test, only return the exact string 'ok', nothing more."
+
+private sealed class ModelTestStatus {
+    object Running : ModelTestStatus()
+    object Ok : ModelTestStatus()
+    data class Fail(val traceFile: String?) : ModelTestStatus()
+}
+
+@Composable
+private fun ModelTestStatusIcon(
+    status: ModelTestStatus?,
+    onTraceClick: (String) -> Unit
+) {
+    when (status) {
+        null -> Spacer(modifier = Modifier.width(0.dp))
+        ModelTestStatus.Running -> {
+            val transition = rememberInfiniteTransition(label = "model-test-hourglass")
+            val angle by transition.animateFloat(
+                initialValue = 0f, targetValue = 360f,
+                animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                label = "model-test-hourglass-rotation"
+            )
+            Text("⏳", fontSize = 14.sp, modifier = Modifier.padding(horizontal = 6.dp).rotate(angle))
+        }
+        ModelTestStatus.Ok -> Text("✅", fontSize = 14.sp, modifier = Modifier.padding(horizontal = 6.dp))
+        is ModelTestStatus.Fail -> {
+            val traceFile = status.traceFile
+            Text(
+                "❌", fontSize = 14.sp,
+                modifier = Modifier
+                    .padding(horizontal = 6.dp)
+                    .then(if (traceFile != null) Modifier.clickable { onTraceClick(traceFile) } else Modifier)
+            )
+        }
+    }
+}
 
 // ===== Models list (one entry per provider) =====
 
@@ -90,9 +136,12 @@ fun ProviderModelSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
     onFetchModels: (String) -> Unit = {},
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onTestSpecificModel: (suspend (String, String) -> Pair<Boolean, String?>)? = null,
+    onNavigateToTrace: ((String) -> Unit)? = null
 ) {
     BackHandler { onBack() }
+    val scope = rememberCoroutineScope()
     val config = aiSettings.getProvider(service)
     val apiKey = config.apiKey
     var modelSource by remember { mutableStateOf(config.modelSource) }
@@ -100,6 +149,11 @@ fun ProviderModelSettingsScreen(
     // Inline add/edit state for the Manual CRUD form.
     var manualInput by remember { mutableStateOf("") }
     var editingOriginal by remember { mutableStateOf<String?>(null) }
+
+    // Per-model test state — drives the trailing icon on each row.
+    // Statuses: "running", "ok", "fail" (with optional traceFile for the X-link).
+    var testStatuses by remember(service.id) { mutableStateOf<Map<String, ModelTestStatus>>(emptyMap()) }
+    var testInProgress by remember { mutableStateOf(false) }
 
     // Mirror external updates (e.g. completed Fetch Models) into local state so the count
     // and list refresh as soon as the new model list lands in settings.
@@ -142,11 +196,41 @@ fun ProviderModelSettingsScreen(
                 )
             }
             if (modelSource == ModelSource.API && apiKey.isNotBlank()) {
-                Button(
-                    onClick = { onFetchModels(apiKey) },
-                    enabled = !isLoadingModels,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { onFetchModels(apiKey) },
+                        enabled = !isLoadingModels,
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
+                    if (onTestSpecificModel != null && models.isNotEmpty()) {
+                        Button(
+                            onClick = {
+                                val targets = models.toList()
+                                testStatuses = targets.associateWith { ModelTestStatus.Running }
+                                testInProgress = true
+                                scope.launch {
+                                    val sem = kotlinx.coroutines.sync.Semaphore(5)
+                                    kotlinx.coroutines.coroutineScope {
+                                        targets.forEach { m ->
+                                            launch {
+                                                sem.acquire()
+                                                try {
+                                                    val (ok, trace) = onTestSpecificModel(m, MODEL_TEST_PROMPT)
+                                                    testStatuses = testStatuses + (m to if (ok) ModelTestStatus.Ok else ModelTestStatus.Fail(trace))
+                                                } finally {
+                                                    sem.release()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    testInProgress = false
+                                }
+                            },
+                            enabled = !testInProgress,
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                        ) { Text(if (testInProgress) "Testing..." else "Test all models", maxLines = 1, softWrap = false) }
+                    }
+                }
             } else if (modelSource == ModelSource.API && apiKey.isBlank()) {
                 Text("Set an API key for ${service.displayName} in Providers to fetch models.", fontSize = 12.sp, color = AppColors.TextTertiary)
             }
@@ -207,6 +291,13 @@ fun ProviderModelSettingsScreen(
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
+                        )
+                        // Test-status icon when a Test all models run has touched this row.
+                        ModelTestStatusIcon(
+                            status = testStatuses[modelId],
+                            onTraceClick = { traceFile ->
+                                onNavigateToTrace?.invoke(traceFile)
+                            }
                         )
                         if (modelSource == ModelSource.MANUAL) {
                             TextButton(

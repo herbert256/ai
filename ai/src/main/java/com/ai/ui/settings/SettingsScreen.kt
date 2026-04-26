@@ -46,6 +46,7 @@ fun SettingsScreen(
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
+    onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
@@ -154,7 +155,11 @@ fun SettingsScreen(
                     isLoadingModels = provider in loadingModelsFor,
                     onBack = goBack, onBackToHome = onNavigateHome,
                     onSave = onSaveAi, onFetchModels = { onFetchModels(provider, it) },
-                    onNavigateToModelInfo = onNavigateToModelInfo
+                    onNavigateToModelInfo = onNavigateToModelInfo,
+                    onTestSpecificModel = { model, prompt ->
+                        onTestSpecificModel(provider, aiSettings.getApiKey(provider), model, prompt)
+                    },
+                    onNavigateToTrace = onNavigateToTrace
                 )
             } ?: goBack()
         }
