@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
+import com.ai.ui.report.ContentWithThinkSections
 import com.ai.ui.report.formatPricingPerMillion
 import com.ai.ui.settings.AgentEditScreen
 import com.ai.ui.settings.SettingsPreferences
@@ -409,7 +410,9 @@ fun ModelInfoScreen(
                                         Text("Generating...", fontSize = 13.sp, color = AppColors.TextTertiary)
                                     }
                                 } else {
-                                    Text(aiDescription ?: "", fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
+                                    // Render through the shared markdown→HTML→AnnotatedString pipeline so
+                                    // headings/bold/italics/lists from the model's Markdown actually format.
+                                    ContentWithThinkSections(aiDescription ?: "")
                                 }
                             }
                         }
