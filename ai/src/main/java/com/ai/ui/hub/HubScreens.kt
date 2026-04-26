@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
 import com.ai.data.ApiTracer
+import com.ai.data.ChatHistoryManager
 import com.ai.data.ReportStorage
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
@@ -43,6 +44,7 @@ fun HubScreen(
     BackHandler { (context as? Activity)?.moveTaskToBack(true) }
 
     val hasAnyAgent = remember(uiState.aiSettings.agents) { uiState.aiSettings.agents.isNotEmpty() }
+    val hasActiveProvider = remember(uiState.aiSettings) { uiState.aiSettings.getActiveServices().isNotEmpty() }
     val hasStatisticsData by produceState(initialValue = false, uiState) {
         val sp = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
         value = sp.loadUsageStats().isNotEmpty()
@@ -50,6 +52,13 @@ fun HubScreen(
     val hasTraces by produceState(initialValue = false, uiState) {
         value = ApiTracer.getTraceFiles().isNotEmpty()
     }
+    val hasReports by produceState(initialValue = false, uiState) {
+        value = ReportStorage.getAllReports(context).isNotEmpty()
+    }
+    val hasChats by produceState(initialValue = false, uiState) {
+        value = ChatHistoryManager.getSessionCount() > 0
+    }
+    val canHousekeep = hasActiveProvider || hasReports || hasTraces || hasChats
 
     val cardHeight = 50.dp
     val cardSpacing = 12.dp
@@ -79,7 +88,7 @@ fun HubScreen(
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
+            HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping, enabled = canHousekeep)
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
