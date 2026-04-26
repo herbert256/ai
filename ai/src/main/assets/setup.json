@@ -223,7 +223,6 @@
       "defaultModel": "command-a-03-2025",
       "openRouterName": "cohere",
       "prefsKey": "ai_cohere",
-      "modelFilter": "command|aya",
       "hardcodedModels": [
         "command-a-03-2025",
         "command-r-plus-08-2024",
