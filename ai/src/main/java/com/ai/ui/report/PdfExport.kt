@@ -204,8 +204,11 @@ private fun buildShortHtml(report: Report): String {
 
 // ===== Sharers =====
 
+private fun exportsDir(context: Context): File =
+    File(context.cacheDir, "exports").also { it.mkdirs() }
+
 private fun shareHtmlFile(context: Context, html: String, fileName: String, reportTitle: String) {
-    val file = File(context.cacheDir, fileName)
+    val file = File(exportsDir(context), fileName)
     file.writeText(html)
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -218,7 +221,7 @@ private fun shareHtmlFile(context: Context, html: String, fileName: String, repo
 }
 
 private suspend fun sharePdfFromHtml(context: Context, html: String, fileName: String, reportTitle: String) {
-    val output = File(context.cacheDir, fileName)
+    val output = File(exportsDir(context), fileName)
     withContext(Dispatchers.Main) { renderHtmlToPdfFile(context, html, output) }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", output)
     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -472,7 +475,9 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
     suspendCancellableCoroutine { cont ->
         val pageWidth = 1240
         val pageHeight = 1754
-        val webView = WebView(context.applicationContext)
+        // Use the Activity context so WebView can pull theme + resources properly; the
+        // Application context can trigger initialisation issues on some WebView versions.
+        val webView = WebView(context)
         webView.settings.javaScriptEnabled = false
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String?) {

@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +29,7 @@ fun ReportExportScreen(
     onExport: suspend (ReportExportFormat, ReportExportDetail, (Int, Int) -> Unit) -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var format by rememberSaveable { mutableStateOf(ReportExportFormat.HTML) }
     var detail by rememberSaveable { mutableStateOf(ReportExportDetail.MEDIUM) }
@@ -105,9 +107,16 @@ fun ReportExportScreen(
                     progress = 0 to 1
                     try {
                         onExport(pickedFormat, pickedDetail) { d, t -> progress = d to t }
-                    } finally {
                         progress = null
                         onBack()
+                    } catch (e: Exception) {
+                        android.util.Log.e("ReportExport", "Export failed", e)
+                        progress = null
+                        android.widget.Toast.makeText(
+                            context,
+                            "Export failed: ${e.javaClass.simpleName}: ${e.message}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             },
