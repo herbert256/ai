@@ -2,12 +2,18 @@ package com.ai.ui.report
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -497,11 +503,21 @@ private fun ColumnScope.GenerationPhase(
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(
                 if (result != null) Modifier.clickable { onView(agentId) } else Modifier
             ), verticalAlignment = Alignment.CenterVertically) {
-                // Status icon
-                Text(
-                    text = when { result == null -> "\u23F3"; result.isSuccess -> "\u2705"; else -> "\u274C" },
-                    fontSize = 16.sp, modifier = Modifier.width(24.dp)
-                )
+                // Status icon - pending hourglass spins, success/failure are static.
+                if (result == null) {
+                    val transition = rememberInfiniteTransition(label = "hourglass")
+                    val angle by transition.animateFloat(
+                        initialValue = 0f, targetValue = 360f,
+                        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                        label = "hourglass-rotation"
+                    )
+                    Text(text = "\u23F3", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+                } else {
+                    Text(
+                        text = if (result.isSuccess) "\u2705" else "\u274C",
+                        fontSize = 16.sp, modifier = Modifier.width(24.dp)
+                    )
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(displayName, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
