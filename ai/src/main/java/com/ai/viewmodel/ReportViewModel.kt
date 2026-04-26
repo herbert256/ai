@@ -235,6 +235,37 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /**
+     * Open a previously generated report on the Reports result screen. Pulls the report
+     * back out of ReportStorage, rebuilds _agentResults, and seeds the UiState fields the
+     * Reports screen reads (currentReportId, genericReports* counters, prompt/title) so
+     * the screen renders as if the report had just finished — agents listed, View / Share
+     * / Browser / Email / Trace action row, etc.
+     */
+    suspend fun restoreCompletedReport(context: Context, reportId: String) {
+        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
+        val rebuilt = report.agents.mapNotNull { ra ->
+            val service = AppService.findById(ra.provider) ?: return@mapNotNull null
+            ra.agentId to AnalysisResponse(
+                service = service, analysis = ra.responseBody, error = ra.errorMessage,
+                agentName = ra.agentName, tokenUsage = ra.tokenUsage,
+                citations = ra.citations, searchResults = ra.searchResults,
+                relatedQuestions = ra.relatedQuestions, rawUsageJson = ra.rawUsageJson,
+                httpHeaders = ra.responseHeaders, httpStatusCode = ra.httpStatus
+            )
+        }.toMap()
+        _agentResults.value = rebuilt
+        appViewModel.updateUiState { it.copy(
+            currentReportId = report.id,
+            genericReportsTotal = report.agents.size,
+            genericReportsProgress = report.agents.size,
+            genericReportsSelectedAgents = report.agents.map { ra -> ra.agentId }.toSet(),
+            genericPromptTitle = report.title,
+            genericPromptText = report.prompt,
+            showGenericReportsDialog = true
+        ) }
+    }
+
+    /**
      * Rebuild _agentResults from a persisted ReportStorage entry. Called when the screen
      * comes back to a finished report whose in-memory results were lost (e.g. after Activity
      * recreation or process death) — UiState still has currentReportId and the

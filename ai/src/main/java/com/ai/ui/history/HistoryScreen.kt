@@ -30,7 +30,8 @@ import java.util.Locale
 @Composable
 fun HistoryScreenNav(
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onOpenReportResult: (String) -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
@@ -40,7 +41,6 @@ fun HistoryScreenNav(
     var searchReport by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var currentPage by remember { mutableIntStateOf(0) }
-    var selectedReportId by remember { mutableStateOf<String?>(null) }
 
     val isSearchActive = searchTitle.isNotBlank() || searchPrompt.isNotBlank() || searchReport.isNotBlank()
     val filteredReports = remember(allReports, searchTitle, searchPrompt, searchReport) {
@@ -50,16 +50,6 @@ fun HistoryScreenNav(
             (searchPrompt.isBlank() || report.prompt.contains(searchPrompt, ignoreCase = true)) &&
             (searchReport.isBlank() || report.agents.any { it.responseBody?.contains(searchReport, ignoreCase = true) == true })
         }
-    }
-
-    // Full-screen overlay for viewing a report
-    if (selectedReportId != null) {
-        ReportsViewerScreen(
-            reportId = selectedReportId!!,
-            onDismiss = { selectedReportId = null },
-            onNavigateHome = onNavigateHome
-        )
-        return
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -119,11 +109,11 @@ fun HistoryScreenNav(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Report rows
+            // Report rows — tap a row to open the live Report Result screen.
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(pageItems, key = { it.id }) { report ->
                     HistoryReportRow(report = report,
-                        onViewReport = { selectedReportId = report.id },
+                        onOpen = { onOpenReportResult(report.id) },
                         onDeleteReport = {
                             ReportStorage.deleteReport(context, report.id)
                             allReports = ReportStorage.getAllReports(context)
@@ -145,41 +135,22 @@ fun HistoryScreenNav(
 }
 
 @Composable
-private fun HistoryReportRow(report: Report, onViewReport: () -> Unit, onDeleteReport: () -> Unit) {
-    val context = LocalContext.current
-    var showActions by remember { mutableStateOf(false) }
-    var showShareDialog by remember { mutableStateOf(false) }
+private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onDeleteReport: () -> Unit) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.US) }
 
-    if (showShareDialog) {
-        AlertDialog(onDismissRequest = { showShareDialog = false }, title = { Text("Share Format") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { shareReportAsJson(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("JSON", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = { shareReportAsHtml(context, report.id); showShareDialog = false }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("HTML", maxLines = 1, softWrap = false) }
-            }},
-            confirmButton = {}, dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } })
-    }
     if (showDeleteConfirm) {
         DeleteConfirmationDialog(entityType = "Report", entityName = report.title,
             onConfirm = { showDeleteConfirm = false; onDeleteReport() }, onDismiss = { showDeleteConfirm = false })
     }
 
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-        modifier = Modifier.fillMaxWidth().clickable { showActions = !showActions }) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f))
-                Text(dateFormat.format(Date(report.timestamp)), fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-            }
-            if (showActions) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = onViewReport, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("View", fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { showShareDialog = true }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", fontSize = 12.sp, color = AppColors.Green, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { openReportInChrome(context, report.id) }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Browser", fontSize = 12.sp, color = AppColors.Purple, maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { showDeleteConfirm = true }, colors = AppColors.outlinedButtonColors()) { Text("X", fontSize = 12.sp, color = AppColors.Red, maxLines = 1, softWrap = false) }
-                }
+        modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f))
+            Text(dateFormat.format(Date(report.timestamp)), fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+            TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                Text("✕", fontSize = 14.sp, color = AppColors.Red, maxLines = 1, softWrap = false)
             }
         }
     }

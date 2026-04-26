@@ -2,6 +2,8 @@ package com.ai.ui.navigation
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -159,7 +161,17 @@ fun AppNavHost(
 
         // ===== History =====
         composable(NavRoutes.AI_HISTORY) {
-            HistoryScreenNav(onNavigateBack = safePopBack, onNavigateHome = navigateHome)
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            HistoryScreenNav(
+                onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onOpenReportResult = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.AI_REPORTS)
+                    }
+                }
+            )
         }
 
         // ===== Usage =====
