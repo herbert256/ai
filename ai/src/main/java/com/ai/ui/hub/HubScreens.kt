@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
+import com.ai.data.ApiTracer
 import com.ai.data.ReportStorage
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
@@ -46,6 +47,9 @@ fun HubScreen(
         val sp = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
         value = sp.loadUsageStats().isNotEmpty()
     }
+    val hasTraces by produceState(initialValue = false, uiState) {
+        value = ApiTracer.getTraceFiles().isNotEmpty()
+    }
 
     val cardHeight = 50.dp
     val cardSpacing = 12.dp
@@ -71,7 +75,7 @@ fun HubScreen(
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83D\uDCC8", title = "AI Usage", onClick = onNavigateToUsage, enabled = hasStatisticsData)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDC1E", title = "AI API Traces", onClick = onNavigateToTraces)
+            HubCard(icon = "\uD83D\uDC1E", title = "AI API Traces", onClick = onNavigateToTraces, enabled = hasTraces)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
