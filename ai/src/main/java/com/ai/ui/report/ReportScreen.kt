@@ -108,8 +108,8 @@ fun ReportsScreenNav(
             onNavigateBack()
         },
         onConsumePendingModels = { reportViewModel.clearPendingReportModels() },
-        onExport = { rid, fmt, det, onProgress ->
-            shareReportAsExport(context, rid, fmt, det, uiState.aiSettings, viewModel.repository, onProgress)
+        onExport = { rid, fmt, det, act, onProgress ->
+            shareReportAsExport(context, rid, fmt, det, act, uiState.aiSettings, viewModel.repository, onProgress)
         }
     )
 }
@@ -179,7 +179,7 @@ fun ReportsScreen(
     onRegenerate: (String) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onExport: suspend (String, ReportExportFormat, ReportExportDetail, (Int, Int) -> Unit) -> Unit = { _, _, _, _ -> }
+    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -344,7 +344,7 @@ fun ReportsScreen(
         ReportExportScreen(
             onBack = { showExport = false },
             onNavigateHome = onNavigateHome,
-            onExport = { fmt, det, onProgress -> onExport(rid, fmt, det, onProgress) }
+            onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) }
         )
         return
     }

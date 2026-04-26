@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onExport: suspend (ReportExportFormat, ReportExportDetail, (Int, Int) -> Unit) -> Unit
+    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -99,30 +99,41 @@ fun ReportExportScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Button(
-            onClick = {
-                val pickedFormat = format
-                val pickedDetail = detail
-                scope.launch {
-                    progress = 0 to 1
-                    try {
-                        onExport(pickedFormat, pickedDetail) { d, t -> progress = d to t }
-                        progress = null
-                        onBack()
-                    } catch (e: Exception) {
-                        android.util.Log.e("ReportExport", "Export failed", e)
-                        progress = null
-                        android.widget.Toast.makeText(
-                            context,
-                            "Export failed: ${e.javaClass.simpleName}: ${e.message}",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    }
+        fun runExport(action: ReportExportAction) {
+            val pickedFormat = format
+            val pickedDetail = detail
+            scope.launch {
+                progress = 0 to 1
+                try {
+                    onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
+                    progress = null
+                    onBack()
+                } catch (e: Exception) {
+                    android.util.Log.e("ReportExport", "Export failed", e)
+                    progress = null
+                    android.widget.Toast.makeText(
+                        context,
+                        "Export failed: ${e.javaClass.simpleName}: ${e.message}",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                 }
-            },
-            enabled = progress == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-        ) { Text("Export", maxLines = 1, softWrap = false) }
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { runExport(ReportExportAction.SHARE) },
+                enabled = progress == null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            ) { Text("Android share", maxLines = 1, softWrap = false) }
+
+            Button(
+                onClick = { runExport(ReportExportAction.VIEW) },
+                enabled = progress == null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("View in browser", maxLines = 1, softWrap = false) }
+        }
     }
 }

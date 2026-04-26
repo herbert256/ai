@@ -44,6 +44,7 @@ private data class IntroCostRow(
 
 enum class ReportExportFormat { HTML, PDF, JSON }
 enum class ReportExportDetail { SHORT, MEDIUM, COMPREHENSIVE }
+enum class ReportExportAction { SHARE, VIEW }
 
 private const val REDACTED = "[REDACTED]"
 private val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
@@ -64,6 +65,7 @@ suspend fun shareReportAsExport(
     reportId: String,
     format: ReportExportFormat,
     detail: ReportExportDetail,
+    action: ReportExportAction,
     aiSettings: Settings,
     repository: AnalysisRepository,
     onProgress: (Int, Int) -> Unit
@@ -72,7 +74,10 @@ suspend fun shareReportAsExport(
 
     if (format == ReportExportFormat.JSON) {
         onProgress(0, 1)
-        shareReportAsJson(context, reportId)
+        when (action) {
+            ReportExportAction.SHARE -> shareReportAsJson(context, reportId)
+            ReportExportAction.VIEW -> openReportAsJson(context, report)
+        }
         onProgress(1, 1)
         return true
     }
@@ -87,8 +92,8 @@ suspend fun shareReportAsExport(
     val detailTag = detail.name.lowercase()
     val baseName = "ai_report_${safeTitle}_${detailTag}_${pdfTimestamp()}"
     return when (format) {
-        ReportExportFormat.HTML -> { shareHtmlFile(context, html, "$baseName.html", report.title); true }
-        ReportExportFormat.PDF -> { sharePdfFromHtml(context, html, "$baseName.pdf", report.title); true }
+        ReportExportFormat.HTML -> { dispatchHtml(context, html, "$baseName.html", report.title, action); true }
+        ReportExportFormat.PDF -> { dispatchPdf(context, html, "$baseName.pdf", report.title, action); true }
         ReportExportFormat.JSON -> true // unreachable
     }
 }
@@ -101,7 +106,7 @@ suspend fun shareReportAsPdf(
     aiSettings: Settings,
     repository: AnalysisRepository,
     onProgress: (Int, Int) -> Unit
-): Boolean = shareReportAsExport(context, reportId, ReportExportFormat.PDF, ReportExportDetail.COMPREHENSIVE, aiSettings, repository, onProgress)
+): Boolean = shareReportAsExport(context, reportId, ReportExportFormat.PDF, ReportExportDetail.COMPREHENSIVE, ReportExportAction.SHARE, aiSettings, repository, onProgress)
 
 private suspend fun buildComprehensiveHtml(
     context: Context,
@@ -208,30 +213,64 @@ private fun buildShortHtml(report: Report): String {
 private fun exportsDir(context: Context): File =
     File(context.cacheDir, "exports").also { it.mkdirs() }
 
-private fun shareHtmlFile(context: Context, html: String, fileName: String, reportTitle: String) {
+private fun dispatchHtml(context: Context, html: String, fileName: String, reportTitle: String, action: ReportExportAction) {
     val file = File(exportsDir(context), fileName)
     file.writeText(html)
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/html"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "AI Report - $reportTitle")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    when (action) {
+        ReportExportAction.SHARE -> {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/html"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "AI Report - $reportTitle")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Share AI Report (HTML)"))
+        }
+        ReportExportAction.VIEW -> {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "text/html")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Open AI Report (HTML)"))
+        }
     }
-    context.startActivity(Intent.createChooser(intent, "Share AI Report (HTML)"))
 }
 
-private suspend fun sharePdfFromHtml(context: Context, html: String, fileName: String, reportTitle: String) {
+private suspend fun dispatchPdf(context: Context, html: String, fileName: String, reportTitle: String, action: ReportExportAction) {
     val output = File(exportsDir(context), fileName)
     withContext(Dispatchers.Main) { renderHtmlToPdfFile(context, html, output) }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", output)
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "application/pdf"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "AI Report - $reportTitle")
+    when (action) {
+        ReportExportAction.SHARE -> {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "AI Report - $reportTitle")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Share AI Report (PDF)"))
+        }
+        ReportExportAction.VIEW -> {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/pdf")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "Open AI Report (PDF)"))
+        }
+    }
+}
+
+private fun openReportAsJson(context: Context, report: Report) {
+    val json = com.ai.data.createAppGson(prettyPrint = true).toJson(report)
+    val file = File(exportsDir(context), "ai_report_${pdfTimestamp()}.json")
+    file.writeText(json)
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/json")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, "Share AI Report (PDF)"))
+    context.startActivity(Intent.createChooser(intent, "Open AI Report (JSON)"))
 }
 
 // ===== HTML composition =====
