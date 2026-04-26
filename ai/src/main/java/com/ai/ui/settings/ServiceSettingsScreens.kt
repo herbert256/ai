@@ -236,7 +236,6 @@ fun ProviderSettingsScreen(
     onSave: (Settings) -> Unit,
     onFetchModels: (String) -> Unit = {},
     onTestApiKey: suspend (AppService, String, String) -> String?,
-    onCreateAgent: () -> Unit = {},
     onProviderStateChange: (String) -> Unit = {},
     onTestModelWithPrompt: (suspend (String) -> Pair<Boolean, String?>)? = null,
     onNavigateToTrace: ((String) -> Unit)? = null,
@@ -437,10 +436,6 @@ fun ProviderSettingsScreen(
                                 enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                             ) { Text(if (isTesting) "Testing..." else "Test", maxLines = 1, softWrap = false) }
                         }
-                        Button(
-                            onClick = onCreateAgent,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                        ) { Text("Create Agent", maxLines = 1, softWrap = false) }
                     }
                     testResult?.let {
                         Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp)

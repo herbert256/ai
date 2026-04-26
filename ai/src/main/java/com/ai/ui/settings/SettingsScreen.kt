@@ -131,10 +131,6 @@ fun SettingsScreen(
                     onTestApiKey = onTestAiModel, onProviderStateChange = { onProviderStateChange(provider, it) },
                     onTestModelWithPrompt = { prompt -> onTestModelWithPrompt(provider, aiSettings.getApiKey(provider), aiSettings.getModel(provider), prompt) },
                     onNavigateToTrace = onNavigateToTrace,
-                    onCreateAgent = {
-                        editingAgentId = null
-                        currentSubScreen = SettingsSubScreen.AI_AGENT_EDIT
-                    },
                     onNavigateToModels = {
                         // Jump directly into the Models sub-screen for this provider; back returns here.
                         modelEditFromProvider = true
