@@ -158,14 +158,25 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         return synchronized(usageStatsLock) {
             usageStatsCache?.let { return@synchronized it }
             val file = filesDir?.let { File(it, FILE_USAGE_STATS) }
-            val parsed = if (file != null && file.exists()) {
+            val cache = java.util.concurrent.ConcurrentHashMap<String, UsageStats>()
+            if (file == null || !file.exists()) {
+                usageStatsCache = cache
+                return@synchronized cache
+            }
+            // Parse entries individually so a single unresolvable provider id (e.g. a custom
+            // provider that's been deleted) doesn't drop the whole list. Only commit the cache
+            // when the JSON shape itself parsed — otherwise leave usageStatsCache null so the
+            // next read retries (covers the race where ProviderRegistry is still initialising).
+            val arr = try { gson.fromJson(file.readText(), com.google.gson.JsonArray::class.java) } catch (_: Exception) { null }
+            if (arr == null) return@synchronized cache
+            arr.forEach { el ->
                 try {
-                    val list: List<UsageStats>? = gson.fromJson(file.readText(), TypeTokens.listUsageStatsType)
-                    list?.associateBy { it.key } ?: emptyMap()
-                } catch (_: Exception) { emptyMap() }
-            } else emptyMap()
-            java.util.concurrent.ConcurrentHashMap<String, UsageStats>().apply { putAll(parsed) }
-                .also { usageStatsCache = it }
+                    val stat = gson.fromJson(el, UsageStats::class.java)
+                    cache[stat.key] = stat
+                } catch (_: Exception) { /* skip rows that reference an unknown provider id */ }
+            }
+            usageStatsCache = cache
+            cache
         }
     }
 
