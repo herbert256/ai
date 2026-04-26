@@ -98,13 +98,14 @@ private suspend fun AnalysisRepository.analyzeOpenAi(
 private suspend fun AnalysisRepository.analyzeResponsesApi(
     service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?
 ): AnalysisResponse {
-    val api = ApiFactory.createOpenAiApi(service.baseUrl)
+    val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
+    val responsesUrl = buildChatUrl(service.baseUrl, service.responsesPath ?: "v1/responses")
     val request = OpenAiResponsesRequest(
         model = model,
         input = prompt,
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() }
     )
-    val response = api.createResponse("Bearer $apiKey", request)
+    val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     val headers = formatHeaders(response.headers())
     val statusCode = response.code()
     return if (response.isSuccessful) {
@@ -224,7 +225,8 @@ private suspend fun AnalysisRepository.chatOpenAi(
 private suspend fun AnalysisRepository.chatResponsesApi(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
 ): String {
-    val api = ApiFactory.createOpenAiApi(service.baseUrl)
+    val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
+    val responsesUrl = buildChatUrl(service.baseUrl, service.responsesPath ?: "v1/responses")
     val systemPrompt = messages.find { it.role == "system" }?.content
     val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
     val request = if (inputMessages.size == 1 && inputMessages.first().role == "user") {
@@ -232,7 +234,7 @@ private suspend fun AnalysisRepository.chatResponsesApi(
     } else {
         OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt)
     }
-    val response = api.createResponse("Bearer $apiKey", request)
+    val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
         return extractResponsesApiContent(response.body()) ?: throw Exception("No response content")
     } else {

@@ -19,26 +19,15 @@ import java.util.concurrent.TimeUnit
 // Retrofit API interfaces
 // ============================================================================
 
-/** OpenAI native API (Chat Completions + Responses API + model list). */
+/** OpenAI native API (Chat Completions + model list). Responses API lives on
+ *  OpenAiCompatibleApi as a dynamic-URL endpoint so each provider can declare its
+ *  own responsesPath in setup.json. */
 interface OpenAiApi {
     @POST("v1/chat/completions")
     suspend fun createChatCompletion(
         @Header("Authorization") authorization: String,
         @Body request: OpenAiRequest
     ): Response<OpenAiResponse>
-
-    @POST("v1/responses")
-    suspend fun createResponse(
-        @Header("Authorization") authorization: String,
-        @Body request: OpenAiResponsesRequest
-    ): Response<OpenAiResponsesApiResponse>
-
-    @Streaming
-    @POST("v1/responses")
-    suspend fun createResponseStream(
-        @Header("Authorization") authorization: String,
-        @Body request: OpenAiResponsesRequest
-    ): Response<okhttp3.ResponseBody>
 
     @GET("v1/models")
     suspend fun listModels(
@@ -109,6 +98,21 @@ interface OpenAiCompatibleApi {
         @Url url: String,
         @Header("Authorization") authorization: String,
         @Body request: OpenAiRequest
+    ): Response<okhttp3.ResponseBody>
+
+    @POST
+    suspend fun responses(
+        @Url url: String,
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiResponsesRequest
+    ): Response<OpenAiResponsesApiResponse>
+
+    @Streaming
+    @POST
+    suspend fun responsesStream(
+        @Url url: String,
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiResponsesRequest
     ): Response<okhttp3.ResponseBody>
 
     @GET

@@ -130,13 +130,14 @@ private fun AnalysisRepository.streamOpenAi(
     messages: List<ChatMessage>, params: ChatParameters, baseUrl: String
 ): Flow<String> = flow {
     if (usesResponsesApi(service, model)) {
-        val api = ApiFactory.createOpenAiApi(baseUrl)
+        val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
+        val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
         val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
         val systemPrompt = messages.find { it.role == "system" }?.content
         val request = OpenAiResponsesRequest(
             model = model, input = inputMessages, instructions = systemPrompt, stream = true
         )
-        val response = withContext(Dispatchers.IO) { api.createResponseStream("Bearer $apiKey", request) }
+        val response = withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) }
         if (response.isSuccessful) {
             response.body()?.let { body ->
                 parseSseStream(body, ::extractResponsesApiContent).collect { emit(it) }
