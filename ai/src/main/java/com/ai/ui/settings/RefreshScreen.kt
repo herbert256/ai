@@ -218,11 +218,10 @@ fun RefreshScreen(
                         }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
-                            // Only test providers that are not inactive and have an API key set.
-                            val candidates = AppService.entries.mapNotNull { s ->
-                                if (aiSettings.getProviderState(s) == "inactive") return@mapNotNull null
-                                val key = aiSettings.getApiKey(s)
-                                if (key.isBlank()) null else Triple(s, key, aiSettings.getModel(s))
+                            // Only seed agents for providers that are actually active (state == "ok").
+                            // Inactive, errored, and never-tested providers are all skipped.
+                            val candidates = aiSettings.getActiveServices().map { s ->
+                                Triple(s, aiSettings.getApiKey(s), aiSettings.getModel(s))
                             }
                             // Seed the dialog with every candidate in "pending" state and open it right away
                             // so the user can see the work as it happens.
