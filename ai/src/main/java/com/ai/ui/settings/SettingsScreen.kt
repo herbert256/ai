@@ -177,7 +177,8 @@ fun SettingsScreen(
                     onSaveAi(updated); goBack()
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
-                loadingModelsFor = loadingModelsFor
+                loadingModelsFor = loadingModelsFor,
+                onNavigateToTrace = onNavigateToTrace
             )
         }
         SettingsSubScreen.AI_FLOCKS -> {

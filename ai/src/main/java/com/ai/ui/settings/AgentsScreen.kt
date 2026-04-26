@@ -59,7 +59,8 @@ fun AgentEditScreen(
     onSave: (Agent) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    loadingModelsFor: Set<AppService> = emptySet()
+    loadingModelsFor: Set<AppService> = emptySet(),
+    onNavigateToTrace: ((String) -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val scope = rememberCoroutineScope()
@@ -75,6 +76,7 @@ fun AgentEditScreen(
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testSuccess by remember { mutableStateOf(false) }
+    var lastTraceFile by remember { mutableStateOf<String?>(null) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
     // Overlay: 0=none, 1=provider, 2=model
@@ -171,18 +173,32 @@ fun AgentEditScreen(
 
             // Test
             if (apiKey.isNotBlank() || aiSettings.getApiKey(selectedProvider).isNotBlank()) {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            isTesting = true; testResult = null
-                            val key = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
-                            val error = onTestAiModel(selectedProvider, key, effectiveModel)
-                            testSuccess = error == null; testResult = error ?: "Success"
-                            isTesting = false
-                        }
-                    },
-                    enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text(if (isTesting) "Testing..." else "Test Connection", maxLines = 1, softWrap = false) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isTesting = true; testResult = null; lastTraceFile = null
+                                val key = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
+                                // Snapshot the trace folder so we can identify the file produced by THIS test.
+                                val before = com.ai.data.ApiTracer.getTraceFiles().firstOrNull()?.timestamp ?: 0L
+                                val error = onTestAiModel(selectedProvider, key, effectiveModel)
+                                testSuccess = error == null; testResult = error ?: "Success"
+                                lastTraceFile = com.ai.data.ApiTracer.getTraceFiles()
+                                    .firstOrNull { it.timestamp > before }?.filename
+                                isTesting = false
+                            }
+                        },
+                        enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    ) { Text(if (isTesting) "Testing..." else "Test Agent", maxLines = 1, softWrap = false) }
+
+                    val traceFile = lastTraceFile
+                    if (traceFile != null && onNavigateToTrace != null) {
+                        Button(
+                            onClick = { onNavigateToTrace(traceFile) },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                        ) { Text("Show API call", maxLines = 1, softWrap = false) }
+                    }
+                }
                 testResult?.let { Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp) }
             }
         }
