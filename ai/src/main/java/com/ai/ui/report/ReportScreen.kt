@@ -322,7 +322,7 @@ fun ReportsScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Title reflects the phase: selection (adding models) vs generation (showing results).
         TitleBar(
-            title = if (isGenerating) "AI Reports" else "AI Report - Models",
+            title = if (isGenerating) uiState.genericPromptTitle.ifBlank { "AI Reports" } else "AI Report - Models",
             onBackClick = onDismiss, onAiClick = onNavigateHome
         )
         Spacer(modifier = Modifier.height(8.dp))
