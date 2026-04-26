@@ -84,7 +84,8 @@ suspend fun shareReportAsExport(
     }
 
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
-    val baseName = "ai_report_${safeTitle}_${pdfTimestamp()}"
+    val detailTag = detail.name.lowercase()
+    val baseName = "ai_report_${safeTitle}_${detailTag}_${pdfTimestamp()}"
     return when (format) {
         ReportExportFormat.HTML -> { shareHtmlFile(context, html, "$baseName.html", report.title); true }
         ReportExportFormat.PDF -> { sharePdfFromHtml(context, html, "$baseName.pdf", report.title); true }
