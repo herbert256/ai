@@ -22,6 +22,32 @@ fun HousekeepingScreen(
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
+    var showClearAllConfirm by remember { mutableStateOf(false) }
+
+    if (showClearAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirm = false },
+            title = { Text("Clear all runtime data?") },
+            text = { Text("This permanently deletes all reports, chat history, API traces, and usage statistics. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is kept.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val reports = ReportStorage.getAllReports(context).also { list ->
+                            list.forEach { ReportStorage.deleteReport(context, it.id) }
+                        }
+                        val chats = ChatHistoryManager.deleteAllSessions()
+                        ApiTracer.clearTraces()
+                        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+                        SettingsPreferences(prefs, context.filesDir).clearUsageStats()
+                        showClearAllConfirm = false
+                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces & usage stats", Toast.LENGTH_LONG).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Clear all", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { showClearAllConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "Housekeeping", onBackClick = onBackToHome, onAiClick = onBackToHome)
@@ -51,6 +77,12 @@ fun HousekeepingScreen(
                         settingsPrefs.clearUsageStats()
                         Toast.makeText(context, "Usage statistics cleared", Toast.LENGTH_SHORT).show()
                     }, modifier = Modifier.fillMaxWidth()) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
+
+                    Button(
+                        onClick = { showClearAllConfirm = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    ) { Text("Clear all runtime data", maxLines = 1, softWrap = false) }
                 }
             }
         }

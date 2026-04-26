@@ -74,6 +74,18 @@ object ChatHistoryManager {
         } catch (_: Exception) { false }
     }
 
+    fun deleteAllSessions(): Int {
+        val dir = historyDir ?: return 0
+        if (!dir.exists()) return 0
+        return lock.withLock {
+            var count = 0
+            dir.listFiles { f -> f.extension == "json" }?.forEach { if (it.delete()) count++ }
+            cachedSessions = null
+            if (count > 0) notifyHistoryChanged()
+            count
+        }
+    }
+
     fun getSessionCount(): Int {
         val dir = historyDir ?: return 0
         if (!dir.exists()) return 0
