@@ -260,7 +260,8 @@ private fun buildPdfHtml(
             background: #fbfbf6;
             border: 1px solid #c8b894;
             box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-            margin: 14px 18px;
+            max-width: 760px;
+            margin: 18px auto;
             padding: 26px 32px 32px 32px;
             position: relative;
         }
@@ -310,7 +311,8 @@ private fun buildPdfHtml(
             margin: 8px 0; color: #2a2622;
         }
         table {
-            border-collapse: collapse; width: 100%; margin: 10px 0;
+            border-collapse: collapse; width: auto; max-width: 100%;
+            margin: 12px auto;
             font-family: 'Helvetica Neue', 'Helvetica', sans-serif; font-size: 10pt;
             border: 1px solid #c8b894;
         }
