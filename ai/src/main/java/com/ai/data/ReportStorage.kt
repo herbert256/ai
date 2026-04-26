@@ -185,4 +185,14 @@ object ReportStorage {
     private fun saveReport(report: Report) {
         File(reportsDir ?: return, "${report.id}.json").writeTextAtomic(gson.toJson(report))
     }
+
+    fun updateReportPromptAndTitle(context: Context, reportId: String, newTitle: String, newPrompt: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val updated = report.copy(title = newTitle, prompt = newPrompt)
+            saveReport(updated)
+            true
+        }
+    }
 }

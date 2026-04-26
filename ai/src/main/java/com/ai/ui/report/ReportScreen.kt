@@ -101,8 +101,8 @@ fun ReportsScreenNav(
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onEditParameters = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid, alsoOpenParameters = true) } },
         onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid, scope) },
-        onRegenerateWithPrompt = { rid, title, prompt ->
-            reportViewModel.regenerateReportWithPrompt(context, rid, title, prompt, scope)
+        onUpdatePrompt = { rid, title, prompt ->
+            scope.launch { reportViewModel.updateReportPrompt(context, rid, title, prompt) }
         },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)
@@ -177,7 +177,7 @@ fun ReportsScreen(
     onEditModels: (String) -> Unit = {},
     onEditParameters: (String) -> Unit = {},
     onRegenerate: (String) -> Unit = {},
-    onRegenerateWithPrompt: (String, String, String) -> Unit = { _, _, _ -> },
+    onUpdatePrompt: (String, String, String) -> Unit = { _, _, _ -> },
     onDeleteReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> }
@@ -357,9 +357,9 @@ fun ReportsScreen(
             initialPrompt = uiState.genericPromptText,
             onBack = { showEditPrompt = false },
             onNavigateHome = onNavigateHome,
-            onRegenerate = { newTitle, newPrompt ->
+            onUpdate = { newTitle, newPrompt ->
                 showEditPrompt = false
-                onRegenerateWithPrompt(rid, newTitle, newPrompt)
+                onUpdatePrompt(rid, newTitle, newPrompt)
             }
         )
         return

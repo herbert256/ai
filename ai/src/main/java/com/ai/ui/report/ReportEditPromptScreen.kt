@@ -12,9 +12,9 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 
 /**
- * Lets the user edit just the report title + prompt and re-run with the existing model
- * selection from the source report. Reached from the Report Result screen's Edit / Prompt
- * button — the model list and parameter set are preserved.
+ * Lets the user edit just the report title + prompt without re-running. The new values
+ * are persisted to the saved report and reflected in UiState; the user picks Regenerate
+ * from the Actions row when they actually want to run with the updated prompt.
  */
 @Composable
 fun ReportEditPromptScreen(
@@ -22,12 +22,12 @@ fun ReportEditPromptScreen(
     initialPrompt: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onRegenerate: (newTitle: String, newPrompt: String) -> Unit
+    onUpdate: (newTitle: String, newPrompt: String) -> Unit
 ) {
     BackHandler { onBack() }
     var title by rememberSaveable { mutableStateOf(initialTitle) }
     var prompt by rememberSaveable { mutableStateOf(initialPrompt) }
-    val canRegenerate = prompt.trim().isNotBlank()
+    val canUpdate = prompt.trim().isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "Edit prompt", onBackClick = onBack, onAiClick = onNavigateHome)
@@ -52,10 +52,10 @@ fun ReportEditPromptScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-            onClick = { onRegenerate(title.trim(), prompt.trim()) },
-            enabled = canRegenerate,
+            onClick = { onUpdate(title.trim(), prompt.trim()) },
+            enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Regenerate", maxLines = 1, softWrap = false) }
+        ) { Text("Update prompt", maxLines = 1, softWrap = false) }
     }
 }
