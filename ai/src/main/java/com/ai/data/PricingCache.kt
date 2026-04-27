@@ -38,6 +38,10 @@ object PricingCache {
     @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
     @Volatile private var openRouterPricing: Map<String, ModelPricing>? = null
     @Volatile private var litellmPricing: Map<String, ModelPricing>? = null
+    /** Capability sidecar to litellmPricing — populated alongside it from the
+     *  same parse pass. Lets vision/web-search/mode lookups consult LiteLLM
+     *  without re-loading the 1.2 MB raw JSON. */
+    @Volatile private var litellmMeta: Map<String, LiteLLMMeta>? = null
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var preloadCompleted = false
@@ -246,6 +250,50 @@ object PricingCache {
         }?.value
     }
 
+    /** Look up the LiteLLM capability sidecar for (provider, model) using
+     *  the same dash/dot normalization the pricing lookup uses. Returns
+     *  null when LiteLLM hasn't loaded yet OR the model isn't cataloged. */
+    private fun findLiteLLMMeta(provider: AppService, model: String): LiteLLMMeta? {
+        val meta = litellmMeta ?: return null
+        meta[model]?.let { return it }
+        provider.litellmPrefix?.let { prefix -> meta["$prefix/$model"]?.let { return it } }
+        val target = normalizeModelId(model)
+        val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
+        return meta.entries.firstOrNull {
+            val k = normalizeModelId(it.key)
+            k == target || k == prefixed
+        }?.value
+    }
+
+    /** True/false from LiteLLM's supports_vision flag, or null when
+     *  LiteLLM has no entry for this (provider, model) or doesn't carry
+     *  the flag. Callers use this as a first authoritative test before
+     *  falling back to the naming heuristic. */
+    fun liteLLMSupportsVision(provider: AppService, model: String): Boolean? =
+        findLiteLLMMeta(provider, model)?.supportsVision
+
+    fun liteLLMSupportsWebSearch(provider: AppService, model: String): Boolean? =
+        findLiteLLMMeta(provider, model)?.supportsWebSearch
+
+    /** ModelType constant derived from LiteLLM's `mode` field, or null
+     *  when no mapping applies. "chat" → CHAT, "embedding" → EMBEDDING,
+     *  etc. CHAT is rarely useful (it's the default heuristic anyway) so
+     *  callers may want to skip it; we still return it for transparency. */
+    fun liteLLMModelType(provider: AppService, model: String): String? {
+        val mode = findLiteLLMMeta(provider, model)?.mode?.lowercase() ?: return null
+        return when (mode) {
+            "chat", "completion" -> ModelType.CHAT
+            "responses" -> ModelType.RESPONSES
+            "embedding" -> ModelType.EMBEDDING
+            "image_generation", "image_generations" -> ModelType.IMAGE
+            "audio_transcription" -> ModelType.STT
+            "audio_speech" -> ModelType.TTS
+            "moderation", "moderations" -> ModelType.MODERATION
+            "rerank" -> ModelType.RERANK
+            else -> null
+        }
+    }
+
     private fun findLiteLLMPricing(provider: AppService, model: String): ModelPricing? {
         val pricing = litellmPricing ?: return null
         // Exact-key fast path.
@@ -323,10 +371,12 @@ object PricingCache {
     }
 
     fun refreshLiteLLMPricing(context: Context) {
-        litellmPricing = parseLiteLLMPricing(context)
+        val (pricing, meta) = parseLiteLLMPricing(context)
+        litellmPricing = pricing
+        litellmMeta = meta
         litellmTimestamp = System.currentTimeMillis()
         getPrefs(context).edit {
-            putString(KEY_LITELLM_PRICING, gson.toJson(litellmPricing))
+            putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
             putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
         }
     }
@@ -344,17 +394,18 @@ object PricingCache {
         try {
             val url = java.net.URL("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
             val json = url.openStream().bufferedReader().use { it.readText() }
-            val parsed = parseLiteLLMJson(json)
-            if (parsed.isEmpty()) return@withContext null
+            val (pricing, meta) = parseLiteLLMJson(json)
+            if (pricing.isEmpty()) return@withContext null
             synchronized(lock) {
-                litellmPricing = parsed
+                litellmPricing = pricing
+                litellmMeta = meta
                 litellmTimestamp = System.currentTimeMillis()
                 getPrefs(context).edit {
-                    putString(KEY_LITELLM_PRICING, gson.toJson(parsed))
+                    putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
                     putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
                 }
             }
-            parsed.size
+            pricing.size
         } catch (e: Exception) {
             android.util.Log.e("PricingCache", "Online LITELLM refresh failed: ${e.message}", e)
             null
@@ -391,6 +442,13 @@ object PricingCache {
             }
             if (litellmPricing == null) refreshLiteLLMPricing(context)
         }
+        // Pricing comes from prefs (parsed ModelPricing) but the capability
+        // sidecar isn't persisted — repopulate it from the bundled asset on
+        // cold start so vision/web-search/mode lookups have data even when
+        // pricing is loaded from prefs.
+        if (litellmMeta == null) {
+            litellmMeta = parseLiteLLMPricing(context).second
+        }
     }
 
     private fun loadFromPrefs(context: Context) {
@@ -409,23 +467,33 @@ object PricingCache {
         } else mutableMapOf()
     }
 
-    private fun parseLiteLLMPricing(context: Context): Map<String, ModelPricing> {
+    private fun parseLiteLLMPricing(context: Context): Pair<Map<String, ModelPricing>, Map<String, LiteLLMMeta>> {
         return try {
             val json = context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
             parseLiteLLMJson(json)
-        } catch (_: Exception) { emptyMap() }
+        } catch (_: Exception) { emptyMap<String, ModelPricing>() to emptyMap() }
     }
+
+    data class LiteLLMMeta(
+        val mode: String? = null,
+        val supportsVision: Boolean? = null,
+        val supportsWebSearch: Boolean? = null
+    )
 
     /** Walk the litellm pricing JSON via the tree model so duplicate keys
      *  inside a single model entry (last-wins) don't blow up the parse the
-     *  way fromJson(Map<String, Map<String, Any>>) does. Used by both the
-     *  bundled-asset and online-refresh paths. */
-    private fun parseLiteLLMJson(json: String): Map<String, ModelPricing> {
+     *  way fromJson(Map<String, Map<String, Any>>) does. Returns the
+     *  parsed pricing map alongside a sidecar capability map (mode +
+     *  supports_vision / supports_web_search) so vision / web-search /
+     *  type lookups can use LiteLLM as a first-test source. */
+    private fun parseLiteLLMJson(json: String): Pair<Map<String, ModelPricing>, Map<String, LiteLLMMeta>> {
         @Suppress("DEPRECATION")
         val root: JsonObject = JsonParser().parse(json).asJsonObject
-        return root.keySet().mapNotNull { modelId ->
-            val infoEl: JsonElement = root.get(modelId) ?: return@mapNotNull null
-            if (!infoEl.isJsonObject) return@mapNotNull null
+        val pricing = mutableMapOf<String, ModelPricing>()
+        val meta = mutableMapOf<String, LiteLLMMeta>()
+        for (modelId in root.keySet()) {
+            val infoEl: JsonElement = root.get(modelId) ?: continue
+            if (!infoEl.isJsonObject) continue
             val infoObj: JsonObject = infoEl.asJsonObject
             val flat = mutableMapOf<String, Any>()
             for (k in infoObj.keySet()) {
@@ -438,8 +506,18 @@ object PricingCache {
                     else -> p.asString
                 }
             }
-            liteLLMEntry(modelId, flat)
-        }.toMap()
+            liteLLMEntry(modelId, flat)?.let { pricing[it.first] = it.second }
+            // Capability sidecar — populated even for entries with no
+            // input/output cost (some embedding / tts models have flag
+            // info but free-of-charge pricing).
+            val mode = flat["mode"] as? String
+            val sv = flat["supports_vision"] as? Boolean
+            val sw = flat["supports_web_search"] as? Boolean
+            if (mode != null || sv != null || sw != null) {
+                meta[modelId] = LiteLLMMeta(mode, sv, sw)
+            }
+        }
+        return pricing to meta
     }
 
     /** Map a single litellm JSON entry to a ModelPricing, or null if it lacks

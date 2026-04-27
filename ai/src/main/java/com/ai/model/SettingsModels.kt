@@ -182,27 +182,38 @@ data class Settings(
         val merged = cfg.visionModels + autoVisionModels
         return withProvider(service, cfg.copy(models = models, modelTypes = types, visionModels = merged))
     }
-    /** User-supplied manual override always wins; otherwise read the stored
-     *  classification (from native list APIs or the heuristic). */
+    /** User-supplied manual override always wins; otherwise consult LiteLLM
+     *  for a specific (non-CHAT) classification, then fall back to the
+     *  stored classification (native list APIs / naming heuristic). LiteLLM
+     *  is conservative on model types — it tags gpt-5/o-series as "chat"
+     *  even though we route them through the Responses API — so we only
+     *  trust LiteLLM when it returns something more specific than CHAT. */
     fun getModelType(service: AppService, modelId: String): String? {
         modelTypeOverrides.firstOrNull { it.providerId == service.id && it.modelId == modelId }?.let { return it.type }
+        com.ai.data.PricingCache.liteLLMModelType(service, modelId)?.let {
+            if (it != com.ai.data.ModelType.CHAT) return it
+        }
         return getProvider(service).modelTypes[modelId]
     }
 
     fun withModelTypeOverrides(overrides: List<ModelTypeOverride>) = copy(modelTypeOverrides = overrides)
 
-    /** Returns true when (provider, modelId) accepts image input. Four
+    /** Returns true when (provider, modelId) accepts image input. Layered
      *  signals, in order:
-     *   1. User override on Model Info — stored in ProviderConfig.visionModels.
-     *   2. Auto-flagged on the last fetch (OpenRouter input_modalities).
-     *      Also stored in visionModels — fetch unions into the set.
-     *   3. Manual Model Type Override entry with supportsVision = true.
+     *   1. User override on Model Info — ProviderConfig.visionModels.
+     *      Also includes anything auto-flagged on a previous fetch
+     *      (OpenRouter input_modalities) since fetch unions into the set.
+     *   2. Manual Model Type Override entry with supportsVision = true.
+     *   3. LiteLLM supports_vision flag — authoritative when present
+     *      (true OR false), falls through when absent.
      *   4. Naming heuristic — covers gpt-4o, claude-3.x/4.x, gemini-1.5+,
      *      llava/pixtral/qwen-vl/etc. False on miss. */
-    fun isVisionCapable(service: AppService, modelId: String): Boolean =
-        modelId in getProvider(service).visionModels ||
-            modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsVision } ||
-            com.ai.data.ModelType.inferVision(modelId)
+    fun isVisionCapable(service: AppService, modelId: String): Boolean {
+        if (modelId in getProvider(service).visionModels) return true
+        if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsVision }) return true
+        com.ai.data.PricingCache.liteLLMSupportsVision(service, modelId)?.let { return it }
+        return com.ai.data.ModelType.inferVision(modelId)
+    }
 
     fun withVisionCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
         val cfg = getProvider(service)
@@ -213,12 +224,15 @@ data class Settings(
     /** Returns true when (provider, modelId) supports the web-search tool
      *  descriptor injected by the dispatch layer when the 🌐 toggle is on.
      *  Layered: ProviderConfig.webSearchModels override, then a Manual Model
-     *  Type Override entry with supportsWebSearch = true, then the
-     *  ModelType.inferWebSearch heuristic on the model id + apiFormat. */
-    fun isWebSearchCapable(service: AppService, modelId: String): Boolean =
-        modelId in getProvider(service).webSearchModels ||
-            modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsWebSearch } ||
-            com.ai.data.ModelType.inferWebSearch(service, modelId)
+     *  Type Override with supportsWebSearch = true, then the LiteLLM
+     *  supports_web_search flag (authoritative true/false when present),
+     *  then the name + apiFormat heuristic. */
+    fun isWebSearchCapable(service: AppService, modelId: String): Boolean {
+        if (modelId in getProvider(service).webSearchModels) return true
+        if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsWebSearch }) return true
+        com.ai.data.PricingCache.liteLLMSupportsWebSearch(service, modelId)?.let { return it }
+        return com.ai.data.ModelType.inferWebSearch(service, modelId)
+    }
 
     fun withWebSearchCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
         val cfg = getProvider(service)
