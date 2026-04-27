@@ -175,10 +175,25 @@ object ModelType {
 }
 
 /** Result type for model-list fetches: ids in their native order, a type
- *  map, and the subset known to accept image input (auto-flagged from
- *  list-API metadata where available, e.g. OpenRouter input_modalities). */
+ *  map, the subset known to accept image input (auto-flagged from list-API
+ *  metadata where available, e.g. OpenRouter input_modalities), and a
+ *  per-model capability bundle the fetcher built from any provider-native
+ *  fields it surfaced (Mistral `capabilities`, Gemini token limits, Cohere
+ *  context_length, etc.). */
 data class FetchedModels(
     val ids: List<String>,
     val types: Map<String, String>,
-    val visionModels: Set<String> = emptySet()
+    val visionModels: Set<String> = emptySet(),
+    val capabilities: Map<String, ModelCapabilities> = emptyMap()
+)
+
+/** Per-model capability bundle derived from a provider's own /models
+ *  endpoint. Authoritative when populated since it's the provider's
+ *  self-report. Empty fields fall through to LiteLLM / models.dev /
+ *  heuristic in the lookup chain. */
+data class ModelCapabilities(
+    val supportsVision: Boolean? = null,
+    val supportsFunctionCalling: Boolean? = null,
+    val contextLength: Int? = null,
+    val maxOutputTokens: Int? = null
 )

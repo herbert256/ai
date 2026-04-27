@@ -406,40 +406,83 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                 val info = filtered.firstOrNull { it.id == id }
                 ModelType.fromOpenRouterInputModalities(info?.architecture?.input_modalities)
             }.toSet()
-            return FetchedModels(ids, types, vision)
+            val caps = ids.associateWith { id ->
+                val info = filtered.firstOrNull { it.id == id }
+                ModelCapabilities(
+                    supportsVision = info?.architecture?.input_modalities
+                        ?.any { it.equals("image", ignoreCase = true) },
+                    contextLength = info?.context_length ?: info?.top_provider?.context_length,
+                    maxOutputTokens = info?.top_provider?.max_completion_tokens
+                )
+            }.filterValues { it.supportsVision != null || it.contextLength != null || it.maxOutputTokens != null }
+            return FetchedModels(ids, types, vision, caps)
         }
         // Fall through to the basic /v1/models call below if the detailed call failed.
     }
 
     val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
     val modelsUrl = normalizeUrl(service.baseUrl) + (service.modelsPath ?: "v1/models")
-    val modelIds = if (service.modelListFormat == "array") {
+    // Capture full model objects (not just ids) so per-provider capability
+    // fields (Mistral capabilities, Together AI context_length, Groq
+    // context_window, Fireworks supports_image_input, etc.) ride through
+    // to the FetchedModels.capabilities map.
+    val rawModels: List<OpenAiModel> = if (service.modelListFormat == "array") {
         val response = api.listModelsArray(modelsUrl, "Bearer $apiKey")
-        if (response.isSuccessful) response.body()?.mapNotNull { it.id } ?: emptyList() else emptyList()
+        if (response.isSuccessful) response.body().orEmpty() else emptyList()
     } else {
         val response = api.listModels(modelsUrl, "Bearer $apiKey")
-        if (response.isSuccessful) response.body()?.data?.mapNotNull { it.id } ?: emptyList() else emptyList()
+        if (response.isSuccessful) response.body()?.data.orEmpty() else emptyList()
     }
+    val modelIds = rawModels.mapNotNull { it.id }
     val filtered = service.modelFilterRegex?.let { regex -> modelIds.filter { regex.containsMatchIn(it) } } ?: modelIds
     val ids = filtered.sorted()
 
     // Cohere's compatibility endpoint strips the `endpoints` field. Hit the native
-    // api.cohere.com/v1/models to recover per-model types; fall back to heuristic.
-    val nativeTypes: Map<String, String?> = if (service.id == "COHERE") {
+    // api.cohere.com/v1/models to recover per-model types AND capability info
+    // (context_length, supports_vision); fall back to heuristic on failure.
+    data class CohereCap(val type: String?, val cap: ModelCapabilities)
+    val cohereByName: Map<String, CohereCap> = if (service.id == "COHERE") {
         try {
             val cohere = ApiFactory.createCohereNativeApi()
             val resp = cohere.listModels("Bearer $apiKey")
             if (resp.isSuccessful) {
                 resp.body()?.models.orEmpty().mapNotNull { m ->
                     val name = m.name ?: return@mapNotNull null
-                    name to ModelType.fromCohereEndpoints(m.endpoints)
+                    name to CohereCap(
+                        type = ModelType.fromCohereEndpoints(m.endpoints),
+                        cap = ModelCapabilities(
+                            supportsVision = m.supports_vision,
+                            contextLength = m.context_length
+                        )
+                    )
                 }.toMap()
             } else emptyMap()
         } catch (_: Exception) { emptyMap() }
     } else emptyMap()
 
-    val types = ids.associateWith { id -> nativeTypes[id] ?: ModelType.infer(id) }
-    return FetchedModels(ids, types)
+    val types = ids.associateWith { id -> cohereByName[id]?.type ?: ModelType.infer(id) }
+    val caps = mutableMapOf<String, ModelCapabilities>()
+    for (id in ids) {
+        val info = rawModels.firstOrNull { it.id == id }
+        // Mistral exposes a rich capabilities block; other providers
+        // sprinkle individual flags. Pull whatever we can recognize.
+        val supportsVision = info?.capabilities?.vision ?: info?.supports_image_input
+        val supportsFn = info?.capabilities?.function_calling
+        val ctx = info?.max_context_length ?: info?.context_length ?: info?.context_window
+        val cohereCap = cohereByName[id]?.cap
+        val merged = ModelCapabilities(
+            supportsVision = supportsVision ?: cohereCap?.supportsVision,
+            supportsFunctionCalling = supportsFn,
+            contextLength = ctx ?: cohereCap?.contextLength,
+            maxOutputTokens = null
+        )
+        if (merged.supportsVision != null || merged.supportsFunctionCalling != null
+            || merged.contextLength != null || merged.maxOutputTokens != null) {
+            caps[id] = merged
+        }
+    }
+    val visionFromList = caps.filterValues { it.supportsVision == true }.keys
+    return FetchedModels(ids, types, visionFromList, caps)
 }
 
 private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService, apiKey: String): FetchedModels {
@@ -461,13 +504,25 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
             // Gemini's `supportedGenerationMethods` is the native source-of-truth for kind:
             // `generateContent` → CHAT, `embedContent` → EMBEDDING. Drop entries that
             // expose neither (countTokens-only, etc.) since the app can't drive them.
-            val all = response.body()?.models.orEmpty().mapNotNull { m ->
+            val rawModels = response.body()?.models.orEmpty()
+            val byName = rawModels.mapNotNull { m ->
                 val name = m.name?.removePrefix("models/") ?: return@mapNotNull null
-                val type = ModelType.fromGeminiMethods(m.supportedGenerationMethods)
-                if (type != null) name to type else null
+                val type = ModelType.fromGeminiMethods(m.supportedGenerationMethods) ?: return@mapNotNull null
+                name to (type to m)
             }.toMap()
+            val all = byName.mapValues { it.value.first }
             val ids = all.keys.sorted()
-            FetchedModels(ids, all)
+            // Gemini exposes inputTokenLimit / outputTokenLimit per model;
+            // no explicit vision flag, so leave that null and let the
+            // heuristic / catalog fallbacks decide.
+            val caps = byName.mapValues { (_, v) ->
+                val m = v.second
+                ModelCapabilities(
+                    contextLength = m.inputTokenLimit,
+                    maxOutputTokens = m.outputTokenLimit
+                )
+            }.filterValues { it.contextLength != null || it.maxOutputTokens != null }
+            FetchedModels(ids, all, emptySet(), caps)
         } else FetchedModels(emptyList(), emptyMap())
     } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }
 }

@@ -20,6 +20,12 @@ data class ProviderConfig(
      *  user-curated rather than heuristic so we don't surprise the user
      *  with a hidden filter. Toggled per-model on the Model Info screen. */
     val visionModels: Set<String> = emptySet(),
+    /** Per-model capabilities harvested from the provider's own /models
+     *  response (Mistral capabilities object, Gemini token limits, Cohere
+     *  context_length, etc.). Authoritative when present — the provider's
+     *  self-report wins over LiteLLM / models.dev / heuristic. Refreshed
+     *  whenever the model list is fetched. */
+    val modelCapabilities: Map<String, com.ai.data.ModelCapabilities> = emptyMap(),
     /** Set of model ids the user has explicitly flagged as supporting the
      *  web-search tool descriptor (Anthropic web_search_20250305 / Gemini
      *  google_search / OpenAI Responses web_search_preview). Same pattern
@@ -183,6 +189,21 @@ data class Settings(
         val merged = cfg.visionModels + autoVisionModels
         return withProvider(service, cfg.copy(models = models, modelTypes = types, visionModels = merged))
     }
+    /** Same as the 4-arg overload, plus a per-model capability bundle from
+     *  the provider's own /models endpoint (Mistral, Gemini, Cohere, etc.).
+     *  Replaces — not merges — the existing capabilities map: a refetch
+     *  always reflects the provider's current view. */
+    fun withModels(
+        service: AppService, models: List<String>, types: Map<String, String>,
+        autoVisionModels: Set<String>, capabilities: Map<String, com.ai.data.ModelCapabilities>
+    ): Settings {
+        val cfg = getProvider(service)
+        val merged = cfg.visionModels + autoVisionModels
+        return withProvider(service, cfg.copy(
+            models = models, modelTypes = types,
+            visionModels = merged, modelCapabilities = capabilities
+        ))
+    }
     /** User-supplied manual override always wins; otherwise consult LiteLLM
      *  for a specific (non-CHAT) classification, then fall back to the
      *  stored classification (native list APIs / naming heuristic). LiteLLM
@@ -212,6 +233,8 @@ data class Settings(
     fun isVisionCapable(service: AppService, modelId: String): Boolean {
         if (modelId in getProvider(service).visionModels) return true
         if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsVision }) return true
+        // Provider's own /models response — most authoritative when present.
+        getProvider(service).modelCapabilities[modelId]?.supportsVision?.let { return it }
         com.ai.data.PricingCache.liteLLMSupportsVision(service, modelId)?.let { return it }
         com.ai.data.PricingCache.modelsDevSupportsVision(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferVision(modelId)
@@ -232,6 +255,9 @@ data class Settings(
     fun isWebSearchCapable(service: AppService, modelId: String): Boolean {
         if (modelId in getProvider(service).webSearchModels) return true
         if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsWebSearch }) return true
+        // Provider's own function-calling flag is a strong proxy for "tool
+        // descriptors are accepted" — Mistral surfaces this directly.
+        getProvider(service).modelCapabilities[modelId]?.supportsFunctionCalling?.let { return it }
         com.ai.data.PricingCache.liteLLMSupportsWebSearch(service, modelId)?.let { return it }
         // models.dev exposes tool_call (function-calling) which is a strong
         // proxy for "tool descriptors are supported on this model" — we

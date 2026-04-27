@@ -337,16 +337,55 @@ data class GeminiError(val code: Int?, val message: String?, val status: String?
 // ============================================================================
 
 data class OpenAiModelsResponse(val data: List<OpenAiModel>?)
-data class OpenAiModel(val id: String?, val owned_by: String?)
+/** OpenAI-compatible model entry. Fields beyond `id`/`owned_by` are
+ *  provider-specific extensions Gson silently ignores when absent:
+ *    - Mistral exposes a rich `capabilities` block + max_context_length.
+ *    - Together AI ships `context_length` and `type` (chat / image / etc).
+ *    - Groq ships `context_window`.
+ *    - Fireworks ships `supports_chat` / `supports_image_input` /
+ *      `context_length`.
+ *  Letting them all coexist lets one OpenAiModel data class absorb
+ *  whatever extra metadata a provider includes without forking parsers. */
+data class OpenAiModel(
+    val id: String?,
+    val owned_by: String? = null,
+    val capabilities: MistralCapabilities? = null,
+    val max_context_length: Int? = null,
+    val context_length: Int? = null,
+    val context_window: Int? = null,
+    val supports_chat: Boolean? = null,
+    val supports_image_input: Boolean? = null
+)
+
+data class MistralCapabilities(
+    val completion_chat: Boolean? = null,
+    val completion_fim: Boolean? = null,
+    val function_calling: Boolean? = null,
+    val fine_tuning: Boolean? = null,
+    val vision: Boolean? = null,
+    val classification: Boolean? = null
+)
 
 data class CohereModelsResponse(val models: List<CohereModelInfo>?)
-data class CohereModelInfo(val name: String?, val endpoints: List<String>?)
+data class CohereModelInfo(
+    val name: String?,
+    val endpoints: List<String>?,
+    val context_length: Int? = null,
+    val supports_vision: Boolean? = null,
+    val finetuned: Boolean? = null
+)
 
 data class ClaudeModelsResponse(val data: List<ClaudeModelInfo>?)
 data class ClaudeModelInfo(val id: String?, val display_name: String?, val type: String?)
 
 data class GeminiModelsResponse(val models: List<GeminiModel>?)
-data class GeminiModel(val name: String?, val displayName: String?, val supportedGenerationMethods: List<String>?)
+data class GeminiModel(
+    val name: String?,
+    val displayName: String?,
+    val supportedGenerationMethods: List<String>?,
+    val inputTokenLimit: Int? = null,
+    val outputTokenLimit: Int? = null
+)
 
 // ============================================================================
 // Streaming chunk types
