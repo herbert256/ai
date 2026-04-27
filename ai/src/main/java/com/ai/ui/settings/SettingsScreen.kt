@@ -143,9 +143,16 @@ fun SettingsScreen(
                     service = provider, aiSettings = aiSettings,
                     isLoadingModels = provider in loadingModelsFor,
                     onBackToSettings = goBack, onBackToHome = onNavigateHome,
-                    onSave = onSaveAi, onFetchModels = { onFetchModels(provider, it) },
+                    onSave = onSaveAi,
+                    onFetchModels = {
+                        val fresh = AppService.findById(provider.id) ?: provider
+                        onFetchModels(fresh, it)
+                    },
                     onTestApiKey = onTestAiModel, onProviderStateChange = { onProviderStateChange(provider, it) },
-                    onTestModelWithPrompt = { prompt -> onTestModelWithPrompt(provider, aiSettings.getApiKey(provider), aiSettings.getModel(provider), prompt) },
+                    onTestModelWithPrompt = { prompt ->
+                        val fresh = AppService.findById(provider.id) ?: provider
+                        onTestModelWithPrompt(fresh, aiSettings.getApiKey(fresh), aiSettings.getModel(fresh), prompt)
+                    },
                     onNavigateToTrace = onNavigateToTrace,
                     onNavigateToModels = {
                         // Jump directly into the Models sub-screen for this provider; back returns here.
@@ -167,10 +174,17 @@ fun SettingsScreen(
                     service = provider, aiSettings = aiSettings,
                     isLoadingModels = provider in loadingModelsFor,
                     onBack = goBack, onBackToHome = onNavigateHome,
-                    onSave = onSaveAi, onFetchModels = { onFetchModels(provider, it) },
+                    onSave = onSaveAi,
+                    onFetchModels = {
+                        // Use the registry's current AppService so a baseUrl edit on
+                        // the catalog flows through immediately.
+                        val fresh = AppService.findById(provider.id) ?: provider
+                        onFetchModels(fresh, it)
+                    },
                     onNavigateToModelInfo = onNavigateToModelInfo,
                     onTestSpecificModel = { model, prompt ->
-                        onTestSpecificModel(provider, aiSettings.getApiKey(provider), model, prompt)
+                        val fresh = AppService.findById(provider.id) ?: provider
+                        onTestSpecificModel(fresh, aiSettings.getApiKey(fresh), model, prompt)
                     },
                     onNavigateToTrace = onNavigateToTrace
                 )
