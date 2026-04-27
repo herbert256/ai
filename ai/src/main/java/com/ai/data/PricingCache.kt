@@ -3,6 +3,9 @@ package com.ai.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import java.lang.reflect.Type
 import kotlinx.coroutines.launch
@@ -247,8 +250,7 @@ object PricingCache {
         try {
             val url = java.net.URL("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
             val json = url.openStream().bufferedReader().use { it.readText() }
-            val data: Map<String, Map<String, Any>> = gson.fromJson(json, mapStringMapType)
-            val parsed = data.mapNotNull { (modelId, info) -> liteLLMEntry(modelId, info) }.toMap()
+            val parsed = parseLiteLLMJson(json)
             if (parsed.isEmpty()) return@withContext null
             synchronized(lock) {
                 litellmPricing = parsed
@@ -331,9 +333,34 @@ object PricingCache {
     private fun parseLiteLLMPricing(context: Context): Map<String, ModelPricing> {
         return try {
             val json = context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
-            val data: Map<String, Map<String, Any>> = gson.fromJson(json, mapStringMapType)
-            data.mapNotNull { (modelId, info) -> liteLLMEntry(modelId, info) }.toMap()
+            parseLiteLLMJson(json)
         } catch (_: Exception) { emptyMap() }
+    }
+
+    /** Walk the litellm pricing JSON via the tree model so duplicate keys
+     *  inside a single model entry (last-wins) don't blow up the parse the
+     *  way fromJson(Map<String, Map<String, Any>>) does. Used by both the
+     *  bundled-asset and online-refresh paths. */
+    private fun parseLiteLLMJson(json: String): Map<String, ModelPricing> {
+        @Suppress("DEPRECATION")
+        val root: JsonObject = JsonParser().parse(json).asJsonObject
+        return root.keySet().mapNotNull { modelId ->
+            val infoEl: JsonElement = root.get(modelId) ?: return@mapNotNull null
+            if (!infoEl.isJsonObject) return@mapNotNull null
+            val infoObj: JsonObject = infoEl.asJsonObject
+            val flat = mutableMapOf<String, Any>()
+            for (k in infoObj.keySet()) {
+                val v: JsonElement = infoObj.get(k) ?: continue
+                if (v.isJsonNull || !v.isJsonPrimitive) continue
+                val p = v.asJsonPrimitive
+                flat[k] = when {
+                    p.isNumber -> p.asDouble
+                    p.isBoolean -> p.asBoolean
+                    else -> p.asString
+                }
+            }
+            liteLLMEntry(modelId, flat)
+        }.toMap()
     }
 
     /** Map a single litellm JSON entry to a ModelPricing, or null if it lacks
