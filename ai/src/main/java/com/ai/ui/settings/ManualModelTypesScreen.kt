@@ -87,19 +87,56 @@ fun ManualModelTypesScreen(
     )
 }
 
+/**
+ * Direct-entry wrapper around [ManualModelTypeEditScreen] for the "Add manual
+ * override" link on Model Info — opens the same form pre-filled with the
+ * given provider/model. If an override already exists for that pair, it's
+ * loaded for editing rather than creating a duplicate; otherwise a fresh
+ * entry is initialized with the current heuristic flags so the user only
+ * needs to confirm or change them.
+ */
+@Composable
+fun ManualModelOverrideEntryScreen(
+    aiSettings: Settings,
+    providerId: String,
+    modelId: String,
+    onSave: (Settings) -> Unit,
+    onBack: () -> Unit
+) {
+    val existing = aiSettings.modelTypeOverrides.firstOrNull {
+        it.providerId == providerId && it.modelId == modelId
+    }
+    ManualModelTypeEditScreen(
+        initial = existing,
+        aiSettings = aiSettings,
+        initialProviderId = providerId,
+        initialModelId = modelId,
+        onCancel = onBack,
+        onSave = { saved ->
+            val list = aiSettings.modelTypeOverrides
+            val updated = if (existing != null) list.map { if (it.id == saved.id) saved else it }
+                          else list + saved
+            onSave(aiSettings.withModelTypeOverrides(updated))
+            onBack()
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ManualModelTypeEditScreen(
+internal fun ManualModelTypeEditScreen(
     initial: ModelTypeOverride?,
     aiSettings: Settings,
     onCancel: () -> Unit,
-    onSave: (ModelTypeOverride) -> Unit
+    onSave: (ModelTypeOverride) -> Unit,
+    initialProviderId: String? = null,
+    initialModelId: String? = null
 ) {
     BackHandler { onCancel() }
 
     val allProviders = remember { AppService.entries.sortedBy { it.displayName } }
-    var providerId by remember { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
-    var modelId by remember { mutableStateOf(initial?.modelId ?: "") }
+    var providerId by remember { mutableStateOf(initial?.providerId ?: initialProviderId ?: allProviders.firstOrNull()?.id ?: "") }
+    var modelId by remember { mutableStateOf(initial?.modelId ?: initialModelId ?: "") }
     var type by remember { mutableStateOf(initial?.type ?: ModelType.CHAT) }
     var supportsVision by remember { mutableStateOf(initial?.supportsVision ?: false) }
     var supportsWebSearch by remember { mutableStateOf(initial?.supportsWebSearch ?: false) }

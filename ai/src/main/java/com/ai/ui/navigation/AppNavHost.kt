@@ -229,8 +229,21 @@ fun AppNavHost(
                     onFetchModels = appViewModel::fetchModels,
                     onStartChat = { p, m -> navController.navigate(NavRoutes.aiChatParams(p.id, m)) },
                     onNavigateToTracesForModel = { p, m -> navController.navigate(NavRoutes.traceListForModel(p.id, m)) },
+                    onNavigateToAddManualOverride = { p, m -> navController.navigate(NavRoutes.aiManualOverrideAdd(p.id, m)) },
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
+        }
+        composable(NavRoutes.AI_MANUAL_OVERRIDE_ADD) { entry ->
+            val providerId = entry.arguments?.getString("provider") ?: ""
+            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val uiState by appViewModel.uiState.collectAsState()
+            ManualModelOverrideEntryScreen(
+                aiSettings = uiState.aiSettings,
+                providerId = providerId,
+                modelId = model,
+                onSave = { appViewModel.updateSettings(it) },
+                onBack = safePopBack
+            )
         }
 
         // ===== Chat =====

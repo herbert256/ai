@@ -153,6 +153,7 @@ fun ModelInfoScreen(
     onFetchModels: (AppService, String) -> Unit,
     onStartChat: (AppService, String) -> Unit,
     onNavigateToTracesForModel: (AppService, String) -> Unit,
+    onNavigateToAddManualOverride: (AppService, String) -> Unit = { _, _ -> },
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -314,67 +315,61 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // Vision-capability flag — user-curated, with auto-detection
-                    // from OpenRouter input_modalities (set on fetch) and a
-                    // naming heuristic (lookup-time fallback). The checkbox
-                    // toggles the explicit override; auto-detection is shown
-                    // in the subtitle so the user knows where the flag came
-                    // from.
+                    // Capability summary — read-only. The user pins overrides
+                    // through the Manual model overrides CRUD (Add manual
+                    // override button below). Source line tells the user
+                    // where each effective flag came from.
                     item {
                         val cfgVision = aiSettings.getProvider(provider).visionModels
-                        val explicit = modelName in cfgVision
-                        val heuristic = !explicit && com.ai.data.ModelType.inferVision(modelName)
-                        val effective = explicit || heuristic
-                        val source = when {
-                            explicit -> "Manually flagged or auto-detected on last fetch."
-                            heuristic -> "Auto-detected from model name. Tick to pin the override."
-                            else -> "Tick if this model accepts image input. Used to gate the 📎 attach flow."
+                        val cfgWeb = aiSettings.getProvider(provider).webSearchModels
+                        val visionOverride = aiSettings.modelTypeOverrides.firstOrNull {
+                            it.providerId == provider.id && it.modelId == modelName && it.supportsVision
+                        } != null
+                        val webOverride = aiSettings.modelTypeOverrides.firstOrNull {
+                            it.providerId == provider.id && it.modelId == modelName && it.supportsWebSearch
+                        } != null
+                        val visionExplicit = modelName in cfgVision || visionOverride
+                        val webExplicit = modelName in cfgWeb || webOverride
+                        val visionHeuristic = !visionExplicit && com.ai.data.ModelType.inferVision(modelName)
+                        val webHeuristic = !webExplicit && com.ai.data.ModelType.inferWebSearch(provider, modelName)
+                        val visionEffective = visionExplicit || visionHeuristic
+                        val webEffective = webExplicit || webHeuristic
+                        fun rowText(label: String, on: Boolean, explicit: Boolean, heuristic: Boolean): Pair<String, String> {
+                            val state = if (on) "yes" else "no"
+                            val src = when {
+                                explicit -> "Pinned."
+                                heuristic -> "Auto-detected from name."
+                                else -> "—"
+                            }
+                            return "$label: $state" to src
                         }
-                        Card(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                onSaveSettings(aiSettings.withVisionCapable(provider, modelName, !explicit))
-                            },
-                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = effective, onCheckedChange = { onSaveSettings(aiSettings.withVisionCapable(provider, modelName, it)) })
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Vision-capable 👁", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-                                    Text(source, fontSize = 12.sp, color = AppColors.TextTertiary)
+                        val (visionLabel, visionSrc) = rowText("Vision 👁", visionEffective, visionExplicit, visionHeuristic)
+                        val (webLabel, webSrc) = rowText("Web search 🌐", webEffective, webExplicit, webHeuristic)
+                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Capabilities", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Row {
+                                    Text(visionLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(visionSrc, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                }
+                                Row {
+                                    Text(webLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(webSrc, fontSize = 12.sp, color = AppColors.TextTertiary)
                                 }
                             }
                         }
                     }
 
-                    // Web-search-tool capability — same UX as Vision. The
-                    // heuristic checks ApiFormat + model id (Claude 3.5+/4.x,
-                    // Gemini 1.5+/2.x, OpenAI Responses-API models).
+                    // Add / edit manual override — opens the same form the
+                    // Manual model types CRUD uses, pre-filled with this
+                    // (provider, model). If an override already exists for
+                    // this pair the form opens in edit mode.
                     item {
-                        val cfgWeb = aiSettings.getProvider(provider).webSearchModels
-                        val explicit = modelName in cfgWeb
-                        val heuristic = !explicit && com.ai.data.ModelType.inferWebSearch(provider, modelName)
-                        val effective = explicit || heuristic
-                        val source = when {
-                            explicit -> "Manually flagged."
-                            heuristic -> "Auto-detected from API format + model name. Tick to pin the override."
-                            else -> "Tick if this model supports the web-search tool. Affects the 🌐 toggle behavior."
-                        }
-                        Card(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                onSaveSettings(aiSettings.withWebSearchCapable(provider, modelName, !explicit))
-                            },
-                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = effective, onCheckedChange = { onSaveSettings(aiSettings.withWebSearchCapable(provider, modelName, it)) })
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Web-search-capable 🌐", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-                                    Text(source, fontSize = 12.sp, color = AppColors.TextTertiary)
-                                }
-                            }
-                        }
+                        Button(
+                            onClick = { onNavigateToAddManualOverride(provider, modelName) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                        ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
                     }
 
                     // Trace count card — clickable, opens the Traces list filtered to this model.
