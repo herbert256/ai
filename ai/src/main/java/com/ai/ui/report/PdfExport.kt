@@ -186,12 +186,12 @@ private fun buildShortHtml(report: Report): String {
         h1 { font-size: 20pt; margin: 0 0 8px 0; }
         h2 { font-size: 14pt; color: #0b2c5a; border-bottom: 1px solid #cfcfcf; padding-bottom: 4px; margin: 18px 0 6px 0; }
         h3 { font-size: 12pt; color: #0b2c5a; margin: 12px 0 4px 0; }
-        .prompt { font-family: 'Courier New', 'Menlo', monospace; font-size: 10pt; background: #f5f5f7; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; border-left: 3px solid #b0c4de; }
+        .prompt { white-space: pre-wrap; word-break: break-word; }
         .err { color: #b00020; }
     """.trimIndent())
     sb.append("</style></head><body>")
     sb.append("<h1>").append(esc(report.title)).append("</h1>")
-    sb.append("<h2>Prompt</h2><div class='prompt'>").append(esc(report.prompt)).append("</div>")
+    sb.append("<h2>Prompt</h2><p class='prompt'>").append(esc(report.prompt)).append("</p>")
     sb.append("<h2>Results</h2>")
     for (a in agents) {
         val provider = AppService.findById(a.provider)
