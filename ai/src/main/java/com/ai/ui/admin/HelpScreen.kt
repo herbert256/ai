@@ -32,7 +32,7 @@ fun HelpScreen(onBack: () -> Unit, onNavigateHome: () -> Unit) {
             HelpSection("Dual Chat", "Send the same prompt to two different models side by side. Configure the number of rounds and prompt templates using %subject% and %answer% variables.")
             HelpSection("AI Models", "Search across all models from all active providers. View model info from OpenRouter and HuggingFace. Start a chat or create an agent directly from search results.")
             HelpSection("Model Info", "Shows technical specifications, pricing, and descriptions from OpenRouter and HuggingFace APIs. An AI-generated introduction can be loaded if a model_info prompt is configured.")
-            HelpSection("AI Statistics", "View token usage and costs per provider and model. Costs are calculated using a six-tier pricing lookup: API > Override > OpenRouter > LiteLLM > Fallback > Default.")
+            HelpSection("AI Statistics", "View token usage and costs per provider and model. Costs are calculated using a five-tier pricing lookup: API > LiteLLM > Override > OpenRouter > Default.")
             HelpSection("AI Costs", "Configure manual price overrides per provider/model. Prices are in USD per million tokens. Overrides take priority over all automatic pricing sources.")
             HelpSection("AI History", "Browse all generated reports. Search by title, prompt, or response content. View, share, open in browser, or delete individual reports.")
             HelpSection("Supported Services", "The app supports ${AppService.entries.size} AI providers including OpenAI, Anthropic, Google, Mistral, DeepSeek, Groq, Perplexity, Cohere, xAI, and many more. 28 of 31 use the OpenAI-compatible API format.")

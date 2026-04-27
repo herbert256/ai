@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Cached model pricing with six-tier lookup: API > LITELLM > OVERRIDE > OPENROUTER > FALLBACK > DEFAULT.
+ * Cached model pricing with five-tier lookup: API > LITELLM > OVERRIDE > OPENROUTER > DEFAULT.
  * Exception: For the OpenRouter provider itself, OPENROUTER pricing is checked first.
  *
  * LITELLM sits ahead of OVERRIDE so the curated BerriAI/litellm prices win over
@@ -38,7 +38,6 @@ object PricingCache {
     @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
     @Volatile private var openRouterPricing: Map<String, ModelPricing>? = null
     @Volatile private var litellmPricing: Map<String, ModelPricing>? = null
-    @Volatile private var fallbackPricing: Map<String, ModelPricing>? = null
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var preloadCompleted = false
@@ -158,7 +157,7 @@ object PricingCache {
     }
 
     /**
-     * Get pricing for a model using six-tier lookup.
+     * Get pricing for a model using five-tier lookup.
      *
      * If preload hasn't finished (caches still null) and this was called from the main thread,
      * avoid the synchronous 1.2MB parse by returning DEFAULT_PRICING — the UI will refresh
@@ -177,7 +176,6 @@ object PricingCache {
         }
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        fallbackPricing?.get(model)?.let { return it }
         return DEFAULT_PRICING
     }
 
@@ -191,7 +189,6 @@ object PricingCache {
             p[model]?.let { return it }
             provider.litellmPrefix?.let { prefix -> p["$prefix/$model"]?.let { return it } }
         }
-        fallbackPricing?.get(model)?.let { return it }
         return DEFAULT_PRICING
     }
 
@@ -207,7 +204,6 @@ object PricingCache {
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
         ensureLoaded(context)
         val merged = mutableMapOf<String, ModelPricing>()
-        fallbackPricing?.let { merged.putAll(it) }
         litellmPricing?.let { merged.putAll(it) }
         openRouterPricing?.let { merged.putAll(it) }
         manualPricing?.let { merged.putAll(it) }
@@ -220,7 +216,6 @@ object PricingCache {
         manualPricing?.let { if (it.isNotEmpty()) sources.add("Manual (${it.size})") }
         openRouterPricing?.let { if (it.isNotEmpty()) sources.add("OpenRouter (${it.size})") }
         litellmPricing?.let { if (it.isNotEmpty()) sources.add("LiteLLM (${it.size})") }
-        fallbackPricing?.let { sources.add("Fallback (${it.size})") }
         return sources.joinToString(" + ")
     }
 
@@ -232,7 +227,6 @@ object PricingCache {
         val litellm: ModelPricing?,
         val override: ModelPricing?,
         val openrouter: ModelPricing?,
-        val fallback: ModelPricing?,
         val default: ModelPricing
     )
 
@@ -243,13 +237,11 @@ object PricingCache {
         }
         val override = manualPricing?.get("${provider.id}:$model")
         val openrouter = findOpenRouterPricing(provider, model)
-        val fallback = fallbackPricing?.get(model)
-        return TierBreakdown(litellm, override, openrouter, fallback, DEFAULT_PRICING)
+        return TierBreakdown(litellm, override, openrouter, DEFAULT_PRICING)
     }
 
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
     fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return litellmPricing?.toMap() ?: emptyMap() }
-    fun getFallbackPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return fallbackPricing?.toMap() ?: emptyMap() }
 
     fun refreshLiteLLMPricing(context: Context) {
         litellmPricing = parseLiteLLMPricing(context)
@@ -311,7 +303,6 @@ object PricingCache {
     private fun ensureLoaded(context: Context) = synchronized(lock) {
         if (manualPricing == null) loadManualPricing(context)
         if (openRouterPricing == null) loadFromPrefs(context)
-        if (fallbackPricing == null) fallbackPricing = loadFallbackPricing(context)
         if (litellmPricing == null) {
             val prefs = getPrefs(context)
             val json = prefs.getString(KEY_LITELLM_PRICING, null)
@@ -320,20 +311,6 @@ object PricingCache {
                 catch (_: Exception) {}
             }
             if (litellmPricing == null) refreshLiteLLMPricing(context)
-        }
-    }
-
-    private data class FallbackPricingEntry(val input: Double, val output: Double)
-    private val mapFallbackEntryType: Type = object : TypeToken<Map<String, FallbackPricingEntry>>() {}.type
-
-    private fun loadFallbackPricing(context: Context): Map<String, ModelPricing> {
-        return try {
-            val json = context.assets.open("fallback_pricing.json").bufferedReader().use { it.readText() }
-            val raw: Map<String, FallbackPricingEntry> = gson.fromJson(json, mapFallbackEntryType)
-            raw.mapValues { (id, e) -> ModelPricing(id, e.input, e.output, "FALLBACK") }
-        } catch (e: Exception) {
-            android.util.Log.e("PricingCache", "Failed to load fallback_pricing.json: ${e.message}")
-            emptyMap()
         }
     }
 

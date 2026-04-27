@@ -127,14 +127,14 @@ fun ImportExportScreen(
     // Layered-costs export: every (provider, model) on one row with two empty
     // columns up front for the user to fill in a new override, followed by
     // every tier's price in run-time precedence order (LITELLM > OVERRIDE >
-    // OPENROUTER > FALLBACK > DEFAULT). Re-imports through the existing
-    // Costs import path: same first four columns the importer reads.
+    // OPENROUTER > DEFAULT). Re-imports through the existing Costs import
+    // path: same first four columns the importer reads.
     val exportLayeredCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         fun fmt(p: Double?): String = p?.let { "%.4f".format(Locale.US, it * 1_000_000) } ?: ""
         val header = "provider,model,new_input_per_million,new_output_per_million," +
             "litellm_in,litellm_out,override_in,override_out," +
-            "openrouter_in,openrouter_out,fallback_in,fallback_out," +
+            "openrouter_in,openrouter_out," +
             "default_in,default_out"
         val lines = mutableListOf(header)
         val rows = aiSettings.getActiveServices()
@@ -148,7 +148,6 @@ fun ImportExportScreen(
                     fmt(b.litellm?.promptPrice), fmt(b.litellm?.completionPrice),
                     fmt(b.override?.promptPrice), fmt(b.override?.completionPrice),
                     fmt(b.openrouter?.promptPrice), fmt(b.openrouter?.completionPrice),
-                    fmt(b.fallback?.promptPrice), fmt(b.fallback?.completionPrice),
                     fmt(b.default.promptPrice), fmt(b.default.completionPrice)
                 ).joinToString(",")
             )
@@ -270,7 +269,7 @@ fun ImportExportScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's $/M-token price in the run-time precedence order. Re-import via the Costs button — only the first four columns are read.",
+                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > Override > OpenRouter > Default). Re-import via the Costs button — only the first four columns are read.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     OutlinedButton(onClick = {

@@ -156,7 +156,7 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
             Text(formatCurrency(swc.totalCost), fontSize = 13.sp, color = AppColors.Green)
             val sourceColor = when (swc.pricingSource) {
                 "OVERRIDE" -> AppColors.Orange; "OPENROUTER" -> AppColors.Blue; "LITELLM" -> AppColors.Purple
-                "FALLBACK" -> Color(0xFFAAAA00); else -> AppColors.TextDim
+                else -> AppColors.TextDim
             }
             Text(swc.pricingSource, fontSize = 10.sp, color = sourceColor)
         }
@@ -196,7 +196,7 @@ fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigate
         Spacer(modifier = Modifier.height(12.dp))
 
         if (manualPricing.isEmpty()) {
-            Text("No manual price overrides configured.\nPricing uses automatic lookup: OpenRouter > LiteLLM > Fallback > Default.",
+            Text("No manual price overrides configured.\nPricing uses automatic lookup: LiteLLM > OpenRouter > Default.",
                 fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(16.dp))
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
