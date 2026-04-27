@@ -67,7 +67,7 @@ fun HousekeepingScreen(
         AlertDialog(
             onDismissRequest = { showRestoreConfirm = null },
             title = { Text("Restore from backup?") },
-            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. The app will need to be restarted afterwards.") },
+            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. The app will restart automatically when restore finishes.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -82,11 +82,35 @@ fun HousekeepingScreen(
                                 }
                             }
                             busyLabel = null
-                            val msg = result.fold(
-                                onSuccess = { s -> "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files. Please restart the app." },
-                                onFailure = { "Restore failed: ${it.javaClass.simpleName}: ${it.message}" }
+                            result.fold(
+                                onSuccess = { s ->
+                                    Toast.makeText(
+                                        context,
+                                        "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files. Restarting…",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    // Brief delay so the toast renders, then relaunch the
+                                    // launcher activity in a new task and kill the current
+                                    // process — the next launch reads the restored data fresh.
+                                    kotlinx.coroutines.delay(800)
+                                    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                                    if (launch != null) {
+                                        launch.addFlags(
+                                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                                                android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        )
+                                        context.startActivity(launch)
+                                    }
+                                    android.os.Process.killProcess(android.os.Process.myPid())
+                                },
+                                onFailure = {
+                                    Toast.makeText(
+                                        context,
+                                        "Restore failed: ${it.javaClass.simpleName}: ${it.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             )
-                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
