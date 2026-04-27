@@ -23,15 +23,12 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 private data class IntroCostRow(
     val introducedFor: String,
@@ -593,50 +590,62 @@ private fun getAppVersion(context: Context): String = try {
  *
  * Must be called from Main since WebView's measure / layout / draw require the UI thread.
  */
-private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File): Unit =
-    suspendCancellableCoroutine { cont ->
-        val pageWidth = 1240
-        val pageHeight = 1754
-        // Use the Activity context so WebView can pull theme + resources properly; the
-        // Application context can trigger initialisation issues on some WebView versions.
-        val webView = WebView(context)
-        webView.settings.javaScriptEnabled = false
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String?) {
-                view.post {
-                    try {
-                        view.measure(
-                            View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
-                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                        )
-                        val totalHeight = view.measuredHeight.coerceAtLeast(pageHeight)
-                        view.layout(0, 0, pageWidth, totalHeight)
+private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File) {
+    val pageWidth = 1240
+    val pageHeight = 1754
+    // CompletableDeferred + a local val holds the WebView reference for the
+    // entire suspend window. Earlier we used suspendCancellableCoroutine, but
+    // its lambda returns immediately after kicking off loadDataWithBaseURL —
+    // the local `webView` var falls out of scope and the JVM can GC it before
+    // onPageFinished fires, leaving the coroutine suspended forever.
+    val done = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val webView = WebView(context)
+    webView.settings.javaScriptEnabled = false
+    webView.webViewClient = object : WebViewClient() {
+        override fun onPageFinished(view: WebView, url: String?) {
+            view.post {
+                try {
+                    view.measure(
+                        View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                    )
+                    val totalHeight = view.measuredHeight.coerceAtLeast(pageHeight)
+                    view.layout(0, 0, pageWidth, totalHeight)
 
-                        val pdf = PdfDocument()
-                        var rendered = 0
-                        var pageNum = 1
-                        while (rendered < totalHeight) {
-                            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
-                            val page = pdf.startPage(pageInfo)
-                            val canvas = page.canvas
-                            canvas.drawColor(AndroidColor.WHITE)
-                            canvas.save()
-                            canvas.translate(0f, -rendered.toFloat())
-                            view.draw(canvas)
-                            canvas.restore()
-                            pdf.finishPage(page)
-                            rendered += pageHeight
-                            pageNum++
-                        }
-                        if (output.exists()) output.delete()
-                        FileOutputStream(output).use { pdf.writeTo(it) }
-                        pdf.close()
-                        if (cont.isActive) cont.resume(Unit)
-                    } catch (e: Exception) {
-                        if (cont.isActive) cont.resumeWithException(e)
+                    val pdf = PdfDocument()
+                    var rendered = 0
+                    var pageNum = 1
+                    while (rendered < totalHeight) {
+                        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
+                        val page = pdf.startPage(pageInfo)
+                        val canvas = page.canvas
+                        canvas.drawColor(AndroidColor.WHITE)
+                        canvas.save()
+                        canvas.translate(0f, -rendered.toFloat())
+                        view.draw(canvas)
+                        canvas.restore()
+                        pdf.finishPage(page)
+                        rendered += pageHeight
+                        pageNum++
                     }
+                    if (output.exists()) output.delete()
+                    FileOutputStream(output).use { pdf.writeTo(it) }
+                    pdf.close()
+                    done.complete(Unit)
+                } catch (e: Exception) {
+                    done.completeExceptionally(e)
                 }
             }
         }
-        webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
     }
+    webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+    try {
+        done.await()
+    } finally {
+        // Keep the reference alive until the deferred resolves (success, error,
+        // or cancellation), then explicitly tear the WebView down on the main
+        // thread to release the chromium-side resources promptly.
+        webView.stopLoading()
+        webView.destroy()
+    }
+}
