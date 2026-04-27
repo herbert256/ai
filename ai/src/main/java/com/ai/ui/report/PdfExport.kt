@@ -598,6 +598,12 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
     val done = kotlinx.coroutines.CompletableDeferred<Unit>()
     val webView = WebView(context)
     webView.settings.javaScriptEnabled = false
+    // Force software rendering — PdfDocument.Canvas is a software canvas and
+    // hardware-accelerated WebView content draws as a black rectangle on it.
+    webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+    // Give chromium a viewport before loading so it actually renders content;
+    // a zero-sized WebView produces zero-height measurements after load.
+    webView.layout(0, 0, pageWidth, pageHeight)
     webView.webViewClient = object : WebViewClient() {
         override fun onPageFinished(view: WebView, url: String?) {
             android.util.Log.i(tag, "onPageFinished url=$url")
