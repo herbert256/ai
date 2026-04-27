@@ -23,6 +23,15 @@ fun AnalysisRepository.sendChatStream(
     baseUrl: String? = null
 ): Flow<String> = flow {
     val effectiveUrl = baseUrl ?: service.baseUrl
+    // LiteLLM gating: when the model is known not to support native SSE
+    // streaming, route through the non-streaming sendChat path and emit
+    // the full response as a single chunk. The chat UI's accumulator
+    // sees one large appended chunk instead of an empty stream.
+    if (PricingCache.liteLLMSupportsNativeStreaming(service, model) == false) {
+        val full = sendChat(service, apiKey, model, messages, params, effectiveUrl)
+        emit(full)
+        return@flow
+    }
     when (service.apiFormat) {
         ApiFormat.ANTHROPIC -> streamAnthropic(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         ApiFormat.GOOGLE -> streamGemini(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }

@@ -290,6 +290,9 @@ object PricingCache {
     fun liteLLMSupportsReasoning(provider: AppService, model: String): Boolean? =
         findLiteLLMMeta(provider, model)?.supportsReasoning
 
+    fun liteLLMSupportsNativeStreaming(provider: AppService, model: String): Boolean? =
+        findLiteLLMMeta(provider, model)?.supportsNativeStreaming
+
     /** ModelType constant derived from LiteLLM's `mode` field, or null
      *  when no mapping applies. "chat" → CHAT, "embedding" → EMBEDDING,
      *  etc. CHAT is rarely useful (it's the default heuristic anyway) so
@@ -500,7 +503,8 @@ object PricingCache {
         val supportedEndpoints: List<String>? = null,
         val supportsSystemMessages: Boolean? = null,
         val supportsResponseSchema: Boolean? = null,
-        val supportsReasoning: Boolean? = null
+        val supportsReasoning: Boolean? = null,
+        val supportsNativeStreaming: Boolean? = null
     )
 
     /** Walk the litellm pricing JSON via the tree model so duplicate keys
@@ -541,14 +545,15 @@ object PricingCache {
             val sm = flat["supports_system_messages"] as? Boolean
             val sr = flat["supports_response_schema"] as? Boolean
             val sre = (flat["supports_reasoning"] as? Boolean) ?: (flat["supports_max_reasoning_effort"] as? Boolean)
+            val sns = flat["supports_native_streaming"] as? Boolean
             val seArr = infoObj.get("supported_endpoints")
             val se = if (seArr != null && seArr.isJsonArray) {
                 seArr.asJsonArray.mapNotNull { el ->
                     if (el.isJsonPrimitive) el.asString else null
                 }.takeIf { it.isNotEmpty() }
             } else null
-            if (mode != null || sv != null || sw != null || se != null || sm != null || sr != null || sre != null) {
-                meta[modelId] = LiteLLMMeta(mode, sv, sw, se, sm, sr, sre)
+            if (mode != null || sv != null || sw != null || se != null || sm != null || sr != null || sre != null || sns != null) {
+                meta[modelId] = LiteLLMMeta(mode, sv, sw, se, sm, sr, sre, sns)
             }
         }
         return pricing to meta
