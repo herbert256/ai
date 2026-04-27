@@ -2,6 +2,8 @@ package com.ai.ui.report
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.pdf.PdfDocument
 import android.view.View
@@ -608,26 +610,42 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
     val done = kotlinx.coroutines.CompletableDeferred<Unit>()
     val webView = WebView(context)
     webView.settings.javaScriptEnabled = false
-    // Force software rendering — PdfDocument.Canvas is a software canvas and
-    // hardware-accelerated WebView content draws as a black rectangle on it.
     webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-    // Give chromium a viewport before loading so it actually renders content;
-    // a zero-sized WebView produces zero-height measurements after load.
+    // Pre-measure + pre-layout so chromium has a real viewport when loading;
+    // an unmeasured WebView produces zero-height content after load.
+    webView.measure(
+        View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(pageHeight, View.MeasureSpec.EXACTLY)
+    )
     webView.layout(0, 0, pageWidth, pageHeight)
     webView.webViewClient = object : WebViewClient() {
         override fun onPageFinished(view: WebView, url: String?) {
             android.util.Log.i(tag, "onPageFinished url=$url")
-            // We're already on the UI thread here. Don't `view.post {}` — for a
-            // WebView that's never been added to a window, the runnable queues
-            // against mAttachInfo and waits for attachment that never comes.
             try {
                 view.measure(
                     View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
                 )
-                val totalHeight = view.measuredHeight.coerceAtLeast(pageHeight)
-                android.util.Log.i(tag, "measured: ${view.measuredWidth}x${view.measuredHeight}, totalHeight=$totalHeight")
+                // contentHeight is chromium's full HTML content height in CSS px;
+                // use it as a fallback when measure() returns 0 (which happens
+                // for off-screen WebViews — they never run a real layout pass).
+                val cssDensity = view.resources.displayMetrics.density
+                val contentPx = (view.contentHeight * cssDensity).toInt()
+                val totalHeight = maxOf(view.measuredHeight, contentPx, pageHeight)
+                android.util.Log.i(
+                    tag,
+                    "measured=${view.measuredWidth}x${view.measuredHeight}, contentHeightCss=${view.contentHeight}, contentPx=$contentPx, totalHeight=$totalHeight"
+                )
                 view.layout(0, 0, pageWidth, totalHeight)
+
+                // Render the WebView into an intermediate software Bitmap. Drawing
+                // straight to PdfDocument.Canvas can come back black when chromium
+                // backs the view with a hardware layer despite setLayerType — the
+                // Bitmap canvas is unambiguously software and fixes that.
+                val bitmap = Bitmap.createBitmap(pageWidth, totalHeight, Bitmap.Config.ARGB_8888)
+                bitmap.eraseColor(AndroidColor.WHITE)
+                val bitmapCanvas = Canvas(bitmap)
+                view.draw(bitmapCanvas)
 
                 val pdf = PdfDocument()
                 var rendered = 0
@@ -637,14 +655,15 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
                     val page = pdf.startPage(pageInfo)
                     val canvas = page.canvas
                     canvas.drawColor(AndroidColor.WHITE)
-                    canvas.save()
-                    canvas.translate(0f, -rendered.toFloat())
-                    view.draw(canvas)
-                    canvas.restore()
+                    val sliceH = minOf(pageHeight, totalHeight - rendered)
+                    val src = android.graphics.Rect(0, rendered, pageWidth, rendered + sliceH)
+                    val dst = android.graphics.Rect(0, 0, pageWidth, sliceH)
+                    canvas.drawBitmap(bitmap, src, dst, null)
                     pdf.finishPage(page)
                     rendered += pageHeight
                     pageNum++
                 }
+                bitmap.recycle()
                 if (output.exists()) output.delete()
                 FileOutputStream(output).use { pdf.writeTo(it) }
                 pdf.close()
@@ -657,7 +676,7 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
         }
     }
     android.util.Log.i(tag, "loading HTML into WebView…")
-    webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+    webView.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
     try {
         // Safety timeout — if onPageFinished never fires (rare, but better to
         // surface an error than stick the dialog forever) we cap at 30s.
