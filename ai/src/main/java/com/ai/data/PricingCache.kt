@@ -211,10 +211,7 @@ object PricingCache {
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         // LITELLM ahead of OVERRIDE so refreshed bulk pricing wins over stale
         // manual entries; users only need overrides for models LiteLLM lacks.
-        litellmPricing?.let { p ->
-            p[model]?.let { return it }
-            provider.litellmPrefix?.let { prefix -> p["$prefix/$model"]?.let { return it } }
-        }
+        findLiteLLMPricing(provider, model)?.let { return it }
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
@@ -226,20 +223,41 @@ object PricingCache {
     fun getPricingWithoutOverride(context: Context, provider: AppService, model: String): ModelPricing {
         ensureLoaded(context)
         findOpenRouterPricing(provider, model)?.let { return it }
-        litellmPricing?.let { p ->
-            p[model]?.let { return it }
-            provider.litellmPrefix?.let { prefix -> p["$prefix/$model"]?.let { return it } }
-        }
+        findLiteLLMPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
     }
 
+    /** OpenRouter and Anthropic disagree on punctuation — Anthropic ships
+     *  "claude-opus-4-6" while OpenRouter catalogs "anthropic/claude-opus-4.6".
+     *  Normalize both sides to lowercase-dash for matching. */
+    private fun normalizeModelId(s: String): String = s.replace('.', '-').lowercase()
+
     private fun findOpenRouterPricing(provider: AppService, model: String): ModelPricing? {
-        openRouterPricing?.let { pricing ->
-            pricing[model]?.let { return it }
-            provider.openRouterName?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
-            pricing.entries.find { it.key.endsWith("/$model") || it.key == model }?.let { return it.value }
-        }
-        return null
+        val pricing = openRouterPricing ?: return null
+        // Exact-key fast path.
+        pricing[model]?.let { return it }
+        provider.openRouterName?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
+        // Normalized linear scan — handles dot/dash mismatch.
+        val target = normalizeModelId(model)
+        val prefixed = provider.openRouterName?.let { "${normalizeModelId(it)}/$target" }
+        return pricing.entries.firstOrNull {
+            val k = normalizeModelId(it.key)
+            k == target || k == prefixed || k.endsWith("/$target")
+        }?.value
+    }
+
+    private fun findLiteLLMPricing(provider: AppService, model: String): ModelPricing? {
+        val pricing = litellmPricing ?: return null
+        // Exact-key fast path.
+        pricing[model]?.let { return it }
+        provider.litellmPrefix?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
+        // Normalized linear scan — same dot/dash forgiveness as OpenRouter.
+        val target = normalizeModelId(model)
+        val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
+        return pricing.entries.firstOrNull {
+            val k = normalizeModelId(it.key)
+            k == target || k == prefixed
+        }?.value
     }
 
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
@@ -273,9 +291,7 @@ object PricingCache {
 
     fun getTierBreakdown(context: Context, provider: AppService, model: String): TierBreakdown {
         ensureLoaded(context)
-        val litellm = litellmPricing?.let { p ->
-            p[model] ?: provider.litellmPrefix?.let { prefix -> p["$prefix/$model"] }
-        }
+        val litellm = findLiteLLMPricing(provider, model)
         val override = manualPricing?.get("${provider.id}:$model")
         val openrouter = findOpenRouterPricing(provider, model)
         return TierBreakdown(litellm, override, openrouter, DEFAULT_PRICING)
