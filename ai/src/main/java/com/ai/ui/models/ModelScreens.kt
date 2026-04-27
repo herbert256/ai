@@ -211,14 +211,24 @@ fun ModelInfoScreen(
                 var orInfo: OpenRouterModelInfo? = null
                 var hfInfo: HuggingFaceModelInfo? = null
 
+                // Provider APIs and OpenRouter disagree on punctuation —
+                // Anthropic ships "claude-opus-4-6" while OpenRouter
+                // catalogs it as "anthropic/claude-opus-4.6". Normalize
+                // both sides by treating '.' and '-' as equivalent so the
+                // lookup connects regardless of which form the model id
+                // uses.
+                fun norm(s: String): String = s.replace('.', '-').lowercase()
+                val targetNorm = norm(modelName)
+
                 // OpenRouter lookup
                 if (openRouterApiKey.isNotBlank()) {
                     try {
                         val models = ModelInfoCache.getOpenRouterModels(openRouterApiKey)
                         val orName = provider.openRouterName
-                        orInfo = models.find { it.id == "$orName/$modelName" }
-                            ?: models.find { it.id.endsWith("/$modelName") }
-                            ?: models.find { it.id == modelName }
+                        val prefixedTargetNorm = if (orName != null) norm("$orName/$modelName") else null
+                        orInfo = models.firstOrNull { norm(it.id) == prefixedTargetNorm }
+                            ?: models.firstOrNull { norm(it.id).endsWith("/$targetNorm") }
+                            ?: models.firstOrNull { norm(it.id) == targetNorm }
                     } catch (_: Exception) {}
                 }
 
@@ -226,13 +236,18 @@ fun ModelInfoScreen(
                 if (huggingFaceApiKey.isNotBlank()) {
                     // Every HF repo is "<owner>/<repo>" — a bare model name with no slash is
                     // guaranteed to 404, so build the only path that has any chance of resolving.
-                    val candidate = if ("/" in modelName) modelName
+                    // Try both dash and dot variants since some repos use either form in
+                    // the version segment.
+                    val baseCandidate = if ("/" in modelName) modelName
                         else (provider.openRouterName ?: provider.displayName).takeIf { it.isNotBlank() }?.let { "$it/$modelName" }
-                    if (candidate != null) {
-                        try {
-                            val resp = ApiFactory.createHuggingFaceApi().getModelInfo(candidate, "Bearer $huggingFaceApiKey")
-                            if (resp.isSuccessful) hfInfo = resp.body()
-                        } catch (_: Exception) {}
+                    if (baseCandidate != null) {
+                        val variants = sequenceOf(baseCandidate, baseCandidate.replace('-', '.'), baseCandidate.replace('.', '-')).distinct()
+                        for (cand in variants) {
+                            try {
+                                val resp = ApiFactory.createHuggingFaceApi().getModelInfo(cand, "Bearer $huggingFaceApiKey")
+                                if (resp.isSuccessful) { hfInfo = resp.body(); break }
+                            } catch (_: Exception) {}
+                        }
                     }
                 }
 
