@@ -126,17 +126,18 @@ fun ImportExportScreen(
 
     // Layered-costs export: every (provider, model) on one row with two empty
     // columns up front for the user to fill in a new override, followed by
-    // every tier's price in run-time precedence order (LITELLM > OVERRIDE >
-    // OPENROUTER > DEFAULT). Re-imports through the existing Costs import
-    // path: same first four columns the importer reads. The "filtered"
-    // variant drops rows whose LiteLLM or OpenRouter columns are populated —
-    // those models already have a price and the user only wants to see the
-    // ones they'd need to override manually.
+    // every tier's price in run-time precedence order (LITELLM > MODELSDEV
+    // > OVERRIDE > OPENROUTER > DEFAULT). Re-imports through the existing
+    // Costs import path: same first four columns the importer reads. The
+    // "filtered" variant drops rows whose LiteLLM, models.dev, or
+    // OpenRouter columns are populated — those models already have a
+    // curated price and the user only wants to see the ones they'd need
+    // to override manually.
     fun buildLayeredCsv(filterCovered: Boolean): Pair<String, Int> {
         fun fmt(p: Double?): String = p?.let { "%.4f".format(Locale.US, it * 1_000_000) } ?: ""
         val header = "provider,model,new_input_per_million,new_output_per_million," +
-            "litellm_in,litellm_out,override_in,override_out," +
-            "openrouter_in,openrouter_out," +
+            "litellm_in,litellm_out,modelsdev_in,modelsdev_out," +
+            "override_in,override_out,openrouter_in,openrouter_out," +
             "default_in,default_out"
         val rows = aiSettings.getActiveServices()
             .flatMap { svc -> aiSettings.getModels(svc).map { svc to it } }
@@ -145,12 +146,13 @@ fun ImportExportScreen(
         var kept = 0
         rows.forEach { (provider, model) ->
             val b = PricingCache.getTierBreakdown(context, provider, model)
-            if (filterCovered && (b.litellm != null || b.openrouter != null)) return@forEach
+            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.openrouter != null)) return@forEach
             kept++
             lines.add(
                 listOf(
                     provider.id, model, "", "",
                     fmt(b.litellm?.promptPrice), fmt(b.litellm?.completionPrice),
+                    fmt(b.modelsDev?.promptPrice), fmt(b.modelsDev?.completionPrice),
                     fmt(b.override?.promptPrice), fmt(b.override?.completionPrice),
                     fmt(b.openrouter?.promptPrice), fmt(b.openrouter?.completionPrice),
                     fmt(b.default.promptPrice), fmt(b.default.completionPrice)
@@ -287,7 +289,7 @@ fun ImportExportScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > Override > OpenRouter > Default). All exports every model; Filtered drops rows that already have a LiteLLM or OpenRouter price. Re-import via the Costs button — only the first four columns are read.",
+                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Override > OpenRouter > Default). All exports every model; Filtered drops rows that already have a LiteLLM, models.dev, or OpenRouter price. Re-import via the Costs button — only the first four columns are read.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
