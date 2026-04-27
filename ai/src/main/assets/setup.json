@@ -146,8 +146,8 @@
     {
       "id": "SILICONFLOW",
       "displayName": "SiliconFlow",
-      "baseUrl": "https://api.siliconflow.cn/",
-      "adminUrl": "https://cloud.siliconflow.cn/account/ak",
+      "baseUrl": "https://api.siliconflow.com/",
+      "adminUrl": "https://cloud.siliconflow.com/account/ak",
       "defaultModel": "Qwen/Qwen2.5-7B-Instruct",
       "prefsKey": "ai_siliconflow",
       "defaultModelSource": "API",
