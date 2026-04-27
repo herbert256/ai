@@ -48,11 +48,18 @@ object BackupManager {
      *  system prompts, subject, and two prompts). User-meaningful state worth
      *  preserving across a restore. */
     private const val DUAL_CHAT_PREFS = "dual_chat_prefs"
+    /** Cached HuggingFace model-info lookups (positive + negative, 7-day TTL).
+     *  Including these in the backup means a restore preserves the cache so
+     *  we don't re-hit HuggingFace for models that were already known to be
+     *  absent / present. */
+    private const val HUGGINGFACE_CACHE_PREFS = "huggingface_cache"
 
     /** Every SharedPreferences file we round-trip through backup/restore.
      *  WebViewChromiumPrefs (cookies, web-process state) is intentionally
      *  excluded — it doesn't make sense to restore on a different device. */
-    private val PREFS_TO_BACKUP = listOf(MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS)
+    private val PREFS_TO_BACKUP = listOf(
+        MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS, HUGGINGFACE_CACHE_PREFS
+    )
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 

@@ -242,8 +242,16 @@ fun ModelInfoScreen(
                     } catch (_: Exception) {}
                 }
 
-                // HuggingFace lookup
-                if (huggingFaceApiKey.isNotBlank()) {
+                // HuggingFace lookup — cached for a week (HuggingFaceCache),
+                // including misses so we don't hammer HF with re-tries for
+                // models that simply don't have an HF mirror.
+                run {
+                    val cached = HuggingFaceCache.get(context, provider.id, modelName)
+                    if (cached != null) {
+                        hfInfo = cached.info
+                        return@run
+                    }
+                    if (huggingFaceApiKey.isBlank()) return@run
                     // Every HF repo is "<owner>/<repo>" — a bare model name with no slash is
                     // guaranteed to 404, so build the only path that has any chance of resolving.
                     // Try both dash and dot variants since some repos use either form in
@@ -259,6 +267,9 @@ fun ModelInfoScreen(
                             } catch (_: Exception) {}
                         }
                     }
+                    // Cache the outcome — Body or null — so the next visit
+                    // within the TTL window short-circuits without a call.
+                    HuggingFaceCache.put(context, provider.id, modelName, hfInfo)
                 }
 
                 ModelInfoData(openRouterInfo = orInfo, huggingFaceInfo = hfInfo, hasPricing = orInfo?.pricing != null)
