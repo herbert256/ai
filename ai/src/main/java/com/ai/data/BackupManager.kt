@@ -39,6 +39,14 @@ object BackupManager {
     private const val MANIFEST_VERSION = 1
     private const val MAIN_PREFS = SettingsPreferences.PREFS_NAME
     private const val PROVIDER_REGISTRY_PREFS = "provider_registry"
+    /** Cached pricing tables (OpenRouter + LiteLLM downloads + manual overrides).
+     *  Including these in the backup means a restore preserves the user's
+     *  freshly-fetched pricing snapshot and any manual overrides without forcing
+     *  a re-download. */
+    private const val PRICING_CACHE_PREFS = "pricing_cache"
+
+    /** Every SharedPreferences file we round-trip through backup/restore. */
+    private val PREFS_TO_BACKUP = listOf(MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS)
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
@@ -64,9 +72,10 @@ object BackupManager {
             )
             zip.write("manifest.json", gson.toJson(manifest).toByteArray())
 
-            // SharedPreferences — serialize with type discriminator.
-            zip.write("prefs/eval_prefs.json", serializePrefs(context, MAIN_PREFS))
-            zip.write("prefs/provider_registry.json", serializePrefs(context, PROVIDER_REGISTRY_PREFS))
+            // SharedPreferences — serialize each tracked file with type discriminator.
+            for (name in PREFS_TO_BACKUP) {
+                zip.write("prefs/$name.json", serializePrefs(context, name))
+            }
 
             // Mirror the entire filesDir (reports, chats, traces, prompt cache,
             // prompt history, DataStore proto files, exports cache subdir excluded).
@@ -97,11 +106,14 @@ object BackupManager {
                         @Suppress("UNCHECKED_CAST")
                         manifestRead = gson.fromJson(bytes.toString(Charsets.UTF_8), Map::class.java) as Map<String, Any?>
                     }
-                    entry.name == "prefs/eval_prefs.json" -> {
-                        applyPrefs(context, MAIN_PREFS, bytes); prefsRestored++
-                    }
-                    entry.name == "prefs/provider_registry.json" -> {
-                        applyPrefs(context, PROVIDER_REGISTRY_PREFS, bytes); prefsRestored++
+                    // Generic: any prefs/<name>.json restores into the SharedPreferences
+                    // file called <name>. Old backups (pre-pricing_cache addition) and
+                    // future additions both round-trip without further code changes.
+                    entry.name.startsWith("prefs/") && entry.name.endsWith(".json") -> {
+                        val prefsName = entry.name.removePrefix("prefs/").removeSuffix(".json")
+                        if (prefsName.isNotBlank()) {
+                            applyPrefs(context, prefsName, bytes); prefsRestored++
+                        }
                     }
                     entry.name.startsWith("files/") -> {
                         val rel = entry.name.removePrefix("files/")
