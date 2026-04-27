@@ -169,10 +169,19 @@ private suspend fun buildComprehensiveHtml(
         .map { (it.provider to it.model) }
         .distinct()
 
-    val totalSteps = uniqueModels.size + 1
     val intros = java.util.concurrent.ConcurrentHashMap<String, String?>()
     val introCosts = java.util.Collections.synchronizedList(mutableListOf<IntroCostRow>())
     val completed = java.util.concurrent.atomic.AtomicInteger(0)
+
+    // Skip the intro API calls entirely when the user disabled the Introduction
+    // section in the Per-model sections card — saves tokens, time, and a bunch
+    // of progress-bar churn for an output we'd just throw away.
+    if (!sections.introduction) {
+        onProgress(1, 1)
+        return buildPdfHtml(context, report, traces, intros, introCosts.toList(), sections, getAppVersion(context))
+    }
+
+    val totalSteps = uniqueModels.size + 1
 
     // Each model writes its own intro using the user's "intro" Internal Prompt
     // text (with @MODEL@ / @PROVIDER@ / @AGENT@ / @SWARM@ / @NOW@ substitutions).
