@@ -293,6 +293,9 @@ object PricingCache {
     fun liteLLMSupportsNativeStreaming(provider: AppService, model: String): Boolean? =
         findLiteLLMMeta(provider, model)?.supportsNativeStreaming
 
+    fun liteLLMToolUseOverhead(provider: AppService, model: String): Int? =
+        findLiteLLMMeta(provider, model)?.toolUseSystemPromptTokens
+
     /** ModelType constant derived from LiteLLM's `mode` field, or null
      *  when no mapping applies. "chat" → CHAT, "embedding" → EMBEDDING,
      *  etc. CHAT is rarely useful (it's the default heuristic anyway) so
@@ -504,7 +507,13 @@ object PricingCache {
         val supportsSystemMessages: Boolean? = null,
         val supportsResponseSchema: Boolean? = null,
         val supportsReasoning: Boolean? = null,
-        val supportsNativeStreaming: Boolean? = null
+        val supportsNativeStreaming: Boolean? = null,
+        /** Provider-side overhead (in tokens) added to the request when
+         *  the web-search tool is in play, taken from LiteLLM's
+         *  `tool_use_system_prompt_tokens` field. Useful for making the
+         *  client-side cost estimate line up with what the provider
+         *  actually charges when 🌐 is on. */
+        val toolUseSystemPromptTokens: Int? = null
     )
 
     /** Walk the litellm pricing JSON via the tree model so duplicate keys
@@ -546,14 +555,15 @@ object PricingCache {
             val sr = flat["supports_response_schema"] as? Boolean
             val sre = (flat["supports_reasoning"] as? Boolean) ?: (flat["supports_max_reasoning_effort"] as? Boolean)
             val sns = flat["supports_native_streaming"] as? Boolean
+            val tu = (flat["tool_use_system_prompt_tokens"] as? Number)?.toInt()
             val seArr = infoObj.get("supported_endpoints")
             val se = if (seArr != null && seArr.isJsonArray) {
                 seArr.asJsonArray.mapNotNull { el ->
                     if (el.isJsonPrimitive) el.asString else null
                 }.takeIf { it.isNotEmpty() }
             } else null
-            if (mode != null || sv != null || sw != null || se != null || sm != null || sr != null || sre != null || sns != null) {
-                meta[modelId] = LiteLLMMeta(mode, sv, sw, se, sm, sr, sre, sns)
+            if (mode != null || sv != null || sw != null || se != null || sm != null || sr != null || sre != null || sns != null || tu != null) {
+                meta[modelId] = LiteLLMMeta(mode, sv, sw, se, sm, sr, sre, sns, tu)
             }
         }
         return pricing to meta

@@ -307,7 +307,12 @@ fun ChatSessionScreen(
         attachedImage = null
         saveSession(messages)
 
-        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
+        // Add LiteLLM-reported tool_use overhead when web-search is on so
+        // the client-side cost estimate isn't 5–10× under the actual bill
+        // for tool-using turns (Claude with web_search adds ~3-4k system
+        // tokens; the conversation text alone misses that).
+        val toolOverhead = if (useWebSearch) (PricingCache.liteLLMToolUseOverhead(provider, model) ?: 0) else 0
+        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) } + toolOverhead
 
         scope.launch {
             isStreaming = true; streamingContentState.value = ""
