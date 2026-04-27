@@ -269,7 +269,7 @@ fun AppNavHost(
                 ChatSessionScreen(
                     provider = agent.provider, model = effectiveModel, parameters = chatParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl) },
+                    onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) }
                 )
             } else {
@@ -313,7 +313,7 @@ fun AppNavHost(
                 ChatSessionScreen(
                     provider = provider, model = model, parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages) },
+                    onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) }
                 )
             }
@@ -332,7 +332,7 @@ fun AppNavHost(
                     provider = session.provider, model = session.model, parameters = session.parameters,
                     userName = uiState.generalSettings.userName, initialMessages = session.messages, sessionId = session.id,
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages) },
+                    onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages, webSearchTool = webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) }
                 )
             } else {

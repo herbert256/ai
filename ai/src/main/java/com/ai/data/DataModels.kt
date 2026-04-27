@@ -34,7 +34,12 @@ data class ChatMessage(
 )
 
 /**
- * Parameters for a chat session.
+ * Parameters for a chat session. [webSearchTool] is the new explicit
+ * tool-use toggle: when true the dispatch layer injects the per-format
+ * web-search tool (Anthropic web_search_20250305, Gemini googleSearch,
+ * OpenAI Responses web_search_preview). [searchEnabled] is the older
+ * flat `search:true` request flag that some providers (Perplexity, etc.)
+ * still honor — kept distinct so each provider gets the shape it expects.
  */
 data class ChatParameters(
     val systemPrompt: String = "",
@@ -46,7 +51,8 @@ data class ChatParameters(
     val presencePenalty: Float? = null,
     val searchEnabled: Boolean = false,
     val returnCitations: Boolean = true,
-    val searchRecency: String? = null
+    val searchRecency: String? = null,
+    val webSearchTool: Boolean = false
 )
 
 /**

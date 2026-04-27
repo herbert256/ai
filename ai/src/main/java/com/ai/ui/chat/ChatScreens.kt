@@ -220,7 +220,7 @@ fun ChatSessionScreen(
     userName: String,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSendMessageStream: (List<ChatMessage>) -> Flow<String>,
+    onSendMessageStream: (List<ChatMessage>, Boolean) -> Flow<String>,
     onRecordStatistics: suspend (Int, Int) -> Unit,
     initialMessages: List<ChatMessage> = emptyList(),
     sessionId: String? = null
@@ -241,6 +241,7 @@ fun ChatSessionScreen(
     var totalCost by remember { mutableDoubleStateOf(0.0) }
     // (mime, base64) of an image attached to the next user message.
     var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var useWebSearch by remember { mutableStateOf(parameters.webSearchTool) }
 
     val pickImageLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -311,7 +312,7 @@ fun ChatSessionScreen(
             isStreaming = true; streamingContentState.value = ""
             val sb = StringBuilder()
             try {
-                onSendMessageStream(messages).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
+                onSendMessageStream(messages, useWebSearch).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
                 val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
                 messages = messages + assistantMsg
                 saveSession(messages)
@@ -382,6 +383,18 @@ fun ChatSessionScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+            FilterChip(
+                selected = useWebSearch,
+                onClick = { useWebSearch = !useWebSearch },
+                label = { Text("🌐 Web search", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Blue
+                )
+            )
+        }
 
         attachedImage?.let { (mime, b64) ->
             val bmp = remember(b64) {

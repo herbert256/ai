@@ -245,7 +245,8 @@ private suspend fun AnalysisRepository.chatOpenAi(
         max_tokens = params.maxTokens, temperature = params.temperature,
         top_p = params.topP, top_k = params.topK,
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
-        search = if (params.searchEnabled) true else null
+        search = if (params.searchEnabled) true else null,
+        tools = if (params.webSearchTool) openAiChatWebSearchTool() else null
     )
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
@@ -263,10 +264,11 @@ private suspend fun AnalysisRepository.chatResponsesApi(
     val responsesUrl = buildChatUrl(service.baseUrl, service.responsesPath ?: "v1/responses")
     val systemPrompt = messages.find { it.role == "system" }?.content
     val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
+    val tools = if (params.webSearchTool) responsesWebSearchTool() else null
     val request = if (inputMessages.size == 1 && inputMessages.first().role == "user") {
-        OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt)
+        OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools)
     } else {
-        OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt)
+        OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools)
     }
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
@@ -286,7 +288,8 @@ private suspend fun AnalysisRepository.chatAnthropic(
     val request = ClaudeRequest(
         model = model, messages = claudeMessages, max_tokens = params.maxTokens ?: defaultClaudeMaxTokens(model),
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
-        system = systemPrompt, search = if (params.searchEnabled) true else null
+        system = systemPrompt, search = if (params.searchEnabled) true else null,
+        tools = if (params.webSearchTool) anthropicWebSearchTool() else null
     )
     val response = api.createMessage(apiKey, request = request)
     if (response.isSuccessful) {
@@ -303,10 +306,15 @@ private suspend fun AnalysisRepository.chatGemini(
     val api = ApiFactory.createGeminiApi(service.baseUrl)
     val contents = messages.filter { it.role != "system" }.map { it.toGeminiContent() }
     val systemInstruction = messages.find { it.role == "system" }?.let { GeminiContent(listOf(GeminiPart(text = it.content))) }
-    val request = GeminiRequest(contents, GeminiGenerationConfig(
-        params.temperature, params.topP, params.topK, params.maxTokens,
-        search = if (params.searchEnabled) true else null
-    ), systemInstruction)
+    val request = GeminiRequest(
+        contents = contents,
+        generationConfig = GeminiGenerationConfig(
+            params.temperature, params.topP, params.topK, params.maxTokens,
+            search = if (params.searchEnabled) true else null
+        ),
+        systemInstruction = systemInstruction,
+        tools = if (params.webSearchTool) geminiWebSearchTool() else null
+    )
     val response = api.generateContent(model, apiKey, request)
     if (response.isSuccessful) {
         return response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: throw Exception("No response content")
@@ -587,6 +595,21 @@ internal fun ChatMessage.toClaudeMessage(): ClaudeMessage {
     }
     return ClaudeMessage(role, blocks)
 }
+
+/** Per-format web-search tool descriptor, or null when unsupported by this
+ *  format (OpenAI Chat Completions has no native web-search tool — gpt-5.x
+ *  on the Responses API does, see [responsesWebSearchTool]). */
+internal fun openAiChatWebSearchTool(): List<Any>? = null
+
+internal fun responsesWebSearchTool(): List<Any> = listOf(mapOf("type" to "web_search_preview"))
+
+internal fun anthropicWebSearchTool(): List<Any> = listOf(mapOf(
+    "type" to "web_search_20250305",
+    "name" to "web_search",
+    "max_uses" to 5
+))
+
+internal fun geminiWebSearchTool(): List<Any> = listOf(mapOf("google_search" to emptyMap<String, Any>()))
 
 internal fun ChatMessage.toGeminiContent(): GeminiContent {
     val role = if (role == "user") "user" else "model"

@@ -69,7 +69,8 @@ data class OpenAiRequest(
     val response_format: OpenAiResponseFormat? = null,
     val return_citations: Boolean? = null,
     val search_recency_filter: String? = null,
-    val search: Boolean? = null
+    val search: Boolean? = null,
+    val tools: List<Any>? = null
 )
 
 data class OpenAiResponseFormat(val type: String = "text")
@@ -131,7 +132,8 @@ data class OpenAiResponsesRequest(
     val model: String,
     val input: Any,
     val instructions: String? = null,
-    val stream: Boolean? = null
+    val stream: Boolean? = null,
+    val tools: List<Any>? = null
 )
 
 data class OpenAiResponsesInputMessage(val role: String, val content: String)
@@ -183,7 +185,8 @@ data class ClaudeRequest(
     val frequency_penalty: Float? = null,
     val presence_penalty: Float? = null,
     val seed: Int? = null,
-    val search: Boolean? = null
+    val search: Boolean? = null,
+    val tools: List<Any>? = null
 )
 
 data class ClaudeContentBlock(val type: String, val text: String?)
@@ -231,7 +234,8 @@ data class GeminiContent(
 data class GeminiRequest(
     val contents: List<GeminiContent>,
     val generationConfig: GeminiGenerationConfig? = null,
-    val systemInstruction: GeminiContent? = null
+    val systemInstruction: GeminiContent? = null,
+    val tools: List<Any>? = null
 )
 
 data class GeminiGenerationConfig(

@@ -135,7 +135,8 @@ private fun AnalysisRepository.streamOpenAi(
         val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
         val systemPrompt = messages.find { it.role == "system" }?.content
         val request = OpenAiResponsesRequest(
-            model = model, input = inputMessages, instructions = systemPrompt, stream = true
+            model = model, input = inputMessages, instructions = systemPrompt, stream = true,
+            tools = if (params.webSearchTool) responsesWebSearchTool() else null
         )
         val response = withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) }
         if (response.isSuccessful) {
@@ -154,7 +155,8 @@ private fun AnalysisRepository.streamOpenAi(
             frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
             search = if (params.searchEnabled) true else null,
             return_citations = if (service.supportsCitations) params.returnCitations else null,
-            search_recency_filter = if (service.supportsSearchRecency) params.searchRecency else null
+            search_recency_filter = if (service.supportsSearchRecency) params.searchRecency else null,
+            tools = if (params.webSearchTool) openAiChatWebSearchTool() else null
         )
         val response = withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) }
         if (response.isSuccessful) {
@@ -178,7 +180,8 @@ private fun AnalysisRepository.streamAnthropic(
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
         system = systemPrompt,
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
-        search = if (params.searchEnabled) true else null
+        search = if (params.searchEnabled) true else null,
+        tools = if (params.webSearchTool) anthropicWebSearchTool() else null
     )
     val response = withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) }
     if (response.isSuccessful) {
@@ -198,10 +201,15 @@ private fun AnalysisRepository.streamGemini(
     val api = ApiFactory.createGeminiApi(baseUrl)
     val contents = messages.filter { it.role != "system" }.map { it.toGeminiContent() }
     val systemInstruction = messages.find { it.role == "system" }?.let { GeminiContent(listOf(GeminiPart(text = it.content))) }
-    val request = GeminiRequest(contents, GeminiGenerationConfig(
-        params.temperature, params.topP, params.topK, params.maxTokens,
-        search = if (params.searchEnabled) true else null
-    ), systemInstruction)
+    val request = GeminiRequest(
+        contents = contents,
+        generationConfig = GeminiGenerationConfig(
+            params.temperature, params.topP, params.topK, params.maxTokens,
+            search = if (params.searchEnabled) true else null
+        ),
+        systemInstruction = systemInstruction,
+        tools = if (params.webSearchTool) geminiWebSearchTool() else null
+    )
     val response = withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) }
     if (response.isSuccessful) {
         response.body()?.let { body ->

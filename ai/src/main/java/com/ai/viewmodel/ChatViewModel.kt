@@ -18,11 +18,14 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         apiKey: String,
         model: String,
         messages: List<ChatMessage>,
-        baseUrl: String? = null
+        baseUrl: String? = null,
+        webSearchTool: Boolean = false
     ): Flow<String> {
+        val base = appViewModel.uiState.value.chatParameters
+        val params = if (webSearchTool && !base.webSearchTool) base.copy(webSearchTool = true) else base
         return appViewModel.repository.sendChatStream(
             service = service, apiKey = apiKey, model = model,
-            messages = messages, params = appViewModel.uiState.value.chatParameters,
+            messages = messages, params = params,
             baseUrl = baseUrl
         )
     }
