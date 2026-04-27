@@ -114,7 +114,8 @@ class AnalysisRepository {
             responseFormatJson = overrideParams.responseFormatJson || agentParams.responseFormatJson,
             searchEnabled = overrideParams.searchEnabled || agentParams.searchEnabled,
             returnCitations = overrideParams.returnCitations || agentParams.returnCitations,
-            searchRecency = overrideParams.searchRecency ?: agentParams.searchRecency
+            searchRecency = overrideParams.searchRecency ?: agentParams.searchRecency,
+            webSearchTool = overrideParams.webSearchTool || agentParams.webSearchTool
         )
     }
 
@@ -133,7 +134,8 @@ class AnalysisRepository {
             responseFormatJson = if ("response_format" in supportedParams) params.responseFormatJson else false,
             searchEnabled = params.searchEnabled,
             returnCitations = params.returnCitations,
-            searchRecency = params.searchRecency
+            searchRecency = params.searchRecency,
+            webSearchTool = params.webSearchTool
         )
     }
 
@@ -160,16 +162,30 @@ class AnalysisRepository {
             if (overrideParams != null && context != null) {
                 params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
             }
-            return analyze(
-                agent.provider,
-                agent.apiKey,
-                finalPrompt,
-                agent.model,
-                params,
-                baseUrl ?: agent.provider.baseUrl,
-                imageBase64,
-                imageMime
-            ).copy(agentName = agent.name, promptUsed = finalPrompt)
+            val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
+            val first = analyze(
+                agent.provider, agent.apiKey, finalPrompt, agent.model, params,
+                effectiveBaseUrl, imageBase64, imageMime
+            )
+            // Tool-fallback: when the request asked for a web-search tool and the
+            // provider rejected it (most common: 400 with "tool"/"web_search" in
+            // the error body), retry once without the tool. Models that don't
+            // support the tool descriptor would otherwise hard-fail the whole
+            // report agent.
+            val needsFallback = !first.isSuccess
+                && params.webSearchTool
+                && first.httpStatusCode == 400
+                && (first.error ?: "").lowercase().let { msg ->
+                    "tool" in msg || "web_search" in msg || "googlesearch" in msg || "google_search" in msg
+                }
+            val response = if (needsFallback) {
+                analyze(
+                    agent.provider, agent.apiKey, finalPrompt, agent.model,
+                    params.copy(webSearchTool = false),
+                    effectiveBaseUrl, imageBase64, imageMime
+                )
+            } else first
+            return response.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
         withRetry("Agent ${agent.name}", { makeApiCall() }, { it.isSuccess }) { e ->
             AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name)

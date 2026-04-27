@@ -166,6 +166,7 @@ fun NewReportScreen(
     // through to every agent in the report.
     var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
     var attachError by remember { mutableStateOf<String?>(null) }
+    var useWebSearch by remember { mutableStateOf(false) }
 
     val pickImageLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -210,7 +211,8 @@ fun NewReportScreen(
                         reportViewModel.showGenericAgentSelection(
                             title, fullPrompt,
                             imageBase64 = attachedImage?.second,
-                            imageMime = attachedImage?.first
+                            imageMime = attachedImage?.first,
+                            webSearchTool = useWebSearch
                         )
                     }
                 },
@@ -218,6 +220,19 @@ fun NewReportScreen(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
             ) { Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false) }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(
+                selected = useWebSearch,
+                onClick = { useWebSearch = !useWebSearch },
+                label = { Text("🌐 Web search", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Blue
+                )
+            )
         }
 
         attachError?.let {

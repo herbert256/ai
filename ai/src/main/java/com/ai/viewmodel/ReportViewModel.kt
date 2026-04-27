@@ -43,12 +43,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     fun showGenericAgentSelection(
         title: String, prompt: String,
-        imageBase64: String? = null, imageMime: String? = null
+        imageBase64: String? = null, imageMime: String? = null,
+        webSearchTool: Boolean = false
     ) {
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
             genericPromptTitle = title, genericPromptText = prompt,
             reportImageBase64 = imageBase64, reportImageMime = imageMime,
+            reportWebSearchTool = webSearchTool,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
@@ -80,7 +82,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val imageBase64 = state.reportImageBase64
             val imageMime = state.reportImageMime
             val mergedParams = aiSettings.mergeParameters(parametersIds)
-            val overrideParams = mergedParams ?: state.reportAdvancedParameters
+            val baseOverride = mergedParams ?: state.reportAdvancedParameters
+            // The per-report 🌐 toggle adds webSearchTool=true on top of any
+            // existing override so it ORs onto each agent's pinned default.
+            val overrideParams = if (state.reportWebSearchTool) {
+                (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
+            } else baseOverride
 
             val agents = selectedAgentIds.mapNotNull { aiSettings.getAgentById(it) }
             val swarmMembers = aiSettings.getMembersForSwarms(selectedSwarmIds)
@@ -129,7 +136,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         }
                     }.awaitAll()
                 }
-                appViewModel.updateUiState { it.copy(reportImageBase64 = null, reportImageMime = null) }
+                appViewModel.updateUiState { it.copy(reportImageBase64 = null, reportImageMime = null, reportWebSearchTool = false) }
 
                 if (reportRunningInBackground) {
                     reportRunningInBackground = false

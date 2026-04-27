@@ -55,6 +55,9 @@ data class UiState(
     // by the 📎 button, consumed once by generateGenericReports, then cleared.
     val reportImageBase64: String? = null,
     val reportImageMime: String? = null,
+    // Per-report web-search toggle. ORs with each agent's pinned default; the
+    // dispatch layer also auto-falls-back to no-tool on a 400 tool-rejection.
+    val reportWebSearchTool: Boolean = false,
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),
