@@ -85,15 +85,22 @@ fun ImportExportScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         // Mirror the bundled assets/setup.json: only providerDefinitions populated,
         // empty providers / agents, no user-specific runtime state. Each definition
-        // also picks up the user's current per-provider model + modelSource so the
-        // exported file reflects "what I actually use" instead of the original
-        // catalog defaults.
+        // also picks up the user's current per-provider state so the exported file
+        // reflects "what I actually use":
+        //   • defaultModel ← user's selected per-provider model
+        //   • defaultModelSource ← user's API/MANUAL choice
+        //   • hardcodedModels ← user's curated models list, but only for MANUAL
+        //     providers (API providers re-fetch dynamically, no point bundling a
+        //     stale snapshot)
+        // API keys are intentionally never exported here — they're per-user secrets.
         val defs = AppService.entries.map { service ->
             val cfg = aiSettings.getProvider(service)
             val userDefault = cfg.model.takeIf { it.isNotBlank() } ?: service.defaultModel
+            val userHardcoded = if (cfg.modelSource == ModelSource.MANUAL) cfg.models.ifEmpty { null } else null
             com.ai.data.ProviderDefinition.fromAppService(service).copy(
                 defaultModel = userDefault,
-                defaultModelSource = cfg.modelSource.name
+                defaultModelSource = cfg.modelSource.name,
+                hardcodedModels = userHardcoded
             )
         }
         val export = ConfigExport(
