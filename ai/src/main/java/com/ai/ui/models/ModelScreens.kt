@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -400,6 +401,41 @@ fun ModelInfoScreen(
                                 }
                                 Text("$traceCount", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 if (traceCount > 0) Text(" >", fontSize = 16.sp, color = AppColors.Blue)
+                            }
+                        }
+                    }
+
+                    // Per-tier price snapshot — LiteLLM / OpenRouter / Override
+                    // shown as $/M-token rows when populated. Default tier is
+                    // omitted; if all three are missing, render a single
+                    // "no source-specific price" line so the card still
+                    // explains why the cost lookup will fall back.
+                    item {
+                        val breakdown = remember(provider, modelName) {
+                            PricingCache.getTierBreakdown(context, provider, modelName)
+                        }
+                        val rows = listOfNotNull(
+                            breakdown.litellm?.let { "LiteLLM" to it },
+                            breakdown.openrouter?.let { "OpenRouter" to it },
+                            breakdown.override?.let { "Override" to it }
+                        )
+                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Costs (per million tokens)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                if (rows.isEmpty()) {
+                                    Text("No LiteLLM / OpenRouter / Override entry — lookup falls back to the built-in default.",
+                                        fontSize = 12.sp, color = AppColors.TextTertiary)
+                                } else {
+                                    rows.forEach { (label, p) ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                            Text(
+                                                "${"%.4f".format(Locale.US, p.promptPrice * 1_000_000)} / ${"%.4f".format(Locale.US, p.completionPrice * 1_000_000)}",
+                                                fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
