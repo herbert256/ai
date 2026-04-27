@@ -546,7 +546,11 @@ fun ProviderSettingsScreen(
                             } else {
                                 scope.launch {
                                     if (apiKey.isNotBlank()) {
-                                        val error = onTestApiKey(service, apiKey, defaultModel)
+                                        // Resolve the latest AppService from the registry — the
+                                        // captured `service` may be stale after auto-save edits to
+                                        // apiFormat / typePaths / etc. ran during this screen.
+                                        val fresh = AppService.findById(service.id) ?: service
+                                        val error = onTestApiKey(fresh, apiKey, defaultModel)
                                         onProviderStateChange(if (error == null) "ok" else "error")
                                     } else {
                                         onProviderStateChange("not-used")
@@ -574,7 +578,8 @@ fun ProviderSettingsScreen(
                                     scope.launch {
                                         isTesting = true; testResult = null; testTraceFile = null
                                         val startedAt = System.currentTimeMillis()
-                                        val error = onTestApiKey(service, apiKey, defaultModel)
+                                        val fresh = AppService.findById(service.id) ?: service
+                                        val error = onTestApiKey(fresh, apiKey, defaultModel)
                                         testSuccess = error == null
                                         testResult = error ?: "Connection successful"
                                         // On failure, attach the trace from this run so the
