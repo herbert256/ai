@@ -223,7 +223,8 @@ fun ChatSessionScreen(
     onSendMessageStream: (List<ChatMessage>, Boolean) -> Flow<String>,
     onRecordStatistics: suspend (Int, Int) -> Unit,
     initialMessages: List<ChatMessage> = emptyList(),
-    sessionId: String? = null
+    sessionId: String? = null,
+    isVisionCapable: Boolean = false
 ) {
     BackHandler { onNavigateBack() }
 
@@ -411,6 +412,12 @@ fun ChatSessionScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Image attached (${mime.substringAfter('/')})", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
                 TextButton(onClick = { attachedImage = null }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+            }
+            if (!isVisionCapable) {
+                Text(
+                    "⚠ Model is not flagged vision-capable in Model Info. The request may fail.",
+                    fontSize = 11.sp, color = AppColors.Red, modifier = Modifier.padding(bottom = 4.dp)
+                )
             }
         }
 

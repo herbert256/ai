@@ -271,7 +271,8 @@ fun AppNavHost(
                     provider = agent.provider, model = effectiveModel, parameters = chatParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) }
+                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
+                    isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel)
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
@@ -315,7 +316,8 @@ fun AppNavHost(
                     provider = provider, model = model, parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) }
+                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) },
+                    isVisionCapable = uiState.aiSettings.isVisionCapable(provider, model)
                 )
             }
         }
@@ -334,7 +336,8 @@ fun AppNavHost(
                     userName = uiState.generalSettings.userName, initialMessages = session.messages, sessionId = session.id,
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages, webSearchTool = webSearch) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) }
+                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) },
+                    isVisionCapable = uiState.aiSettings.isVisionCapable(session.provider, session.model)
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }

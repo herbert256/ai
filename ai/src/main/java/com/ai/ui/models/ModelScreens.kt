@@ -305,6 +305,31 @@ fun ModelInfoScreen(
                         }
                     }
 
+                    // Vision-capability flag — user-curated. When checked, the model
+                    // is offered for image-attachment flows (chat 📎 / report 📎)
+                    // without a "may not support image" warning.
+                    item {
+                        val isVision = aiSettings.isVisionCapable(provider, modelName)
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                onSaveSettings(aiSettings.withVisionCapable(provider, modelName, !isVision))
+                            },
+                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
+                        ) {
+                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = isVision, onCheckedChange = { onSaveSettings(aiSettings.withVisionCapable(provider, modelName, it)) })
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Vision-capable", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    Text(
+                                        "Mark on if this model accepts image input. Used to gate the 📎 attach flow.",
+                                        fontSize = 12.sp, color = AppColors.TextTertiary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Trace count card — clickable, opens the Traces list filtered to this model.
                     item {
                         Card(

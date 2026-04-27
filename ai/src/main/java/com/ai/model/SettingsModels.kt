@@ -15,6 +15,11 @@ data class ProviderConfig(
      *  as a plain id list. Sourced from native list APIs where possible, naming
      *  heuristic otherwise. */
     val modelTypes: Map<String, String> = emptyMap(),
+    /** Set of model ids the user has explicitly flagged as vision-capable
+     *  (accept images in the request). Empty by default — vision is
+     *  user-curated rather than heuristic so we don't surprise the user
+     *  with a hidden filter. Toggled per-model on the Model Info screen. */
+    val visionModels: Set<String> = emptySet(),
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -165,6 +170,18 @@ data class Settings(
     }
 
     fun withModelTypeOverrides(overrides: List<ModelTypeOverride>) = copy(modelTypeOverrides = overrides)
+
+    /** Returns true when the user has flagged (provider, modelId) as
+     *  vision-capable on the Model Info screen. Default false — the app
+     *  has no auto-detection, so unmarked models are assumed text-only. */
+    fun isVisionCapable(service: AppService, modelId: String): Boolean =
+        modelId in getProvider(service).visionModels
+
+    fun withVisionCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
+        val cfg = getProvider(service)
+        val newSet = if (enabled) cfg.visionModels + modelId else cfg.visionModels - modelId
+        return withProvider(service, cfg.copy(visionModels = newSet))
+    }
 
     /**
      * Cross-pollinate per-provider type labels from OpenRouter's catalog: for any model

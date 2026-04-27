@@ -16,6 +16,7 @@ data class ProviderConfigExport(
     val modelListUrl: String? = null,
     val parametersIds: List<String>? = null,
     val modelTypes: Map<String, String>? = null,
+    val visionModels: List<String>? = null,
     val displayName: String? = null,
     val baseUrl: String? = null,
     val apiFormat: String? = null,
