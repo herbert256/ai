@@ -2,6 +2,7 @@ package com.ai.ui.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -66,7 +67,13 @@ fun ManualModelTypesScreen(
         emptyMessage = "No overrides yet. Add one to force a specific type for a provider/model pair.",
         sortKey = { "${it.providerId}/${it.modelId}" },
         itemTitle = { "${it.providerId} / ${it.modelId}" },
-        itemSubtitle = { "→ ${it.type}" },
+        itemSubtitle = {
+            val flags = buildString {
+                if (it.supportsVision) append(" 👁")
+                if (it.supportsWebSearch) append(" 🌐")
+            }
+            "→ ${it.type}$flags"
+        },
         onAdd = { addingNew = true },
         onEdit = { editing = it },
         onDelete = { override ->
@@ -94,6 +101,8 @@ private fun ManualModelTypeEditScreen(
     var providerId by remember { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
     var modelId by remember { mutableStateOf(initial?.modelId ?: "") }
     var type by remember { mutableStateOf(initial?.type ?: ModelType.CHAT) }
+    var supportsVision by remember { mutableStateOf(initial?.supportsVision ?: false) }
+    var supportsWebSearch by remember { mutableStateOf(initial?.supportsWebSearch ?: false) }
     var providerExpanded by remember { mutableStateOf(false) }
 
     val canSave = providerId.isNotBlank() && modelId.trim().isNotBlank()
@@ -187,6 +196,28 @@ private fun ManualModelTypeEditScreen(
                     }
                 }
             }
+
+            // Capability flags — wired into Settings.isVisionCapable /
+            // isWebSearchCapable so a tick here surfaces the 👁 / 🌐 badge
+            // anywhere this model appears, even when ProviderConfig
+            // .visionModels / .webSearchModels don't list it.
+            Text("Capabilities", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp).clickable { supportsVision = !supportsVision },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(checked = supportsVision, onCheckedChange = { supportsVision = it })
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Supports vision (image input) 👁", color = Color.White, fontSize = 13.sp)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp).clickable { supportsWebSearch = !supportsWebSearch },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(checked = supportsWebSearch, onCheckedChange = { supportsWebSearch = it })
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Supports web-search tool 🌐", color = Color.White, fontSize = 13.sp)
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -203,7 +234,9 @@ private fun ManualModelTypeEditScreen(
                             id = initial?.id ?: UUID.randomUUID().toString(),
                             providerId = providerId,
                             modelId = modelId.trim(),
-                            type = type
+                            type = type,
+                            supportsVision = supportsVision,
+                            supportsWebSearch = supportsWebSearch
                         )
                     )
                 },

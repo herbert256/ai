@@ -118,7 +118,13 @@ data class ModelTypeOverride(
     val id: String,
     val providerId: String,
     val modelId: String,
-    val type: String
+    val type: String,
+    /** When true, isVisionCapable for this (provider, model) returns true
+     *  even if the per-provider visionModels set doesn't contain it. */
+    val supportsVision: Boolean = false,
+    /** When true, isWebSearchCapable for this (provider, model) returns
+     *  true even if the per-provider webSearchModels set doesn't contain it. */
+    val supportsWebSearch: Boolean = false
 )
 
 data class Prompt(val id: String, val name: String, val agentId: String, val promptText: String) {
@@ -185,15 +191,18 @@ data class Settings(
 
     fun withModelTypeOverrides(overrides: List<ModelTypeOverride>) = copy(modelTypeOverrides = overrides)
 
-    /** Returns true when (provider, modelId) accepts image input. Three
+    /** Returns true when (provider, modelId) accepts image input. Four
      *  signals, in order:
      *   1. User override on Model Info — stored in ProviderConfig.visionModels.
      *   2. Auto-flagged on the last fetch (OpenRouter input_modalities).
      *      Also stored in visionModels — fetch unions into the set.
-     *   3. Naming heuristic — covers gpt-4o, claude-3.x/4.x, gemini-1.5+,
+     *   3. Manual Model Type Override entry with supportsVision = true.
+     *   4. Naming heuristic — covers gpt-4o, claude-3.x/4.x, gemini-1.5+,
      *      llava/pixtral/qwen-vl/etc. False on miss. */
     fun isVisionCapable(service: AppService, modelId: String): Boolean =
-        modelId in getProvider(service).visionModels || com.ai.data.ModelType.inferVision(modelId)
+        modelId in getProvider(service).visionModels ||
+            modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsVision } ||
+            com.ai.data.ModelType.inferVision(modelId)
 
     fun withVisionCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
         val cfg = getProvider(service)
@@ -203,10 +212,12 @@ data class Settings(
 
     /** Returns true when (provider, modelId) supports the web-search tool
      *  descriptor injected by the dispatch layer when the 🌐 toggle is on.
-     *  Same three-layer logic as isVisionCapable: explicit user override,
-     *  then ModelType.inferWebSearch on the model id + apiFormat. */
+     *  Layered: ProviderConfig.webSearchModels override, then a Manual Model
+     *  Type Override entry with supportsWebSearch = true, then the
+     *  ModelType.inferWebSearch heuristic on the model id + apiFormat. */
     fun isWebSearchCapable(service: AppService, modelId: String): Boolean =
         modelId in getProvider(service).webSearchModels ||
+            modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsWebSearch } ||
             com.ai.data.ModelType.inferWebSearch(service, modelId)
 
     fun withWebSearchCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
