@@ -84,16 +84,26 @@ fun ImportExportScreen(
     val exportSetupJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         // Mirror the bundled assets/setup.json: only providerDefinitions populated,
-        // empty providers / agents, no user-specific runtime state. Output is pretty-
-        // printed so a human can drop the result back into assets/.
+        // empty providers / agents, no user-specific runtime state. Each definition
+        // also picks up the user's current per-provider model + modelSource so the
+        // exported file reflects "what I actually use" instead of the original
+        // catalog defaults.
+        val defs = AppService.entries.map { service ->
+            val cfg = aiSettings.getProvider(service)
+            val userDefault = cfg.model.takeIf { it.isNotBlank() } ?: service.defaultModel
+            com.ai.data.ProviderDefinition.fromAppService(service).copy(
+                defaultModel = userDefault,
+                defaultModelSource = cfg.modelSource.name
+            )
+        }
         val export = ConfigExport(
             version = 21,
             providers = emptyMap(),
             agents = emptyList(),
-            providerDefinitions = com.ai.data.ProviderRegistry.getCustomProviders()
+            providerDefinitions = defs
         )
         writeToUri(uri, createAppGson(prettyPrint = true).toJson(export))
-        Toast.makeText(context, "${export.providerDefinitions?.size ?: 0} providers exported", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "${defs.size} providers exported", Toast.LENGTH_SHORT).show()
     }
 
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
