@@ -48,7 +48,11 @@ data class Report(
      *  Regenerate can re-run with the same image without forcing the user
      *  to re-attach. base64-encoded bytes; nullable mime type. */
     val imageBase64: String? = null,
-    val imageMime: String? = null
+    val imageMime: String? = null,
+    /** Whether the per-report 🌐 web-search toggle was on at submission.
+     *  Re-seeded into UiState by regenerateReport so the rerun gets the
+     *  same tool descriptor injected for every agent. */
+    val webSearchTool: Boolean = false
 )
 
 /**
@@ -73,12 +77,13 @@ object ReportStorage {
     fun createReport(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,
         rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
-        imageBase64: String? = null, imageMime: String? = null
+        imageBase64: String? = null, imageMime: String? = null,
+        webSearchTool: Boolean = false
     ): Report {
         init(context)
         val report = Report(UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
             agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
-            imageBase64 = imageBase64, imageMime = imageMime)
+            imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool)
         lock.withLock { saveReport(report) }
         return report
     }
@@ -142,8 +147,9 @@ object ReportStorage {
     suspend fun createReportAsync(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,
         rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
-        imageBase64: String? = null, imageMime: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime) }
+        imageBase64: String? = null, imageMime: String? = null,
+        webSearchTool: Boolean = false
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }

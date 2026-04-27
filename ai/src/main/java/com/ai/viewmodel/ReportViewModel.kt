@@ -121,7 +121,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 context = context, title = title.ifBlank { "AI Report" },
                 prompt = aiPrompt, agents = reportTasks.map { it.reportAgent },
                 rapportText = rapportText, reportType = reportType, closeText = state.externalCloseHtml,
-                imageBase64 = imageBase64, imageMime = imageMime
+                imageBase64 = imageBase64, imageMime = imageMime,
+                webSearchTool = state.reportWebSearchTool
             )
             val reportId = report.id
 
@@ -335,8 +336,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
             val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
             // Reset the screen state and consume the staged list, then drive a generation pass.
-            // Re-seed the image fields from the saved report so a regenerate carries the same
-            // attachment without the user having to re-attach.
+            // Re-seed the image fields and the web-search toggle from the saved report so a
+            // regenerate carries the same attachment + tool flag without the user having
+            // to re-attach or re-tick.
             _agentResults.value = emptyMap()
             appViewModel.updateUiState { it.copy(
                 showGenericReportsDialog = false, currentReportId = null,
@@ -344,6 +346,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 genericReportsSelectedAgents = emptySet(),
                 genericPromptTitle = report.title, genericPromptText = report.prompt,
                 reportImageBase64 = report.imageBase64, reportImageMime = report.imageMime,
+                reportWebSearchTool = report.webSearchTool,
                 pendingReportModels = emptyList(),
                 stagedReportModels = emptyList(),
                 hasPendingPromptChange = false,
