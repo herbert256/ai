@@ -44,9 +44,15 @@ object BackupManager {
      *  freshly-fetched pricing snapshot and any manual overrides without forcing
      *  a re-download. */
     private const val PRICING_CACHE_PREFS = "pricing_cache"
+    /** Last-used Dual Chat configuration (the two picked models, their params,
+     *  system prompts, subject, and two prompts). User-meaningful state worth
+     *  preserving across a restore. */
+    private const val DUAL_CHAT_PREFS = "dual_chat_prefs"
 
-    /** Every SharedPreferences file we round-trip through backup/restore. */
-    private val PREFS_TO_BACKUP = listOf(MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS)
+    /** Every SharedPreferences file we round-trip through backup/restore.
+     *  WebViewChromiumPrefs (cookies, web-process state) is intentionally
+     *  excluded — it doesn't make sense to restore on a different device. */
+    private val PREFS_TO_BACKUP = listOf(MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS)
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
