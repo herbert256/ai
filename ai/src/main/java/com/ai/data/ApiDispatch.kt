@@ -299,11 +299,6 @@ private suspend fun AnalysisRepository.chatGemini(
 // ============================================================================
 
 private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, apiKey: String): FetchedModels {
-    if (service.hardcodedModels != null && service.modelsPath == null) {
-        val ids = service.hardcodedModels
-        return FetchedModels(ids, ids.associateWith { ModelType.infer(it) })
-    }
-
     // OpenRouter exposes architecture.modality on its detailed list — use that for types.
     if (service.id == "OPENROUTER") {
         val orApi = ApiFactory.createOpenRouterModelsApi(service.baseUrl)
