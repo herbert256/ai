@@ -198,7 +198,9 @@ fun AppNavHost(
         composable(NavRoutes.AI_USAGE) {
             val uiState by appViewModel.uiState.collectAsState()
             UsageScreen(
-                openRouterApiKey = AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
+                openRouterApiKey = uiState.generalSettings.openRouterApiKey.ifBlank {
+                    AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
+                },
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
@@ -220,8 +222,17 @@ fun AppNavHost(
             val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
             val uiState by appViewModel.uiState.collectAsState()
             if (provider != null) {
+                // OpenRouter key has two storage slots: External Services
+                // (generalSettings.openRouterApiKey) and the OpenRouter
+                // chat-provider entry (aiSettings.getApiKey(OPENROUTER)).
+                // Prefer the External Services one — that's the canonical
+                // catalog-lookup key — and fall back to the provider key
+                // for users who only ever used OpenRouter as a chat host.
+                val orKey = uiState.generalSettings.openRouterApiKey.ifBlank {
+                    AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
+                }
                 ModelInfoScreen(provider = provider, modelName = model,
-                    openRouterApiKey = AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
+                    openRouterApiKey = orKey,
                     huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey, aiSettings = uiState.aiSettings,
                     repository = appViewModel.repository,
                     onSaveSettings = { appViewModel.updateSettings(it) },
