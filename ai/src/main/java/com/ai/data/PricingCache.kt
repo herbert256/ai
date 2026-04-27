@@ -255,9 +255,17 @@ object PricingCache {
         var best: Pair<String, String>? = null
         for (key in keys) {
             val nk = normalizeModelId(key)
+            // Try (in order): bare model match, declared-prefix match, and
+            // any "<arbitrary-prefix>/<base>-<date>" match — catches catalog
+            // entries like "mistral/mistral-large-2411" when the AppService
+            // hasn't declared a litellmPrefix.
             val suffix = when {
                 nk.startsWith("$base-") -> nk.substring(base.length + 1)
                 prefixedBase != null && nk.startsWith("$prefixedBase-") -> nk.substring(prefixedBase.length + 1)
+                nk.contains("/") -> {
+                    val tail = nk.substringAfterLast('/')
+                    if (tail.startsWith("$base-")) tail.substring(base.length + 1) else continue
+                }
                 else -> continue
             }
             // Date-like: only digits and dashes, and must include at least one digit.
@@ -296,7 +304,7 @@ object PricingCache {
         val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
         meta.entries.firstOrNull {
             val k = normalizeModelId(it.key)
-            k == target || k == prefixed
+            k == target || k == prefixed || k.endsWith("/$target")
         }?.value?.let { return it }
         // Rolling-alias fallback — same logic the pricing lookup uses.
         return findLatestAliasKey(meta.keys, model, provider.litellmPrefix)?.let { meta[it] }
@@ -362,7 +370,7 @@ object PricingCache {
         val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
         pricing.entries.firstOrNull {
             val k = normalizeModelId(it.key)
-            k == target || k == prefixed
+            k == target || k == prefixed || k.endsWith("/$target")
         }?.value?.let { return it }
         // Rolling-alias fallback for "-latest" model ids.
         return findLatestAliasKey(pricing.keys, model, provider.litellmPrefix)?.let { pricing[it] }
