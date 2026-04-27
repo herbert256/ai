@@ -3,9 +3,12 @@ package com.ai.ui.report
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -26,13 +29,21 @@ import kotlinx.coroutines.launch
 fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit
+    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportSections, ReportExportAction, (Int, Int) -> Unit) -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var format by rememberSaveable { mutableStateOf(ReportExportFormat.HTML) }
     var detail by rememberSaveable { mutableStateOf(ReportExportDetail.MEDIUM) }
+    // Comprehensive section toggles — six independent flags. rememberSaveable so
+    // taking a side trip into the browser keeps the user's choices.
+    var includeIntroduction by rememberSaveable { mutableStateOf(true) }
+    var includeResult by rememberSaveable { mutableStateOf(true) }
+    var includeRequestJson by rememberSaveable { mutableStateOf(true) }
+    var includeResponseJson by rememberSaveable { mutableStateOf(true) }
+    var includeRequestHeaders by rememberSaveable { mutableStateOf(true) }
+    var includeResponseHeaders by rememberSaveable { mutableStateOf(true) }
     var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     progress?.let { (done, total) ->
@@ -56,56 +67,87 @@ fun ReportExportScreen(
         TitleBar(title = "Export", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Format", fontWeight = FontWeight.Bold, color = Color.White)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ReportExportFormat.entries.forEach { f ->
-                        FilterChip(
-                            selected = format == f,
-                            onClick = { format = f },
-                            label = { Text(f.name) }
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Format", fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ReportExportFormat.entries.forEach { f ->
+                            FilterChip(
+                                selected = format == f,
+                                onClick = { format = f },
+                                label = { Text(f.name) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (format != ReportExportFormat.JSON) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Detail", fontWeight = FontWeight.Bold, color = Color.White)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ReportExportDetail.entries.forEach { d ->
+                                FilterChip(
+                                    selected = detail == d,
+                                    onClick = { detail = d },
+                                    label = { Text(d.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                                )
+                            }
+                        }
+                        Text(
+                            when (detail) {
+                                ReportExportDetail.SHORT -> "Title, prompt, and the result for each provider/model. Nothing else."
+                                ReportExportDetail.MEDIUM -> "Standard report: results, citations, search snippets, related questions."
+                                ReportExportDetail.COMPREHENSIVE -> "Index, prompt, cost table, per-model intro + result + redacted request/response JSON & headers, about footer."
+                            },
+                            fontSize = 12.sp, color = AppColors.TextTertiary
                         )
                     }
                 }
             }
-        }
 
-        if (format != ReportExportFormat.JSON) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Detail", fontWeight = FontWeight.Bold, color = Color.White)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ReportExportDetail.entries.forEach { d ->
-                            FilterChip(
-                                selected = detail == d,
-                                onClick = { detail = d },
-                                label = { Text(d.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                            )
-                        }
+            // Per-model section toggles — only meaningful for the Comprehensive
+            // detail since it's the only variant that emits these blocks.
+            if (format != ReportExportFormat.JSON && detail == ReportExportDetail.COMPREHENSIVE) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Per-model sections", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            "Choose which blocks to include for each model card.",
+                            fontSize = 11.sp, color = AppColors.TextTertiary,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        SectionToggleRow("Model introduction", includeIntroduction) { includeIntroduction = it }
+                        SectionToggleRow("Result rendered", includeResult) { includeResult = it }
+                        SectionToggleRow("Request JSON", includeRequestJson) { includeRequestJson = it }
+                        SectionToggleRow("Response JSON", includeResponseJson) { includeResponseJson = it }
+                        SectionToggleRow("Request headers", includeRequestHeaders) { includeRequestHeaders = it }
+                        SectionToggleRow("Response headers", includeResponseHeaders) { includeResponseHeaders = it }
                     }
-                    Text(
-                        when (detail) {
-                            ReportExportDetail.SHORT -> "Title, prompt, and the result for each provider/model. Nothing else."
-                            ReportExportDetail.MEDIUM -> "Standard report: results, citations, search snippets, related questions."
-                            ReportExportDetail.COMPREHENSIVE -> "Index, prompt, cost table, per-model intro + result + redacted request/response JSON & headers, about footer."
-                        },
-                        fontSize = 12.sp, color = AppColors.TextTertiary
-                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
         fun runExport(action: ReportExportAction) {
             val pickedFormat = format
             val pickedDetail = detail
+            val pickedSections = ReportExportSections(
+                introduction = includeIntroduction,
+                result = includeResult,
+                requestJson = includeRequestJson,
+                responseJson = includeResponseJson,
+                requestHeaders = includeRequestHeaders,
+                responseHeaders = includeResponseHeaders
+            )
             scope.launch {
                 progress = 0 to 1
                 try {
-                    onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
+                    onExport(pickedFormat, pickedDetail, pickedSections, action) { d, t -> progress = d to t }
                     progress = null
                     // For SHARE the share sheet itself is the user's last action so we
                     // collapse this screen away. For VIEW the file just opened in the
@@ -139,5 +181,16 @@ fun ReportExportScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("View in browser", maxLines = 1, softWrap = false) }
         }
+    }
+}
+
+@Composable
+private fun SectionToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }

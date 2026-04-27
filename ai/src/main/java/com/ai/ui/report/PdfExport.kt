@@ -45,6 +45,16 @@ enum class ReportExportFormat { HTML, PDF, JSON }
 enum class ReportExportDetail { SHORT, MEDIUM, COMPREHENSIVE }
 enum class ReportExportAction { SHARE, VIEW }
 
+/** Per-model block toggles for the Comprehensive export. All on by default. */
+data class ReportExportSections(
+    val introduction: Boolean = true,
+    val result: Boolean = true,
+    val requestJson: Boolean = true,
+    val responseJson: Boolean = true,
+    val requestHeaders: Boolean = true,
+    val responseHeaders: Boolean = true
+)
+
 private const val REDACTED = "[REDACTED]"
 private val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
 private val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
@@ -67,7 +77,8 @@ suspend fun shareReportAsExport(
     action: ReportExportAction,
     aiSettings: Settings,
     repository: AnalysisRepository,
-    onProgress: (Int, Int) -> Unit
+    onProgress: (Int, Int) -> Unit,
+    sections: ReportExportSections = ReportExportSections()
 ): Boolean {
     val report = ReportStorage.getReport(context, reportId) ?: return false
 
@@ -84,7 +95,7 @@ suspend fun shareReportAsExport(
     val html = when (detail) {
         ReportExportDetail.SHORT -> { onProgress(0, 1); buildShortHtml(report).also { onProgress(1, 1) } }
         ReportExportDetail.MEDIUM -> { onProgress(0, 1); convertReportToHtml(context, report, getAppVersion(context)).also { onProgress(1, 1) } }
-        ReportExportDetail.COMPREHENSIVE -> buildComprehensiveHtml(context, report, aiSettings, repository, onProgress)
+        ReportExportDetail.COMPREHENSIVE -> buildComprehensiveHtml(context, report, aiSettings, repository, sections, onProgress)
     }
 
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
@@ -141,6 +152,7 @@ private suspend fun buildComprehensiveHtml(
     report: Report,
     aiSettings: Settings,
     repository: AnalysisRepository,
+    sections: ReportExportSections,
     onProgress: (Int, Int) -> Unit
 ): String {
     val traces = ApiTracer.getTraceFilesForReport(report.id)
@@ -200,7 +212,7 @@ private suspend fun buildComprehensiveHtml(
         } catch (_: Exception) { null }
     }
     onProgress(totalSteps, totalSteps)
-    return buildPdfHtml(context, report, traces, intros, introCosts, getAppVersion(context))
+    return buildPdfHtml(context, report, traces, intros, introCosts, sections, getAppVersion(context))
 }
 
 // ===== Short HTML — title + prompt + per-model results =====
@@ -309,6 +321,7 @@ private fun buildPdfHtml(
     traces: List<ApiTrace>,
     intros: Map<String, String?>,
     introCosts: List<IntroCostRow>,
+    sections: ReportExportSections,
     appVersion: String
 ): String {
     val agents = report.agents.filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
@@ -501,14 +514,16 @@ private fun buildPdfHtml(
         sb.append("<h2>3.${i + 1} ").append(esc(provider?.displayName ?: a.provider)).append(" / ").append(esc(a.model)).append("</h2>")
 
         // Intro
-        val introKey = "${a.provider}::${a.model}"
-        val intro = intros[introKey]
-        if (!intro.isNullOrBlank()) {
-            sb.append("<h3>Introduction</h3><div class='intro'>")
-                .append(convertMarkdownToHtmlForExport(intro)).append("</div>")
+        if (sections.introduction) {
+            val introKey = "${a.provider}::${a.model}"
+            val intro = intros[introKey]
+            if (!intro.isNullOrBlank()) {
+                sb.append("<h3>Introduction</h3><div class='intro'>")
+                    .append(convertMarkdownToHtmlForExport(intro)).append("</div>")
+            }
         }
 
-        // Links
+        // Links — always shown; small navigation aid, not one of the toggle blocks.
         val links = mutableListOf<Pair<String, String>>()
         provider?.adminUrl?.takeIf { it.isNotBlank() }?.let { links += "Provider console" to it }
         provider?.openRouterName?.takeIf { it.isNotBlank() }?.let {
@@ -521,24 +536,34 @@ private fun buildPdfHtml(
         }
 
         // Result (MD-rendered)
-        sb.append("<h3>Result</h3>")
-        if (a.reportStatus == ReportStatus.ERROR) {
-            sb.append("<p class='err'>Error: ").append(esc(a.errorMessage ?: "unknown error")).append("</p>")
-        }
-        if (!a.responseBody.isNullOrBlank()) {
-            sb.append("<div class='result'>").append(convertMarkdownToHtmlForExport(a.responseBody!!)).append("</div>")
+        if (sections.result) {
+            sb.append("<h3>Result</h3>")
+            if (a.reportStatus == ReportStatus.ERROR) {
+                sb.append("<p class='err'>Error: ").append(esc(a.errorMessage ?: "unknown error")).append("</p>")
+            }
+            if (!a.responseBody.isNullOrBlank()) {
+                sb.append("<div class='result'>").append(convertMarkdownToHtmlForExport(a.responseBody!!)).append("</div>")
+            }
         }
 
         // Match a captured trace (by model) to recover request payload + headers.
         val trace = traces.firstOrNull { it.model == a.model }
-        sb.append("<h3>Request JSON</h3><div class='code'>")
-            .append(esc(redactJsonString(trace?.request?.body ?: a.requestBody) ?: "(not captured)")).append("</div>")
-        sb.append("<h3>Response JSON</h3><div class='code'>")
-            .append(esc(redactJsonString(trace?.response?.body ?: a.responseBody) ?: "(not captured)")).append("</div>")
-        sb.append("<h3>Request headers</h3><div class='code'>")
-            .append(esc(redactHeaders(trace?.request?.headers ?: parseHeaderText(a.requestHeaders)))).append("</div>")
-        sb.append("<h3>Response headers</h3><div class='code'>")
-            .append(esc(redactHeaders(trace?.response?.headers ?: parseHeaderText(a.responseHeaders)))).append("</div>")
+        if (sections.requestJson) {
+            sb.append("<h3>Request JSON</h3><div class='code'>")
+                .append(esc(redactJsonString(trace?.request?.body ?: a.requestBody) ?: "(not captured)")).append("</div>")
+        }
+        if (sections.responseJson) {
+            sb.append("<h3>Response JSON</h3><div class='code'>")
+                .append(esc(redactJsonString(trace?.response?.body ?: a.responseBody) ?: "(not captured)")).append("</div>")
+        }
+        if (sections.requestHeaders) {
+            sb.append("<h3>Request headers</h3><div class='code'>")
+                .append(esc(redactHeaders(trace?.request?.headers ?: parseHeaderText(a.requestHeaders)))).append("</div>")
+        }
+        if (sections.responseHeaders) {
+            sb.append("<h3>Response headers</h3><div class='code'>")
+                .append(esc(redactHeaders(trace?.response?.headers ?: parseHeaderText(a.responseHeaders)))).append("</div>")
+        }
 
         sb.append("</div>")
     }
