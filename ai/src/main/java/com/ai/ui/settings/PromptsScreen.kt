@@ -32,7 +32,12 @@ fun PromptsScreen(
         itemTitle = { it.name },
         itemSubtitle = { prompt ->
             val agent = aiSettings.getAgentById(prompt.agentId)
-            "Agent: ${agent?.name ?: "Not found"}"
+            val label = when {
+                prompt.agentId.isBlank() -> "N/A"
+                agent != null -> agent.name
+                else -> "Not found"
+            }
+            "Agent: $label"
         },
         itemExtraLine = { it.promptText.take(50) },
         onAdd = onAddPrompt,
@@ -95,9 +100,27 @@ fun PromptEditScreen(
                 supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
             )
 
-            val agentName = if (selectedAgentId.isNotBlank()) aiSettings.getAgentById(selectedAgentId)?.name ?: "Not found" else "None"
-            OutlinedButton(onClick = { showSelectAgent = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                Text("Agent: $agentName", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Agent is optional. "N/A" means the prompt is used without binding to a
+            // specific agent — useful for prompts whose runner is decided at call
+            // time (e.g. the Comprehensive PDF self-introduction prompt, which is
+            // run by each model individually).
+            val agentName = when {
+                selectedAgentId.isBlank() -> "N/A"
+                else -> aiSettings.getAgentById(selectedAgentId)?.name ?: "Not found"
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { showSelectAgent = true },
+                    modifier = Modifier.weight(1f),
+                    colors = AppColors.outlinedButtonColors()
+                ) {
+                    Text("Agent: $agentName", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(
+                    onClick = { selectedAgentId = "" },
+                    enabled = selectedAgentId.isNotBlank(),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("N/A", maxLines = 1, softWrap = false) }
             }
 
             OutlinedTextField(
@@ -115,7 +138,7 @@ fun PromptEditScreen(
                 val id = prompt?.id ?: java.util.UUID.randomUUID().toString()
                 onSave(Prompt(id, name.trim(), selectedAgentId, promptText))
             },
-            enabled = nameError == null && selectedAgentId.isNotBlank() && promptText.isNotBlank(),
+            enabled = nameError == null && promptText.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
         ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }

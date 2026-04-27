@@ -174,11 +174,19 @@ private suspend fun buildComprehensiveHtml(
     val introCosts = java.util.Collections.synchronizedList(mutableListOf<IntroCostRow>())
     val completed = java.util.concurrent.atomic.AtomicInteger(0)
 
-    // Each model writes its own intro: ask the same (provider, model) we ran in
-    // the report to describe itself in a sentence or two. Caches by
-    // (introPrompt, modelId) so a re-export doesn't re-spend tokens. Runs
-    // concurrently — one launch per unique (provider, model).
-    val introPromptText = "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown."
+    // Each model writes its own intro using the user's "intro" Internal Prompt
+    // text (with @MODEL@ / @PROVIDER@ / @AGENT@ / @SWARM@ / @NOW@ substitutions).
+    // The prompt's configured agent is intentionally ignored — it's marked N/A
+    // for this prompt because the runner is decided at call time: the same
+    // (provider, model) we ran in the report describes itself.
+    //
+    // Caches by (resolved-prompt-text, intro::providerId::model) so a re-export
+    // doesn't re-spend tokens, but a different model still gets its own intro.
+    // Runs concurrently — one launch per unique (provider, model).
+    val introPrompt = aiSettings.prompts.find { it.name.equals("intro", ignoreCase = true) }
+        ?: aiSettings.prompts.find { it.name.lowercase().contains("intro") }
+    val introPromptTemplate = introPrompt?.promptText
+        ?: "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown."
 
     coroutineScope {
         uniqueModels.map { (providerId, model) ->
@@ -187,7 +195,15 @@ private suspend fun buildComprehensiveHtml(
                 try {
                     val provider = AppService.findById(providerId) ?: run { intros[key] = null; return@async }
                     val agentIdForCache = "intro::$providerId::$model"
-                    val cacheKey = PromptCache.keyFor(introPromptText, agentIdForCache)
+                    // Apply @MODEL@/@PROVIDER@/@AGENT@/@SWARM@/@NOW@ to the user's
+                    // intro template. @AGENT@ is the synthetic name; @SWARM@ stays
+                    // unset since intros are per-model not per-swarm.
+                    val resolvedPrompt = (introPrompt?.resolvePrompt(
+                        model = model,
+                        provider = provider.displayName,
+                        agent = "$model (self-intro)"
+                    ) ?: introPromptTemplate)
+                    val cacheKey = PromptCache.keyFor(resolvedPrompt, agentIdForCache)
                     PromptCache.get(cacheKey)?.let { intros[key] = it; return@async }
 
                     val apiKey = aiSettings.getApiKey(provider)
@@ -202,7 +218,7 @@ private suspend fun buildComprehensiveHtml(
                     )
                     val resp = repository.analyzePlayerWithAgent(
                         syntheticAgent,
-                        introPromptText,
+                        resolvedPrompt,
                         aiSettings.resolveAgentParameters(syntheticAgent)
                     )
                     resp.tokenUsage?.let { tu ->
