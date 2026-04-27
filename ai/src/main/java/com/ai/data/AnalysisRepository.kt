@@ -147,7 +147,9 @@ class AnalysisRepository {
         agentResolvedParams: AgentParameters = AgentParameters(),
         overrideParams: AgentParameters? = null,
         context: Context? = null,
-        baseUrl: String? = null
+        baseUrl: String? = null,
+        imageBase64: String? = null,
+        imageMime: String? = null
     ): AnalysisResponse = withContext(Dispatchers.IO) {
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)
@@ -164,7 +166,9 @@ class AnalysisRepository {
                 finalPrompt,
                 agent.model,
                 params,
-                baseUrl ?: agent.provider.baseUrl
+                baseUrl ?: agent.provider.baseUrl,
+                imageBase64,
+                imageMime
             ).copy(agentName = agent.name, promptUsed = finalPrompt)
         }
         withRetry("Agent ${agent.name}", { makeApiCall() }, { it.isSuccess }) { e ->

@@ -41,10 +41,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val resolvedParams: AgentParameters
     )
 
-    fun showGenericAgentSelection(title: String, prompt: String) {
+    fun showGenericAgentSelection(
+        title: String, prompt: String,
+        imageBase64: String? = null, imageMime: String? = null
+    ) {
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
             genericPromptTitle = title, genericPromptText = prompt,
+            reportImageBase64 = imageBase64, reportImageMime = imageMime,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
@@ -73,6 +77,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val prompt = state.genericPromptText
             val title = state.genericPromptTitle
             val externalSystemPrompt = state.externalSystemPrompt
+            val imageBase64 = state.reportImageBase64
+            val imageMime = state.reportImageMime
             val mergedParams = aiSettings.mergeParameters(parametersIds)
             val overrideParams = mergedParams ?: state.reportAdvancedParameters
 
@@ -119,10 +125,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 coroutineScope {
                     reportTasks.map { task ->
                         async {
-                            semaphore.withPermit { executeReportTask(context, reportId, aiPrompt, overrideParams, task) }
+                            semaphore.withPermit { executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime) }
                         }
                     }.awaitAll()
                 }
+                appViewModel.updateUiState { it.copy(reportImageBase64 = null, reportImageMime = null) }
 
                 if (reportRunningInBackground) {
                     reportRunningInBackground = false
@@ -183,7 +190,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return agentTasks + modelTasks
     }
 
-    private suspend fun executeReportTask(context: Context, reportId: String, aiPrompt: String, overrideParams: AgentParameters?, task: ReportTask) {
+    private suspend fun executeReportTask(
+        context: Context, reportId: String, aiPrompt: String, overrideParams: AgentParameters?, task: ReportTask,
+        imageBase64: String? = null, imageMime: String? = null
+    ) {
         ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, aiPrompt)
 
         val startTime = System.currentTimeMillis()
@@ -196,7 +206,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 task.resolvedParams,
                 overrideParams,
                 context,
-                baseUrl
+                baseUrl,
+                imageBase64,
+                imageMime
             )
         } catch (e: Exception) {
             AnalysisResponse(service = task.runtimeAgent.provider, analysis = null, error = e.message ?: "Unknown error")

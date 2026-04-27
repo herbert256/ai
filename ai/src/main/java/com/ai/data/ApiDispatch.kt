@@ -35,12 +35,14 @@ suspend fun AnalysisRepository.analyze(
     prompt: String,
     model: String,
     params: AgentParameters? = null,
-    baseUrl: String = service.baseUrl
+    baseUrl: String = service.baseUrl,
+    imageBase64: String? = null,
+    imageMime: String? = null
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     when (service.apiFormat) {
-        ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params)
-        ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params)
-        ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl)
+        ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
+        ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
+        ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
     }
 }
 
@@ -122,13 +124,14 @@ suspend fun AnalysisRepository.embed(
 
 private suspend fun AnalysisRepository.analyzeOpenAi(
     service: AppService, apiKey: String, prompt: String, model: String,
-    params: AgentParameters?, baseUrl: String
+    params: AgentParameters?, baseUrl: String,
+    imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
-    if (usesResponsesApi(service, model)) return analyzeResponsesApi(service, apiKey, prompt, model, params)
+    if (usesResponsesApi(service, model)) return analyzeResponsesApi(service, apiKey, prompt, model, params, imageBase64, imageMime)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
     val chatUrl = buildChatUrl(baseUrl, service.chatPath)
-    val messages = buildMessages(params?.systemPrompt, prompt)
+    val messages = buildMessages(params?.systemPrompt, prompt, imageBase64, imageMime)
     val request = buildOpenAiRequest(service, model, messages, params)
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
 
@@ -136,13 +139,26 @@ private suspend fun AnalysisRepository.analyzeOpenAi(
 }
 
 private suspend fun AnalysisRepository.analyzeResponsesApi(
-    service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?
+    service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?,
+    imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
     val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
     val responsesUrl = buildChatUrl(service.baseUrl, service.responsesPath ?: "v1/responses")
+    val input: Any = if (imageBase64 != null) {
+        // Responses API accepts an array of input messages whose content is a typed
+        // parts array — input_text + input_image (image_url as a data: URL).
+        val mime = imageMime ?: "image/png"
+        listOf(mapOf(
+            "role" to "user",
+            "content" to buildList {
+                if (prompt.isNotBlank()) add(mapOf("type" to "input_text", "text" to prompt))
+                add(mapOf("type" to "input_image", "image_url" to "data:$mime;base64,$imageBase64"))
+            }
+        ))
+    } else prompt
     val request = OpenAiResponsesRequest(
         model = model,
-        input = prompt,
+        input = input,
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
         tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null
     )
@@ -163,12 +179,14 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
 }
 
 private suspend fun AnalysisRepository.analyzeAnthropic(
-    service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?
+    service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?,
+    imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
     val api = ApiFactory.createClaudeApi(service.baseUrl)
+    val userMessage = ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toClaudeMessage()
     val request = ClaudeRequest(
         model = model,
-        messages = listOf(ClaudeMessage("user", prompt)),
+        messages = listOf(userMessage),
         max_tokens = params?.maxTokens ?: defaultClaudeMaxTokens(model),
         temperature = params?.temperature, top_p = params?.topP, top_k = params?.topK,
         system = params?.systemPrompt?.takeIf { it.isNotBlank() },
@@ -196,7 +214,8 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
 }
 
 private suspend fun AnalysisRepository.analyzeGemini(
-    service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?
+    service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?,
+    imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
     val genConfig = params?.let {
         GeminiGenerationConfig(it.temperature, it.topP, it.topK, it.maxTokens,
@@ -204,10 +223,11 @@ private suspend fun AnalysisRepository.analyzeGemini(
             if (it.searchEnabled) true else null)
     }
     val systemInstruction = params?.systemPrompt?.takeIf { it.isNotBlank() }?.let {
-        GeminiContent(listOf(GeminiPart(it)))
+        GeminiContent(listOf(GeminiPart(text = it)))
     }
+    val userContent = ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toGeminiContent()
     val request = GeminiRequest(
-        contents = listOf(GeminiContent(listOf(GeminiPart(text = prompt)))),
+        contents = listOf(userContent),
         generationConfig = genConfig,
         systemInstruction = systemInstruction,
         tools = if (params?.webSearchTool == true) geminiWebSearchTool() else null
@@ -484,9 +504,14 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
 // Helpers
 // ============================================================================
 
-private fun buildMessages(systemPrompt: String?, prompt: String): List<OpenAiMessage> = buildList {
+private fun buildMessages(
+    systemPrompt: String?,
+    prompt: String,
+    imageBase64: String? = null,
+    imageMime: String? = null
+): List<OpenAiMessage> = buildList {
     systemPrompt?.takeIf { it.isNotBlank() }?.let { add(OpenAiMessage("system", it)) }
-    add(OpenAiMessage("user", prompt))
+    add(ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toOpenAiMessage())
 }
 
 internal fun buildOpenAiRequest(service: AppService, model: String, messages: List<OpenAiMessage>, params: AgentParameters?, stream: Boolean? = null): OpenAiRequest {

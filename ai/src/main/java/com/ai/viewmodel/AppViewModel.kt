@@ -51,6 +51,10 @@ data class UiState(
     val showGenericReportsDialog: Boolean = false,
     val genericPromptTitle: String = "",
     val genericPromptText: String = "",
+    // Optional image attachment for the next report — set on NewReportScreen
+    // by the 📎 button, consumed once by generateGenericReports, then cleared.
+    val reportImageBase64: String? = null,
+    val reportImageMime: String? = null,
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),

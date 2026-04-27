@@ -1,15 +1,22 @@
 package com.ai.ui.hub
 
 import android.app.Activity
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -155,6 +162,27 @@ fun NewReportScreen(
     val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
     val userTagBlock = remember { userTagRegex.find(rawPrompt)?.value ?: "" }
     var prompt by remember { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
+    // (mime, base64) of an optional image attached to the prompt — passed
+    // through to every agent in the report.
+    var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var attachError by remember { mutableStateOf<String?>(null) }
+
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val mime = context.contentResolver.getType(uri) ?: "image/png"
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes != null) {
+                    attachedImage = mime to Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    attachError = null
+                }
+            } catch (e: Exception) {
+                attachError = "Failed to attach image: ${e.message}"
+            }
+        }
+    }
 
     LaunchedEffect(uiState.showGenericAgentSelection) {
         if (uiState.showGenericAgentSelection) {
@@ -168,7 +196,10 @@ fun NewReportScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { title = ""; prompt = "" }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = { title = ""; prompt = ""; attachedImage = null }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = { pickImageLauncher.launch("image/*") }, colors = AppColors.outlinedButtonColors()) {
+                Text("📎", fontSize = 16.sp, maxLines = 1, softWrap = false)
+            }
             Button(
                 onClick = {
                     if (title.isNotBlank() && prompt.isNotBlank()) {
@@ -176,13 +207,43 @@ fun NewReportScreen(
                         prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
                             .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt).apply()
                         SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, fullPrompt)
-                        reportViewModel.showGenericAgentSelection(title, fullPrompt)
+                        reportViewModel.showGenericAgentSelection(
+                            title, fullPrompt,
+                            imageBase64 = attachedImage?.second,
+                            imageMime = attachedImage?.first
+                        )
                     }
                 },
                 enabled = title.isNotBlank() && prompt.isNotBlank(),
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
             ) { Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false) }
+        }
+
+        attachError?.let {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(it, color = AppColors.Red, fontSize = 12.sp)
+        }
+
+        attachedImage?.let { (mime, b64) ->
+            val bmp = remember(b64) {
+                try {
+                    val bytes = Base64.decode(b64, Base64.NO_WRAP)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                } catch (_: Exception) { null }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (bmp != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(), contentDescription = "Attached image",
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp))
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Image attached (${mime.substringAfter('/')})", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+                TextButton(onClick = { attachedImage = null }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
