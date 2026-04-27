@@ -236,6 +236,39 @@ object PricingCache {
      *  Normalize both sides to lowercase-dash for matching. */
     private fun normalizeModelId(s: String): String = s.replace('.', '-').lowercase()
 
+    /** Resolve a `-latest` rolling alias to the catalog's most recent dated
+     *  snapshot. Strips the `-latest` suffix, finds every key whose
+     *  remainder after the stripped base is a date-like token (digits and
+     *  dashes only, must contain at least one digit), and picks the
+     *  lexically max — works for YYYYMMDD ("claude-3-5-sonnet-20241022"),
+     *  YYYY-MM-DD ("gpt-4o-2024-11-20"), and YYMM ("mistral-large-2411").
+     *
+     *  LiteLLM doesn't catalog `-latest` aliases, so this fallback fires
+     *  whenever the user has a rolling-alias model id configured. Returns
+     *  null when the input doesn't end with `-latest` or no dated sibling
+     *  is found in [keys]. */
+    private fun findLatestAliasKey(keys: Set<String>, model: String, providerPrefix: String?): String? {
+        if (!model.endsWith("-latest", ignoreCase = true)) return null
+        val base = normalizeModelId(model.dropLast("-latest".length))
+        if (base.isEmpty()) return null
+        val prefixedBase = providerPrefix?.takeIf { it.isNotBlank() }?.let { "${normalizeModelId(it)}/$base" }
+        var best: Pair<String, String>? = null
+        for (key in keys) {
+            val nk = normalizeModelId(key)
+            val suffix = when {
+                nk.startsWith("$base-") -> nk.substring(base.length + 1)
+                prefixedBase != null && nk.startsWith("$prefixedBase-") -> nk.substring(prefixedBase.length + 1)
+                else -> continue
+            }
+            // Date-like: only digits and dashes, and must include at least one digit.
+            if (suffix.isEmpty()) continue
+            if (suffix.any { !it.isDigit() && it != '-' }) continue
+            if (suffix.none { it.isDigit() }) continue
+            if (best == null || suffix > best.second) best = key to suffix
+        }
+        return best?.first
+    }
+
     private fun findOpenRouterPricing(provider: AppService, model: String): ModelPricing? {
         val pricing = openRouterPricing ?: return null
         // Exact-key fast path.
@@ -244,10 +277,12 @@ object PricingCache {
         // Normalized linear scan — handles dot/dash mismatch.
         val target = normalizeModelId(model)
         val prefixed = provider.openRouterName?.let { "${normalizeModelId(it)}/$target" }
-        return pricing.entries.firstOrNull {
+        pricing.entries.firstOrNull {
             val k = normalizeModelId(it.key)
             k == target || k == prefixed || k.endsWith("/$target")
-        }?.value
+        }?.value?.let { return it }
+        // Rolling-alias fallback for "-latest" model ids.
+        return findLatestAliasKey(pricing.keys, model, provider.openRouterName)?.let { pricing[it] }
     }
 
     /** Look up the LiteLLM capability sidecar for (provider, model) using
@@ -259,10 +294,12 @@ object PricingCache {
         provider.litellmPrefix?.let { prefix -> meta["$prefix/$model"]?.let { return it } }
         val target = normalizeModelId(model)
         val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        return meta.entries.firstOrNull {
+        meta.entries.firstOrNull {
             val k = normalizeModelId(it.key)
             k == target || k == prefixed
-        }?.value
+        }?.value?.let { return it }
+        // Rolling-alias fallback — same logic the pricing lookup uses.
+        return findLatestAliasKey(meta.keys, model, provider.litellmPrefix)?.let { meta[it] }
     }
 
     /** True/false from LiteLLM's supports_vision flag, or null when
@@ -323,10 +360,12 @@ object PricingCache {
         // Normalized linear scan — same dot/dash forgiveness as OpenRouter.
         val target = normalizeModelId(model)
         val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        return pricing.entries.firstOrNull {
+        pricing.entries.firstOrNull {
             val k = normalizeModelId(it.key)
             k == target || k == prefixed
-        }?.value
+        }?.value?.let { return it }
+        // Rolling-alias fallback for "-latest" model ids.
+        return findLatestAliasKey(pricing.keys, model, provider.litellmPrefix)?.let { pricing[it] }
     }
 
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
@@ -387,7 +426,7 @@ object PricingCache {
         val match = root.keySet().firstOrNull { key ->
             val k = normalizeModelId(key)
             k == target || k == prefixedTarget
-        } ?: return null
+        } ?: findLatestAliasKey(root.keySet(), model, provider.litellmPrefix) ?: return null
         return pretty.toJson(root.get(match))
     }
 
