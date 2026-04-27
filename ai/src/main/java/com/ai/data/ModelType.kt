@@ -184,7 +184,12 @@ data class FetchedModels(
     val ids: List<String>,
     val types: Map<String, String>,
     val visionModels: Set<String> = emptySet(),
-    val capabilities: Map<String, ModelCapabilities> = emptyMap()
+    val capabilities: Map<String, ModelCapabilities> = emptyMap(),
+    /** Raw JSON body of the provider's /models response, captured at fetch
+     *  time. Persisted to eval_prefs alongside the parsed model list so a
+     *  later parser revision can extract additional fields without
+     *  re-hitting the provider. */
+    val rawResponse: String? = null
 )
 
 /** Per-model capability bundle derived from a provider's own /models

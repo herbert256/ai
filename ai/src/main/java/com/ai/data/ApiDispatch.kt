@@ -387,6 +387,18 @@ private suspend fun AnalysisRepository.chatGemini(
 // ============================================================================
 
 private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, apiKey: String): FetchedModels {
+    // Capture the raw /models JSON alongside the typed parse so a later
+    // parser revision (new capability fields, etc.) can re-extract from
+    // the same response without forcing a re-fetch. Two HTTP calls per
+    // refresh — the typed Retrofit call below for parsing, and one raw
+    // String call here for the snapshot. The bandwidth cost is small
+    // (model lists are tens of KB at most).
+    val modelsUrlForRaw = run {
+        val pathPart = if (service.id == "OPENROUTER") "v1/models" else (service.modelsPath ?: "v1/models")
+        normalizeUrl(service.baseUrl) + pathPart
+    }
+    val rawJson = ApiFactory.fetchUrlAsString(modelsUrlForRaw, mapOf("Authorization" to "Bearer $apiKey"))
+
     // OpenRouter exposes architecture.modality on its detailed list — use that for types.
     if (service.id == "OPENROUTER") {
         val orApi = ApiFactory.createOpenRouterModelsApi(service.baseUrl)
@@ -415,7 +427,7 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                     maxOutputTokens = info?.top_provider?.max_completion_tokens
                 )
             }.filterValues { it.supportsVision != null || it.contextLength != null || it.maxOutputTokens != null }
-            return FetchedModels(ids, types, vision, caps)
+            return FetchedModels(ids, types, vision, caps, rawJson)
         }
         // Fall through to the basic /v1/models call below if the detailed call failed.
     }
@@ -482,7 +494,7 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         }
     }
     val visionFromList = caps.filterValues { it.supportsVision == true }.keys
-    return FetchedModels(ids, types, visionFromList, caps)
+    return FetchedModels(ids, types, visionFromList, caps, rawJson)
 }
 
 private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService, apiKey: String): FetchedModels {
@@ -492,11 +504,16 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         val ids = if (response.isSuccessful)
             response.body()?.data?.mapNotNull { it.id }?.filter { it.startsWith("claude") }?.sorted().orEmpty()
         else emptyList()
-        FetchedModels(ids, ids.associateWith { ModelType.CHAT })
+        val rawJson = ApiFactory.fetchUrlAsString(
+            normalizeUrl(service.baseUrl) + "v1/models",
+            mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01")
+        )
+        FetchedModels(ids, ids.associateWith { ModelType.CHAT }, rawResponse = rawJson)
     } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }
 }
 
 private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, apiKey: String): FetchedModels {
+    val rawJson = ApiFactory.fetchUrlAsString("${normalizeUrl(service.baseUrl)}v1beta/models?key=$apiKey")
     return try {
         val api = ApiFactory.createGeminiApi(service.baseUrl)
         val response = api.listModels(apiKey)
@@ -522,7 +539,7 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
                     maxOutputTokens = m.outputTokenLimit
                 )
             }.filterValues { it.contextLength != null || it.maxOutputTokens != null }
-            FetchedModels(ids, all, emptySet(), caps)
+            FetchedModels(ids, all, emptySet(), caps, rawJson)
         } else FetchedModels(emptyList(), emptyMap())
     } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }
 }

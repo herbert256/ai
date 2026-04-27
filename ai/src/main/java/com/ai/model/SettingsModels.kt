@@ -26,6 +26,11 @@ data class ProviderConfig(
      *  self-report wins over LiteLLM / models.dev / heuristic. Refreshed
      *  whenever the model list is fetched. */
     val modelCapabilities: Map<String, com.ai.data.ModelCapabilities> = emptyMap(),
+    /** Raw JSON body of the provider's last /models response — preserved
+     *  so a future parser revision can extract additional fields without
+     *  forcing the user to re-fetch. Lives in eval_prefs and round-trips
+     *  through the backup zip. */
+    val modelListRawJson: String? = null,
     /** Set of model ids the user has explicitly flagged as supporting the
      *  web-search tool descriptor (Anthropic web_search_20250305 / Gemini
      *  google_search / OpenAI Responses web_search_preview). Same pattern
@@ -195,13 +200,15 @@ data class Settings(
      *  always reflects the provider's current view. */
     fun withModels(
         service: AppService, models: List<String>, types: Map<String, String>,
-        autoVisionModels: Set<String>, capabilities: Map<String, com.ai.data.ModelCapabilities>
+        autoVisionModels: Set<String>, capabilities: Map<String, com.ai.data.ModelCapabilities>,
+        rawResponse: String? = null
     ): Settings {
         val cfg = getProvider(service)
         val merged = cfg.visionModels + autoVisionModels
         return withProvider(service, cfg.copy(
             models = models, modelTypes = types,
-            visionModels = merged, modelCapabilities = capabilities
+            visionModels = merged, modelCapabilities = capabilities,
+            modelListRawJson = rawResponse ?: cfg.modelListRawJson
         ))
     }
     /** User-supplied manual override always wins; otherwise consult LiteLLM

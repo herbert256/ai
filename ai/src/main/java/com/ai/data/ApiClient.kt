@@ -189,6 +189,20 @@ object ApiFactory {
         }
     }
 
+    /** Plain GET that returns the raw response body as a String — used by
+     *  the model-list snapshot capture in [com.ai.data.fetchModelsWithKinds]
+     *  so we can keep the unparsed JSON alongside the typed parse. Goes
+     *  through the same TracingInterceptor as Retrofit calls. */
+    fun fetchUrlAsString(url: String, headers: Map<String, String> = emptyMap()): String? {
+        return try {
+            val builder = okhttp3.Request.Builder().url(url).get()
+            headers.forEach { (k, v) -> builder.addHeader(k, v) }
+            okHttpClient.newCall(builder.build()).execute().use { resp ->
+                if (resp.isSuccessful) resp.body?.string() else null
+            }
+        } catch (_: Exception) { null }
+    }
+
     fun createOpenAiApi(baseUrl: String): OpenAiApi = getRetrofit(baseUrl).create(OpenAiApi::class.java)
     fun createClaudeApi(baseUrl: String): ClaudeApi = getRetrofit(baseUrl).create(ClaudeApi::class.java)
     fun createGeminiApi(baseUrl: String): GeminiApi = getRetrofit(baseUrl).create(GeminiApi::class.java)

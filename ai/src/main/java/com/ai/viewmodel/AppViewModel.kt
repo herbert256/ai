@@ -231,7 +231,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val fetched = repository.fetchModelsWithKinds(service, apiKey)
                 _uiState.update { state ->
-                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities)
+                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)
                     // Cross-pollinate OpenRouter labels — covers two flows:
                     //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
                     //   • OpenRouter fetch propagates fresh labels to every other provider
@@ -239,7 +239,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val final = _uiState.value.aiSettings
                 val cfgSelf = final.getProvider(service)
-                settingsPrefs.saveModelsForProvider(service, fetched.ids, cfgSelf.modelTypes, cfgSelf.visionModels, cfgSelf.modelCapabilities)
+                settingsPrefs.saveModelsForProvider(service, fetched.ids, cfgSelf.modelTypes, cfgSelf.visionModels, cfgSelf.modelCapabilities, cfgSelf.modelListRawJson)
                 if (service.id == "OPENROUTER") {
                     // Persist the freshly cross-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->
@@ -270,10 +270,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         onProgress?.invoke(service.displayName)
                         try {
                             val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
-                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities)) }
-                            // Persist with the freshly-merged visionModels (auto + user override) and capability map.
+                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)) }
+                            // Persist with the freshly-merged visionModels (auto + user override), capability map, and raw response snapshot.
                             val cfg = _uiState.value.aiSettings.getProvider(service)
-                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types, cfg.visionModels, cfg.modelCapabilities)
+                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types, cfg.visionModels, cfg.modelCapabilities, cfg.modelListRawJson)
                             service to fetched.ids.size
                         } catch (_: Exception) { service to -1 }
                     }

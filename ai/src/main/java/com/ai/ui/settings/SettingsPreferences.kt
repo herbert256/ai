@@ -115,6 +115,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                     gson.fromJson(it, mapType) ?: emptyMap()
                 } catch (_: Exception) { null }
             } ?: emptyMap()
+            val modelListRawJson = prefs.getString("${key}_models_response_raw", null)
 
             ProviderConfig(
                 apiKey = prefs.getString("${key}_api_key", "") ?: "",
@@ -122,6 +123,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 modelSource = modelSource, models = models, modelTypes = types,
                 visionModels = visionModels, webSearchModels = webSearchModels,
                 modelCapabilities = modelCapabilities,
+                modelListRawJson = modelListRawJson,
                 adminUrl = prefs.getString("${key}_admin_url", service.adminUrl) ?: service.adminUrl,
                 modelListUrl = prefs.getString("${key}_model_list_url", "") ?: "",
                 parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList()
@@ -155,6 +157,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 putString("${key}_vision_models", if (config.visionModels.isEmpty()) null else gson.toJson(config.visionModels.toList()))
                 putString("${key}_web_search_models", if (config.webSearchModels.isEmpty()) null else gson.toJson(config.webSearchModels.toList()))
                 putString("${key}_model_capabilities", if (config.modelCapabilities.isEmpty()) null else gson.toJson(config.modelCapabilities))
+                // Raw /models response — kept verbatim so a later parser
+                // revision can pull out new fields without forcing a refetch.
+                putString("${key}_models_response_raw", config.modelListRawJson)
                 putString("${key}_admin_url", config.adminUrl)
                 putString("${key}_model_list_url", config.modelListUrl)
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
@@ -174,7 +179,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     fun saveModelsForProvider(
         service: AppService, models: List<String>, types: Map<String, String> = emptyMap(),
         visionModels: Set<String>? = null,
-        modelCapabilities: Map<String, com.ai.data.ModelCapabilities>? = null
+        modelCapabilities: Map<String, com.ai.data.ModelCapabilities>? = null,
+        modelListRawJson: String? = null
     ) {
         prefs.edit {
             putString("${service.prefsKey}_manual_models", gson.toJson(models))
@@ -184,6 +190,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             }
             if (modelCapabilities != null) {
                 putString("${service.prefsKey}_model_capabilities", if (modelCapabilities.isEmpty()) null else gson.toJson(modelCapabilities))
+            }
+            if (modelListRawJson != null) {
+                putString("${service.prefsKey}_models_response_raw", modelListRawJson)
             }
         }
     }
