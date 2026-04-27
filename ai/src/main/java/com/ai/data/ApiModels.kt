@@ -100,6 +100,15 @@ data class OpenAiUsage(
 
 data class SearchResult(val name: String?, val url: String?, val snippet: String?)
 
+// Embeddings (OpenAI-compatible — providers all use the same shape).
+data class OpenAiEmbeddingRequest(val model: String, val input: List<String>, val encoding_format: String = "float")
+data class OpenAiEmbeddingResponse(
+    val data: List<OpenAiEmbeddingItem>?,
+    val usage: OpenAiUsage? = null,
+    val error: OpenAiError? = null
+)
+data class OpenAiEmbeddingItem(val embedding: List<Double>?, val index: Int? = null)
+
 data class OpenAiResponse(
     val id: String?,
     val choices: List<OpenAiChoice>?,

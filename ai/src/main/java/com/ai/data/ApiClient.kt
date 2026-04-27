@@ -126,6 +126,13 @@ interface OpenAiCompatibleApi {
         @Url url: String,
         @Header("Authorization") authorization: String
     ): Response<List<OpenAiModel>>
+
+    @POST
+    suspend fun embeddings(
+        @Url url: String,
+        @Header("Authorization") authorization: String,
+        @Body request: OpenAiEmbeddingRequest
+    ): Response<OpenAiEmbeddingResponse>
 }
 
 /** OpenRouter detailed model list. */

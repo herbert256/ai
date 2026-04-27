@@ -86,6 +86,36 @@ suspend fun AnalysisRepository.fetchModelsWithKinds(
     }
 }
 
+/**
+ * Compute embeddings for a batch of input strings via the provider's
+ * /v1/embeddings endpoint. OpenAI-compatible only — Anthropic and Google have
+ * their own embedding APIs that we don't dispatch yet.
+ *
+ * Returns one vector per input string, or null on failure.
+ */
+suspend fun AnalysisRepository.embed(
+    service: AppService,
+    apiKey: String,
+    model: String,
+    texts: List<String>
+): List<List<Double>>? = withContext(Dispatchers.IO) {
+    if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE || apiKey.isBlank() || texts.isEmpty()) {
+        return@withContext null
+    }
+    try {
+        val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
+        val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
+        val url = buildChatUrl(service.baseUrl, embedPath)
+        val response = api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts))
+        if (!response.isSuccessful) return@withContext null
+        val data = response.body()?.data ?: return@withContext null
+        // Sort by index defensively — most providers return in input order but the
+        // spec lets them reorder, and we need the alignment exact.
+        val sorted = data.sortedBy { it.index ?: 0 }
+        sorted.map { it.embedding ?: emptyList() }.takeIf { it.size == texts.size }
+    } catch (_: Exception) { null }
+}
+
 // ============================================================================
 // Analyze implementations
 // ============================================================================

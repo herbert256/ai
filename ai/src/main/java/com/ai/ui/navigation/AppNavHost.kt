@@ -17,6 +17,7 @@ import com.ai.ui.hub.*
 import com.ai.ui.report.*
 import com.ai.ui.history.*
 import com.ai.ui.models.*
+import com.ai.ui.search.*
 import com.ai.ui.settings.*
 import com.ai.ui.admin.*
 import com.ai.ui.shared.*
@@ -134,7 +135,25 @@ fun AppNavHost(
             ReportsHubScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
                 onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
-                onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) })
+                onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
+                onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) })
+        }
+        composable(NavRoutes.AI_SEARCH) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            val uiState by appViewModel.uiState.collectAsState()
+            SemanticSearchScreen(
+                aiSettings = uiState.aiSettings,
+                repository = appViewModel.repository,
+                onBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onOpenReport = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.AI_REPORTS)
+                    }
+                }
+            )
         }
         composable(NavRoutes.AI_NEW_REPORT) {
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
