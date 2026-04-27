@@ -35,7 +35,7 @@ fun ParametersListScreen(
                 params.temperature, params.maxTokens, params.topP, params.topK,
                 params.frequencyPenalty, params.presencePenalty, params.seed,
                 params.systemPrompt?.takeIf { it.isNotBlank() }
-            ).size + (if (params.searchEnabled) 1 else 0)
+            ).size + (if (params.searchEnabled) 1 else 0) + (if (params.webSearchTool) 1 else 0)
             "$count parameters configured"
         },
         onAdd = onAddParameters,
@@ -73,6 +73,7 @@ fun ParametersEditScreen(
     var searchEnabled by remember { mutableStateOf(params?.searchEnabled ?: false) }
     var returnCitations by remember { mutableStateOf(params?.returnCitations ?: true) }
     var searchRecency by remember { mutableStateOf(params?.searchRecency ?: "") }
+    var webSearchTool by remember { mutableStateOf(params?.webSearchTool ?: false) }
 
     val nameError = when {
         name.isBlank() -> "Name is required"
@@ -118,7 +119,11 @@ fun ParametersEditScreen(
             }
             Row(modifier = Modifier.fillMaxWidth().clickable { searchEnabled = !searchEnabled }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = searchEnabled, onCheckedChange = { searchEnabled = it })
-                Spacer(modifier = Modifier.width(8.dp)); Text("Enable web search", color = Color.White)
+                Spacer(modifier = Modifier.width(8.dp)); Text("Enable web search (search:true flag)", color = Color.White)
+            }
+            Row(modifier = Modifier.fillMaxWidth().clickable { webSearchTool = !webSearchTool }, verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = webSearchTool, onCheckedChange = { webSearchTool = it })
+                Spacer(modifier = Modifier.width(8.dp)); Text("Web search tool (Anthropic/Gemini/Responses)", color = Color.White)
             }
             Row(modifier = Modifier.fillMaxWidth().clickable { returnCitations = !returnCitations }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = returnCitations, onCheckedChange = { returnCitations = it })
@@ -146,7 +151,8 @@ fun ParametersEditScreen(
                     topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
                     presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
                     null, seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
-                    searchRecency.takeIf { it.isNotBlank() }
+                    searchRecency.takeIf { it.isNotBlank() },
+                    webSearchTool
                 ))
             },
             enabled = nameError == null,

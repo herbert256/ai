@@ -16,7 +16,8 @@ data class AgentParameters(
     val responseFormatJson: Boolean = false,
     val searchEnabled: Boolean = false,
     val returnCitations: Boolean = true,
-    val searchRecency: String? = null
+    val searchRecency: String? = null,
+    val webSearchTool: Boolean = false
 )
 
 /**

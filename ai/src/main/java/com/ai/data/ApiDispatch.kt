@@ -143,7 +143,8 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
     val request = OpenAiResponsesRequest(
         model = model,
         input = prompt,
-        instructions = params?.systemPrompt?.takeIf { it.isNotBlank() }
+        instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
+        tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null
     )
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     val headers = formatHeaders(response.headers())
@@ -174,7 +175,8 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
         stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() },
         frequency_penalty = params?.frequencyPenalty, presence_penalty = params?.presencePenalty,
         seed = params?.seed,
-        search = if (params?.searchEnabled == true) true else null
+        search = if (params?.searchEnabled == true) true else null,
+        tools = if (params?.webSearchTool == true) anthropicWebSearchTool() else null
     )
     val response = api.createMessage(apiKey, request = request)
     val headers = formatHeaders(response.headers())
@@ -204,7 +206,12 @@ private suspend fun AnalysisRepository.analyzeGemini(
     val systemInstruction = params?.systemPrompt?.takeIf { it.isNotBlank() }?.let {
         GeminiContent(listOf(GeminiPart(it)))
     }
-    val request = GeminiRequest(listOf(GeminiContent(listOf(GeminiPart(prompt)))), genConfig, systemInstruction)
+    val request = GeminiRequest(
+        contents = listOf(GeminiContent(listOf(GeminiPart(text = prompt)))),
+        generationConfig = genConfig,
+        systemInstruction = systemInstruction,
+        tools = if (params?.webSearchTool == true) geminiWebSearchTool() else null
+    )
     val api = ApiFactory.createGeminiApi(service.baseUrl)
     val response = api.generateContent(model, apiKey, request)
     val headers = formatHeaders(response.headers())
@@ -494,7 +501,8 @@ internal fun buildOpenAiRequest(service: AppService, model: String, messages: Li
         response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat("json_object") else null,
         return_citations = if (service.supportsCitations) params?.returnCitations else null,
         search_recency_filter = if (service.supportsSearchRecency) params?.searchRecency else null,
-        search = if (params?.searchEnabled == true) true else null
+        search = if (params?.searchEnabled == true) true else null,
+        tools = if (params?.webSearchTool == true) openAiChatWebSearchTool() else null
     )
 }
 

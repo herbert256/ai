@@ -259,7 +259,8 @@ fun AppNavHost(
                     topP = resolvedParams.topP, topK = resolvedParams.topK,
                     frequencyPenalty = resolvedParams.frequencyPenalty, presencePenalty = resolvedParams.presencePenalty,
                     systemPrompt = resolvedParams.systemPrompt ?: "", searchEnabled = resolvedParams.searchEnabled,
-                    returnCitations = resolvedParams.returnCitations, searchRecency = resolvedParams.searchRecency
+                    returnCitations = resolvedParams.returnCitations, searchRecency = resolvedParams.searchRecency,
+                    webSearchTool = resolvedParams.webSearchTool
                 )
                 val endpointUrl = uiState.aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val customBaseUrl = if (endpointUrl != agent.provider.baseUrl) endpointUrl else null

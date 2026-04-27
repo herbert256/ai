@@ -32,7 +32,8 @@ fun defaultProvidersMap(): Map<AppService, ProviderConfig> = AppService.entries.
 
 enum class Parameter {
     TEMPERATURE, MAX_TOKENS, TOP_P, TOP_K, FREQUENCY_PENALTY, PRESENCE_PENALTY,
-    SYSTEM_PROMPT, STOP_SEQUENCES, SEED, RESPONSE_FORMAT, SEARCH_ENABLED, RETURN_CITATIONS, SEARCH_RECENCY
+    SYSTEM_PROMPT, STOP_SEQUENCES, SEED, RESPONSE_FORMAT, SEARCH_ENABLED, RETURN_CITATIONS, SEARCH_RECENCY,
+    WEB_SEARCH_TOOL
 }
 
 val ALL_AGENT_PARAMETERS: Set<Parameter> = Parameter.entries.toSet()
@@ -84,11 +85,13 @@ data class Parameters(
     val systemPrompt: String? = null, val stopSequences: List<String>? = null,
     val seed: Int? = null, val responseFormatJson: Boolean = false,
     val searchEnabled: Boolean = false, val returnCitations: Boolean = true,
-    val searchRecency: String? = null
+    val searchRecency: String? = null,
+    val webSearchTool: Boolean = false
 ) {
     fun toAgentParameters() = AgentParameters(
         temperature, maxTokens, topP, topK, frequencyPenalty, presencePenalty,
-        systemPrompt, stopSequences, seed, responseFormatJson, searchEnabled, returnCitations, searchRecency
+        systemPrompt, stopSequences, seed, responseFormatJson, searchEnabled, returnCitations, searchRecency,
+        webSearchTool
     )
 }
 
@@ -293,7 +296,8 @@ data class Settings(
                 p.frequencyPenalty ?: acc.frequencyPenalty, p.presencePenalty ?: acc.presencePenalty,
                 p.systemPrompt ?: acc.systemPrompt, p.stopSequences ?: acc.stopSequences,
                 p.seed ?: acc.seed, p.responseFormatJson || acc.responseFormatJson, p.searchEnabled || acc.searchEnabled, p.returnCitations || acc.returnCitations,
-                p.searchRecency ?: acc.searchRecency
+                p.searchRecency ?: acc.searchRecency,
+                p.webSearchTool || acc.webSearchTool
             )
         }
     }

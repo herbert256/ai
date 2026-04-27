@@ -104,7 +104,7 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         agents = settings.agents.map { AgentExport(it.id, it.name, it.provider.id, it.model, "", it.paramsIds.ifEmpty { null }, it.endpointId, it.systemPromptId) },
         flocks = settings.flocks.ifEmpty { null }?.map { FlockExport(it.id, it.name, it.agentIds, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
         swarms = settings.swarms.ifEmpty { null }?.map { SwarmExport(it.id, it.name, it.members.map { m -> SwarmMemberExport(m.provider.id, m.model) }, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
-        parameters = settings.parameters.ifEmpty { null }?.map { ParametersExport(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency) },
+        parameters = settings.parameters.ifEmpty { null }?.map { ParametersExport(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool) },
         systemPrompts = settings.systemPrompts.ifEmpty { null }?.map { SystemPromptExport(it.id, it.name, it.prompt) },
         huggingFaceApiKey = null,
         aiPrompts = settings.prompts.ifEmpty { null }?.map { PromptExport(it.id, it.name, it.agentId, it.promptText) },
@@ -150,7 +150,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
     val flocks = export.flocks?.map { Flock(it.id, it.name, it.agentIds, it.parametersIds ?: emptyList(), it.systemPromptId) } ?: emptyList()
     val swarms = export.swarms?.mapNotNull { e -> try { Swarm(e.id, e.name, e.members.mapNotNull { m -> AppService.findById(m.provider)?.let { SwarmMember(it, m.model) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped swarm member ${m.provider}/${m.model}: unknown provider") } }, e.parametersIds ?: emptyList(), e.systemPromptId) } catch (ex: Exception) { android.util.Log.w("SettingsExport", "Skipped swarm ${e.name}: ${ex.message}"); null } } ?: emptyList()
     val prompts = export.aiPrompts?.map { Prompt(it.id, it.name, it.agentId, it.promptText) } ?: emptyList()
-    val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency) } ?: emptyList()
+    val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool) } ?: emptyList()
     val systemPrompts = export.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
 
     var settings = currentSettings.copy(

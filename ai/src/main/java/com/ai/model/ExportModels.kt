@@ -54,7 +54,8 @@ data class ParametersExport(
     val systemPrompt: String? = null, val stopSequences: List<String>? = null,
     val seed: Int? = null, val responseFormatJson: Boolean = false,
     val searchEnabled: Boolean = false, val returnCitations: Boolean = true,
-    val searchRecency: String? = null
+    val searchRecency: String? = null,
+    val webSearchTool: Boolean = false
 )
 
 data class SystemPromptExport(val id: String, val name: String, val prompt: String)
