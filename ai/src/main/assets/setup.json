@@ -456,6 +456,86 @@
         "palmyra-x-004",
         "palmyra-x-003-instruct"
       ]
+    },
+    {
+      "id": "CLOUDFLARE",
+      "displayName": "Cloudflare Workers AI",
+      "baseUrl": "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/",
+      "adminUrl": "https://dash.cloudflare.com/",
+      "defaultModel": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "prefsKey": "ai_cloudflare",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "DEEPINFRA",
+      "displayName": "DeepInfra",
+      "baseUrl": "https://api.deepinfra.com/v1/openai/",
+      "adminUrl": "https://deepinfra.com/dash/api_keys",
+      "defaultModel": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+      "prefsKey": "ai_deepinfra",
+      "typePaths": {
+        "chat": "chat/completions"
+      },
+      "modelsPath": "models",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "HYPERBOLIC",
+      "displayName": "Hyperbolic",
+      "baseUrl": "https://api.hyperbolic.xyz/",
+      "adminUrl": "https://app.hyperbolic.xyz/settings",
+      "defaultModel": "deepseek-ai/DeepSeek-V3",
+      "prefsKey": "ai_hyperbolic",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "NOVITA",
+      "displayName": "Novita.ai",
+      "baseUrl": "https://api.novita.ai/v3/openai/",
+      "adminUrl": "https://novita.ai/settings/key-management",
+      "defaultModel": "meta-llama/llama-3.1-70b-instruct",
+      "prefsKey": "ai_novita",
+      "typePaths": {
+        "chat": "chat/completions"
+      },
+      "modelsPath": "models",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "FEATHERLESS",
+      "displayName": "Featherless.ai",
+      "baseUrl": "https://api.featherless.ai/",
+      "adminUrl": "https://featherless.ai/account/api-keys",
+      "defaultModel": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+      "prefsKey": "ai_featherless",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "LIQUID",
+      "displayName": "Liquid AI",
+      "baseUrl": "https://inference-1.liquid.ai/",
+      "adminUrl": "https://platform.liquid.ai/",
+      "defaultModel": "lfm-7b",
+      "prefsKey": "ai_liquid",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "LLAMA_API",
+      "displayName": "Llama API",
+      "baseUrl": "https://api.llama.com/compat/",
+      "adminUrl": "https://llama.developer.meta.com/",
+      "defaultModel": "Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "prefsKey": "ai_llama_api",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "KRUTRIM",
+      "displayName": "Krutrim",
+      "baseUrl": "https://cloud.olakrutrim.com/",
+      "adminUrl": "https://cloud.olakrutrim.com/console",
+      "defaultModel": "Meta-Llama-3.1-70B-Instruct",
+      "prefsKey": "ai_krutrim",
+      "defaultModelSource": "API"
     }
   ]
 }
