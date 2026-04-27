@@ -43,7 +43,12 @@ data class Report(
     var completedAt: Long? = null,
     val rapportText: String? = null,
     val reportType: ReportType = ReportType.CLASSIC,
-    val closeText: String? = null
+    val closeText: String? = null,
+    /** Optional vision attachment captured at submission time. Persisted so
+     *  Regenerate can re-run with the same image without forcing the user
+     *  to re-attach. base64-encoded bytes; nullable mime type. */
+    val imageBase64: String? = null,
+    val imageMime: String? = null
 )
 
 /**
@@ -67,11 +72,13 @@ object ReportStorage {
 
     fun createReport(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,
-        rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null
+        rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
+        imageBase64: String? = null, imageMime: String? = null
     ): Report {
         init(context)
         val report = Report(UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
-            agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText)
+            agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
+            imageBase64 = imageBase64, imageMime = imageMime)
         lock.withLock { saveReport(report) }
         return report
     }
@@ -134,8 +141,9 @@ object ReportStorage {
     // Async variants
     suspend fun createReportAsync(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,
-        rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText) }
+        rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
+        imageBase64: String? = null, imageMime: String? = null
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }
