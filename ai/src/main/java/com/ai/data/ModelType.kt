@@ -105,7 +105,48 @@ object ModelType {
             else -> null
         }
     }
+
+    /** Naming-based fallback for "does this chat model accept image input?".
+     *  Conservative: only flags families known to support vision today. False
+     *  on a vision-capable model is harmless (the user can tick the override
+     *  on Model Info); true on a non-vision model would be a regression we
+     *  want to avoid, so the patterns stay tight. */
+    fun inferVision(modelId: String): Boolean {
+        val id = modelId.lowercase()
+        return when {
+            // OpenAI vision-capable chat families
+            "gpt-4o" in id || "gpt-4-vision" in id || "gpt-4-turbo" in id -> true
+            "gpt-5" in id || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4") -> true
+            "chatgpt-4o" in id -> true
+            // Anthropic — every Claude 3.x and 4.x is vision-capable; 2.x is not.
+            Regex("""claude-(3|4|opus-4|sonnet-4|haiku-4)""").containsMatchIn(id) -> true
+            // Google
+            "gemini-1.5" in id || "gemini-2" in id || "gemini-pro-vision" in id -> true
+            // Open-source vision/multimodal
+            "llava" in id || "pixtral" in id || "qwen2-vl" in id || "qwen2.5-vl" in id -> true
+            "internvl" in id || "minicpm-v" in id || "molmo" in id || "phi-3-vision" in id -> true
+            "phi-3.5-vision" in id || "phi-4-multimodal" in id -> true
+            // Meta vision (e.g. llama-3.2-90b-vision)
+            "llama-3.2" in id && "vision" in id -> true
+            // Mistral
+            "pixtral" in id -> true
+            // Generic markers
+            "vision" in id || "-vl-" in id || id.endsWith("-vl") || "multimodal" in id -> true
+            else -> false
+        }
+    }
+
+    /** OpenRouter `architecture.input_modalities` includes "image" iff the
+     *  model accepts image input. The detailed model list populates this. */
+    fun fromOpenRouterInputModalities(modalities: List<String>?): Boolean =
+        modalities?.any { it.equals("image", ignoreCase = true) } == true
 }
 
-/** Result type for model-list fetches: ids in their native order plus a type map. */
-data class FetchedModels(val ids: List<String>, val types: Map<String, String>)
+/** Result type for model-list fetches: ids in their native order, a type
+ *  map, and the subset known to accept image input (auto-flagged from
+ *  list-API metadata where available, e.g. OpenRouter input_modalities). */
+data class FetchedModels(
+    val ids: List<String>,
+    val types: Map<String, String>,
+    val visionModels: Set<String> = emptySet()
+)

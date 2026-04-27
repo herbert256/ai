@@ -383,7 +383,14 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                 val info = filtered.firstOrNull { it.id == id }
                 ModelType.fromOpenRouterModality(info?.architecture?.modality) ?: ModelType.infer(id)
             }
-            return FetchedModels(ids, types)
+            // architecture.input_modalities lists the raw input types — "image"
+            // means the model accepts vision content blocks. Union into the
+            // user-curated visionModels at apply time (see withModels overload).
+            val vision = ids.filter { id ->
+                val info = filtered.firstOrNull { it.id == id }
+                ModelType.fromOpenRouterInputModalities(info?.architecture?.input_modalities)
+            }.toSet()
+            return FetchedModels(ids, types, vision)
         }
         // Fall through to the basic /v1/models call below if the detailed call failed.
     }

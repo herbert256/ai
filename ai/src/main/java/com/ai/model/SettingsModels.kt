@@ -162,6 +162,15 @@ data class Settings(
     fun withModels(service: AppService, models: List<String>) = withProvider(service, getProvider(service).copy(models = models))
     fun withModels(service: AppService, models: List<String>, types: Map<String, String>) =
         withProvider(service, getProvider(service).copy(models = models, modelTypes = types))
+    /** Same as [withModels] but also unions [autoVisionModels] (auto-detected
+     *  by the fetcher, e.g. OpenRouter input_modalities) into the per-provider
+     *  visionModels set. The set is union-only — refetching never removes a
+     *  user-toggled tick. */
+    fun withModels(service: AppService, models: List<String>, types: Map<String, String>, autoVisionModels: Set<String>): Settings {
+        val cfg = getProvider(service)
+        val merged = cfg.visionModels + autoVisionModels
+        return withProvider(service, cfg.copy(models = models, modelTypes = types, visionModels = merged))
+    }
     /** User-supplied manual override always wins; otherwise read the stored
      *  classification (from native list APIs or the heuristic). */
     fun getModelType(service: AppService, modelId: String): String? {
@@ -171,11 +180,15 @@ data class Settings(
 
     fun withModelTypeOverrides(overrides: List<ModelTypeOverride>) = copy(modelTypeOverrides = overrides)
 
-    /** Returns true when the user has flagged (provider, modelId) as
-     *  vision-capable on the Model Info screen. Default false — the app
-     *  has no auto-detection, so unmarked models are assumed text-only. */
+    /** Returns true when (provider, modelId) accepts image input. Three
+     *  signals, in order:
+     *   1. User override on Model Info — stored in ProviderConfig.visionModels.
+     *   2. Auto-flagged on the last fetch (OpenRouter input_modalities).
+     *      Also stored in visionModels — fetch unions into the set.
+     *   3. Naming heuristic — covers gpt-4o, claude-3.x/4.x, gemini-1.5+,
+     *      llava/pixtral/qwen-vl/etc. False on miss. */
     fun isVisionCapable(service: AppService, modelId: String): Boolean =
-        modelId in getProvider(service).visionModels
+        modelId in getProvider(service).visionModels || com.ai.data.ModelType.inferVision(modelId)
 
     fun withVisionCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
         val cfg = getProvider(service)

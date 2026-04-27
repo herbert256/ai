@@ -382,7 +382,12 @@ data class OpenRouterModelInfo(
 
 data class OpenRouterPricing(val prompt: String? = null, val completion: String? = null, val image: String? = null, val request: String? = null)
 data class OpenRouterTopProvider(val context_length: Int? = null, val max_completion_tokens: Int? = null, val is_moderated: Boolean? = null)
-data class OpenRouterArchitecture(val modality: String? = null, val tokenizer: String? = null, val instruct_type: String? = null)
+data class OpenRouterArchitecture(
+    val modality: String? = null,
+    val tokenizer: String? = null,
+    val instruct_type: String? = null,
+    val input_modalities: List<String>? = null
+)
 data class OpenRouterLimits(val prompt_tokens: Int? = null, val completion_tokens: Int? = null)
 data class OpenRouterModelsDetailedResponse(val data: List<OpenRouterModelInfo>)
 

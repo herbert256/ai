@@ -231,7 +231,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val fetched = repository.fetchModelsWithKinds(service, apiKey)
                 _uiState.update { state ->
-                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types)
+                    val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels)
                     // Cross-pollinate OpenRouter labels — covers two flows:
                     //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
                     //   • OpenRouter fetch propagates fresh labels to every other provider
@@ -269,7 +269,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         onProgress?.invoke(service.displayName)
                         try {
                             val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
-                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types)) }
+                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels)) }
                             settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types)
                             service to fetched.ids.size
                         } catch (_: Exception) { service to -1 }
