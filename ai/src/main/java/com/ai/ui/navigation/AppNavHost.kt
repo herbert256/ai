@@ -241,6 +241,7 @@ fun AppNavHost(
                     onStartChat = { p, m -> navController.navigate(NavRoutes.aiChatParams(p.id, m)) },
                     onNavigateToTracesForModel = { p, m -> navController.navigate(NavRoutes.traceListForModel(p.id, m)) },
                     onNavigateToAddManualOverride = { p, m -> navController.navigate(NavRoutes.aiManualOverrideAdd(p.id, m)) },
+                    onNavigateToAddCostOverride = { p, m -> navController.navigate(NavRoutes.aiManualCostOverrideAdd(p.id, m)) },
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
         }
@@ -254,6 +255,18 @@ fun AppNavHost(
                 modelId = model,
                 onSave = { appViewModel.updateSettings(it) },
                 onBack = safePopBack
+            )
+        }
+        composable(NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD) { entry ->
+            val providerId = entry.arguments?.getString("provider") ?: ""
+            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val uiState by appViewModel.uiState.collectAsState()
+            ManualCostOverrideEntryScreen(
+                aiSettings = uiState.aiSettings,
+                providerId = providerId,
+                modelId = model,
+                onBack = safePopBack,
+                onNavigateHome = navigateHome
             )
         }
 

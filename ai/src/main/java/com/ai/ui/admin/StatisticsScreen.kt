@@ -274,18 +274,59 @@ private fun CostConfigCard(
     }
 }
 
+/**
+ * Direct-entry wrapper around [AddManualOverrideScreen] for the "Add
+ * manual cost override" link on Model Info — opens the same form
+ * pre-filled with the given provider/model. If a cost override already
+ * exists for that pair, its current input/output prices are loaded so
+ * the screen doubles as an edit form. Saving writes through PricingCache
+ * .setManualPricing and pops back to the caller.
+ */
 @Composable
-private fun AddManualOverrideScreen(
+fun ManualCostOverrideEntryScreen(
     aiSettings: Settings,
-    onSave: (AppService, String, Double, Double) -> Unit,
+    providerId: String,
+    modelId: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
+    val context = LocalContext.current
+    val existing = AppService.findById(providerId)?.let { svc ->
+        PricingCache.getManualPricing(context, svc, modelId)
+    }
+    AddManualOverrideScreen(
+        aiSettings = aiSettings,
+        initialProviderId = providerId,
+        initialModel = modelId,
+        initialInputPerMillion = existing?.promptPrice?.times(1_000_000),
+        initialOutputPerMillion = existing?.completionPrice?.times(1_000_000),
+        onSave = { provider, model, inp, outp ->
+            PricingCache.setManualPricing(context, provider, model, inp, outp)
+            onBack()
+        },
+        onBack = onBack,
+        onNavigateHome = onNavigateHome
+    )
+}
+
+@Composable
+internal fun AddManualOverrideScreen(
+    aiSettings: Settings,
+    onSave: (AppService, String, Double, Double) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    initialProviderId: String? = null,
+    initialModel: String? = null,
+    initialInputPerMillion: Double? = null,
+    initialOutputPerMillion: Double? = null
+) {
     BackHandler { onBack() }
-    var selectedProvider by remember { mutableStateOf(AppService.entries.firstOrNull()) }
-    var model by remember { mutableStateOf("") }
-    var inputPrice by remember { mutableStateOf("") }
-    var outputPrice by remember { mutableStateOf("") }
+    var selectedProvider by remember {
+        mutableStateOf(initialProviderId?.let { AppService.findById(it) } ?: AppService.entries.firstOrNull())
+    }
+    var model by remember { mutableStateOf(initialModel ?: "") }
+    var inputPrice by remember { mutableStateOf(initialInputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
+    var outputPrice by remember { mutableStateOf(initialOutputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
     var showProviderSelect by remember { mutableStateOf(false) }
     var showModelSelect by remember { mutableStateOf(false) }
     val context = LocalContext.current

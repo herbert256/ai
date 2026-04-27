@@ -156,6 +156,7 @@ fun ModelInfoScreen(
     onStartChat: (AppService, String) -> Unit,
     onNavigateToTracesForModel: (AppService, String) -> Unit,
     onNavigateToAddManualOverride: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToAddCostOverride: (AppService, String) -> Unit = { _, _ -> },
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -523,6 +524,12 @@ fun ModelInfoScreen(
                                         }
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Button(
+                                    onClick = { onNavigateToAddCostOverride(provider, modelName) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                                ) { Text("Add manual cost override", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
                     }
