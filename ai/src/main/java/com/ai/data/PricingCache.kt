@@ -9,8 +9,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Cached model pricing with six-tier lookup: API > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT.
- * Exception: For OpenRouter provider, OPENROUTER source is checked before OVERRIDE.
+ * Cached model pricing with six-tier lookup: API > LITELLM > OVERRIDE > OPENROUTER > FALLBACK > DEFAULT.
+ * Exception: For the OpenRouter provider itself, OPENROUTER pricing is checked first.
+ *
+ * LITELLM sits ahead of OVERRIDE so the curated BerriAI/litellm prices win over
+ * stale manual entries by default — users now only need to keep an override for
+ * models LiteLLM doesn't track, not for routine price refreshes.
  */
 object PricingCache {
     private const val PREFS_NAME = "pricing_cache"
@@ -116,12 +120,14 @@ object PricingCache {
         ensureLoaded(context)
         val isOpenRouter = provider.id == "OPENROUTER"
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        manualPricing?.get("${provider.id}:$model")?.let { return it }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
+        // LITELLM ahead of OVERRIDE so refreshed bulk pricing wins over stale
+        // manual entries; users only need overrides for models LiteLLM lacks.
         litellmPricing?.let { p ->
             p[model]?.let { return it }
             provider.litellmPrefix?.let { prefix -> p["$prefix/$model"]?.let { return it } }
         }
+        manualPricing?.get("${provider.id}:$model")?.let { return it }
+        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         fallbackPricing?.get(model)?.let { return it }
         return DEFAULT_PRICING
     }
