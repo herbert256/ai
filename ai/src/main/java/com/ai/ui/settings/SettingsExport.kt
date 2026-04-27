@@ -90,6 +90,7 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
             modelSource = config.modelSource.name, models = config.models,
             apiKey = "", defaultModel = config.model, adminUrl = config.adminUrl,
             modelListUrl = config.modelListUrl, parametersIds = config.parametersIds.ifEmpty { null },
+            modelTypes = config.modelTypes.takeIf { it.isNotEmpty() },
             displayName = service.displayName, baseUrl = service.baseUrl,
             apiFormat = service.apiFormat.name,
             typePaths = service.typePaths.takeIf { it.isNotEmpty() },
@@ -113,7 +114,9 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         providerEndpoints = settings.endpoints.entries.map { (provider, eps) -> ProviderEndpointsExport(provider.id, eps.map { EndpointExport(it.id, it.name, it.url, it.isDefault) }) }.ifEmpty { null },
         openRouterApiKey = null,
         providerDefinitions = ProviderRegistry.getCustomProviders().ifEmpty { null },
-        providerStates = settings.providerStates.ifEmpty { null }
+        providerStates = settings.providerStates.ifEmpty { null },
+        modelTypeOverrides = settings.modelTypeOverrides.ifEmpty { null },
+        defaultTypePaths = generalSettings.defaultTypePaths.ifEmpty { null }
     )
 
     return createAppGson(prettyPrint = true).toJson(export)
@@ -150,7 +153,12 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
     val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency) } ?: emptyList()
     val systemPrompts = export.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
 
-    var settings = currentSettings.copy(agents = agents, flocks = flocks, swarms = swarms, parameters = parameters, systemPrompts = systemPrompts, prompts = prompts, providerStates = export.providerStates ?: currentSettings.providerStates)
+    var settings = currentSettings.copy(
+        agents = agents, flocks = flocks, swarms = swarms,
+        parameters = parameters, systemPrompts = systemPrompts, prompts = prompts,
+        providerStates = export.providerStates ?: currentSettings.providerStates,
+        modelTypeOverrides = export.modelTypeOverrides ?: currentSettings.modelTypeOverrides
+    )
 
     for ((providerKey, p) in export.providers) {
         val service = AppService.findById(providerKey) ?: continue
@@ -158,6 +166,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         val importedConfig = cur.copy(
             modelSource = try { ModelSource.valueOf(p.modelSource) } catch (_: Exception) { defaultProviderConfig(service).modelSource },
             models = p.models, apiKey = p.apiKey, model = p.defaultModel ?: cur.model,
+            modelTypes = p.modelTypes ?: cur.modelTypes,
             adminUrl = p.adminUrl ?: cur.adminUrl, modelListUrl = p.modelListUrl ?: "",
             parametersIds = p.parametersIds ?: cur.parametersIds
         )
@@ -189,7 +198,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 
-    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey)
+    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.defaultTypePaths)
 }
 
 /**

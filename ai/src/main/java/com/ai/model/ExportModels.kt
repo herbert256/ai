@@ -15,6 +15,7 @@ data class ProviderConfigExport(
     val adminUrl: String? = null,
     val modelListUrl: String? = null,
     val parametersIds: List<String>? = null,
+    val modelTypes: Map<String, String>? = null,
     val displayName: String? = null,
     val baseUrl: String? = null,
     val apiFormat: String? = null,
@@ -78,7 +79,9 @@ data class ConfigExport(
     val providerEndpoints: List<ProviderEndpointsExport>? = null,
     val openRouterApiKey: String? = null,
     val providerDefinitions: List<ProviderDefinition>? = null,
-    val providerStates: Map<String, String>? = null
+    val providerStates: Map<String, String>? = null,
+    val modelTypeOverrides: List<ModelTypeOverride>? = null,
+    val defaultTypePaths: Map<String, String>? = null
 )
 
 data class ApiKeyEntry(val service: String, val apiKey: String)
@@ -93,5 +96,6 @@ data class ApiKeysExport(
 data class ConfigImportResult(
     val aiSettings: Settings,
     val huggingFaceApiKey: String? = null,
-    val openRouterApiKey: String? = null
+    val openRouterApiKey: String? = null,
+    val defaultTypePaths: Map<String, String>? = null
 )

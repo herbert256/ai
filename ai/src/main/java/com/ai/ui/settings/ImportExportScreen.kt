@@ -35,11 +35,13 @@ private fun exportTimestamp(): String =
 @Composable
 fun ImportExportScreen(
     aiSettings: Settings,
+    generalSettings: com.ai.viewmodel.GeneralSettings,
     huggingFaceApiKey: String,
     openRouterApiKey: String,
     onSave: (Settings) -> Unit,
     onSaveHuggingFaceApiKey: (String) -> Unit,
     onSaveOpenRouterApiKey: (String) -> Unit,
+    onSaveGeneral: (com.ai.viewmodel.GeneralSettings) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -58,11 +60,7 @@ fun ImportExportScreen(
 
     val exportConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-        val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
-        val gs = settingsPrefs.loadGeneralSettings()
-        val json = exportAiConfig(context, aiSettings, gs)
-        writeToUri(uri, json)
+        writeToUri(uri, exportAiConfig(context, aiSettings, generalSettings))
         Toast.makeText(context, "Configuration exported", Toast.LENGTH_SHORT).show()
     }
 
@@ -83,17 +81,23 @@ fun ImportExportScreen(
 
     val exportSetupJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        // Mirror the bundled assets/setup.json: only providerDefinitions populated,
-        // empty providers / agents, no user-specific runtime state. Each definition
-        // also picks up the user's current per-provider state so the exported file
-        // reflects "what I actually use":
-        //   • defaultModel ← user's selected per-provider model
-        //   • defaultModelSource ← user's API/MANUAL choice
-        //   • hardcodedModels ← user's curated models list, but only for MANUAL
-        //     providers (API providers re-fetch dynamically, no point bundling a
-        //     stale snapshot)
-        // API keys are intentionally never exported here — they're per-user secrets.
-        val defs = AppService.entries.map { service ->
+        // Drop-in replacement for assets/setup.json: a full ConfigExport (everything
+        // exportAiConfig writes — providers, agents, flocks, swarms, parameters,
+        // system prompts, internal prompts, manual pricing, provider endpoints,
+        // provider definitions, provider states, model type overrides, default
+        // type paths) so a fresh install lands directly on the user's current
+        // setup. API keys, HuggingFace key, and OpenRouter key are intentionally
+        // stripped — those are per-user secrets.
+        //
+        // The catalog providerDefinitions get the same per-user overrides as the
+        // stand-alone setup.json export had previously (defaultModel,
+        // defaultModelSource, hardcodedModels for MANUAL providers) so first-run
+        // ProviderRegistry.loadFromAssets — which only reads providerDefinitions
+        // — picks up the right defaults before bootstrap's full-config import
+        // runs the rest.
+        val baseJson = exportAiConfig(context, aiSettings, generalSettings)
+        val parsed = createAppGson().fromJson(baseJson, ConfigExport::class.java)
+        val tunedDefs = AppService.entries.map { service ->
             val cfg = aiSettings.getProvider(service)
             val userDefault = cfg.model.takeIf { it.isNotBlank() } ?: service.defaultModel
             val userHardcoded = if (cfg.modelSource == ModelSource.MANUAL) cfg.models.ifEmpty { null } else null
@@ -103,14 +107,9 @@ fun ImportExportScreen(
                 hardcodedModels = userHardcoded
             )
         }
-        val export = ConfigExport(
-            version = 21,
-            providers = emptyMap(),
-            agents = emptyList(),
-            providerDefinitions = defs
-        )
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(export))
-        Toast.makeText(context, "${defs.size} providers exported", Toast.LENGTH_SHORT).show()
+        val tuned = parsed.copy(providerDefinitions = tunedDefs)
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tuned))
+        Toast.makeText(context, "Setup exported (${tunedDefs.size} providers, ${parsed.agents.size} agents)", Toast.LENGTH_SHORT).show()
     }
 
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
@@ -134,6 +133,7 @@ fun ImportExportScreen(
                     onSave(result.aiSettings)
                     result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
                     result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
+                    result.defaultTypePaths?.let { onSaveGeneral(generalSettings.copy(defaultTypePaths = it)) }
                 }
             }
             "keys" -> {
