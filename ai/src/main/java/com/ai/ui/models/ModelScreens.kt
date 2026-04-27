@@ -244,19 +244,29 @@ fun ModelInfoScreen(
         }
     }
 
-    // AI description (independent load) — cached for 48h via PromptCache, keyed by
-    // (resolvedPrompt, agent.id). Different agent ⇒ cache miss; different model ⇒
-    // different resolvedPrompt ⇒ cache miss.
+    // AI description (independent load) — runs the prompt text from the
+    // internal "model_info" Prompt against the *currently viewed* model,
+    // not the model configured on the prompt's agent. The agent's
+    // parameter preset still propagates so the user's temperature /
+    // max_tokens preferences carry over. Cached for 48h via PromptCache,
+    // keyed by (resolvedPrompt, "${provider.id}:$modelName") so each
+    // model gets its own cached self-introduction.
     LaunchedEffect(provider, modelName) {
         val modelInfoPrompt = aiSettings.prompts.find { it.name.lowercase().contains("model_info") || it.name.lowercase().contains("model info") }
         if (modelInfoPrompt != null) {
-            val agent = aiSettings.getAgentById(modelInfoPrompt.agentId) ?: return@LaunchedEffect
-            val effectiveAgent = agent.copy(apiKey = aiSettings.getEffectiveApiKeyForAgent(agent), model = aiSettings.getEffectiveModelForAgent(agent))
-            if (effectiveAgent.apiKey.isBlank()) return@LaunchedEffect
+            val configuredAgent = aiSettings.getAgentById(modelInfoPrompt.agentId) ?: return@LaunchedEffect
+            val pageApiKey = aiSettings.getApiKey(provider)
+            if (pageApiKey.isBlank()) return@LaunchedEffect
+            val selfAgent = Agent(
+                id = "model_info_self:${provider.id}:$modelName",
+                name = "${provider.displayName} / $modelName",
+                provider = provider, model = modelName,
+                apiKey = pageApiKey
+            )
             val resolvedPrompt = modelInfoPrompt.promptText
                 .replace("@MODEL@", modelName).replace("@PROVIDER@", provider.displayName)
-                .replace("@AGENT@", agent.name)
-            val cacheKey = PromptCache.keyFor(resolvedPrompt, agent.id)
+                .replace("@AGENT@", selfAgent.name)
+            val cacheKey = PromptCache.keyFor(resolvedPrompt, "${provider.id}:$modelName")
             PromptCache.get(cacheKey)?.let { cached ->
                 aiDescription = cached
                 return@LaunchedEffect
@@ -264,7 +274,7 @@ fun ModelInfoScreen(
             isAiLoading = true
             try {
                 val response = withContext(Dispatchers.IO) {
-                    repository.analyzePlayerWithAgent(effectiveAgent, resolvedPrompt, aiSettings.resolveAgentParameters(agent))
+                    repository.analyzePlayerWithAgent(selfAgent, resolvedPrompt, aiSettings.resolveAgentParameters(configuredAgent))
                 }
                 if (response.isSuccess) {
                     aiDescription = response.analysis
