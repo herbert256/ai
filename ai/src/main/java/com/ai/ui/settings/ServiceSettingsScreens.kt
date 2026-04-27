@@ -374,6 +374,9 @@ fun ProviderSettingsScreen(
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testSuccess by remember { mutableStateOf(false) }
+    // Trace file captured for the most recent failed test, so the failure row can
+    // link straight to the request/response that produced the error.
+    var testTraceFile by remember { mutableStateOf<String?>(null) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
 
@@ -569,10 +572,18 @@ fun ProviderSettingsScreen(
                             Button(
                                 onClick = {
                                     scope.launch {
-                                        isTesting = true; testResult = null
+                                        isTesting = true; testResult = null; testTraceFile = null
+                                        val startedAt = System.currentTimeMillis()
                                         val error = onTestApiKey(service, apiKey, defaultModel)
                                         testSuccess = error == null
                                         testResult = error ?: "Connection successful"
+                                        // On failure, attach the trace from this run so the
+                                        // user can jump to the captured request/response.
+                                        testTraceFile = if (error != null) {
+                                            com.ai.data.ApiTracer.getTraceFiles()
+                                                .firstOrNull { it.timestamp >= startedAt }
+                                                ?.filename
+                                        } else null
                                         onProviderStateChange(if (error == null) "ok" else "error")
                                         isTesting = false
                                     }
@@ -583,6 +594,15 @@ fun ProviderSettingsScreen(
                     }
                     testResult?.let {
                         Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp)
+                    }
+                    val tf = testTraceFile
+                    if (!testSuccess && tf != null && onNavigateToTrace != null) {
+                        TextButton(
+                            onClick = { onNavigateToTrace(tf) },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Text("Show trace", fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, softWrap = false)
+                        }
                     }
                 }
             }
