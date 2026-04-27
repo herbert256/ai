@@ -84,9 +84,10 @@ fun HousekeepingScreen(
                             busyLabel = null
                             result.fold(
                                 onSuccess = { s ->
+                                    val newProvidersTail = if (s.newProviders > 0) ", +${s.newProviders} new providers from setup.json" else ""
                                     Toast.makeText(
                                         context,
-                                        "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files. Restarting…",
+                                        "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files$newProvidersTail. Restarting…",
                                         Toast.LENGTH_LONG
                                     ).show()
                                     // Brief delay so the toast renders, then relaunch the
