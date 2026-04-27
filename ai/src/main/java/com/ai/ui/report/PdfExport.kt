@@ -618,61 +618,71 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
         View.MeasureSpec.makeMeasureSpec(pageHeight, View.MeasureSpec.EXACTLY)
     )
     webView.layout(0, 0, pageWidth, pageHeight)
+    val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    fun renderNow(view: WebView) {
+        try {
+            val cssDensity = view.resources.displayMetrics.density
+            val contentPx = (view.contentHeight * cssDensity).toInt()
+            view.measure(
+                View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            val totalHeight = maxOf(view.measuredHeight, contentPx, pageHeight)
+            android.util.Log.i(
+                tag,
+                "measured=${view.measuredWidth}x${view.measuredHeight}, contentHeightCss=${view.contentHeight}, contentPx=$contentPx, totalHeight=$totalHeight"
+            )
+            view.layout(0, 0, pageWidth, totalHeight)
+
+            val bitmap = Bitmap.createBitmap(pageWidth, totalHeight, Bitmap.Config.ARGB_8888)
+            bitmap.eraseColor(AndroidColor.WHITE)
+            view.draw(Canvas(bitmap))
+
+            val pdf = PdfDocument()
+            var rendered = 0
+            var pageNum = 1
+            while (rendered < totalHeight) {
+                val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
+                val page = pdf.startPage(pageInfo)
+                val canvas = page.canvas
+                canvas.drawColor(AndroidColor.WHITE)
+                val sliceH = minOf(pageHeight, totalHeight - rendered)
+                val src = android.graphics.Rect(0, rendered, pageWidth, rendered + sliceH)
+                val dst = android.graphics.Rect(0, 0, pageWidth, sliceH)
+                canvas.drawBitmap(bitmap, src, dst, null)
+                pdf.finishPage(page)
+                rendered += pageHeight
+                pageNum++
+            }
+            bitmap.recycle()
+            if (output.exists()) output.delete()
+            FileOutputStream(output).use { pdf.writeTo(it) }
+            pdf.close()
+            android.util.Log.i(tag, "rendered ${pageNum - 1} pages to ${output.length()} bytes")
+            done.complete(Unit)
+        } catch (e: Exception) {
+            android.util.Log.e(tag, "PDF render failed", e)
+            done.completeExceptionally(e)
+        }
+    }
     webView.webViewClient = object : WebViewClient() {
         override fun onPageFinished(view: WebView, url: String?) {
-            android.util.Log.i(tag, "onPageFinished url=$url")
-            try {
-                view.measure(
-                    View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                )
-                // contentHeight is chromium's full HTML content height in CSS px;
-                // use it as a fallback when measure() returns 0 (which happens
-                // for off-screen WebViews — they never run a real layout pass).
-                val cssDensity = view.resources.displayMetrics.density
-                val contentPx = (view.contentHeight * cssDensity).toInt()
-                val totalHeight = maxOf(view.measuredHeight, contentPx, pageHeight)
-                android.util.Log.i(
-                    tag,
-                    "measured=${view.measuredWidth}x${view.measuredHeight}, contentHeightCss=${view.contentHeight}, contentPx=$contentPx, totalHeight=$totalHeight"
-                )
-                view.layout(0, 0, pageWidth, totalHeight)
-
-                // Render the WebView into an intermediate software Bitmap. Drawing
-                // straight to PdfDocument.Canvas can come back black when chromium
-                // backs the view with a hardware layer despite setLayerType — the
-                // Bitmap canvas is unambiguously software and fixes that.
-                val bitmap = Bitmap.createBitmap(pageWidth, totalHeight, Bitmap.Config.ARGB_8888)
-                bitmap.eraseColor(AndroidColor.WHITE)
-                val bitmapCanvas = Canvas(bitmap)
-                view.draw(bitmapCanvas)
-
-                val pdf = PdfDocument()
-                var rendered = 0
-                var pageNum = 1
-                while (rendered < totalHeight) {
-                    val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
-                    val page = pdf.startPage(pageInfo)
-                    val canvas = page.canvas
-                    canvas.drawColor(AndroidColor.WHITE)
-                    val sliceH = minOf(pageHeight, totalHeight - rendered)
-                    val src = android.graphics.Rect(0, rendered, pageWidth, rendered + sliceH)
-                    val dst = android.graphics.Rect(0, 0, pageWidth, sliceH)
-                    canvas.drawBitmap(bitmap, src, dst, null)
-                    pdf.finishPage(page)
-                    rendered += pageHeight
-                    pageNum++
+            android.util.Log.i(tag, "onPageFinished url=$url, contentHeight=${view.contentHeight}")
+            // Chromium fires onPageFinished as soon as the document finishes
+            // loading, but on a "warm" process the layout pass hasn't run yet —
+            // contentHeight is still 0. Poll the main handler until chromium
+            // reports a non-zero contentHeight (or up to ~2s) before rendering,
+            // otherwise we end up snapshotting a blank surface.
+            var attempts = 0
+            fun maybeRender() {
+                if (view.contentHeight > 0 || attempts >= 20) {
+                    renderNow(view)
+                } else {
+                    attempts++
+                    mainHandler.postDelayed({ maybeRender() }, 100)
                 }
-                bitmap.recycle()
-                if (output.exists()) output.delete()
-                FileOutputStream(output).use { pdf.writeTo(it) }
-                pdf.close()
-                android.util.Log.i(tag, "rendered ${pageNum - 1} pages to ${output.length()} bytes")
-                done.complete(Unit)
-            } catch (e: Exception) {
-                android.util.Log.e(tag, "PDF render failed", e)
-                done.completeExceptionally(e)
             }
+            maybeRender()
         }
     }
     android.util.Log.i(tag, "loading HTML into WebView…")
