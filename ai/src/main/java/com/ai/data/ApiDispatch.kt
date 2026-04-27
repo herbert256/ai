@@ -206,8 +206,17 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
     val statusCode = response.code()
     return if (response.isSuccessful) {
         val body = response.body()
-        val content = body?.content?.firstOrNull { it.type == "text" }?.text
-            ?: body?.content?.firstNotNullOfOrNull { it.text }
+        // Concatenate every text block — when web_search runs, Anthropic
+        // splits the answer into many text blocks interleaved with
+        // server_tool_use / web_search_tool_result. Taking only the first
+        // gives just the preamble ("I'll search for…") and drops the
+        // entire response. Joins fragments with no separator since the
+        // model already includes its own punctuation/whitespace.
+        val content = body?.content
+            ?.filter { it.type == "text" }
+            ?.mapNotNull { it.text }
+            ?.joinToString(separator = "")
+            ?.takeIf { it.isNotBlank() }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage()
         val webData = extractClaudeWebSearch(body)
@@ -335,7 +344,13 @@ private suspend fun AnalysisRepository.chatAnthropic(
     )
     val response = api.createMessage(apiKey, request = request)
     if (response.isSuccessful) {
-        return response.body()?.content?.firstOrNull { it.type == "text" }?.text ?: throw Exception("No response content")
+        // See analyzeAnthropic for why we concatenate every text block.
+        return response.body()?.content
+            ?.filter { it.type == "text" }
+            ?.mapNotNull { it.text }
+            ?.joinToString(separator = "")
+            ?.takeIf { it.isNotBlank() }
+            ?: throw Exception("No response content")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
