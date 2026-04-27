@@ -46,9 +46,11 @@ fun RefreshScreen(
 
     var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
+    var litellmResult by remember { mutableStateOf<Int?>(null) }
     var showResultsDialog by remember { mutableStateOf(false) }
     var showProviderStateDialog by remember { mutableStateOf(false) }
     var showOpenRouterDialog by remember { mutableStateOf(false) }
+    var showLiteLLMDialog by remember { mutableStateOf(false) }
     // (providerName, state) where state == null means "pending" (still being tested);
     // any other string is the final state ("ok"/"error"/"inactive"/"not-used").
     val providerStateRows = remember { mutableStateListOf<Pair<String, String?>>() }
@@ -115,6 +117,18 @@ fun RefreshScreen(
         AlertDialog(onDismissRequest = { showOpenRouterDialog = false }, title = { Text("OpenRouter Data") },
             text = { Text("Pricing: $pricing models\nSpec pricing: $specPricing\nSpec parameters: $specParams") },
             confirmButton = { TextButton(onClick = { showOpenRouterDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+    }
+
+    if (showLiteLLMDialog) {
+        val n = litellmResult
+        AlertDialog(onDismissRequest = { showLiteLLMDialog = false }, title = { Text("LiteLLM Pricing") },
+            text = {
+                Text(
+                    if (n == null) "Failed to fetch from BerriAI/litellm GitHub. Check connectivity and try again."
+                    else "Refreshed $n priced models from the litellm GitHub source."
+                )
+            },
+            confirmButton = { TextButton(onClick = { showLiteLLMDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
     if (showGenerationDialog) {
@@ -216,6 +230,15 @@ fun RefreshScreen(
                                 showOpenRouterDialog = true
                             }
                         }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+
+                        OutlinedButton(onClick = {
+                            launchTask("Refreshing LiteLLM") {
+                                progressText = "Downloading model_prices_and_context_window.json…"
+                                val n = PricingCache.fetchLiteLLMPricingOnline(context)
+                                litellmResult = n
+                                showLiteLLMDialog = true
+                            }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("LiteLLM", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
                             // Only seed agents for providers that are actually active (state == "ok").

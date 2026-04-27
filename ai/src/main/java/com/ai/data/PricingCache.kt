@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import com.google.gson.reflect.TypeToken
 import java.lang.reflect.Type
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Cached model pricing with six-tier lookup: API > OVERRIDE > OPENROUTER > LITELLM > FALLBACK > DEFAULT.
@@ -178,6 +179,41 @@ object PricingCache {
         getPrefs(context).edit {
             putString(KEY_LITELLM_PRICING, gson.toJson(litellmPricing))
             putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
+        }
+    }
+
+    /**
+     * Pull the latest model_prices_and_context_window.json from BerriAI/litellm's
+     * GitHub main branch and replace the LITELLM tier with it. The bundled asset
+     * is a snapshot taken at app build time; calling this from the Refresh screen
+     * is how a user picks up new model entries between releases.
+     *
+     * Returns the number of priced entries that ended up in the cache, or null
+     * if the network call failed.
+     */
+    suspend fun fetchLiteLLMPricingOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val url = java.net.URL("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+            val json = url.openStream().bufferedReader().use { it.readText() }
+            val data: Map<String, Map<String, Any>> = gson.fromJson(json, mapStringMapType)
+            val parsed = data.mapNotNull { (modelId, info) ->
+                val ic = (info["input_cost_per_token"] as? Number)?.toDouble()
+                val oc = (info["output_cost_per_token"] as? Number)?.toDouble()
+                if (ic != null && oc != null) modelId to ModelPricing(modelId, ic, oc, "LITELLM") else null
+            }.toMap()
+            if (parsed.isEmpty()) return@withContext null
+            synchronized(lock) {
+                litellmPricing = parsed
+                litellmTimestamp = System.currentTimeMillis()
+                getPrefs(context).edit {
+                    putString(KEY_LITELLM_PRICING, gson.toJson(parsed))
+                    putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
+                }
+            }
+            parsed.size
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "Online LITELLM refresh failed: ${e.message}", e)
+            null
         }
     }
 
