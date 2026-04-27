@@ -17,6 +17,7 @@ import com.ai.viewmodel.GeneralSettings
 
 enum class SettingsSubScreen {
     MAIN, AI_PROVIDER_EDIT, AI_PROVIDER_ADD, AI_SETUP, AI_PROVIDERS,
+    AI_MODELS_SETUP,
     AI_MODELS, AI_MODEL_EDIT,
     AI_MODEL_TYPES,
     AI_MANUAL_MODEL_TYPES,
@@ -83,8 +84,9 @@ fun SettingsScreen(
                 modelEditFromProvider = false
                 currentSubScreen = if (from) SettingsSubScreen.AI_PROVIDER_EDIT else SettingsSubScreen.AI_MODELS
             }
-            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_MODEL_TYPES,
-            SettingsSubScreen.AI_MANUAL_MODEL_TYPES,
+            SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_MODEL_TYPES,
+            SettingsSubScreen.AI_MANUAL_MODEL_TYPES -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
+            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PROMPTS, SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
@@ -173,6 +175,14 @@ fun SettingsScreen(
                     onNavigateToTrace = onNavigateToTrace
                 )
             } ?: goBack()
+        }
+        SettingsSubScreen.AI_MODELS_SETUP -> {
+            ModelsSetupScreen(
+                aiSettings = aiSettings,
+                hasActiveProvider = aiSettings.getActiveServices().isNotEmpty(),
+                onBack = goBack, onBackToHome = onNavigateHome,
+                onNavigate = { currentSubScreen = it }
+            )
         }
         SettingsSubScreen.AI_MODEL_TYPES -> {
             ModelTypesScreen(

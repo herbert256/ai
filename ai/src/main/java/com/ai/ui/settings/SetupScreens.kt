@@ -58,12 +58,8 @@ fun SetupScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
-            SetupNavCard("\uD83E\uDDE0", "Models", "Source and model list per active provider", "$modelCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
-            SetupNavCard("\uD83C\uDFF7\uFE0F", "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
-            SetupNavCard("\u270D\uFE0F", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
+            SetupNavCard("\uD83E\uDDE0", "Models", "Models, types, and manual overrides", "$modelCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODELS_SETUP) })
             SetupNavCard("\uD83E\uDD16", "Agents", "Named AI model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
             SetupNavCard("\uD83E\uDD86", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
@@ -90,6 +86,63 @@ fun SetupScreen(
 
 @Composable
 private fun SetupNavCard(icon: String, title: String, description: String, count: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Card(
+        modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) Color.White else AppColors.TextDim)
+                Text(description, fontSize = 12.sp, color = if (enabled) AppColors.TextTertiary else AppColors.TextVeryDim)
+            }
+            if (count.isNotBlank()) {
+                Text(count, fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
+            }
+            if (enabled) Text(">", fontSize = 16.sp, color = AppColors.Blue)
+        }
+    }
+}
+
+// ===== Models Setup hub =====
+
+/** Sub-hub under AI Setup that groups the three model-related screens
+ *  (Models, Model Types, Manual model types overrides). */
+@Composable
+fun ModelsSetupScreen(
+    aiSettings: Settings,
+    hasActiveProvider: Boolean,
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
+    onNavigate: (SettingsSubScreen) -> Unit
+) {
+    BackHandler { onBack() }
+    val modelCount = remember(aiSettings) {
+        aiSettings.getActiveServices().sumOf { aiSettings.getProvider(it).models.size }
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "AI Models setup", onBackClick = onBack, onAiClick = onBackToHome)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("🧠", "Models", "Source and model list per active provider", "$modelCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
+            ModelsSetupNavCard("🏷️", "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
+            ModelsSetupNavCard("✍️", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
+        }
+    }
+}
+
+@Composable
+private fun ModelsSetupNavCard(icon: String, title: String, description: String, count: String, onClick: () -> Unit, enabled: Boolean = true) {
     Card(
         modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
