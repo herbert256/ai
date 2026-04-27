@@ -593,16 +593,14 @@ private fun getAppVersion(context: Context): String = try {
 private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File) {
     val pageWidth = 1240
     val pageHeight = 1754
-    // CompletableDeferred + a local val holds the WebView reference for the
-    // entire suspend window. Earlier we used suspendCancellableCoroutine, but
-    // its lambda returns immediately after kicking off loadDataWithBaseURL —
-    // the local `webView` var falls out of scope and the JVM can GC it before
-    // onPageFinished fires, leaving the coroutine suspended forever.
+    val tag = "PdfExport"
+    android.util.Log.i(tag, "renderHtmlToPdfFile: starting, html=${html.length} chars, out=${output.absolutePath}")
     val done = kotlinx.coroutines.CompletableDeferred<Unit>()
     val webView = WebView(context)
     webView.settings.javaScriptEnabled = false
     webView.webViewClient = object : WebViewClient() {
         override fun onPageFinished(view: WebView, url: String?) {
+            android.util.Log.i(tag, "onPageFinished url=$url")
             view.post {
                 try {
                     view.measure(
@@ -610,6 +608,7 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
                         View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
                     )
                     val totalHeight = view.measuredHeight.coerceAtLeast(pageHeight)
+                    android.util.Log.i(tag, "measured: ${view.measuredWidth}x${view.measuredHeight}, totalHeight=$totalHeight")
                     view.layout(0, 0, pageWidth, totalHeight)
 
                     val pdf = PdfDocument()
@@ -631,20 +630,22 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
                     if (output.exists()) output.delete()
                     FileOutputStream(output).use { pdf.writeTo(it) }
                     pdf.close()
+                    android.util.Log.i(tag, "rendered $pageNum pages to ${output.length()} bytes")
                     done.complete(Unit)
                 } catch (e: Exception) {
+                    android.util.Log.e(tag, "PDF render failed", e)
                     done.completeExceptionally(e)
                 }
             }
         }
     }
+    android.util.Log.i(tag, "loading HTML into WebView…")
     webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
     try {
-        done.await()
+        // Safety timeout — if onPageFinished never fires (rare, but better to
+        // surface an error than stick the dialog forever) we cap at 30s.
+        kotlinx.coroutines.withTimeout(30_000) { done.await() }
     } finally {
-        // Keep the reference alive until the deferred resolves (success, error,
-        // or cancellation), then explicitly tear the WebView down on the main
-        // thread to release the chromium-side resources promptly.
         webView.stopLoading()
         webView.destroy()
     }
