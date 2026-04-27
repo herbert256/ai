@@ -92,6 +92,7 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
             modelListUrl = config.modelListUrl, parametersIds = config.parametersIds.ifEmpty { null },
             modelTypes = config.modelTypes.takeIf { it.isNotEmpty() },
             visionModels = config.visionModels.toList().ifEmpty { null },
+            webSearchModels = config.webSearchModels.toList().ifEmpty { null },
             displayName = service.displayName, baseUrl = service.baseUrl,
             apiFormat = service.apiFormat.name,
             typePaths = service.typePaths.takeIf { it.isNotEmpty() },
@@ -169,6 +170,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
             models = p.models, apiKey = p.apiKey, model = p.defaultModel ?: cur.model,
             modelTypes = p.modelTypes ?: cur.modelTypes,
             visionModels = p.visionModels?.toSet() ?: cur.visionModels,
+            webSearchModels = p.webSearchModels?.toSet() ?: cur.webSearchModels,
             adminUrl = p.adminUrl ?: cur.adminUrl, modelListUrl = p.modelListUrl ?: "",
             parametersIds = p.parametersIds ?: cur.parametersIds
         )

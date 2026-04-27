@@ -28,6 +28,20 @@ fun VisionBadge(isVisionCapable: Boolean) {
 }
 
 /**
+ * Tiny "web-search-tool-capable" badge for model lists — same shape as
+ * VisionBadge, parallel data source (Settings.isWebSearchCapable).
+ */
+@Composable
+fun WebSearchBadge(isWebSearchCapable: Boolean) {
+    if (!isWebSearchCapable) return
+    Text(
+        text = "🌐",
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+/**
  * Generic title bar used across all screens.
  * Shows a back button on the left, optional title in the middle, and "AI" on the right.
  */

@@ -160,6 +160,7 @@ fun SwarmEditScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(member.model, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(member.provider, member.model))
+                            com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(member.provider, member.model))
                         }
                     }
                 }

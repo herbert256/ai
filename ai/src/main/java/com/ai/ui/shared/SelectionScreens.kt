@@ -179,6 +179,7 @@ fun SelectModelScreen(
                 ) {
                     Text(modelName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     VisionBadge(aiSettings.isVisionCapable(provider, modelName))
+                    WebSearchBadge(aiSettings.isWebSearchCapable(provider, modelName))
                     Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
                     Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
                 }
@@ -336,6 +337,7 @@ fun SelectAgentScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             VisionBadge(aiSettings.isVisionCapable(agent.provider, effectiveModel))
+                            WebSearchBadge(aiSettings.isWebSearchCapable(agent.provider, effectiveModel))
                         }
                         Text("${agent.provider.displayName} \u00B7 $effectiveModel", style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }

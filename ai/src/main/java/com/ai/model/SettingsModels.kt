@@ -20,6 +20,11 @@ data class ProviderConfig(
      *  user-curated rather than heuristic so we don't surprise the user
      *  with a hidden filter. Toggled per-model on the Model Info screen. */
     val visionModels: Set<String> = emptySet(),
+    /** Set of model ids the user has explicitly flagged as supporting the
+     *  web-search tool descriptor (Anthropic web_search_20250305 / Gemini
+     *  google_search / OpenAI Responses web_search_preview). Same pattern
+     *  as visionModels — user override layered on top of a name heuristic. */
+    val webSearchModels: Set<String> = emptySet(),
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -194,6 +199,20 @@ data class Settings(
         val cfg = getProvider(service)
         val newSet = if (enabled) cfg.visionModels + modelId else cfg.visionModels - modelId
         return withProvider(service, cfg.copy(visionModels = newSet))
+    }
+
+    /** Returns true when (provider, modelId) supports the web-search tool
+     *  descriptor injected by the dispatch layer when the 🌐 toggle is on.
+     *  Same three-layer logic as isVisionCapable: explicit user override,
+     *  then ModelType.inferWebSearch on the model id + apiFormat. */
+    fun isWebSearchCapable(service: AppService, modelId: String): Boolean =
+        modelId in getProvider(service).webSearchModels ||
+            com.ai.data.ModelType.inferWebSearch(service, modelId)
+
+    fun withWebSearchCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
+        val cfg = getProvider(service)
+        val newSet = if (enabled) cfg.webSearchModels + modelId else cfg.webSearchModels - modelId
+        return withProvider(service, cfg.copy(webSearchModels = newSet))
     }
 
     /**

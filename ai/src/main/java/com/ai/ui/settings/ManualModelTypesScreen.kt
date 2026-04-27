@@ -155,14 +155,14 @@ private fun ManualModelTypeEditScreen(
                     knownModels.take(20).forEach { m ->
                         val provider = AppService.findById(providerId)
                         val vision = provider != null && aiSettings.isVisionCapable(provider, m)
+                        val websearch = provider != null && aiSettings.isWebSearchCapable(provider, m)
+                        val suffix = buildString {
+                            if (vision) append(" 👁")
+                            if (websearch) append(" 🌐")
+                        }
                         AssistChip(
                             onClick = { modelId = m },
-                            label = {
-                                Text(
-                                    if (vision) "$m 👁" else m,
-                                    fontSize = 12.sp
-                                )
-                            }
+                            label = { Text("$m$suffix", fontSize = 12.sp) }
                         )
                     }
                     if (knownModels.size > 20) {

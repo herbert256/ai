@@ -140,6 +140,38 @@ object ModelType {
      *  model accepts image input. The detailed model list populates this. */
     fun fromOpenRouterInputModalities(modalities: List<String>?): Boolean =
         modalities?.any { it.equals("image", ignoreCase = true) } == true
+
+    /** Heuristic for "does this (provider, model) support the web-search
+     *  tool descriptor?". Mirrors what the dispatch layer actually injects
+     *  per ApiFormat in ApiDispatch.kt:
+     *
+     *   - ANTHROPIC: web_search_20250305 was introduced for Claude 3.5/3.7
+     *     and the 4.x family.
+     *   - GOOGLE: google_search tool works on Gemini 1.5+ and 2.x.
+     *   - OPENAI_COMPATIBLE: only the Responses-API models (gpt-5, o-series,
+     *     gpt-4.1) get a web_search_preview tool — Chat Completions skips.
+     *
+     *  Conservative — false on miss; the user can pin via Model Info. */
+    fun inferWebSearch(provider: AppService, modelId: String): Boolean {
+        val id = modelId.lowercase()
+        return when (provider.apiFormat) {
+            ApiFormat.ANTHROPIC -> {
+                "claude-3-5" in id || "claude-3.5" in id ||
+                    "claude-3-7" in id || "claude-3.7" in id ||
+                    "sonnet-4" in id || "opus-4" in id || "haiku-4" in id ||
+                    Regex("""claude-(opus|sonnet|haiku)-4""").containsMatchIn(id)
+            }
+            ApiFormat.GOOGLE -> {
+                "gemini-1.5" in id || "gemini-2" in id || "gemini-pro" in id
+            }
+            ApiFormat.OPENAI_COMPATIBLE -> {
+                // Responses API path (matches infer() above).
+                id.startsWith("gpt-5") || id.startsWith("o1") ||
+                    id.startsWith("o3") || id.startsWith("o4") ||
+                    id.startsWith("gpt-4.1")
+            }
+        }
+    }
 }
 
 /** Result type for model-list fetches: ids in their native order, a type

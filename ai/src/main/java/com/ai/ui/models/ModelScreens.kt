@@ -109,6 +109,7 @@ fun ModelSearchScreen(
                 ModelSearchResultCard(
                     item = item,
                     isVisionCapable = aiSettings.isVisionCapable(item.provider, item.modelName),
+                    isWebSearchCapable = aiSettings.isWebSearchCapable(item.provider, item.modelName),
                     onClick = { onNavigateToModelInfo(item.provider, item.modelName) }
                 )
             }
@@ -117,7 +118,7 @@ fun ModelSearchScreen(
 }
 
 @Composable
-private fun ModelSearchResultCard(item: ModelSearchItem, isVisionCapable: Boolean, onClick: () -> Unit) {
+private fun ModelSearchResultCard(item: ModelSearchItem, isVisionCapable: Boolean, isWebSearchCapable: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
     val pricing = remember(item.provider, item.modelName) { formatPricingPerMillion(context, item.provider, item.modelName) }
 
@@ -128,6 +129,7 @@ private fun ModelSearchResultCard(item: ModelSearchItem, isVisionCapable: Boolea
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(item.modelName, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     com.ai.ui.shared.VisionBadge(isVisionCapable)
+                    com.ai.ui.shared.WebSearchBadge(isWebSearchCapable)
                 }
                 Text(item.providerName, fontSize = 12.sp, color = AppColors.Blue)
             }
@@ -338,7 +340,37 @@ fun ModelInfoScreen(
                                 Checkbox(checked = effective, onCheckedChange = { onSaveSettings(aiSettings.withVisionCapable(provider, modelName, it)) })
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Vision-capable", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    Text("Vision-capable 👁", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    Text(source, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                }
+                            }
+                        }
+                    }
+
+                    // Web-search-tool capability — same UX as Vision. The
+                    // heuristic checks ApiFormat + model id (Claude 3.5+/4.x,
+                    // Gemini 1.5+/2.x, OpenAI Responses-API models).
+                    item {
+                        val cfgWeb = aiSettings.getProvider(provider).webSearchModels
+                        val explicit = modelName in cfgWeb
+                        val heuristic = !explicit && com.ai.data.ModelType.inferWebSearch(provider, modelName)
+                        val effective = explicit || heuristic
+                        val source = when {
+                            explicit -> "Manually flagged."
+                            heuristic -> "Auto-detected from API format + model name. Tick to pin the override."
+                            else -> "Tick if this model supports the web-search tool. Affects the 🌐 toggle behavior."
+                        }
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                onSaveSettings(aiSettings.withWebSearchCapable(provider, modelName, !explicit))
+                            },
+                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
+                        ) {
+                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = effective, onCheckedChange = { onSaveSettings(aiSettings.withWebSearchCapable(provider, modelName, it)) })
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Web-search-capable 🌐", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
                                     Text(source, fontSize = 12.sp, color = AppColors.TextTertiary)
                                 }
                             }
