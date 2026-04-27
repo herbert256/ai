@@ -391,7 +391,11 @@ fun ModelInfoScreen(
                             PricingCache.getLiteLLMRawEntry(context, provider, modelName)
                         }
                         val hasLiteLLM = liteLLMRaw != null
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val modelsDevRaw = remember(provider, modelName) {
+                            PricingCache.getModelsDevRawEntry(context, provider, modelName)
+                        }
+                        val hasModelsDev = modelsDevRaw != null
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Button(
                                 onClick = {
                                     val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
@@ -399,8 +403,8 @@ fun ModelInfoScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.Green else AppColors.Red),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) { Text("HuggingFace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                            ) { Text("HuggingFace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                             Button(
                                 onClick = {
                                     val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
@@ -408,16 +412,24 @@ fun ModelInfoScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.Green else AppColors.Red),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                            ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                             Button(
                                 onClick = {
                                     rawView = "LiteLLM · $modelName" to (liteLLMRaw ?: "(no LiteLLM data)")
                                 },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.Green else AppColors.Red),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) { Text("LiteLLM", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                            ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                            Button(
+                                onClick = {
+                                    rawView = "models.dev · $modelName" to (modelsDevRaw ?: "(no models.dev data)")
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.Green else AppColors.Red),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                            ) { Text("models.dev", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                         }
                     }
 
@@ -511,6 +523,7 @@ fun ModelInfoScreen(
                         }
                         val rows = listOfNotNull(
                             breakdown.litellm?.let { "LiteLLM" to it },
+                            breakdown.modelsDev?.let { "models.dev" to it },
                             breakdown.openrouter?.let { "OpenRouter" to it },
                             breakdown.override?.let { "Override" to it }
                         )
@@ -518,7 +531,7 @@ fun ModelInfoScreen(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Costs (per million tokens)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
                                 if (rows.isEmpty()) {
-                                    Text("No LiteLLM / OpenRouter / Override entry — lookup falls back to the built-in default.",
+                                    Text("No LiteLLM / models.dev / OpenRouter / Override entry — lookup falls back to the built-in default.",
                                         fontSize = 12.sp, color = AppColors.TextTertiary)
                                 } else {
                                     rows.forEach { (label, p) ->

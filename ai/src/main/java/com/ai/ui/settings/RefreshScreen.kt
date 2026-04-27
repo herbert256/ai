@@ -47,10 +47,12 @@ fun RefreshScreen(
     var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
     var litellmResult by remember { mutableStateOf<Int?>(null) }
+    var modelsDevResult by remember { mutableStateOf<Int?>(null) }
     var showResultsDialog by remember { mutableStateOf(false) }
     var showProviderStateDialog by remember { mutableStateOf(false) }
     var showOpenRouterDialog by remember { mutableStateOf(false) }
     var showLiteLLMDialog by remember { mutableStateOf(false) }
+    var showModelsDevDialog by remember { mutableStateOf(false) }
     // (providerName, state) where state == null means "pending" (still being tested);
     // any other string is the final state ("ok"/"error"/"inactive"/"not-used").
     val providerStateRows = remember { mutableStateListOf<Pair<String, String?>>() }
@@ -129,6 +131,18 @@ fun RefreshScreen(
                 )
             },
             confirmButton = { TextButton(onClick = { showLiteLLMDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+    }
+
+    if (showModelsDevDialog) {
+        val n = modelsDevResult
+        AlertDialog(onDismissRequest = { showModelsDevDialog = false }, title = { Text("models.dev") },
+            text = {
+                Text(
+                    if (n == null) "Failed to fetch from models.dev. Check connectivity and try again."
+                    else "Refreshed $n priced models from the models.dev catalog. Used as a LiteLLM fallback."
+                )
+            },
+            confirmButton = { TextButton(onClick = { showModelsDevDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
     if (showGenerationDialog) {
@@ -239,6 +253,15 @@ fun RefreshScreen(
                                 showLiteLLMDialog = true
                             }
                         }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("LiteLLM", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+
+                        OutlinedButton(onClick = {
+                            launchTask("Refreshing models.dev") {
+                                progressText = "Downloading models.dev/api.json…"
+                                val n = PricingCache.fetchModelsDevOnline(context)
+                                modelsDevResult = n
+                                showModelsDevDialog = true
+                            }
+                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("models.dev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
 
                         OutlinedButton(onClick = {
                             // Only seed agents for providers that are actually active (state == "ok").

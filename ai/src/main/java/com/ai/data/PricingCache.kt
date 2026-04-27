@@ -25,6 +25,9 @@ object PricingCache {
     private const val KEY_OPENROUTER_TIMESTAMP = "openrouter_timestamp"
     private const val KEY_LITELLM_PRICING = "litellm_pricing"
     private const val KEY_LITELLM_TIMESTAMP = "litellm_timestamp"
+    private const val KEY_MODELS_DEV_PRICING = "models_dev_pricing"
+    private const val KEY_MODELS_DEV_META = "models_dev_meta"
+    private const val KEY_MODELS_DEV_TIMESTAMP = "models_dev_timestamp"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000
 
@@ -42,8 +45,13 @@ object PricingCache {
      *  same parse pass. Lets vision/web-search/mode lookups consult LiteLLM
      *  without re-loading the 1.2 MB raw JSON. */
     @Volatile private var litellmMeta: Map<String, LiteLLMMeta>? = null
+    /** models.dev pricing — fallback tier consulted when LiteLLM has no
+     *  matching entry. Keyed `<provider>/<modelId>` to mirror LiteLLM. */
+    @Volatile private var modelsDevPricing: Map<String, ModelPricing>? = null
+    @Volatile private var modelsDevMeta: Map<String, ModelsDevMeta>? = null
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
+    @Volatile private var modelsDevTimestamp: Long = 0
     @Volatile private var preloadCompleted = false
 
     data class ModelPricing(
@@ -213,9 +221,12 @@ object PricingCache {
         ensureLoaded(context)
         val isOpenRouter = provider.id == "OPENROUTER"
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        // LITELLM ahead of OVERRIDE so refreshed bulk pricing wins over stale
-        // manual entries; users only need overrides for models LiteLLM lacks.
+        // LITELLM → MODELSDEV (LiteLLM fallback) → OVERRIDE → OPENROUTER → DEFAULT.
+        // models.dev sits next to LiteLLM as a second curated bulk source so
+        // newer models / -latest aliases that haven't reached litellm yet
+        // still bypass user-managed overrides.
         findLiteLLMPricing(provider, model)?.let { return it }
+        findModelsDevPricing(provider, model)?.let { return it }
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
@@ -228,6 +239,7 @@ object PricingCache {
         ensureLoaded(context)
         findOpenRouterPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
+        findModelsDevPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
     }
 
@@ -425,6 +437,7 @@ object PricingCache {
      *  [default] is always populated; the others may be null. */
     data class TierBreakdown(
         val litellm: ModelPricing?,
+        val modelsDev: ModelPricing?,
         val override: ModelPricing?,
         val openrouter: ModelPricing?,
         val default: ModelPricing
@@ -433,9 +446,10 @@ object PricingCache {
     fun getTierBreakdown(context: Context, provider: AppService, model: String): TierBreakdown {
         ensureLoaded(context)
         val litellm = findLiteLLMPricing(provider, model)
+        val modelsDev = findModelsDevPricing(provider, model)
         val override = manualPricing?.get("${provider.id}:$model")
         val openrouter = findOpenRouterPricing(provider, model)
-        return TierBreakdown(litellm, override, openrouter, DEFAULT_PRICING)
+        return TierBreakdown(litellm, modelsDev, override, openrouter, DEFAULT_PRICING)
     }
 
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
@@ -521,6 +535,182 @@ object PricingCache {
         }
     }
 
+    /**
+     * Pull https://models.dev/api.json — a community-curated catalog with
+     * per-model pricing, capability flags, and context-window limits.
+     * Returns the number of priced entries, or null on network/parse
+     * failure. Values are cached in pricing_cache prefs (round-trips
+     * through BackupManager via the existing PREFS_TO_BACKUP entry).
+     */
+    suspend fun fetchModelsDevOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val url = java.net.URL("https://models.dev/api.json")
+            val json = url.openStream().bufferedReader().use { it.readText() }
+            val (pricing, meta) = parseModelsDevJson(json)
+            if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
+            synchronized(lock) {
+                modelsDevPricing = pricing
+                modelsDevMeta = meta
+                modelsDevTimestamp = System.currentTimeMillis()
+                getPrefs(context).edit {
+                    putString(KEY_MODELS_DEV_PRICING, gson.toJson(pricing))
+                    putString(KEY_MODELS_DEV_META, gson.toJson(meta))
+                    putLong(KEY_MODELS_DEV_TIMESTAMP, modelsDevTimestamp)
+                }
+            }
+            pricing.size
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "models.dev refresh failed: ${e.message}", e)
+            null
+        }
+    }
+
+    /** Walk models.dev's two-level shape (provider → models → model entry)
+     *  and produce two maps keyed `<provider>/<modelId>` (mirrors LiteLLM
+     *  so `endsWith("/$target")` lookups still work). Cost numbers in
+     *  models.dev are already \$/M-token — we divide by 1M to land in our
+     *  per-token unit. */
+    private fun parseModelsDevJson(json: String): Pair<Map<String, ModelPricing>, Map<String, ModelsDevMeta>> {
+        @Suppress("DEPRECATION")
+        val root: JsonObject = JsonParser().parse(json).asJsonObject
+        val pricing = mutableMapOf<String, ModelPricing>()
+        val meta = mutableMapOf<String, ModelsDevMeta>()
+        for (provKey in root.keySet()) {
+            val provEl = root.get(provKey) ?: continue
+            if (!provEl.isJsonObject) continue
+            val provObj = provEl.asJsonObject
+            val modelsEl = provObj.get("models") ?: continue
+            if (!modelsEl.isJsonObject) continue
+            val modelsObj = modelsEl.asJsonObject
+            for (modelKey in modelsObj.keySet()) {
+                val modelEl = modelsObj.get(modelKey) ?: continue
+                if (!modelEl.isJsonObject) continue
+                val m = modelEl.asJsonObject
+                val composite = "$provKey/$modelKey"
+                // Pricing — cost.input / cost.output in $/M tokens, divide
+                // to get per-token. Skip when both are missing (some
+                // entries are open-weights or free-tier metadata only).
+                val costEl = m.get("cost")
+                if (costEl != null && costEl.isJsonObject) {
+                    val cost = costEl.asJsonObject
+                    val ic = cost.get("input")?.takeIf { it.isJsonPrimitive }?.asDouble
+                    val oc = cost.get("output")?.takeIf { it.isJsonPrimitive }?.asDouble
+                    if (ic != null && oc != null) {
+                        val cr = cost.get("cache_read")?.takeIf { it.isJsonPrimitive }?.asDouble
+                        val cw = cost.get("cache_write")?.takeIf { it.isJsonPrimitive }?.asDouble
+                        pricing[composite] = ModelPricing(
+                            modelId = modelKey,
+                            promptPrice = ic / 1_000_000.0,
+                            completionPrice = oc / 1_000_000.0,
+                            source = "MODELSDEV",
+                            cachedReadPrice = cr?.div(1_000_000.0),
+                            cachedWritePrice = cw?.div(1_000_000.0)
+                        )
+                    }
+                }
+                // Capability sidecar.
+                val attachment = m.get("attachment")?.takeIf { it.isJsonPrimitive }?.asBoolean
+                val toolCall = m.get("tool_call")?.takeIf { it.isJsonPrimitive }?.asBoolean
+                val reasoning = m.get("reasoning")?.takeIf { it.isJsonPrimitive }?.asBoolean
+                val modalitiesIn = m.get("modalities")?.takeIf { it.isJsonObject }
+                    ?.asJsonObject?.get("input")?.takeIf { it.isJsonArray }?.asJsonArray
+                    ?.mapNotNull { if (it.isJsonPrimitive) it.asString else null }
+                val visionFromModalities = modalitiesIn?.any { it.equals("image", ignoreCase = true) }
+                val supportsVision = attachment ?: visionFromModalities
+                val limit = m.get("limit")?.takeIf { it.isJsonObject }?.asJsonObject
+                val ctx = limit?.get("context")?.takeIf { it.isJsonPrimitive }?.asInt
+                val out = limit?.get("output")?.takeIf { it.isJsonPrimitive }?.asInt
+                if (supportsVision != null || toolCall != null || reasoning != null || ctx != null || out != null) {
+                    meta[composite] = ModelsDevMeta(supportsVision, toolCall, reasoning, ctx, out)
+                }
+            }
+        }
+        return pricing to meta
+    }
+
+    private fun findModelsDevPricing(provider: AppService, model: String): ModelPricing? {
+        val pricing = modelsDevPricing ?: return null
+        pricing[model]?.let { return it }
+        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    private fun findModelsDevMeta(provider: AppService, model: String): ModelsDevMeta? {
+        val meta = modelsDevMeta ?: return null
+        meta[model]?.let { return it }
+        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+    }
+
+    fun modelsDevSupportsVision(provider: AppService, model: String): Boolean? =
+        findModelsDevMeta(provider, model)?.supportsVision
+
+    fun modelsDevSupportsToolCall(provider: AppService, model: String): Boolean? =
+        findModelsDevMeta(provider, model)?.supportsToolCall
+
+    fun modelsDevSupportsReasoning(provider: AppService, model: String): Boolean? =
+        findModelsDevMeta(provider, model)?.supportsReasoning
+
+    /** Pretty-printed models.dev JSON entry for the (provider, model)
+     *  pair, or null when unknown — drives the Models.dev raw-data
+     *  button on Model Info, mirroring [getLiteLLMRawEntry]. */
+    fun getModelsDevRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val composite = findModelsDevPricingKey(provider, model)
+            ?: findModelsDevMetaKey(provider, model)
+            ?: return null
+        val pricing = modelsDevPricing?.get(composite)
+        val meta = modelsDevMeta?.get(composite)
+        if (pricing == null && meta == null) return null
+        val pretty = createAppGson(prettyPrint = true)
+        val combined = mapOf(
+            "key" to composite,
+            "pricing" to pricing,
+            "meta" to meta
+        )
+        return pretty.toJson(combined)
+    }
+
+    private fun findModelsDevPricingKey(provider: AppService, model: String): String? {
+        val pricing = modelsDevPricing ?: return null
+        if (pricing.containsKey(model)) return model
+        val target = normalizeModelId(model)
+        val targetDeclared = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
+        val targetId = "${provider.id.lowercase()}/$target"
+        val buckets = arrayOfNulls<String>(4)
+        for (key in pricing.keys) {
+            val k = normalizeModelId(key)
+            when {
+                k == target -> return key
+                targetDeclared != null && k == targetDeclared -> if (buckets[1] == null) buckets[1] = key
+                k == targetId -> if (buckets[2] == null) buckets[2] = key
+                k.endsWith("/$target") -> if (buckets[3] == null) buckets[3] = key
+            }
+        }
+        return buckets[1] ?: buckets[2] ?: buckets[3]
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())
+    }
+
+    private fun findModelsDevMetaKey(provider: AppService, model: String): String? {
+        val meta = modelsDevMeta ?: return null
+        if (meta.containsKey(model)) return model
+        val target = normalizeModelId(model)
+        val targetDeclared = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
+        val targetId = "${provider.id.lowercase()}/$target"
+        val buckets = arrayOfNulls<String>(4)
+        for (key in meta.keys) {
+            val k = normalizeModelId(key)
+            when {
+                k == target -> return key
+                targetDeclared != null && k == targetDeclared -> if (buckets[1] == null) buckets[1] = key
+                k == targetId -> if (buckets[2] == null) buckets[2] = key
+                k.endsWith("/$target") -> if (buckets[3] == null) buckets[3] = key
+            }
+        }
+        return buckets[1] ?: buckets[2] ?: buckets[3]
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())
+    }
+
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
         return try {
@@ -558,6 +748,22 @@ object PricingCache {
         if (litellmMeta == null) {
             litellmMeta = parseLiteLLMPricing(context).second
         }
+        // models.dev: no bundled asset (network only). Both maps live in
+        // prefs, repopulate from there if present. The user's first
+        // refresh populates them; subsequent app restarts read from prefs.
+        if (modelsDevPricing == null || modelsDevMeta == null) {
+            val prefs = getPrefs(context)
+            modelsDevTimestamp = prefs.getLong(KEY_MODELS_DEV_TIMESTAMP, 0)
+            prefs.getString(KEY_MODELS_DEV_PRICING, null)?.let { json ->
+                try { modelsDevPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+            prefs.getString(KEY_MODELS_DEV_META, null)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, ModelsDevMeta>>() {}.type
+                    modelsDevMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     private fun loadFromPrefs(context: Context) {
@@ -582,6 +788,17 @@ object PricingCache {
             parseLiteLLMJson(json)
         } catch (_: Exception) { emptyMap<String, ModelPricing>() to emptyMap() }
     }
+
+    /** Capability sidecar derived from models.dev's per-model JSON. The
+     *  fields we lift mirror what LiteLLMMeta carries so capability
+     *  fallbacks chain cleanly when LiteLLM has no entry. */
+    data class ModelsDevMeta(
+        val supportsVision: Boolean? = null,
+        val supportsToolCall: Boolean? = null,
+        val supportsReasoning: Boolean? = null,
+        val maxInputTokens: Int? = null,
+        val maxOutputTokens: Int? = null
+    )
 
     data class LiteLLMMeta(
         val mode: String? = null,

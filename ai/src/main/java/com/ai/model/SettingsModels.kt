@@ -213,6 +213,7 @@ data class Settings(
         if (modelId in getProvider(service).visionModels) return true
         if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsVision }) return true
         com.ai.data.PricingCache.liteLLMSupportsVision(service, modelId)?.let { return it }
+        com.ai.data.PricingCache.modelsDevSupportsVision(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferVision(modelId)
     }
 
@@ -232,6 +233,11 @@ data class Settings(
         if (modelId in getProvider(service).webSearchModels) return true
         if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsWebSearch }) return true
         com.ai.data.PricingCache.liteLLMSupportsWebSearch(service, modelId)?.let { return it }
+        // models.dev exposes tool_call (function-calling) which is a strong
+        // proxy for "tool descriptors are supported on this model" — we
+        // only fall through to it when LiteLLM has no opinion. The naming
+        // heuristic still wins on a true LiteLLM negative.
+        com.ai.data.PricingCache.modelsDevSupportsToolCall(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferWebSearch(service, modelId)
     }
 
