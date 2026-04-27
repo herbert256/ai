@@ -172,163 +172,197 @@ fun RefreshScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Refresh", fontWeight = FontWeight.Bold, color = Color.White)
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            // Build a single ordered list of every provider, with already-known
-                            // outcomes ("inactive", "not-used") seeded as their final state and the
-                            // rest seeded as pending. Show the dialog right away so the user can
-                            // watch results land as each test finishes.
-                            data class Seed(val service: AppService, val final: String?, val testModel: String?)
-                            val seeds = AppService.entries.sortedBy { it.displayName }.map { service ->
-                                val state = aiSettings.getProviderState(service)
-                                val apiKey = aiSettings.getApiKey(service)
-                                when {
-                                    state == "inactive" -> Seed(service, "inactive", null)
-                                    apiKey.isBlank() -> Seed(service, "not-used", null)
-                                    else -> Seed(service, null, aiSettings.getModel(service))
-                                }
-                            }
-                            providerStateRows.clear()
-                            providerStateRows.addAll(seeds.map { it.service.displayName to it.final })
-                            showProviderStateDialog = true
-
-                            val testable = seeds.withIndex().filter { it.value.final == null }
-                            launchTask("Testing Providers") {
-                                val total = testable.size
-                                val completed = java.util.concurrent.atomic.AtomicInteger(0)
-                                progressText = "0 / $total"
-
-                                supervisorScope {
-                                    testable.map { (idx, seed) ->
-                                        val service = seed.service
-                                        val apiKey = aiSettings.getApiKey(service)
-                                        val model = seed.testModel ?: ""
-                                        async(Dispatchers.IO) {
-                                            val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
-                                            val newState = if (error == null) "ok" else "error"
-                                            withContext(Dispatchers.Main) {
-                                                if (idx < providerStateRows.size) {
-                                                    providerStateRows[idx] = service.displayName to newState
-                                                }
-                                            }
-                                            onProviderStateChange(service, newState)
-                                            val done = completed.incrementAndGet()
-                                            progressText = "$done / $total — ${service.displayName}"
-                                        }
-                                    }.awaitAll()
-                                }
-                            }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Providers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-
-                        OutlinedButton(onClick = {
-                            launchTask("Refreshing Models") {
-                                refreshResults = onRefreshAllModels(aiSettings, true) { msg: String -> progressText = msg }
-                                showResultsDialog = true
-                            }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Models", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            // Each refresh action gets its own row with the action button on the
+            // left (fixed width so they line up) and a one-line description on
+            // the right. Vertical layout keeps every button label fully readable
+            // and gives room for an explanation right next to it.
+            RefreshAction(
+                label = "Providers",
+                description = "Test the saved API key for every provider against a small live model call. Marks each as ok / error / inactive / not-used.",
+                enabled = !isAnyRunning,
+                onClick = {
+                    data class Seed(val service: AppService, val final: String?, val testModel: String?)
+                    val seeds = AppService.entries.sortedBy { it.displayName }.map { service ->
+                        val state = aiSettings.getProviderState(service)
+                        val apiKey = aiSettings.getApiKey(service)
+                        when {
+                            state == "inactive" -> Seed(service, "inactive", null)
+                            apiKey.isBlank() -> Seed(service, "not-used", null)
+                            else -> Seed(service, null, aiSettings.getModel(service))
+                        }
                     }
+                    providerStateRows.clear()
+                    providerStateRows.addAll(seeds.map { it.service.displayName to it.final })
+                    showProviderStateDialog = true
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            launchTask("Refreshing OpenRouter") {
-                                withContext(Dispatchers.IO) {
-                                    val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                                    if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
-                                    val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
-                                    openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
-                                }
-                                showOpenRouterDialog = true
-                            }
-                        }, enabled = !isAnyRunning && openRouterApiKey.isNotBlank(), modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-
-                        OutlinedButton(onClick = {
-                            launchTask("Refreshing LiteLLM") {
-                                progressText = "Downloading model_prices_and_context_window.json…"
-                                val n = PricingCache.fetchLiteLLMPricingOnline(context)
-                                litellmResult = n
-                                showLiteLLMDialog = true
-                            }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("LiteLLM", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-
-                        OutlinedButton(onClick = {
-                            launchTask("Refreshing models.dev") {
-                                progressText = "Downloading models.dev/api.json…"
-                                val n = PricingCache.fetchModelsDevOnline(context)
-                                modelsDevResult = n
-                                showModelsDevDialog = true
-                            }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("models.dev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-
-                        OutlinedButton(onClick = {
-                            // Only seed agents for providers that are actually active (state == "ok").
-                            // Inactive, errored, and never-tested providers are all skipped.
-                            val candidates = aiSettings.getActiveServices().map { s ->
-                                Triple(s, aiSettings.getApiKey(s), aiSettings.getModel(s))
-                            }
-                            // Seed the dialog with every candidate in "pending" state and open it right away
-                            // so the user can see the work as it happens.
-                            generationRows.clear()
-                            generationRows.addAll(candidates.map { it.first.displayName to null })
-                            showGenerationDialog = true
-
-                            launchTask("Generating Agents") {
-                                val total = candidates.size
-                                val completed = java.util.concurrent.atomic.AtomicInteger(0)
-                                progressText = "0 / $total"
-
-                                // Fan out all tests in parallel; supervisorScope keeps one failure from
-                                // cancelling the other in-flight checks.
-                                val results: List<Pair<String, Boolean>> = supervisorScope {
-                                    candidates.mapIndexed { idx, (service, key, model) ->
-                                        async(Dispatchers.IO) {
-                                            val error = try { onTestApiKey(service, key, model) } catch (e: Exception) { e.message ?: "error" }
-                                            val success = error == null
-                                            // Update the row for THIS service so the dialog recomposes immediately.
-                                            withContext(Dispatchers.Main) {
-                                                if (idx < generationRows.size) {
-                                                    generationRows[idx] = service.displayName to success
-                                                }
-                                            }
-                                            val done = completed.incrementAndGet()
-                                            progressText = "$done / $total — ${service.displayName}"
-                                            service.displayName to success
-                                        }
-                                    }.awaitAll()
-                                }
-
-                                withContext(Dispatchers.IO) {
-                                    // Build the updated Settings sequentially (cheap, no network).
-                                    var updatedSettings = aiSettings
-                                    for ((service, _, model) in candidates) {
-                                        val success = results.find { it.first == service.displayName }?.second == true
-                                        if (success) {
-                                            val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
-                                            if (existing == null) {
-                                                val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
-                                                updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
-                                            }
+                    val testable = seeds.withIndex().filter { it.value.final == null }
+                    launchTask("Testing Providers") {
+                        val total = testable.size
+                        val completed = java.util.concurrent.atomic.AtomicInteger(0)
+                        progressText = "0 / $total"
+                        supervisorScope {
+                            testable.map { (idx, seed) ->
+                                val service = seed.service
+                                val apiKey = aiSettings.getApiKey(service)
+                                val model = seed.testModel ?: ""
+                                async(Dispatchers.IO) {
+                                    val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
+                                    val newState = if (error == null) "ok" else "error"
+                                    withContext(Dispatchers.Main) {
+                                        if (idx < providerStateRows.size) {
+                                            providerStateRows[idx] = service.displayName to newState
                                         }
                                     }
-                                    // Create "default agents" flock
-                                    val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.displayName && it.second } }.map { it.id }
-                                    val existingFlock = updatedSettings.flocks.find { it.name == "default agents" }
-                                    updatedSettings = if (existingFlock != null) {
-                                        updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
-                                    } else {
-                                        val flock = Flock(java.util.UUID.randomUUID().toString(), "default agents", defaultAgentIds)
-                                        updatedSettings.copy(flocks = updatedSettings.flocks + flock)
-                                    }
-                                    onSave(updatedSettings)
+                                    onProviderStateChange(service, newState)
+                                    val done = completed.incrementAndGet()
+                                    progressText = "$done / $total — ${service.displayName}"
                                 }
-                            }
-                        }, enabled = !isAnyRunning, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Default agents", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            }.awaitAll()
+                        }
                     }
                 }
-            }
+            )
+
+            RefreshAction(
+                label = "Models",
+                description = "Fetch the latest model list from every active provider's /models endpoint. Replaces the cached lists used by the model pickers.",
+                enabled = !isAnyRunning,
+                onClick = {
+                    launchTask("Refreshing Models") {
+                        refreshResults = onRefreshAllModels(aiSettings, true) { msg: String -> progressText = msg }
+                        showResultsDialog = true
+                    }
+                }
+            )
+
+            RefreshAction(
+                label = "OpenRouter",
+                description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
+                enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
+                onClick = {
+                    launchTask("Refreshing OpenRouter") {
+                        withContext(Dispatchers.IO) {
+                            val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                            if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
+                            val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+                            openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
+                        }
+                        showOpenRouterDialog = true
+                    }
+                }
+            )
+
+            RefreshAction(
+                label = "LiteLLM",
+                description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
+                enabled = !isAnyRunning,
+                onClick = {
+                    launchTask("Refreshing LiteLLM") {
+                        progressText = "Downloading model_prices_and_context_window.json…"
+                        val n = PricingCache.fetchLiteLLMPricingOnline(context)
+                        litellmResult = n
+                        showLiteLLMDialog = true
+                    }
+                }
+            )
+
+            RefreshAction(
+                label = "models.dev",
+                description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
+                enabled = !isAnyRunning,
+                onClick = {
+                    launchTask("Refreshing models.dev") {
+                        progressText = "Downloading models.dev/api.json…"
+                        val n = PricingCache.fetchModelsDevOnline(context)
+                        modelsDevResult = n
+                        showModelsDevDialog = true
+                    }
+                }
+            )
+
+            RefreshAction(
+                label = "Default agents",
+                description = "Create a default agent per active provider (using its current default model) and a \"default agents\" flock that includes them.",
+                enabled = !isAnyRunning,
+                onClick = {
+                    val candidates = aiSettings.getActiveServices().map { s ->
+                        Triple(s, aiSettings.getApiKey(s), aiSettings.getModel(s))
+                    }
+                    generationRows.clear()
+                    generationRows.addAll(candidates.map { it.first.displayName to null })
+                    showGenerationDialog = true
+
+                    launchTask("Generating Agents") {
+                        val total = candidates.size
+                        val completed = java.util.concurrent.atomic.AtomicInteger(0)
+                        progressText = "0 / $total"
+                        val results: List<Pair<String, Boolean>> = supervisorScope {
+                            candidates.mapIndexed { idx, (service, key, model) ->
+                                async(Dispatchers.IO) {
+                                    val error = try { onTestApiKey(service, key, model) } catch (e: Exception) { e.message ?: "error" }
+                                    val success = error == null
+                                    withContext(Dispatchers.Main) {
+                                        if (idx < generationRows.size) {
+                                            generationRows[idx] = service.displayName to success
+                                        }
+                                    }
+                                    val done = completed.incrementAndGet()
+                                    progressText = "$done / $total — ${service.displayName}"
+                                    service.displayName to success
+                                }
+                            }.awaitAll()
+                        }
+
+                        withContext(Dispatchers.IO) {
+                            var updatedSettings = aiSettings
+                            for ((service, _, model) in candidates) {
+                                val success = results.find { it.first == service.displayName }?.second == true
+                                if (success) {
+                                    val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
+                                    if (existing == null) {
+                                        val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
+                                        updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
+                                    }
+                                }
+                            }
+                            val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.displayName && it.second } }.map { it.id }
+                            val existingFlock = updatedSettings.flocks.find { it.name == "default agents" }
+                            updatedSettings = if (existingFlock != null) {
+                                updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
+                            } else {
+                                val flock = Flock(java.util.UUID.randomUUID().toString(), "default agents", defaultAgentIds)
+                                updatedSettings.copy(flocks = updatedSettings.flocks + flock)
+                            }
+                            onSave(updatedSettings)
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RefreshAction(
+    label: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = onClick,
+                enabled = enabled,
+                modifier = Modifier.width(132.dp),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
         }
     }
 }
