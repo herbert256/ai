@@ -41,7 +41,8 @@ fun ReportsScreenNav(
     reportViewModel: ReportViewModel,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
-    onNavigateToTrace: (String) -> Unit = {}
+    onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToTraceFile: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -97,6 +98,7 @@ fun ReportsScreenNav(
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
+        onNavigateToTraceFile = onNavigateToTraceFile,
         onClearExternalInstructions = viewModel::clearExternalInstructions,
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onUpdateModelList = { rid, edited ->
@@ -178,6 +180,7 @@ fun ReportsScreen(
     advancedParameters: AgentParameters? = null,
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToTraceFile: (String) -> Unit = {},
     onClearExternalInstructions: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
@@ -308,7 +311,7 @@ fun ReportsScreen(
 
     // Full-screen overlays
     if (showViewer && currentReportId != null) {
-        ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome)
+        ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome, onNavigateToTraceFile = onNavigateToTraceFile)
         return
     }
     if (showAdvancedParameters) {

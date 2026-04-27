@@ -32,7 +32,8 @@ fun ReportsViewerScreen(
     initialSelectedAgentId: String? = null,
     initialSection: String? = null,  // "prompt" / "costs" — driven from the Report Result View buttons
     onDismiss: () -> Unit,
-    onNavigateHome: () -> Unit = onDismiss
+    onNavigateHome: () -> Unit = onDismiss,
+    onNavigateToTraceFile: (String) -> Unit = {}
 ) {
     BackHandler { onDismiss() }
     val context = LocalContext.current
@@ -149,6 +150,24 @@ fun ReportsViewerScreen(
                     selectedReportAgent.searchResults?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); SearchResultsSection(it) }
                     selectedReportAgent.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); RelatedQuestionsSection(it) }
 
+                    // "Trace" button — finds the most recent on-disk trace
+                    // for (reportId, agent.model) and opens its detail view.
+                    // Hidden when there's no matching trace (purged, never
+                    // captured, or another agent's call is selected).
+                    val traceFilename = remember(reportId, selectedReportAgent.model, selectedReportAgent.agentId) {
+                        ApiTracer.getTraceFiles()
+                            .filter { it.reportId == reportId && it.model == selectedReportAgent.model }
+                            .maxByOrNull { it.timestamp }?.filename
+                    }
+                    if (traceFilename != null) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = { onNavigateToTraceFile(traceFilename) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                        ) { Text("Trace", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
