@@ -13,8 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -676,7 +679,8 @@ private fun ModelInfoRow(label: String, value: String) {
 
 /** Full-screen pretty-printed JSON view used by the HuggingFace /
  *  OpenRouter / LiteLLM buttons on Model Info. Monospace, scrollable
- *  in both axes so long lines aren't cut off. */
+ *  in both axes so long lines aren't cut off. Field names render in a
+ *  different color than their values via [colorizeJson]. */
 @Composable
 private fun ModelRawInfoScreen(
     title: String,
@@ -685,6 +689,7 @@ private fun ModelRawInfoScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
+    val annotated = remember(body) { colorizeJson(body) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
@@ -696,11 +701,75 @@ private fun ModelRawInfoScreen(
             val hScroll = rememberScrollState()
             Box(modifier = Modifier.padding(12.dp).verticalScroll(vScroll).horizontalScroll(hScroll)) {
                 Text(
-                    text = body,
+                    text = annotated,
                     fontSize = 12.sp,
-                    color = Color.White,
                     fontFamily = FontFamily.Monospace
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Tokenize pretty-printed JSON and emit colored spans:
+ *   keys        → blue
+ *   strings     → green
+ *   numbers     → orange
+ *   true/false  → purple
+ *   null        → dim grey
+ *   punctuation → white (default)
+ *
+ * A string is treated as a key when the next non-whitespace char after
+ * its closing quote is ':'. Walks char-by-char so it handles escaped
+ * quotes inside strings correctly. Falls back to plain white for
+ * non-JSON inputs (e.g. the "(no LiteLLM data)" placeholder).
+ */
+private fun colorizeJson(json: String): androidx.compose.ui.text.AnnotatedString {
+    val keyStyle = SpanStyle(color = AppColors.Blue)
+    val stringStyle = SpanStyle(color = AppColors.Green)
+    val numStyle = SpanStyle(color = AppColors.Orange)
+    val boolStyle = SpanStyle(color = AppColors.Purple)
+    val nullStyle = SpanStyle(color = AppColors.TextTertiary)
+    val punctStyle = SpanStyle(color = Color.White)
+    return buildAnnotatedString {
+        var i = 0
+        val n = json.length
+        while (i < n) {
+            val c = json[i]
+            when {
+                c == '"' -> {
+                    val start = i
+                    i++
+                    while (i < n) {
+                        when (json[i]) {
+                            '\\' -> i = (i + 2).coerceAtMost(n)
+                            '"' -> { i++; break }
+                            else -> i++
+                        }
+                    }
+                    var j = i
+                    while (j < n && json[j].isWhitespace()) j++
+                    val isKey = j < n && json[j] == ':'
+                    withStyle(if (isKey) keyStyle else stringStyle) { append(json.substring(start, i)) }
+                }
+                c.isDigit() || (c == '-' && i + 1 < n && json[i + 1].isDigit()) -> {
+                    val start = i
+                    if (c == '-') i++
+                    while (i < n && (json[i].isDigit() || json[i] == '.' || json[i] == 'e' || json[i] == 'E' || json[i] == '+' || json[i] == '-')) i++
+                    withStyle(numStyle) { append(json.substring(start, i)) }
+                }
+                c == 't' && i + 4 <= n && json.regionMatches(i, "true", 0, 4) -> {
+                    withStyle(boolStyle) { append("true") }; i += 4
+                }
+                c == 'f' && i + 5 <= n && json.regionMatches(i, "false", 0, 5) -> {
+                    withStyle(boolStyle) { append("false") }; i += 5
+                }
+                c == 'n' && i + 4 <= n && json.regionMatches(i, "null", 0, 4) -> {
+                    withStyle(nullStyle) { append("null") }; i += 4
+                }
+                else -> {
+                    withStyle(punctStyle) { append(c) }; i++
+                }
             }
         }
     }
