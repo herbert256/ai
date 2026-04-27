@@ -552,6 +552,11 @@ private fun buildMessages(
 }
 
 internal fun buildOpenAiRequest(service: AppService, model: String, messages: List<OpenAiMessage>, params: AgentParameters?, stream: Boolean? = null): OpenAiRequest {
+    // Drop response_format when LiteLLM reports the model doesn't honor a
+    // response schema — sending it would either error out or be silently
+    // ignored. Null on LiteLLM (unknown model) leaves it in.
+    val jsonRequested = params?.responseFormatJson == true
+    val jsonAllowed = jsonRequested && PricingCache.liteLLMSupportsResponseSchema(service, model) != false
     return OpenAiRequest(
         model = model, messages = messages, stream = stream,
         max_tokens = params?.maxTokens, temperature = params?.temperature,
@@ -560,7 +565,7 @@ internal fun buildOpenAiRequest(service: AppService, model: String, messages: Li
         stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
         seed = if (service.seedFieldName == "seed") params?.seed else null,
         random_seed = if (service.seedFieldName == "random_seed") params?.seed else null,
-        response_format = if (params?.responseFormatJson == true) OpenAiResponseFormat("json_object") else null,
+        response_format = if (jsonAllowed) OpenAiResponseFormat("json_object") else null,
         return_citations = if (service.supportsCitations) params?.returnCitations else null,
         search_recency_filter = if (service.supportsSearchRecency) params?.searchRecency else null,
         search = if (params?.searchEnabled == true) true else null,
