@@ -243,38 +243,49 @@ object PricingCache {
      *  lexically max — works for YYYYMMDD ("claude-3-5-sonnet-20241022"),
      *  YYYY-MM-DD ("gpt-4o-2024-11-20"), and YYMM ("mistral-large-2411").
      *
+     *  Candidates are bucketed by prefix so the provider's own catalog
+     *  prefix wins over arbitrary other prefixes (azure/, bedrock/,
+     *  vertex_ai/, etc.). Priority: (0) bare key → (1) declared
+     *  litellmPrefix → (2) provider.id.lowercase() → (3) any other prefix.
+     *
      *  LiteLLM doesn't catalog `-latest` aliases, so this fallback fires
      *  whenever the user has a rolling-alias model id configured. Returns
      *  null when the input doesn't end with `-latest` or no dated sibling
      *  is found in [keys]. */
-    private fun findLatestAliasKey(keys: Set<String>, model: String, providerPrefix: String?): String? {
+    private fun findLatestAliasKey(
+        keys: Set<String>, model: String,
+        declaredPrefix: String?, idLowercase: String
+    ): String? {
         if (!model.endsWith("-latest", ignoreCase = true)) return null
         val base = normalizeModelId(model.dropLast("-latest".length))
         if (base.isEmpty()) return null
-        val prefixedBase = providerPrefix?.takeIf { it.isNotBlank() }?.let { "${normalizeModelId(it)}/$base" }
-        var best: Pair<String, String>? = null
+        val declaredBase = declaredPrefix?.takeIf { it.isNotBlank() }?.let { "${normalizeModelId(it)}/$base" }
+        val idBase = "${normalizeModelId(idLowercase)}/$base"
+        val buckets = arrayOfNulls<Pair<String, String>>(4)
         for (key in keys) {
             val nk = normalizeModelId(key)
-            // Try (in order): bare model match, declared-prefix match, and
-            // any "<arbitrary-prefix>/<base>-<date>" match — catches catalog
-            // entries like "mistral/mistral-large-2411" when the AppService
-            // hasn't declared a litellmPrefix.
-            val suffix = when {
-                nk.startsWith("$base-") -> nk.substring(base.length + 1)
-                prefixedBase != null && nk.startsWith("$prefixedBase-") -> nk.substring(prefixedBase.length + 1)
-                nk.contains("/") -> {
-                    val tail = nk.substringAfterLast('/')
-                    if (tail.startsWith("$base-")) tail.substring(base.length + 1) else continue
+            var priority = -1
+            var suffix = ""
+            if (nk.startsWith("$base-")) {
+                priority = 0; suffix = nk.substring(base.length + 1)
+            } else if (declaredBase != null && nk.startsWith("$declaredBase-")) {
+                priority = 1; suffix = nk.substring(declaredBase.length + 1)
+            } else if (nk.startsWith("$idBase-")) {
+                priority = 2; suffix = nk.substring(idBase.length + 1)
+            } else if (nk.contains("/")) {
+                val tail = nk.substringAfterLast('/')
+                if (tail.startsWith("$base-")) {
+                    priority = 3; suffix = tail.substring(base.length + 1)
                 }
-                else -> continue
             }
-            // Date-like: only digits and dashes, and must include at least one digit.
+            if (priority < 0) continue
             if (suffix.isEmpty()) continue
             if (suffix.any { !it.isDigit() && it != '-' }) continue
             if (suffix.none { it.isDigit() }) continue
-            if (best == null || suffix > best.second) best = key to suffix
+            val cur = buckets[priority]
+            if (cur == null || suffix > cur.second) buckets[priority] = key to suffix
         }
-        return best?.first
+        return buckets.firstOrNull { it != null }?.first
     }
 
     private fun findOpenRouterPricing(provider: AppService, model: String): ModelPricing? {
@@ -282,15 +293,11 @@ object PricingCache {
         // Exact-key fast path.
         pricing[model]?.let { return it }
         provider.openRouterName?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
-        // Normalized linear scan — handles dot/dash mismatch.
-        val target = normalizeModelId(model)
-        val prefixed = provider.openRouterName?.let { "${normalizeModelId(it)}/$target" }
-        pricing.entries.firstOrNull {
-            val k = normalizeModelId(it.key)
-            k == target || k == prefixed || k.endsWith("/$target")
-        }?.value?.let { return it }
-        // Rolling-alias fallback for "-latest" model ids.
-        return findLatestAliasKey(pricing.keys, model, provider.openRouterName)?.let { pricing[it] }
+        // Bucketed normalized scan — prefer the provider's own prefix when
+        // multiple prefixes carry the same model id (avoids picking up
+        // azure/bedrock/vertex variants for a native-API entry).
+        return findBestPrefixedMatch(pricing, provider, model)
+            ?: findLatestAliasKey(pricing.keys, model, provider.openRouterName, provider.id.lowercase())?.let { pricing[it] }
     }
 
     /** Look up the LiteLLM capability sidecar for (provider, model) using
@@ -300,14 +307,8 @@ object PricingCache {
         val meta = litellmMeta ?: return null
         meta[model]?.let { return it }
         provider.litellmPrefix?.let { prefix -> meta["$prefix/$model"]?.let { return it } }
-        val target = normalizeModelId(model)
-        val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        meta.entries.firstOrNull {
-            val k = normalizeModelId(it.key)
-            k == target || k == prefixed || k.endsWith("/$target")
-        }?.value?.let { return it }
-        // Rolling-alias fallback — same logic the pricing lookup uses.
-        return findLatestAliasKey(meta.keys, model, provider.litellmPrefix)?.let { meta[it] }
+        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
     }
 
     /** True/false from LiteLLM's supports_vision flag, or null when
@@ -365,15 +366,39 @@ object PricingCache {
         // Exact-key fast path.
         pricing[model]?.let { return it }
         provider.litellmPrefix?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
-        // Normalized linear scan — same dot/dash forgiveness as OpenRouter.
+        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    /** Bucket-rank a [target]-matching scan over [map] and return the
+     *  highest-priority value, where buckets are: (0) bare key, (1)
+     *  declared prefix, (2) provider.id.lowercase()/, (3) any other
+     *  prefix. This prevents picking azure/bedrock/vertex variants when
+     *  the provider's own catalog row exists for the same model. */
+    private fun <V> findBestPrefixedMatch(
+        map: Map<String, V>, provider: AppService, model: String,
+        useLitellmPrefix: Boolean = false
+    ): V? {
         val target = normalizeModelId(model)
-        val prefixed = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        pricing.entries.firstOrNull {
-            val k = normalizeModelId(it.key)
-            k == target || k == prefixed || k.endsWith("/$target")
-        }?.value?.let { return it }
-        // Rolling-alias fallback for "-latest" model ids.
-        return findLatestAliasKey(pricing.keys, model, provider.litellmPrefix)?.let { pricing[it] }
+        val declaredPrefix = if (useLitellmPrefix) provider.litellmPrefix else provider.openRouterName
+        val targetDeclared = declaredPrefix?.let { "${normalizeModelId(it)}/$target" }
+        val targetId = "${provider.id.lowercase()}/$target"
+        @Suppress("UNCHECKED_CAST")
+        val buckets = arrayOfNulls<Any>(4) as Array<V?>
+        for ((key, value) in map) {
+            val k = normalizeModelId(key)
+            val priority = when {
+                k == target -> 0
+                targetDeclared != null && k == targetDeclared -> 1
+                k == targetId -> 2
+                k.endsWith("/$target") -> 3
+                else -> -1
+            }
+            if (priority < 0) continue
+            if (priority == 0) return value // bare match is unique
+            if (buckets[priority] == null) buckets[priority] = value
+        }
+        return buckets.firstOrNull { it != null }
     }
 
     fun getAllPricing(context: Context): Map<String, ModelPricing> {
@@ -430,11 +455,27 @@ object PricingCache {
             JsonParser().parse(json).asJsonObject
         } catch (_: Exception) { return null }
         val target = normalizeModelId(model)
-        val prefixedTarget = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        val match = root.keySet().firstOrNull { key ->
+        val targetDeclared = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
+        val targetId = "${provider.id.lowercase()}/$target"
+        val keysList = root.keySet()
+        // Same prioritization the lookup uses: bare → declared prefix →
+        // id-lowercase prefix → any other prefix. Picks the provider's own
+        // catalog row over azure/bedrock/vertex variants.
+        val buckets = arrayOfNulls<String>(4)
+        var bareMatch: String? = null
+        for (key in keysList) {
             val k = normalizeModelId(key)
-            k == target || k == prefixedTarget
-        } ?: findLatestAliasKey(root.keySet(), model, provider.litellmPrefix) ?: return null
+            when {
+                k == target -> { bareMatch = key; break }
+                targetDeclared != null && k == targetDeclared -> if (buckets[1] == null) buckets[1] = key
+                k == targetId -> if (buckets[2] == null) buckets[2] = key
+                k.endsWith("/$target") -> if (buckets[3] == null) buckets[3] = key
+            }
+        }
+        val match = bareMatch
+            ?: buckets[1] ?: buckets[2] ?: buckets[3]
+            ?: findLatestAliasKey(keysList, model, provider.litellmPrefix, provider.id.lowercase())
+            ?: return null
         return pretty.toJson(root.get(match))
     }
 
