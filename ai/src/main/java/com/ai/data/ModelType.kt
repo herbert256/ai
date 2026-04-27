@@ -51,10 +51,15 @@ object ModelType {
     /**
      * Naming-based fallback. Conservative: anything not matching a non-chat pattern
      * is assumed CHAT, which is the right default for the long tail of LLM names.
+     *
+     * The gpt-5 / o3 / o4 prefixes that used to live in OpenAI's endpointRules now
+     * live here too — those families ship without a chat-completions endpoint and
+     * have to dispatch through the Responses API.
      */
     fun infer(modelId: String): String {
         val id = modelId.lowercase()
         return when {
+            id.startsWith("gpt-5") || id.startsWith("o3") || id.startsWith("o4") -> RESPONSES
             "embed" in id -> EMBEDDING
             "rerank" in id -> RERANK
             "classifier" in id || id.endsWith("classify") -> CLASSIFY

@@ -207,10 +207,10 @@ class AnalysisRepository {
         )
     }
 
+    /** Route to the Responses API when the model classifies as RESPONSES. The
+     *  classifier replaces the old prefix-based endpointRules — gpt-5/o3/o4 are
+     *  detected directly in ModelType.infer. */
     internal fun usesResponsesApi(service: AppService, model: String): Boolean {
-        val lowerModel = model.lowercase()
-        return service.endpointRules.any {
-            lowerModel.startsWith(it.modelPrefix.lowercase()) && it.endpointType == "responses"
-        }
+        return ModelType.infer(model) == ModelType.RESPONSES
     }
 }

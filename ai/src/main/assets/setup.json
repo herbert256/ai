@@ -11,22 +11,7 @@
       "defaultModel": "gpt-4o-mini",
       "openRouterName": "openai",
       "prefsKey": "ai_openai",
-      "modelFilter": "gpt|o1|o3|o4",
-      "defaultModelSource": "API",
-      "endpointRules": [
-        {
-          "modelPrefix": "gpt-5",
-          "endpointType": "responses"
-        },
-        {
-          "modelPrefix": "o3",
-          "endpointType": "responses"
-        },
-        {
-          "modelPrefix": "o4",
-          "endpointType": "responses"
-        }
-      ]
+      "defaultModelSource": "API"
     },
     {
       "id": "ANTHROPIC",
@@ -41,7 +26,6 @@
       },
       "modelsPath": "v1/models",
       "prefsKey": "ai_anthropic",
-      "modelFilter": "claude",
       "hardcodedModels": [
         "claude-sonnet-4-20250514",
         "claude-opus-4-20250514",
@@ -78,7 +62,6 @@
       "openRouterName": "x-ai",
       "prefsKey": "ai_xai",
       "costTicksDivisor": 10000000000.0,
-      "modelFilter": "grok",
       "litellmPrefix": "xai",
       "defaultModelSource": "API"
     },
@@ -104,7 +87,6 @@
       },
       "modelsPath": "models",
       "prefsKey": "ai_deepseek",
-      "modelFilter": "deepseek",
       "litellmPrefix": "deepseek",
       "defaultModelSource": "API"
     },
@@ -117,7 +99,6 @@
       "openRouterName": "mistralai",
       "prefsKey": "ai_mistral",
       "seedFieldName": "random_seed",
-      "modelFilter": "mistral|open-mistral|codestral|pixtral",
       "defaultModelSource": "API"
     },
     {
@@ -134,7 +115,6 @@
       "prefsKey": "ai_perplexity",
       "supportsCitations": true,
       "supportsSearchRecency": true,
-      "modelFilter": "sonar|llama",
       "hardcodedModels": [
         "sonar",
         "sonar-pro",
@@ -150,7 +130,6 @@
       "defaultModel": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
       "prefsKey": "ai_together",
       "modelListFormat": "array",
-      "modelFilter": "chat|instruct|llama",
       "litellmPrefix": "together_ai",
       "defaultModelSource": "API"
     },
@@ -196,7 +175,6 @@
       },
       "modelsPath": "models",
       "prefsKey": "ai_zai",
-      "modelFilter": "glm|codegeex|charglm",
       "defaultModelSource": "API",
       "hardcodedModels": [
         "glm-4.7-flash",
