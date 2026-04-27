@@ -237,51 +237,6 @@ fun RefreshScreen(
             )
 
             RefreshAction(
-                label = "OpenRouter",
-                description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
-                enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
-                onClick = {
-                    launchTask("Refreshing OpenRouter") {
-                        withContext(Dispatchers.IO) {
-                            val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                            if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
-                            val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
-                            openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
-                        }
-                        showOpenRouterDialog = true
-                    }
-                }
-            )
-
-            RefreshAction(
-                label = "LiteLLM",
-                description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
-                enabled = !isAnyRunning,
-                onClick = {
-                    launchTask("Refreshing LiteLLM") {
-                        progressText = "Downloading model_prices_and_context_window.json…"
-                        val n = PricingCache.fetchLiteLLMPricingOnline(context)
-                        litellmResult = n
-                        showLiteLLMDialog = true
-                    }
-                }
-            )
-
-            RefreshAction(
-                label = "models.dev",
-                description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
-                enabled = !isAnyRunning,
-                onClick = {
-                    launchTask("Refreshing models.dev") {
-                        progressText = "Downloading models.dev/api.json…"
-                        val n = PricingCache.fetchModelsDevOnline(context)
-                        modelsDevResult = n
-                        showModelsDevDialog = true
-                    }
-                }
-            )
-
-            RefreshAction(
                 label = "Default agents",
                 description = "Create a default agent per active provider (using its current default model) and a \"default agents\" flock that includes them.",
                 enabled = !isAnyRunning,
@@ -339,6 +294,52 @@ fun RefreshScreen(
                     }
                 }
             )
+
+            RefreshAction(
+                label = "OpenRouter",
+                description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
+                enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
+                onClick = {
+                    launchTask("Refreshing OpenRouter") {
+                        withContext(Dispatchers.IO) {
+                            val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                            if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
+                            val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+                            openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
+                        }
+                        showOpenRouterDialog = true
+                    }
+                }
+            )
+
+            RefreshAction(
+                label = "LiteLLM",
+                description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
+                enabled = !isAnyRunning,
+                onClick = {
+                    launchTask("Refreshing LiteLLM") {
+                        progressText = "Downloading model_prices_and_context_window.json…"
+                        val n = PricingCache.fetchLiteLLMPricingOnline(context)
+                        litellmResult = n
+                        showLiteLLMDialog = true
+                    }
+                }
+            )
+
+            RefreshAction(
+                label = "models.dev",
+                description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
+                enabled = !isAnyRunning,
+                onClick = {
+                    launchTask("Refreshing models.dev") {
+                        progressText = "Downloading models.dev/api.json…"
+                        val n = PricingCache.fetchModelsDevOnline(context)
+                        modelsDevResult = n
+                        showModelsDevDialog = true
+                    }
+                }
+            )
+
         }
     }
 }
