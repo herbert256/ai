@@ -170,7 +170,12 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
         val content = extractResponsesApiContent(body)
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage()
-        if (content != null) AnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        val webData = extractResponsesWebSearch(body)
+        if (content != null) AnalysisResponse(
+            service, content, null, usage,
+            citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
+            rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
+        )
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -205,7 +210,12 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
             ?: body?.content?.firstNotNullOfOrNull { it.text }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage()
-        if (content != null) AnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        val webData = extractClaudeWebSearch(body)
+        if (content != null) AnalysisResponse(
+            service, content, null, usage,
+            citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
+            rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
+        )
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -242,7 +252,12 @@ private suspend fun AnalysisRepository.analyzeGemini(
             ?: body?.candidates?.flatMap { it.content?.parts ?: emptyList() }?.firstNotNullOfOrNull { it.text }
         val rawUsageJson = formatUsageJson(body?.usageMetadata)
         val usage = body?.usageMetadata?.toTokenUsage()
-        if (content != null) AnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        val webData = extractGeminiWebSearch(body)
+        if (content != null) AnalysisResponse(
+            service, content, null, usage,
+            citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
+            rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
+        )
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -643,6 +658,88 @@ internal fun anthropicWebSearchTool(): List<Any> = listOf(mapOf(
 ))
 
 internal fun geminiWebSearchTool(): List<Any> = listOf(mapOf("google_search" to emptyMap<String, Any>()))
+
+/** Bundle of fields extracted from a provider's web-search-tool response.
+ *  Each field maps directly to AnalysisResponse.{citations,searchResults,
+ *  relatedQuestions} so the existing report UI renders them with no
+ *  changes downstream. */
+internal data class WebSearchData(
+    val citations: List<String>? = null,
+    val searchResults: List<SearchResult>? = null,
+    val queries: List<String>? = null
+)
+
+private fun List<SearchResult>.uniqueByUrl(): List<SearchResult> =
+    distinctBy { it.url ?: "${it.name}|${it.snippet}" }
+
+internal fun extractClaudeWebSearch(body: ClaudeResponse?): WebSearchData {
+    val blocks = body?.content ?: return WebSearchData()
+    val results = mutableListOf<SearchResult>()
+    val urls = mutableSetOf<String>()
+    blocks.forEach { block ->
+        // web_search_tool_result blocks carry the raw hit list.
+        block.content?.forEach { item ->
+            val u = item.url ?: return@forEach
+            results += SearchResult(name = item.title, url = u, snippet = null)
+            urls += u
+        }
+        // text blocks may carry citations pointing back at those hits.
+        block.citations?.forEach { c ->
+            c.url?.let { urls += it }
+            if (c.url != null && results.none { it.url == c.url }) {
+                results += SearchResult(name = c.title, url = c.url, snippet = c.cited_text)
+            }
+        }
+    }
+    return WebSearchData(
+        citations = urls.toList().ifEmpty { null },
+        searchResults = results.uniqueByUrl().ifEmpty { null }
+    )
+}
+
+internal fun extractGeminiWebSearch(body: GeminiResponse?): WebSearchData {
+    val gm = body?.candidates?.firstOrNull()?.groundingMetadata ?: return WebSearchData()
+    val results = gm.groundingChunks?.mapNotNull { chunk ->
+        val w = chunk.web ?: return@mapNotNull null
+        val u = w.uri ?: return@mapNotNull null
+        SearchResult(name = w.title, url = u, snippet = null)
+    }.orEmpty()
+    val urls = results.mapNotNull { it.url }
+    return WebSearchData(
+        citations = urls.distinct().ifEmpty { null },
+        searchResults = results.uniqueByUrl().ifEmpty { null },
+        queries = gm.webSearchQueries?.takeIf { it.isNotEmpty() }
+    )
+}
+
+internal fun extractResponsesWebSearch(body: OpenAiResponsesApiResponse?): WebSearchData {
+    val output = body?.output ?: return WebSearchData()
+    val results = mutableListOf<SearchResult>()
+    val urls = mutableSetOf<String>()
+    val queries = mutableListOf<String>()
+    output.forEach { item ->
+        // web_search_call items expose what was searched.
+        if (item.type == "web_search_call") {
+            item.action?.query?.takeIf { it.isNotBlank() }?.let { queries += it }
+        }
+        // message items may carry url_citation annotations on each text chunk.
+        item.content?.forEach { part ->
+            part.annotations?.forEach { ann ->
+                if (ann.type == "url_citation" && ann.url != null) {
+                    urls += ann.url
+                    if (results.none { it.url == ann.url }) {
+                        results += SearchResult(name = ann.title, url = ann.url, snippet = null)
+                    }
+                }
+            }
+        }
+    }
+    return WebSearchData(
+        citations = urls.toList().ifEmpty { null },
+        searchResults = results.uniqueByUrl().ifEmpty { null },
+        queries = queries.distinct().ifEmpty { null }
+    )
+}
 
 internal fun ChatMessage.toGeminiContent(): GeminiContent {
     val role = if (role == "user") "user" else "model"

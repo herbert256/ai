@@ -141,7 +141,18 @@ data class OpenAiResponsesInputMessage(val role: String, val content: String)
 data class OpenAiResponsesOutputContent(
     val type: String?,
     val text: String?,
-    val annotations: List<Any>? = null
+    val annotations: List<OpenAiResponsesAnnotation>? = null
+)
+
+/** A url_citation annotation emitted by the Responses API when the
+ *  web_search_preview tool runs. start_index/end_index point into the
+ *  surrounding text block. */
+data class OpenAiResponsesAnnotation(
+    val type: String? = null,
+    val url: String? = null,
+    val title: String? = null,
+    val start_index: Int? = null,
+    val end_index: Int? = null
 )
 
 data class OpenAiResponsesOutputMessage(
@@ -149,7 +160,15 @@ data class OpenAiResponsesOutputMessage(
     val id: String?,
     val status: String?,
     val role: String?,
-    val content: List<OpenAiResponsesOutputContent>?
+    val content: List<OpenAiResponsesOutputContent>?,
+    /** For `web_search_call` items the action has a `query` field — useful
+     *  to surface what the tool searched for. */
+    val action: OpenAiResponsesAction? = null
+)
+
+data class OpenAiResponsesAction(
+    val type: String? = null,
+    val query: String? = null
 )
 
 data class OpenAiResponsesApiResponse(
@@ -189,7 +208,31 @@ data class ClaudeRequest(
     val tools: List<Any>? = null
 )
 
-data class ClaudeContentBlock(val type: String, val text: String?)
+data class ClaudeContentBlock(
+    val type: String,
+    val text: String? = null,
+    /** Attached to text blocks when web_search citations point back to a
+     *  previously-emitted web_search_tool_result. */
+    val citations: List<ClaudeCitation>? = null,
+    /** Present on web_search_tool_result blocks. Each item is a
+     *  `web_search_result` with `url` + `title` (+ `page_age`). */
+    val content: List<ClaudeWebSearchResultItem>? = null,
+    val tool_use_id: String? = null
+)
+
+data class ClaudeCitation(
+    val type: String? = null,
+    val url: String? = null,
+    val title: String? = null,
+    val cited_text: String? = null
+)
+
+data class ClaudeWebSearchResultItem(
+    val type: String? = null,
+    val url: String? = null,
+    val title: String? = null,
+    val page_age: String? = null
+)
 
 data class ClaudeUsage(
     val input_tokens: Int?,
@@ -250,7 +293,21 @@ data class GeminiGenerationConfig(
     val search: Boolean? = null
 )
 
-data class GeminiCandidate(val content: GeminiContent?)
+data class GeminiCandidate(
+    val content: GeminiContent?,
+    val groundingMetadata: GeminiGroundingMetadata? = null
+)
+
+/** Populated by Gemini when the google_search tool runs. groundingChunks
+ *  is the list of cited URLs; webSearchQueries is what the model searched. */
+data class GeminiGroundingMetadata(
+    val groundingChunks: List<GeminiGroundingChunk>? = null,
+    val webSearchQueries: List<String>? = null
+)
+
+data class GeminiGroundingChunk(val web: GeminiGroundingWeb? = null)
+
+data class GeminiGroundingWeb(val uri: String? = null, val title: String? = null)
 
 data class GeminiUsageMetadata(
     val promptTokenCount: Int?,
