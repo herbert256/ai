@@ -102,6 +102,47 @@ object PricingCache {
         saveManualPricing(context)
     }
 
+    /** Drop manual cost overrides that are dormant or redundant. An entry
+     *  is removed when any of these holds:
+     *   1. LiteLLM has a price for the model — override sits behind LiteLLM
+     *      in the lookup, so the manual entry is never read.
+     *   2. OpenRouter has a price — for OpenRouter-the-provider OPENROUTER
+     *      is consulted first; for other providers the user is opting to
+     *      trust OpenRouter pricing over the manual entry.
+     *   3. The override prices equal the DEFAULT_PRICING fallback.
+     *   4. The override prices equal what getPricingWithoutOverride would
+     *      have returned anyway.
+     *  Returns the number of entries removed. */
+    fun cleanupRedundantManualOverrides(context: Context): Int = synchronized(lock) {
+        ensureLoaded(context)
+        val entries = manualPricing?.toMap() ?: return 0
+        var removed = 0
+        for ((key, override) in entries) {
+            val parts = key.split(":", limit = 2)
+            val providerId = parts.getOrNull(0) ?: continue
+            val modelId = parts.getOrNull(1) ?: continue
+            val service = AppService.findById(providerId) ?: continue
+            val breakdown = getTierBreakdown(context, service, modelId)
+            val matchesDefault = pricesEqual(override, breakdown.default)
+            val withoutOverride = getPricingWithoutOverride(context, service, modelId)
+            val matchesWithoutOverride = pricesEqual(override, withoutOverride)
+            val shouldRemove = breakdown.litellm != null ||
+                breakdown.openrouter != null ||
+                matchesDefault ||
+                matchesWithoutOverride
+            if (shouldRemove) {
+                manualPricing?.remove(key)
+                removed++
+            }
+        }
+        if (removed > 0) saveManualPricing(context)
+        removed
+    }
+
+    private fun pricesEqual(a: ModelPricing, b: ModelPricing): Boolean =
+        kotlin.math.abs(a.promptPrice - b.promptPrice) < 1e-12 &&
+            kotlin.math.abs(a.completionPrice - b.completionPrice) < 1e-12
+
     fun getManualPricing(context: Context, provider: AppService, model: String): ModelPricing? {
         ensureLoaded(context); return manualPricing?.get("${provider.id}:$model")
     }

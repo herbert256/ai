@@ -288,6 +288,28 @@ fun HousekeepingScreen(
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Manual cost overrides", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "Drops every manual price override that is dormant or redundant: covered by LiteLLM, covered by OpenRouter, equal to the built-in default, or equal to what the lookup would return without it.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    Button(
+                        onClick = {
+                            val n = PricingCache.cleanupRedundantManualOverrides(context)
+                            Toast.makeText(
+                                context,
+                                if (n == 0) "No redundant overrides to remove" else "Removed $n manual cost override${if (n == 1) "" else "s"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    ) { Text("Cleanup manual cost overrides", maxLines = 1, softWrap = false) }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Full reset", fontWeight = FontWeight.Bold, color = Color.White)
                     Button(
                         onClick = { showClearAllConfirm = true },
