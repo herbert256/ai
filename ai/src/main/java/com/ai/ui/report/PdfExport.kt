@@ -92,9 +92,38 @@ suspend fun shareReportAsExport(
     val baseName = "ai_report_${safeTitle}_${detailTag}_${pdfTimestamp()}"
     return when (format) {
         ReportExportFormat.HTML -> { dispatchHtml(context, html, "$baseName.html", report.title, action); true }
-        ReportExportFormat.PDF -> { dispatchPdf(context, html, "$baseName.pdf", report.title, action); true }
+        ReportExportFormat.PDF -> { dispatchPdf(context, makeStaticForPdf(html), "$baseName.pdf", report.title, action); true }
         ReportExportFormat.JSON -> true // unreachable
     }
+}
+
+/**
+ * The medium HTML export uses inline JavaScript for the agent tabs, layout
+ * switcher, prompt/cost toggles, and Think-section reveal — fine in a browser,
+ * dead weight in a PDF (we keep JS off for safety + the rendered DOM is what
+ * gets snapshotted, so onclick handlers never run anyway). Inject a small
+ * override stylesheet just before </head> that forces every JS-hidden element
+ * visible and tucks the now-useless toggle buttons out of view, so the PDF
+ * shows the full report top to bottom in static form.
+ *
+ * The HTML returned to disk for HTML exports is never touched — only the copy
+ * we hand to the PDF renderer.
+ */
+private fun makeStaticForPdf(html: String): String {
+    val override = """
+        <style>
+            /* Hide JS-controlled toggles + the duplicate "all together" layout. */
+            .layout-toggle, .agent-buttons, .think-btn, .section-btn { display: none !important; }
+            #layout-allTogether { display: none !important; }
+            /* Force every JS-hidden region visible. */
+            #layout-oneByOne { display: block !important; }
+            .agent-result, .agent-result.active { display: block !important; }
+            .think-content { display: block !important; }
+            .section-content, #section-prompt, #section-costs { display: block !important; }
+        </style>
+    """.trimIndent()
+    val idx = html.indexOf("</head>", ignoreCase = true)
+    return if (idx >= 0) html.substring(0, idx) + override + html.substring(idx) else html + override
 }
 
 /** Original entry point — kept for backwards compatibility with any caller that still
