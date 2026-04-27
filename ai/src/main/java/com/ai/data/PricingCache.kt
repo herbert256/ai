@@ -224,6 +224,29 @@ object PricingCache {
         return sources.joinToString(" + ")
     }
 
+    /** Per-tier pricing snapshot for a single (provider, model) — mirrors the
+     *  exact key-resolution logic getPricing() uses but reports each tier
+     *  independently so callers can show or export the layered view.
+     *  [default] is always populated; the others may be null. */
+    data class TierBreakdown(
+        val litellm: ModelPricing?,
+        val override: ModelPricing?,
+        val openrouter: ModelPricing?,
+        val fallback: ModelPricing?,
+        val default: ModelPricing
+    )
+
+    fun getTierBreakdown(context: Context, provider: AppService, model: String): TierBreakdown {
+        ensureLoaded(context)
+        val litellm = litellmPricing?.let { p ->
+            p[model] ?: provider.litellmPrefix?.let { prefix -> p["$prefix/$model"] }
+        }
+        val override = manualPricing?.get("${provider.id}:$model")
+        val openrouter = findOpenRouterPricing(provider, model)
+        val fallback = fallbackPricing?.get(model)
+        return TierBreakdown(litellm, override, openrouter, fallback, DEFAULT_PRICING)
+    }
+
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
     fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return litellmPricing?.toMap() ?: emptyMap() }
     fun getFallbackPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return fallbackPricing?.toMap() ?: emptyMap() }

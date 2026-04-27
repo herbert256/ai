@@ -124,6 +124,39 @@ fun ImportExportScreen(
         Toast.makeText(context, "${manual.size} cost entries exported", Toast.LENGTH_SHORT).show()
     }
 
+    // Layered-costs export: every (provider, model) on one row with two empty
+    // columns up front for the user to fill in a new override, followed by
+    // every tier's price in run-time precedence order (LITELLM > OVERRIDE >
+    // OPENROUTER > FALLBACK > DEFAULT). Re-imports through the existing
+    // Costs import path: same first four columns the importer reads.
+    val exportLayeredCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        fun fmt(p: Double?): String = p?.let { "%.4f".format(Locale.US, it * 1_000_000) } ?: ""
+        val header = "provider,model,new_input_per_million,new_output_per_million," +
+            "litellm_in,litellm_out,override_in,override_out," +
+            "openrouter_in,openrouter_out,fallback_in,fallback_out," +
+            "default_in,default_out"
+        val lines = mutableListOf(header)
+        val rows = aiSettings.getActiveServices()
+            .flatMap { svc -> aiSettings.getModels(svc).map { svc to it } }
+            .sortedWith(compareBy({ it.first.id }, { it.second }))
+        rows.forEach { (provider, model) ->
+            val b = PricingCache.getTierBreakdown(context, provider, model)
+            lines.add(
+                listOf(
+                    provider.id, model, "", "",
+                    fmt(b.litellm?.promptPrice), fmt(b.litellm?.completionPrice),
+                    fmt(b.override?.promptPrice), fmt(b.override?.completionPrice),
+                    fmt(b.openrouter?.promptPrice), fmt(b.openrouter?.completionPrice),
+                    fmt(b.fallback?.promptPrice), fmt(b.fallback?.completionPrice),
+                    fmt(b.default.promptPrice), fmt(b.default.completionPrice)
+                ).joinToString(",")
+            )
+        }
+        writeToUri(uri, lines.joinToString("\n"))
+        Toast.makeText(context, "${rows.size} layered cost rows exported", Toast.LENGTH_SHORT).show()
+    }
+
     val importFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         when (importType) {
@@ -230,6 +263,21 @@ fun ImportExportScreen(
                     OutlinedButton(onClick = {
                         exportSetupJsonLauncher.launch("setup.json")
                     }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("setup.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's $/M-token price in the run-time precedence order. Re-import via the Costs button — only the first four columns are read.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    OutlinedButton(onClick = {
+                        exportLayeredCostsLauncher.launch("ai_costs_layered-${exportTimestamp()}.csv")
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                        Text("Export layered costs", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
                 }
             }
 
