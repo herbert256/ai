@@ -107,7 +107,11 @@ fun ReportExportScreen(
                 try {
                     onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
                     progress = null
-                    onBack()
+                    // For SHARE the share sheet itself is the user's last action so we
+                    // collapse this screen away. For VIEW the file just opened in the
+                    // browser as a separate app — keep the Export screen alive so back
+                    // from the browser lands here with the format/detail choices intact.
+                    if (action == ReportExportAction.SHARE) onBack()
                 } catch (e: Exception) {
                     android.util.Log.e("ReportExport", "Export failed", e)
                     progress = null
