@@ -81,6 +81,21 @@ fun ImportExportScreen(
         Toast.makeText(context, "${keys.size} API keys exported", Toast.LENGTH_SHORT).show()
     }
 
+    val exportSetupJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        // Mirror the bundled assets/setup.json: only providerDefinitions populated,
+        // empty providers / agents, no user-specific runtime state. Output is pretty-
+        // printed so a human can drop the result back into assets/.
+        val export = ConfigExport(
+            version = 21,
+            providers = emptyMap(),
+            agents = emptyList(),
+            providerDefinitions = com.ai.data.ProviderRegistry.getCustomProviders()
+        )
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(export))
+        Toast.makeText(context, "${export.providerDefinitions?.size ?: 0} providers exported", Toast.LENGTH_SHORT).show()
+    }
+
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val manual = PricingCache.getAllManualPricing(context)
@@ -193,6 +208,11 @@ fun ImportExportScreen(
                             exportCostsLauncher.launch("ai_costs-${exportTimestamp()}.csv")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    // Bundle-shape export: provider definitions only, drop-in replacement
+                    // for assets/setup.json so a developer can ship the user's edits.
+                    OutlinedButton(onClick = {
+                        exportSetupJsonLauncher.launch("setup.json")
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("setup.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
 
