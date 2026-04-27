@@ -300,6 +300,28 @@ object PricingCache {
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
     fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return litellmPricing?.toMap() ?: emptyMap() }
 
+    /** Pretty-printed LiteLLM JSON entry for (provider, model), or null
+     *  when the model isn't cataloged. Loads the bundled asset on demand
+     *  so the 1.2MB blob doesn't sit in memory just for the rare raw-view
+     *  case. Same dash/dot normalization as findLiteLLMPricing. */
+    fun getLiteLLMRawEntry(context: Context, provider: AppService, model: String): String? {
+        val pretty = createAppGson(prettyPrint = true)
+        val json = try {
+            context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
+        } catch (_: Exception) { return null }
+        val root = try {
+            @Suppress("DEPRECATION")
+            JsonParser().parse(json).asJsonObject
+        } catch (_: Exception) { return null }
+        val target = normalizeModelId(model)
+        val prefixedTarget = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
+        val match = root.keySet().firstOrNull { key ->
+            val k = normalizeModelId(key)
+            k == target || k == prefixedTarget
+        } ?: return null
+        return pretty.toJson(root.get(match))
+    }
+
     fun refreshLiteLLMPricing(context: Context) {
         litellmPricing = parseLiteLLMPricing(context)
         litellmTimestamp = System.currentTimeMillis()

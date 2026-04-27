@@ -167,6 +167,8 @@ fun ModelInfoScreen(
     var aiDescription by remember { mutableStateOf<String?>(null) }
     var isAiLoading by remember { mutableStateOf(false) }
     var showAgentEdit by remember { mutableStateOf(false) }
+    // null when the raw-view overlay isn't shown; otherwise (title, json) for the source.
+    var rawView by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     // Trace count + usage entry are loaded once per (provider, model). They reflect
     // on-disk state at screen open; updates only land on next visit.
@@ -182,6 +184,14 @@ fun ModelInfoScreen(
             val pricing = PricingCache.getPricing(context, it.provider, it.model)
             it.inputTokens * pricing.promptPrice + it.outputTokens * pricing.completionPrice
         }
+    }
+
+    // Full-screen overlay rendering the raw JSON for one of the three
+    // catalog sources (HuggingFace, OpenRouter, LiteLLM). Returns to
+    // Model Info on back.
+    rawView?.let { (title, body) ->
+        ModelRawInfoScreen(title = title, body = body, onBack = { rawView = null }, onNavigateHome = onNavigateHome)
+        return
     }
 
     // Full-screen overlay for creating an agent from this model. Mirrors the pattern
@@ -346,6 +356,49 @@ fun ModelInfoScreen(
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                             ) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
+                        }
+                    }
+
+                    // Catalog raw-data buttons — green when the source has an
+                    // entry for this (provider, model), red otherwise.
+                    // Tapping opens the pretty-printed JSON in a sub-screen
+                    // so the user can inspect the full record (capability
+                    // flags, context window, multi-modal pricing, etc.).
+                    item {
+                        val gson = remember { com.ai.data.createAppGson(prettyPrint = true) }
+                        val hasHF = info?.huggingFaceInfo != null
+                        val hasOR = info?.openRouterInfo != null
+                        val liteLLMRaw = remember(provider, modelName) {
+                            PricingCache.getLiteLLMRawEntry(context, provider, modelName)
+                        }
+                        val hasLiteLLM = liteLLMRaw != null
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
+                                    rawView = "HuggingFace · $modelName" to body
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.Green else AppColors.Red),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) { Text("HuggingFace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            Button(
+                                onClick = {
+                                    val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
+                                    rawView = "OpenRouter · $modelName" to body
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.Green else AppColors.Red),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) { Text("OpenRouter", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            Button(
+                                onClick = {
+                                    rawView = "LiteLLM · $modelName" to (liteLLMRaw ?: "(no LiteLLM data)")
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.Green else AppColors.Red),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) { Text("LiteLLM", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         }
                     }
 
@@ -600,5 +653,37 @@ private fun ModelInfoRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 13.sp, color = AppColors.TextTertiary)
         Text(value, fontSize = 13.sp, color = Color.White)
+    }
+}
+
+/** Full-screen pretty-printed JSON view used by the HuggingFace /
+ *  OpenRouter / LiteLLM buttons on Model Info. Monospace, scrollable
+ *  in both axes so long lines aren't cut off. */
+@Composable
+private fun ModelRawInfoScreen(
+    title: String,
+    body: String,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            val vScroll = rememberScrollState()
+            val hScroll = rememberScrollState()
+            Box(modifier = Modifier.padding(12.dp).verticalScroll(vScroll).horizontalScroll(hScroll)) {
+                Text(
+                    text = body,
+                    fontSize = 12.sp,
+                    color = Color.White,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
     }
 }
