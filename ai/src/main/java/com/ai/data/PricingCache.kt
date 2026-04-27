@@ -287,6 +287,9 @@ object PricingCache {
     fun liteLLMSupportsResponseSchema(provider: AppService, model: String): Boolean? =
         findLiteLLMMeta(provider, model)?.supportsResponseSchema
 
+    fun liteLLMSupportsReasoning(provider: AppService, model: String): Boolean? =
+        findLiteLLMMeta(provider, model)?.supportsReasoning
+
     /** ModelType constant derived from LiteLLM's `mode` field, or null
      *  when no mapping applies. "chat" → CHAT, "embedding" → EMBEDDING,
      *  etc. CHAT is rarely useful (it's the default heuristic anyway) so
@@ -496,7 +499,8 @@ object PricingCache {
          *  callers when offering endpoint suggestions. */
         val supportedEndpoints: List<String>? = null,
         val supportsSystemMessages: Boolean? = null,
-        val supportsResponseSchema: Boolean? = null
+        val supportsResponseSchema: Boolean? = null,
+        val supportsReasoning: Boolean? = null
     )
 
     /** Walk the litellm pricing JSON via the tree model so duplicate keys
@@ -536,14 +540,15 @@ object PricingCache {
             val sw = flat["supports_web_search"] as? Boolean
             val sm = flat["supports_system_messages"] as? Boolean
             val sr = flat["supports_response_schema"] as? Boolean
+            val sre = (flat["supports_reasoning"] as? Boolean) ?: (flat["supports_max_reasoning_effort"] as? Boolean)
             val seArr = infoObj.get("supported_endpoints")
             val se = if (seArr != null && seArr.isJsonArray) {
                 seArr.asJsonArray.mapNotNull { el ->
                     if (el.isJsonPrimitive) el.asString else null
                 }.takeIf { it.isNotEmpty() }
             } else null
-            if (mode != null || sv != null || sw != null || se != null || sm != null || sr != null) {
-                meta[modelId] = LiteLLMMeta(mode, sv, sw, se, sm, sr)
+            if (mode != null || sv != null || sw != null || se != null || sm != null || sr != null || sre != null) {
+                meta[modelId] = LiteLLMMeta(mode, sv, sw, se, sm, sr, sre)
             }
         }
         return pricing to meta

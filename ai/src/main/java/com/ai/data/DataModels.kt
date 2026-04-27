@@ -17,7 +17,12 @@ data class AgentParameters(
     val searchEnabled: Boolean = false,
     val returnCitations: Boolean = true,
     val searchRecency: String? = null,
-    val webSearchTool: Boolean = false
+    val webSearchTool: Boolean = false,
+    /** Reasoning effort hint for models that support it (gpt-5/o-series
+     *  via Responses API, Gemini thinking-models). One of "low", "medium",
+     *  "high"; null = unset. Only injected at dispatch when LiteLLM
+     *  reports the model supports reasoning. */
+    val reasoningEffort: String? = null
 )
 
 /**

@@ -96,12 +96,13 @@ data class Parameters(
     val seed: Int? = null, val responseFormatJson: Boolean = false,
     val searchEnabled: Boolean = false, val returnCitations: Boolean = true,
     val searchRecency: String? = null,
-    val webSearchTool: Boolean = false
+    val webSearchTool: Boolean = false,
+    val reasoningEffort: String? = null
 ) {
     fun toAgentParameters() = AgentParameters(
         temperature, maxTokens, topP, topK, frequencyPenalty, presencePenalty,
         systemPrompt, stopSequences, seed, responseFormatJson, searchEnabled, returnCitations, searchRecency,
-        webSearchTool
+        webSearchTool, reasoningEffort
     )
 }
 
@@ -371,7 +372,8 @@ data class Settings(
                 p.systemPrompt ?: acc.systemPrompt, p.stopSequences ?: acc.stopSequences,
                 p.seed ?: acc.seed, p.responseFormatJson || acc.responseFormatJson, p.searchEnabled || acc.searchEnabled, p.returnCitations || acc.returnCitations,
                 p.searchRecency ?: acc.searchRecency,
-                p.webSearchTool || acc.webSearchTool
+                p.webSearchTool || acc.webSearchTool,
+                p.reasoningEffort ?: acc.reasoningEffort
             )
         }
     }

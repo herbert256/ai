@@ -74,6 +74,7 @@ fun ParametersEditScreen(
     var returnCitations by remember { mutableStateOf(params?.returnCitations ?: true) }
     var searchRecency by remember { mutableStateOf(params?.searchRecency ?: "") }
     var webSearchTool by remember { mutableStateOf(params?.webSearchTool ?: false) }
+    var reasoningEffort by remember { mutableStateOf(params?.reasoningEffort ?: "") }
 
     val nameError = when {
         name.isBlank() -> "Name is required"
@@ -140,6 +141,19 @@ fun ParametersEditScreen(
                     )
                 }
             }
+
+            Text("Reasoning Effort", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Only honored on reasoning-capable models (gpt-5/o-series, Gemini thinking, Claude with extended thinking). Ignored elsewhere.",
+                fontSize = 11.sp, color = AppColors.TextTertiary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("", "low", "medium", "high").forEach { option ->
+                    FilterChip(
+                        selected = reasoningEffort == option,
+                        onClick = { reasoningEffort = option },
+                        label = { Text(option.ifEmpty { "None" }) }
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -152,7 +166,8 @@ fun ParametersEditScreen(
                     presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
                     null, seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
                     searchRecency.takeIf { it.isNotBlank() },
-                    webSearchTool
+                    webSearchTool,
+                    reasoningEffort.takeIf { it.isNotBlank() }
                 ))
             },
             enabled = nameError == null,

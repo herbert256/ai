@@ -133,7 +133,11 @@ data class OpenAiResponsesRequest(
     val input: Any,
     val instructions: String? = null,
     val stream: Boolean? = null,
-    val tools: List<Any>? = null
+    val tools: List<Any>? = null,
+    /** Reasoning hint — `{"effort": "low"|"medium"|"high"}` — supported on
+     *  gpt-5/o-series. Stripped at dispatch when LiteLLM says the model
+     *  isn't reasoning-capable. */
+    val reasoning: Map<String, Any>? = null
 )
 
 data class OpenAiResponsesInputMessage(val role: String, val content: String)

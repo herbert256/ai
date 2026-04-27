@@ -57,7 +57,8 @@ data class ParametersExport(
     val seed: Int? = null, val responseFormatJson: Boolean = false,
     val searchEnabled: Boolean = false, val returnCitations: Boolean = true,
     val searchRecency: String? = null,
-    val webSearchTool: Boolean = false
+    val webSearchTool: Boolean = false,
+    val reasoningEffort: String? = null
 )
 
 data class SystemPromptExport(val id: String, val name: String, val prompt: String)

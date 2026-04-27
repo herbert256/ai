@@ -115,7 +115,8 @@ class AnalysisRepository {
             searchEnabled = overrideParams.searchEnabled || agentParams.searchEnabled,
             returnCitations = overrideParams.returnCitations || agentParams.returnCitations,
             searchRecency = overrideParams.searchRecency ?: agentParams.searchRecency,
-            webSearchTool = overrideParams.webSearchTool || agentParams.webSearchTool
+            webSearchTool = overrideParams.webSearchTool || agentParams.webSearchTool,
+            reasoningEffort = overrideParams.reasoningEffort ?: agentParams.reasoningEffort
         )
     }
 
@@ -135,7 +136,8 @@ class AnalysisRepository {
             searchEnabled = params.searchEnabled,
             returnCitations = params.returnCitations,
             searchRecency = params.searchRecency,
-            webSearchTool = params.webSearchTool
+            webSearchTool = params.webSearchTool,
+            reasoningEffort = params.reasoningEffort
         )
     }
 

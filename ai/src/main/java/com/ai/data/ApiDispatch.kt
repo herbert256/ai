@@ -160,7 +160,8 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
         model = model,
         input = input,
         instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
-        tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null
+        tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null,
+        reasoning = reasoningField(service, model, params?.reasoningEffort)
     )
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     val headers = formatHeaders(response.headers())
@@ -669,6 +670,17 @@ internal fun ChatMessage.toClaudeMessage(): ClaudeMessage {
         if (content.isNotBlank()) add(mapOf("type" to "text", "text" to content))
     }
     return ClaudeMessage(role, blocks)
+}
+
+/** Build the OpenAI Responses-API `reasoning` field — `{effort: <value>}` —
+ *  or null when the agent didn't set an effort, OR LiteLLM reports the
+ *  model isn't reasoning-capable. Null on LiteLLM (unknown model) leaves
+ *  the field in so providers we don't have catalog data for still get
+ *  the user's preference. */
+internal fun reasoningField(service: AppService, model: String, effort: String?): Map<String, Any>? {
+    if (effort.isNullOrBlank()) return null
+    if (PricingCache.liteLLMSupportsReasoning(service, model) == false) return null
+    return mapOf("effort" to effort)
 }
 
 /** Per-format web-search tool descriptor, or null when unsupported by this
