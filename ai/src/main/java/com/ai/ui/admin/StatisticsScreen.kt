@@ -30,7 +30,12 @@ private data class StatWithCost(val stat: UsageStats, val inputCost: Double, val
 private data class ProviderCostGroup(val provider: AppService, val models: List<StatWithCost>, val totalCost: Double, val totalCalls: Int)
 
 @Composable
-fun UsageScreen(openRouterApiKey: String, onBack: () -> Unit, onNavigateHome: () -> Unit) {
+fun UsageScreen(
+    openRouterApiKey: String,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -95,8 +100,11 @@ fun UsageScreen(openRouterApiKey: String, onBack: () -> Unit, onNavigateHome: ()
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(groups, key = { it.provider.id }) { group ->
                     val isExpanded = group.provider.id in expandedProviders
-                    UsageProviderCard(group = group, isExpanded = isExpanded,
-                        onToggle = { expandedProviders = if (isExpanded) expandedProviders - group.provider.id else expandedProviders + group.provider.id })
+                    UsageProviderCard(
+                        group = group, isExpanded = isExpanded,
+                        onToggle = { expandedProviders = if (isExpanded) expandedProviders - group.provider.id else expandedProviders + group.provider.id },
+                        onModelClick = { model -> onNavigateToModelInfo(group.provider, model) }
+                    )
                 }
             }
 
@@ -111,7 +119,10 @@ fun UsageScreen(openRouterApiKey: String, onBack: () -> Unit, onNavigateHome: ()
 }
 
 @Composable
-private fun UsageProviderCard(group: ProviderCostGroup, isExpanded: Boolean, onToggle: () -> Unit) {
+private fun UsageProviderCard(
+    group: ProviderCostGroup, isExpanded: Boolean, onToggle: () -> Unit,
+    onModelClick: (String) -> Unit
+) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
@@ -126,7 +137,7 @@ private fun UsageProviderCard(group: ProviderCostGroup, isExpanded: Boolean, onT
             if (isExpanded) {
                 HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 8.dp))
                 group.models.forEach { swc ->
-                    UsageModelRow(swc)
+                    UsageModelRow(swc, onClick = { onModelClick(swc.stat.model) })
                 }
             }
         }
@@ -134,8 +145,8 @@ private fun UsageProviderCard(group: ProviderCostGroup, isExpanded: Boolean, onT
 }
 
 @Composable
-private fun UsageModelRow(swc: StatWithCost) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(swc.stat.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${swc.stat.callCount} calls, ${formatCompactNumber(swc.stat.inputTokens)}/${formatCompactNumber(swc.stat.outputTokens)} tokens",

@@ -198,7 +198,8 @@ fun AppNavHost(
             val uiState by appViewModel.uiState.collectAsState()
             UsageScreen(
                 openRouterApiKey = AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: "",
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
         composable(NavRoutes.AI_COST_CONFIG) {
             val uiState by appViewModel.uiState.collectAsState()
