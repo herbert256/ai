@@ -601,41 +601,42 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
     webView.webViewClient = object : WebViewClient() {
         override fun onPageFinished(view: WebView, url: String?) {
             android.util.Log.i(tag, "onPageFinished url=$url")
-            view.post {
-                try {
-                    view.measure(
-                        View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
-                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                    )
-                    val totalHeight = view.measuredHeight.coerceAtLeast(pageHeight)
-                    android.util.Log.i(tag, "measured: ${view.measuredWidth}x${view.measuredHeight}, totalHeight=$totalHeight")
-                    view.layout(0, 0, pageWidth, totalHeight)
+            // We're already on the UI thread here. Don't `view.post {}` — for a
+            // WebView that's never been added to a window, the runnable queues
+            // against mAttachInfo and waits for attachment that never comes.
+            try {
+                view.measure(
+                    View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+                val totalHeight = view.measuredHeight.coerceAtLeast(pageHeight)
+                android.util.Log.i(tag, "measured: ${view.measuredWidth}x${view.measuredHeight}, totalHeight=$totalHeight")
+                view.layout(0, 0, pageWidth, totalHeight)
 
-                    val pdf = PdfDocument()
-                    var rendered = 0
-                    var pageNum = 1
-                    while (rendered < totalHeight) {
-                        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
-                        val page = pdf.startPage(pageInfo)
-                        val canvas = page.canvas
-                        canvas.drawColor(AndroidColor.WHITE)
-                        canvas.save()
-                        canvas.translate(0f, -rendered.toFloat())
-                        view.draw(canvas)
-                        canvas.restore()
-                        pdf.finishPage(page)
-                        rendered += pageHeight
-                        pageNum++
-                    }
-                    if (output.exists()) output.delete()
-                    FileOutputStream(output).use { pdf.writeTo(it) }
-                    pdf.close()
-                    android.util.Log.i(tag, "rendered $pageNum pages to ${output.length()} bytes")
-                    done.complete(Unit)
-                } catch (e: Exception) {
-                    android.util.Log.e(tag, "PDF render failed", e)
-                    done.completeExceptionally(e)
+                val pdf = PdfDocument()
+                var rendered = 0
+                var pageNum = 1
+                while (rendered < totalHeight) {
+                    val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
+                    val page = pdf.startPage(pageInfo)
+                    val canvas = page.canvas
+                    canvas.drawColor(AndroidColor.WHITE)
+                    canvas.save()
+                    canvas.translate(0f, -rendered.toFloat())
+                    view.draw(canvas)
+                    canvas.restore()
+                    pdf.finishPage(page)
+                    rendered += pageHeight
+                    pageNum++
                 }
+                if (output.exists()) output.delete()
+                FileOutputStream(output).use { pdf.writeTo(it) }
+                pdf.close()
+                android.util.Log.i(tag, "rendered ${pageNum - 1} pages to ${output.length()} bytes")
+                done.complete(Unit)
+            } catch (e: Exception) {
+                android.util.Log.e(tag, "PDF render failed", e)
+                done.completeExceptionally(e)
             }
         }
     }
