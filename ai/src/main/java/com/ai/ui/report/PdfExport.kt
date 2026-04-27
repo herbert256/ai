@@ -19,12 +19,16 @@ import com.ai.data.PromptCache
 import com.ai.data.Report
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.model.Agent
 import com.ai.model.Settings
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -166,53 +170,64 @@ private suspend fun buildComprehensiveHtml(
         .distinct()
 
     val totalSteps = uniqueModels.size + 1
-    val intros = mutableMapOf<String, String?>()
-    val introCosts = mutableListOf<IntroCostRow>()
+    val intros = java.util.concurrent.ConcurrentHashMap<String, String?>()
+    val introCosts = java.util.Collections.synchronizedList(mutableListOf<IntroCostRow>())
+    val completed = java.util.concurrent.atomic.AtomicInteger(0)
 
-    val introPrompt = aiSettings.prompts.find { it.name.equals("intro", ignoreCase = true) }
-        ?: aiSettings.prompts.find { it.name.lowercase().contains("intro") }
-    val introAgent = introPrompt?.agentId?.let { aiSettings.getAgentById(it) }
+    // Each model writes its own intro: ask the same (provider, model) we ran in
+    // the report to describe itself in a sentence or two. Caches by
+    // (introPrompt, modelId) so a re-export doesn't re-spend tokens. Runs
+    // concurrently — one launch per unique (provider, model).
+    val introPromptText = "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown."
 
-    uniqueModels.forEachIndexed { i, (providerId, model) ->
-        onProgress(i, totalSteps)
-        val key = "$providerId::$model"
-        val provider = AppService.findById(providerId) ?: run { intros[key] = null; return@forEachIndexed }
-        if (introPrompt == null || introAgent == null) { intros[key] = null; return@forEachIndexed }
-        val effective = introAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(introAgent),
-            model = aiSettings.getEffectiveModelForAgent(introAgent)
-        )
-        val resolved = introPrompt.promptText
-            .replace("@MODEL@", model)
-            .replace("@PROVIDER@", provider.displayName)
-            .replace("@AGENT@", introAgent.name)
-        val cacheKey = PromptCache.keyFor(resolved, introAgent.id)
-        val cached = PromptCache.get(cacheKey)
-        if (cached != null) { intros[key] = cached; return@forEachIndexed }
-        if (effective.apiKey.isBlank()) { intros[key] = null; return@forEachIndexed }
-        intros[key] = try {
-            val resp = withContext(Dispatchers.IO) {
-                repository.analyzePlayerWithAgent(effective, resolved, aiSettings.resolveAgentParameters(introAgent))
+    coroutineScope {
+        uniqueModels.map { (providerId, model) ->
+            async(Dispatchers.IO) {
+                val key = "$providerId::$model"
+                try {
+                    val provider = AppService.findById(providerId) ?: run { intros[key] = null; return@async }
+                    val agentIdForCache = "intro::$providerId::$model"
+                    val cacheKey = PromptCache.keyFor(introPromptText, agentIdForCache)
+                    PromptCache.get(cacheKey)?.let { intros[key] = it; return@async }
+
+                    val apiKey = aiSettings.getApiKey(provider)
+                    if (apiKey.isBlank()) { intros[key] = null; return@async }
+
+                    val syntheticAgent = Agent(
+                        id = agentIdForCache,
+                        name = "Self-intro for ${provider.displayName} / $model",
+                        provider = provider,
+                        model = model,
+                        apiKey = apiKey
+                    )
+                    val resp = repository.analyzePlayerWithAgent(
+                        syntheticAgent,
+                        introPromptText,
+                        aiSettings.resolveAgentParameters(syntheticAgent)
+                    )
+                    resp.tokenUsage?.let { tu ->
+                        val pricing = PricingCache.getPricing(context, provider, model)
+                        val cost = tu.apiCost ?: (tu.inputTokens * pricing.promptPrice + tu.outputTokens * pricing.completionPrice)
+                        introCosts += IntroCostRow(
+                            introducedFor = "${provider.displayName} / $model",
+                            runProvider = provider.displayName,
+                            runModel = model,
+                            inputTokens = tu.inputTokens.toLong(),
+                            outputTokens = tu.outputTokens.toLong(),
+                            cost = cost
+                        )
+                    }
+                    intros[key] = resp.analysis?.also { PromptCache.put(cacheKey, it) }
+                } catch (_: Exception) {
+                    intros[key] = null
+                } finally {
+                    onProgress(completed.incrementAndGet(), totalSteps)
+                }
             }
-            // Live (non-cached) intro call — record its cost so it shows up in the PDF
-            // cost table separately from the report's own agent calls.
-            resp.tokenUsage?.let { tu ->
-                val pricing = PricingCache.getPricing(context, effective.provider, effective.model)
-                val cost = tu.apiCost ?: (tu.inputTokens * pricing.promptPrice + tu.outputTokens * pricing.completionPrice)
-                introCosts += IntroCostRow(
-                    introducedFor = "${provider.displayName} / $model",
-                    runProvider = effective.provider.displayName,
-                    runModel = effective.model,
-                    inputTokens = tu.inputTokens.toLong(),
-                    outputTokens = tu.outputTokens.toLong(),
-                    cost = cost
-                )
-            }
-            resp.analysis?.also { PromptCache.put(cacheKey, it) }
-        } catch (_: Exception) { null }
+        }.awaitAll()
     }
     onProgress(totalSteps, totalSteps)
-    return buildPdfHtml(context, report, traces, intros, introCosts, sections, getAppVersion(context))
+    return buildPdfHtml(context, report, traces, intros, introCosts.toList(), sections, getAppVersion(context))
 }
 
 // ===== Short HTML — title + prompt + per-model results =====
