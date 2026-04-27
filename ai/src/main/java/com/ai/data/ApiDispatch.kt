@@ -122,13 +122,7 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
         val body = response.body()
         val content = extractResponsesApiContent(body)
         val rawUsageJson = formatUsageJson(body?.usage)
-        val usage = body?.usage?.let {
-            TokenUsage(
-                inputTokens = it.input_tokens ?: it.prompt_tokens ?: 0,
-                outputTokens = it.output_tokens ?: it.completion_tokens ?: 0,
-                apiCost = extractApiCost(it)
-            )
-        }
+        val usage = body?.usage?.toTokenUsage()
         if (content != null) AnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
     } else {
@@ -160,7 +154,7 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
         val content = body?.content?.firstOrNull { it.type == "text" }?.text
             ?: body?.content?.firstNotNullOfOrNull { it.text }
         val rawUsageJson = formatUsageJson(body?.usage)
-        val usage = body?.usage?.let { TokenUsage(it.input_tokens ?: 0, it.output_tokens ?: 0, extractApiCost(it)) }
+        val usage = body?.usage?.toTokenUsage()
         if (content != null) AnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
     } else {
@@ -190,7 +184,7 @@ private suspend fun AnalysisRepository.analyzeGemini(
         val content = body?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
             ?: body?.candidates?.flatMap { it.content?.parts ?: emptyList() }?.firstNotNullOfOrNull { it.text }
         val rawUsageJson = formatUsageJson(body?.usageMetadata)
-        val usage = body?.usageMetadata?.let { TokenUsage(it.promptTokenCount ?: 0, it.candidatesTokenCount ?: 0, extractApiCost(it)) }
+        val usage = body?.usageMetadata?.toTokenUsage()
         if (content != null) AnalysisResponse(service, content, null, usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
         else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
     } else {
@@ -432,7 +426,7 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
                 try {
                     val oaiResponse = createAppGson().fromJson(responseBody, OpenAiResponse::class.java)
                     val content = oaiResponse?.choices?.firstOrNull()?.message?.content
-                    val usage = oaiResponse?.usage?.let { u -> TokenUsage(u.prompt_tokens ?: u.input_tokens ?: 0, u.completion_tokens ?: u.output_tokens ?: 0, extractApiCost(u, service)) }
+                    val usage = oaiResponse?.usage?.toTokenUsage(service)
                     if (content != null) AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
                     else AnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
                 } catch (_: Exception) { AnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode) }
@@ -480,10 +474,7 @@ private fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService, 
                 ?: choices.firstNotNullOfOrNull { it.message.reasoning_content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
-        val usage = body?.usage?.let {
-            TokenUsage(it.prompt_tokens ?: it.input_tokens ?: 0, it.completion_tokens ?: it.output_tokens ?: 0,
-                extractApiCost(it, if (service.extractApiCost) service else null))
-        }
+        val usage = body?.usage?.toTokenUsage(service)
         if (!content.isNullOrBlank()) AnalysisResponse(service, content, null, usage,
             citations = body?.citations, searchResults = body?.search_results, relatedQuestions = body?.related_questions,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)

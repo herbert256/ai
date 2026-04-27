@@ -228,10 +228,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private fun calculateResponseCost(context: Context, provider: AppService, model: String, tokenUsage: TokenUsage?): Double? {
         if (tokenUsage == null) return null
-        return tokenUsage.apiCost ?: run {
-            val pricing = PricingCache.getPricing(context, provider, model)
-            tokenUsage.inputTokens * pricing.promptPrice + tokenUsage.outputTokens * pricing.completionPrice
-        }
+        return PricingCache.computeCost(tokenUsage, PricingCache.getPricing(context, provider, model))
     }
 
     /**

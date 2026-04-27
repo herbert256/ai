@@ -40,7 +40,26 @@ object PricingCache {
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var preloadCompleted = false
 
-    data class ModelPricing(val modelId: String, val promptPrice: Double, val completionPrice: Double, val source: String = "unknown")
+    data class ModelPricing(
+        val modelId: String,
+        val promptPrice: Double,
+        val completionPrice: Double,
+        val source: String = "unknown",
+        // Cache-aware pricing — null means "no cache rate, charge full input
+        // for cached tokens". Default factor applied when LiteLLM doesn't
+        // surface the explicit key (most providers settle around 0.1×–0.5×
+        // input for cache reads; we leave nulls and the cost helper falls
+        // back to promptPrice rather than guess).
+        val cachedReadPrice: Double? = null,
+        val cachedWritePrice: Double? = null,
+        // Above-200k context tier (Gemini 2.5/3 Pro, legacy Anthropic Sonnet 4
+        // before the 4.6 GA, DashScope Qwen-Long). Charged per-call when the
+        // current request crosses the threshold.
+        val promptPriceAbove200k: Double? = null,
+        val completionPriceAbove200k: Double? = null,
+        val cachedReadPriceAbove200k: Double? = null,
+        val cachedWritePriceAbove200k: Double? = null
+    )
 
     fun needsOpenRouterRefresh(context: Context): Boolean {
         ensureLoaded(context)
@@ -94,6 +113,33 @@ object PricingCache {
     private fun saveManualPricing(context: Context) { getPrefs(context).edit { putString(KEY_MANUAL_PRICING, gson.toJson(manualPricing)) } }
 
     private val DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6, "DEFAULT")
+
+    /**
+     * Compute the cost of a call. Trusts usage.apiCost when populated by the
+     * provider (OpenRouter, Perplexity); otherwise applies cache-aware,
+     * tier-aware token math.
+     *
+     *   • Cached input tokens charged at the cache-read rate (or full input
+     *     rate if no cache rate is known).
+     *   • Anthropic cache-creation tokens charged at the cache-write rate.
+     *   • Above-200k tier prices applied per-call when the request crosses
+     *     the threshold (Gemini Pro tiers, legacy Anthropic Sonnet 4).
+     */
+    fun computeCost(usage: TokenUsage, pricing: ModelPricing): Double {
+        usage.apiCost?.let { return it }
+        val totalInput = usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens
+        val highTier = totalInput > 200_000 && pricing.promptPriceAbove200k != null
+        val pIn = if (highTier) pricing.promptPriceAbove200k!! else pricing.promptPrice
+        val pOut = if (highTier) (pricing.completionPriceAbove200k ?: pricing.completionPrice) else pricing.completionPrice
+        val pCacheR = if (highTier) (pricing.cachedReadPriceAbove200k ?: pricing.cachedReadPrice ?: pIn)
+                     else (pricing.cachedReadPrice ?: pIn)
+        val pCacheW = if (highTier) (pricing.cachedWritePriceAbove200k ?: pricing.cachedWritePrice ?: pIn)
+                     else (pricing.cachedWritePrice ?: pIn)
+        return usage.inputTokens * pIn +
+            usage.cachedInputTokens * pCacheR +
+            usage.cacheCreationTokens * pCacheW +
+            usage.outputTokens * pOut
+    }
 
     /**
      * Warm the in-memory caches in the background. Safe to call repeatedly; only runs once.
@@ -202,11 +248,7 @@ object PricingCache {
             val url = java.net.URL("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
             val json = url.openStream().bufferedReader().use { it.readText() }
             val data: Map<String, Map<String, Any>> = gson.fromJson(json, mapStringMapType)
-            val parsed = data.mapNotNull { (modelId, info) ->
-                val ic = (info["input_cost_per_token"] as? Number)?.toDouble()
-                val oc = (info["output_cost_per_token"] as? Number)?.toDouble()
-                if (ic != null && oc != null) modelId to ModelPricing(modelId, ic, oc, "LITELLM") else null
-            }.toMap()
+            val parsed = data.mapNotNull { (modelId, info) -> liteLLMEntry(modelId, info) }.toMap()
             if (parsed.isEmpty()) return@withContext null
             synchronized(lock) {
                 litellmPricing = parsed
@@ -290,12 +332,34 @@ object PricingCache {
         return try {
             val json = context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
             val data: Map<String, Map<String, Any>> = gson.fromJson(json, mapStringMapType)
-            data.mapNotNull { (modelId, info) ->
-                val ic = (info["input_cost_per_token"] as? Number)?.toDouble()
-                val oc = (info["output_cost_per_token"] as? Number)?.toDouble()
-                if (ic != null && oc != null) modelId to ModelPricing(modelId, ic, oc, "LITELLM") else null
-            }.toMap()
+            data.mapNotNull { (modelId, info) -> liteLLMEntry(modelId, info) }.toMap()
         } catch (_: Exception) { emptyMap() }
+    }
+
+    /** Map a single litellm JSON entry to a ModelPricing, or null if it lacks
+     *  the base input/output token costs. Reads the cache and 200k-tier keys
+     *  alongside; missing keys leave nulls (call site falls back to plain
+     *  prompt/completion rates). */
+    private fun liteLLMEntry(modelId: String, info: Map<String, Any>): Pair<String, ModelPricing>? {
+        val ic = (info["input_cost_per_token"] as? Number)?.toDouble() ?: return null
+        val oc = (info["output_cost_per_token"] as? Number)?.toDouble() ?: return null
+        fun n(key: String) = (info[key] as? Number)?.toDouble()
+        return modelId to ModelPricing(
+            modelId = modelId,
+            promptPrice = ic,
+            completionPrice = oc,
+            source = "LITELLM",
+            cachedReadPrice = n("cache_read_input_token_cost"),
+            cachedWritePrice = n("cache_creation_input_token_cost"),
+            promptPriceAbove200k = n("input_cost_per_token_above_200k_tokens")
+                ?: n("input_cost_per_token_above_128k_tokens"),
+            completionPriceAbove200k = n("output_cost_per_token_above_200k_tokens")
+                ?: n("output_cost_per_token_above_128k_tokens"),
+            cachedReadPriceAbove200k = n("cache_read_input_token_cost_above_200k_tokens")
+                ?: n("cache_read_input_token_cost_above_128k_tokens"),
+            cachedWritePriceAbove200k = n("cache_creation_input_token_cost_above_200k_tokens")
+                ?: n("cache_creation_input_token_cost_above_128k_tokens")
+        )
     }
 
     // Model specifications from OpenRouter

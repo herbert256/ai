@@ -71,7 +71,14 @@ data class OpenAiResponseFormat(val type: String = "text")
 
 data class OpenAiChoice(val message: OpenAiMessage, val index: Int)
 
-data class UsageCost(val total_cost: Double? = null)
+data class UsageCost(
+    val total_cost: Double? = null,
+    val input_tokens_cost: Double? = null,
+    val output_tokens_cost: Double? = null,
+    val request_cost: Double? = null
+)
+
+data class OpenAiPromptTokensDetails(val cached_tokens: Int? = null)
 
 data class OpenAiUsage(
     val prompt_tokens: Int?,
@@ -79,10 +86,16 @@ data class OpenAiUsage(
     val total_tokens: Int?,
     val input_tokens: Int? = null,
     val output_tokens: Int? = null,
+    // FlexibleCostDeserializer handles both shapes: OpenRouter / xAI emit a
+    // primitive Double here; Perplexity emits a nested object with total_cost.
     @JsonAdapter(FlexibleCostDeserializer::class)
     val cost: Double? = null,
     val cost_in_usd_ticks: Long? = null,
-    val cost_usd: UsageCost? = null
+    val cost_usd: UsageCost? = null,
+    val prompt_tokens_details: OpenAiPromptTokensDetails? = null,
+    val prompt_cache_hit_tokens: Int? = null,   // DeepSeek
+    val prompt_cache_miss_tokens: Int? = null,  // DeepSeek
+    val cached_tokens: Int? = null              // some xAI / others flatten this
 )
 
 data class SearchResult(val name: String?, val url: String?, val snippet: String?)
@@ -162,7 +175,11 @@ data class ClaudeUsage(
     val output_tokens: Int?,
     val cost: Double? = null,
     val cost_in_usd_ticks: Long? = null,
-    val cost_usd: UsageCost? = null
+    val cost_usd: UsageCost? = null,
+    // Anthropic's input_tokens excludes cached / cache-creation; we read these
+    // separately and bill at distinct rates.
+    val cache_creation_input_tokens: Int? = null,
+    val cache_read_input_tokens: Int? = null
 )
 
 data class ClaudeResponse(
@@ -211,7 +228,9 @@ data class GeminiUsageMetadata(
     val totalTokenCount: Int?,
     val cost: Double? = null,
     val cost_in_usd_ticks: Long? = null,
-    val cost_usd: UsageCost? = null
+    val cost_usd: UsageCost? = null,
+    // Subset of promptTokenCount that came from the cached-content store.
+    val cachedContentTokenCount: Int? = null
 )
 
 data class GeminiResponse(
@@ -313,12 +332,66 @@ data class HuggingFaceCardData(
 data class HuggingFaceSibling(val rfilename: String? = null)
 
 // ============================================================================
-// Cost extraction (unified for all formats)
+// Token-usage extraction — normalize each provider's response shape into the
+// unified TokenUsage(inputTokens, cachedInputTokens, cacheCreationTokens,
+// outputTokens) where inputTokens is the *uncached* portion only.
+// ============================================================================
+
+/** OpenAI / DeepSeek / xAI / Gemini-compat: prompt_tokens is the total and
+ *  includes cached tokens. We subtract the cached count to get the fresh
+ *  bucket. DeepSeek uses prompt_cache_hit_tokens / prompt_cache_miss_tokens;
+ *  OpenAI uses prompt_tokens_details.cached_tokens. */
+fun OpenAiUsage.toTokenUsage(provider: AppService? = null): TokenUsage {
+    val total = prompt_tokens ?: input_tokens ?: 0
+    val cached = prompt_tokens_details?.cached_tokens
+        ?: cached_tokens
+        ?: prompt_cache_hit_tokens
+        ?: 0
+    val fresh = (total - cached).coerceAtLeast(0)
+    return TokenUsage(
+        inputTokens = fresh,
+        outputTokens = completion_tokens ?: output_tokens ?: 0,
+        apiCost = extractApiCost(this, provider),
+        cachedInputTokens = cached
+    )
+}
+
+/** Anthropic: input_tokens already excludes both cache buckets — pass through. */
+fun ClaudeUsage.toTokenUsage(): TokenUsage = TokenUsage(
+    inputTokens = input_tokens ?: 0,
+    outputTokens = output_tokens ?: 0,
+    apiCost = extractApiCost(this),
+    cachedInputTokens = cache_read_input_tokens ?: 0,
+    cacheCreationTokens = cache_creation_input_tokens ?: 0
+)
+
+/** Gemini: cachedContentTokenCount is a subset of promptTokenCount. */
+fun GeminiUsageMetadata.toTokenUsage(): TokenUsage {
+    val total = promptTokenCount ?: 0
+    val cached = cachedContentTokenCount ?: 0
+    val fresh = (total - cached).coerceAtLeast(0)
+    return TokenUsage(
+        inputTokens = fresh,
+        outputTokens = candidatesTokenCount ?: 0,
+        apiCost = extractApiCost(this),
+        cachedInputTokens = cached
+    )
+}
+
+// ============================================================================
+// Cost extraction (legacy — used internally by the toTokenUsage helpers above
+// so the apiCost field on TokenUsage stays populated when the provider
+// returned an explicit cost)
 // ============================================================================
 
 fun extractApiCost(usage: OpenAiUsage?, provider: AppService? = null): Double? {
     if (usage == null) return null
-    if (provider?.extractApiCost == true) usage.cost?.let { return it }
+    // Trust usage.cost whenever the response actually populated it. OpenRouter
+    // returns a primitive Double; Perplexity returns a nested object whose
+    // total_cost field is decoded by FlexibleCostDeserializer. Both reach us
+    // here as a Double. Other providers leave it null.
+    usage.cost?.let { return it }
+    usage.cost_usd?.total_cost?.let { return it }
     provider?.costTicksDivisor?.let { divisor ->
         usage.cost_in_usd_ticks?.let { return it / divisor }
     }

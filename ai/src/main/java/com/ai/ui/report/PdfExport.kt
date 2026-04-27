@@ -232,7 +232,7 @@ private suspend fun buildComprehensiveHtml(
                     )
                     resp.tokenUsage?.let { tu ->
                         val pricing = PricingCache.getPricing(context, provider, model)
-                        val cost = tu.apiCost ?: (tu.inputTokens * pricing.promptPrice + tu.outputTokens * pricing.completionPrice)
+                        val cost = PricingCache.computeCost(tu, pricing)
                         introCosts += IntroCostRow(
                             introducedFor = "${provider.displayName} / $model",
                             runProvider = provider.displayName,
@@ -510,7 +510,7 @@ private fun buildPdfHtml(
         val pricing = provider?.let { PricingCache.getPricing(context, it, a.model) }
         val inT: Long = (tu?.inputTokens ?: 0).toLong()
         val outT: Long = (tu?.outputTokens ?: 0).toLong()
-        val cost = a.cost ?: (if (tu != null && pricing != null) tu.inputTokens * pricing.promptPrice + tu.outputTokens * pricing.completionPrice else 0.0)
+        val cost = a.cost ?: (if (tu != null && pricing != null) PricingCache.computeCost(tu, pricing) else 0.0)
         totalIn += inT; totalOut += outT; totalCost += cost
         sb.append("<tr><td>").append(esc(a.agentName)).append("</td><td>")
             .append(esc(provider?.displayName ?: a.provider)).append("</td><td>")

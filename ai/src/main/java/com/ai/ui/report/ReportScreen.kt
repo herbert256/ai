@@ -615,11 +615,8 @@ private fun ColumnScope.GenerationPhase(
     val selectedAgents = uiState.genericReportsSelectedAgents
     val totalCost = remember(reportsAgentResults) {
         reportsAgentResults.entries.sumOf { (agentId, resp) ->
-            resp.tokenUsage?.let { tu ->
-                tu.apiCost ?: run {
-                    val p = PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp))
-                    tu.inputTokens * p.promptPrice + tu.outputTokens * p.completionPrice
-                }
+            resp.tokenUsage?.let {
+                PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
             } ?: 0.0
         }
     }
@@ -673,10 +670,7 @@ private fun ColumnScope.GenerationPhase(
                     Text(displayName, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {
-                    val cost = result.tokenUsage.apiCost ?: run {
-                        val p = PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result))
-                        result.tokenUsage.inputTokens * p.promptPrice + result.tokenUsage.outputTokens * p.completionPrice
-                    }
+                    val cost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
                     Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
             }

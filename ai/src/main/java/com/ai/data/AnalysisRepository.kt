@@ -12,12 +12,27 @@ import java.util.Locale
 /**
  * Token usage statistics from AI API response.
  */
+/**
+ * Token usage statistics from AI API response.
+ *
+ * inputTokens is the count of *fresh* (uncached) prompt tokens — cached
+ * portions are in cachedInputTokens (charged at the cache-read rate) and
+ * cacheCreationTokens (Anthropic-only, charged at the cache-write rate).
+ * Each provider's extractor normalizes the response shape into these buckets:
+ *
+ *   • OpenAI / DeepSeek / xAI / Gemini: prompt_tokens is total and includes
+ *     cached; the extractor does inputTokens = total − cached.
+ *   • Anthropic: input_tokens already excludes both cache fields; we use
+ *     them as-is.
+ */
 data class TokenUsage(
     val inputTokens: Int,
     val outputTokens: Int,
-    val apiCost: Double? = null
+    val apiCost: Double? = null,
+    val cachedInputTokens: Int = 0,
+    val cacheCreationTokens: Int = 0
 ) {
-    val totalTokens: Int get() = inputTokens + outputTokens
+    val totalTokens: Int get() = inputTokens + outputTokens + cachedInputTokens + cacheCreationTokens
 }
 
 /**
