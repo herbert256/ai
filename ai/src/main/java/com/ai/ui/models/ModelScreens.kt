@@ -26,6 +26,7 @@ import com.ai.ui.settings.AgentEditScreen
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -245,41 +246,48 @@ fun ModelInfoScreen(
         }
     }
 
-    // AI description (independent load) — runs the prompt text from the
-    // internal "model_info" Prompt against the *currently viewed* model,
-    // not the model configured on the prompt's agent. The agent's
-    // parameter preset still propagates so the user's temperature /
-    // max_tokens preferences carry over. Cached for 48h via PromptCache,
-    // keyed by (resolvedPrompt, "${provider.id}:$modelName") so each
-    // model gets its own cached self-introduction.
-    LaunchedEffect(provider, modelName) {
-        val modelInfoPrompt = aiSettings.prompts.find { it.name.lowercase().contains("model_info") || it.name.lowercase().contains("model info") }
-        if (modelInfoPrompt != null) {
-            val configuredAgent = aiSettings.getAgentById(modelInfoPrompt.agentId) ?: return@LaunchedEffect
-            val pageApiKey = aiSettings.getApiKey(provider)
-            if (pageApiKey.isBlank()) return@LaunchedEffect
-            val selfAgent = Agent(
-                id = "model_info_self:${provider.id}:$modelName",
-                name = "${provider.displayName} / $modelName",
-                provider = provider, model = modelName,
-                apiKey = pageApiKey
-            )
-            val resolvedPrompt = modelInfoPrompt.promptText
-                .replace("@MODEL@", modelName).replace("@PROVIDER@", provider.displayName)
-                .replace("@AGENT@", selfAgent.name)
-            val cacheKey = PromptCache.keyFor(resolvedPrompt, "${provider.id}:$modelName")
-            PromptCache.get(cacheKey)?.let { cached ->
-                aiDescription = cached
-                return@LaunchedEffect
-            }
+    // AI description — opt-in. The "model_info" internal prompt + the
+    // page's own (provider, model) build a request that asks the model to
+    // introduce itself. We only peek at PromptCache on screen open so a
+    // previously-completed result shows immediately; otherwise the user
+    // gets a button. The configured agent's resolved Parameters preset
+    // still propagates so the user's temperature / max_tokens carry over.
+    val scope = rememberCoroutineScope()
+    val modelInfoPrompt = remember(aiSettings) {
+        aiSettings.prompts.find { it.name.lowercase().contains("model_info") || it.name.lowercase().contains("model info") }
+    }
+    val pageApiKey = aiSettings.getApiKey(provider)
+    val introResolvedPrompt = remember(modelInfoPrompt, provider, modelName) {
+        modelInfoPrompt?.promptText?.replace("@MODEL@", modelName)?.replace("@PROVIDER@", provider.displayName)
+            ?.replace("@AGENT@", "${provider.displayName} / $modelName")
+    }
+    val introCacheKey = remember(introResolvedPrompt, provider, modelName) {
+        introResolvedPrompt?.let { PromptCache.keyFor(it, "${provider.id}:$modelName") }
+    }
+    val canRequestIntro = modelInfoPrompt != null && pageApiKey.isNotBlank()
+    LaunchedEffect(introCacheKey) {
+        introCacheKey?.let { PromptCache.get(it) }?.let { aiDescription = it }
+    }
+    val requestIntroduction: () -> Unit = req@{
+        if (!canRequestIntro || isAiLoading) return@req
+        val prompt = introResolvedPrompt ?: return@req
+        val key = introCacheKey ?: return@req
+        val configuredAgent = aiSettings.getAgentById(modelInfoPrompt!!.agentId) ?: return@req
+        val selfAgent = Agent(
+            id = "model_info_self:${provider.id}:$modelName",
+            name = "${provider.displayName} / $modelName",
+            provider = provider, model = modelName,
+            apiKey = pageApiKey
+        )
+        scope.launch {
             isAiLoading = true
             try {
                 val response = withContext(Dispatchers.IO) {
-                    repository.analyzePlayerWithAgent(selfAgent, resolvedPrompt, aiSettings.resolveAgentParameters(configuredAgent))
+                    repository.analyzePlayerWithAgent(selfAgent, prompt, aiSettings.resolveAgentParameters(configuredAgent))
                 }
                 if (response.isSuccess) {
                     aiDescription = response.analysis
-                    response.analysis?.let { PromptCache.put(cacheKey, it) }
+                    response.analysis?.let { PromptCache.put(key, it) }
                 }
             } catch (_: Exception) {} finally { isAiLoading = false }
         }
@@ -523,19 +531,24 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // AI description
-                    if (isAiLoading || aiDescription != null) {
+                    // AI description — opt-in. Shows the "Ask the model to
+                    // introduce itself" button when no cached result is
+                    // available; the spinner while a request is in flight;
+                    // the rendered Markdown when we have a result.
+                    if (canRequestIntro || aiDescription != null) {
                         item {
                             ModelInfoSection("AI Introduction", null) {
-                                if (isAiLoading) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                when {
+                                    isAiLoading -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                         Text("Generating...", fontSize = 13.sp, color = AppColors.TextTertiary)
                                     }
-                                } else {
-                                    // Render through the shared markdown→HTML→AnnotatedString pipeline so
-                                    // headings/bold/italics/lists from the model's Markdown actually format.
-                                    ContentWithThinkSections(aiDescription ?: "")
+                                    aiDescription != null -> ContentWithThinkSections(aiDescription ?: "")
+                                    else -> Button(
+                                        onClick = requestIntroduction,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                    ) { Text("Ask the model to introduce itself", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                                 }
                             }
                         }
