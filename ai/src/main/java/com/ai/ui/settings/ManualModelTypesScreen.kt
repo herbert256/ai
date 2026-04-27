@@ -1,0 +1,209 @@
+package com.ai.ui.settings
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.AppService
+import com.ai.data.ModelType
+import com.ai.model.ModelTypeOverride
+import com.ai.model.Settings
+import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.CrudListScreen
+import com.ai.ui.shared.TitleBar
+import java.util.UUID
+
+/**
+ * AI Setup → Manual model types overrides. CRUD list of (provider, model, type)
+ * triples that win over the autodetected type stored on ProviderConfig.modelTypes.
+ *
+ * Useful when the heuristic and native list APIs both miss — e.g. a provider whose
+ * embedding model name doesn't contain "embed", or a vision-capable chat model
+ * the user wants treated as IMAGE for routing purposes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManualModelTypesScreen(
+    aiSettings: Settings,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onSave: (Settings) -> Unit
+) {
+    BackHandler { onBack() }
+    var editing by remember { mutableStateOf<ModelTypeOverride?>(null) }
+    var addingNew by remember { mutableStateOf(false) }
+
+    if (addingNew || editing != null) {
+        ManualModelTypeEditScreen(
+            initial = editing,
+            aiSettings = aiSettings,
+            onCancel = { editing = null; addingNew = false },
+            onSave = { saved ->
+                val list = aiSettings.modelTypeOverrides
+                val updated = if (editing != null) list.map { if (it.id == saved.id) saved else it }
+                              else list + saved
+                onSave(aiSettings.withModelTypeOverrides(updated))
+                editing = null
+                addingNew = false
+            }
+        )
+        return
+    }
+
+    CrudListScreen(
+        title = "Manual model types",
+        items = aiSettings.modelTypeOverrides,
+        addLabel = "+ Add override",
+        emptyMessage = "No overrides yet. Add one to force a specific type for a provider/model pair.",
+        sortKey = { "${it.providerId}/${it.modelId}" },
+        itemTitle = { "${it.providerId} / ${it.modelId}" },
+        itemSubtitle = { "→ ${it.type}" },
+        onAdd = { addingNew = true },
+        onEdit = { editing = it },
+        onDelete = { override ->
+            onSave(aiSettings.withModelTypeOverrides(aiSettings.modelTypeOverrides.filter { it.id != override.id }))
+        },
+        onBack = onBack,
+        onHome = onNavigateHome,
+        deleteEntityType = "Override",
+        deleteEntityName = { "${it.providerId}/${it.modelId}" },
+        itemKey = { it.id }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ManualModelTypeEditScreen(
+    initial: ModelTypeOverride?,
+    aiSettings: Settings,
+    onCancel: () -> Unit,
+    onSave: (ModelTypeOverride) -> Unit
+) {
+    BackHandler { onCancel() }
+
+    val allProviders = remember { AppService.entries.sortedBy { it.displayName } }
+    var providerId by remember { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
+    var modelId by remember { mutableStateOf(initial?.modelId ?: "") }
+    var type by remember { mutableStateOf(initial?.type ?: ModelType.CHAT) }
+    var providerExpanded by remember { mutableStateOf(false) }
+
+    val canSave = providerId.isNotBlank() && modelId.trim().isNotBlank()
+    val knownModels = remember(providerId, aiSettings) {
+        AppService.findById(providerId)?.let { aiSettings.getProvider(it).models.sorted() } ?: emptyList()
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(
+            title = if (initial == null) "Add override" else "Edit override",
+            onBackClick = onCancel,
+            onAiClick = onCancel
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Provider picker — ExposedDropdownMenu over all known providers.
+            ExposedDropdownMenuBox(
+                expanded = providerExpanded,
+                onExpandedChange = { providerExpanded = !providerExpanded }
+            ) {
+                OutlinedTextField(
+                    value = AppService.findById(providerId)?.displayName ?: providerId,
+                    onValueChange = {}, readOnly = true,
+                    label = { Text("Provider") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, true),
+                    colors = AppColors.outlinedFieldColors()
+                )
+                ExposedDropdownMenu(expanded = providerExpanded, onDismissRequest = { providerExpanded = false }) {
+                    allProviders.forEach { p ->
+                        DropdownMenuItem(
+                            text = { Text(p.displayName) },
+                            onClick = { providerId = p.id; providerExpanded = false }
+                        )
+                    }
+                }
+            }
+
+            // Model id — free-form text so unfetched models can be overridden too.
+            OutlinedTextField(
+                value = modelId, onValueChange = { modelId = it },
+                label = { Text("Model id") },
+                placeholder = { Text("e.g. text-embedding-3-small") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedFieldColors()
+            )
+
+            // Suggestions chip list — tap to fill the model id field.
+            if (knownModels.isNotEmpty()) {
+                Text("Known models for this provider", fontSize = 11.sp, color = AppColors.TextTertiary)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    knownModels.take(20).forEach { m ->
+                        AssistChip(
+                            onClick = { modelId = m },
+                            label = { Text(m, fontSize = 12.sp) }
+                        )
+                    }
+                    if (knownModels.size > 20) {
+                        Text("…and ${knownModels.size - 20} more", fontSize = 11.sp, color = AppColors.TextDim)
+                    }
+                }
+            }
+
+            // Type picker.
+            Text("Type", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Two columns of FilterChips — ALL types are 9 entries, fits nicely.
+                ModelType.ALL.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { t ->
+                            FilterChip(
+                                selected = type == t,
+                                onClick = { type = t },
+                                label = { Text(t, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Cancel", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = {
+                    onSave(
+                        ModelTypeOverride(
+                            id = initial?.id ?: UUID.randomUUID().toString(),
+                            providerId = providerId,
+                            modelId = modelId.trim(),
+                            type = type
+                        )
+                    )
+                },
+                enabled = canSave,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Save", maxLines = 1, softWrap = false, color = Color.White) }
+        }
+    }
+}

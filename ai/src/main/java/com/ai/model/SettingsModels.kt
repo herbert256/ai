@@ -94,6 +94,20 @@ data class Parameters(
 
 data class SystemPrompt(val id: String, val name: String, val prompt: String)
 
+/**
+ * Manual user-supplied type assignment for a single (provider, model) pair. Wins
+ * over the type stored on ProviderConfig.modelTypes (which comes from native
+ * list-API metadata or the heuristic). Lives at the Settings root rather than
+ * inside ProviderConfig because it's a cross-provider CRUD list — one entry per
+ * override, not one map per provider.
+ */
+data class ModelTypeOverride(
+    val id: String,
+    val providerId: String,
+    val modelId: String,
+    val type: String
+)
+
 data class Prompt(val id: String, val name: String, val agentId: String, val promptText: String) {
     fun resolvePrompt(model: String? = null, provider: String? = null, agent: String? = null, swarm: String? = null): String {
         var resolved = promptText
@@ -115,7 +129,8 @@ data class Settings(
     val systemPrompts: List<SystemPrompt> = emptyList(),
     val prompts: List<Prompt> = emptyList(),
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
-    val providerStates: Map<String, String> = emptyMap()
+    val providerStates: Map<String, String> = emptyMap(),
+    val modelTypeOverrides: List<ModelTypeOverride> = emptyList()
 ) {
     fun getProviderState(service: AppService): String {
         val stored = providerStates[service.id]
@@ -139,7 +154,14 @@ data class Settings(
     fun withModels(service: AppService, models: List<String>) = withProvider(service, getProvider(service).copy(models = models))
     fun withModels(service: AppService, models: List<String>, types: Map<String, String>) =
         withProvider(service, getProvider(service).copy(models = models, modelTypes = types))
-    fun getModelType(service: AppService, modelId: String): String? = getProvider(service).modelTypes[modelId]
+    /** User-supplied manual override always wins; otherwise read the stored
+     *  classification (from native list APIs or the heuristic). */
+    fun getModelType(service: AppService, modelId: String): String? {
+        modelTypeOverrides.firstOrNull { it.providerId == service.id && it.modelId == modelId }?.let { return it.type }
+        return getProvider(service).modelTypes[modelId]
+    }
+
+    fun withModelTypeOverrides(overrides: List<ModelTypeOverride>) = copy(modelTypeOverrides = overrides)
 
     /**
      * Cross-pollinate per-provider type labels from OpenRouter's catalog: for any model

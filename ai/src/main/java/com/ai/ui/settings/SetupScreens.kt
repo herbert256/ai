@@ -62,6 +62,8 @@ fun SetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
             SetupNavCard("\uD83C\uDFF7\uFE0F", "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
+            SetupNavCard("\u270D\uFE0F", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
             SetupNavCard("\uD83E\uDD16", "Agents", "Named AI model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
             SetupNavCard("\uD83E\uDD86", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",

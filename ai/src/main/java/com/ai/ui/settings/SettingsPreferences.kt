@@ -29,6 +29,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listParametersType: Type = object : TypeToken<List<Parameters>>() {}.type
         val listSystemPromptType: Type = object : TypeToken<List<SystemPrompt>>() {}.type
         val listPromptType: Type = object : TypeToken<List<Prompt>>() {}.type
+        val listModelTypeOverrideType: Type = object : TypeToken<List<ModelTypeOverride>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
         val listPromptHistoryType: Type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
@@ -76,7 +77,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
             prompts = loadList(KEY_AI_PROMPTS, TypeTokens.listPromptType),
             endpoints = loadEndpoints(),
-            providerStates = loadMap(KEY_PROVIDER_STATES)
+            providerStates = loadMap(KEY_PROVIDER_STATES),
+            modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType)
         )
     }
 
@@ -135,6 +137,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
             putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
+            putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
         }
     }
 
@@ -320,6 +323,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_PROMPTS = "ai_prompts"
         private const val KEY_AI_ENDPOINTS = "ai_endpoints"
         private const val KEY_PROVIDER_STATES = "provider_states"
+        private const val KEY_AI_MODEL_TYPE_OVERRIDES = "ai_model_type_overrides"
 
         const val MAX_PROMPT_HISTORY = 100
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"

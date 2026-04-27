@@ -303,7 +303,6 @@ fun ProviderModelSettingsScreen(
             if (models.isNotEmpty()) {
                 Text("${models.size} models available", fontSize = 12.sp, color = AppColors.TextTertiary)
                 HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 4.dp))
-                val rowTypes = config.modelTypes
                 models.sorted().forEach { modelId ->
                     Row(
                         modifier = Modifier
@@ -318,7 +317,10 @@ fun ProviderModelSettingsScreen(
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        rowTypes[modelId]?.let { kind ->
+                        // getModelType() consults the user's manual overrides first, so
+                        // edits in AI Setup → Manual model types overrides surface here
+                        // immediately without needing a re-fetch.
+                        aiSettings.getModelType(service, modelId)?.let { kind ->
                             ModelTypeChip(kind)
                         }
                         // Test-status icon when a Test all models run has touched this row.
