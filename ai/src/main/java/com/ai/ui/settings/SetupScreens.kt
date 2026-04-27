@@ -118,18 +118,19 @@ fun ProvidersScreen(
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onProviderSelected: (AppService) -> Unit,
-    onAddProvider: () -> Unit = {}
+    onAddProvider: () -> Unit = {},
+    activeOnly: Boolean = true,
+    onActiveOnlyChange: (Boolean) -> Unit = {}
 ) {
     BackHandler { onBackToAiSetup() }
     val allProviders = AppService.entries
     // "Active" = providers that have been tested and have a working API key (state == "ok").
-    // rememberSaveable so the Active/All choice survives a navigation hop into a Provider's
-    // detail screen (which causes ProvidersScreen to leave composition) and back.
-    var showActiveOnly by rememberSaveable { mutableStateOf(true) }
+    // The filter choice is hoisted into the parent SettingsScreen so it survives a
+    // navigation hop into a provider's detail screen and back.
     val activeCount = remember(aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
 
-    val visibleProviders = remember(showActiveOnly, aiSettings) {
-        (if (showActiveOnly) allProviders.filter { aiSettings.getProviderState(it) == "ok" } else allProviders)
+    val visibleProviders = remember(activeOnly, aiSettings) {
+        (if (activeOnly) allProviders.filter { aiSettings.getProviderState(it) == "ok" } else allProviders)
             .sortedBy { it.displayName }
     }
 
@@ -141,13 +142,13 @@ fun ProvidersScreen(
 
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
-                selected = showActiveOnly,
-                onClick = { showActiveOnly = true },
+                selected = activeOnly,
+                onClick = { onActiveOnlyChange(true) },
                 label = { Text("Active ($activeCount)") }
             )
             FilterChip(
-                selected = !showActiveOnly,
-                onClick = { showActiveOnly = false },
+                selected = !activeOnly,
+                onClick = { onActiveOnlyChange(false) },
                 label = { Text("All (${allProviders.size})") }
             )
         }
@@ -159,7 +160,7 @@ fun ProvidersScreen(
                     fontSize = 13.sp, color = AppColors.TextTertiary
                 )
             }
-            if (!showActiveOnly) {
+            if (!activeOnly) {
                 Button(
                     onClick = onAddProvider,
                     modifier = Modifier.fillMaxWidth(),

@@ -65,6 +65,11 @@ fun SettingsScreen(
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
     var modelEditFromProvider by remember { mutableStateOf(false) }
+    // Active/All filter on the Providers list — hoisted up here (rather than left as
+    // rememberSaveable inside ProvidersScreen) because the sub-screen `when` block
+    // destroys ProvidersScreen's composition entirely on navigation, which throws
+    // its rememberSaveable state away.
+    var providersActiveOnly by remember { mutableStateOf(true) }
 
     val goBack: () -> Unit = {
         when (currentSubScreen) {
@@ -113,6 +118,8 @@ fun SettingsScreen(
         SettingsSubScreen.AI_PROVIDERS -> {
             ProvidersScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
+                activeOnly = providersActiveOnly,
+                onActiveOnlyChange = { providersActiveOnly = it },
                 onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
                 onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD }
             )
