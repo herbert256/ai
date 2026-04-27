@@ -133,13 +133,23 @@ class TracingInterceptor : Interceptor {
             }
         }
 
-        val model = rawRequestBody?.let { body ->
+        val modelFromBody = rawRequestBody?.let { body ->
             try {
                 @Suppress("DEPRECATION")
                 val el = com.google.gson.JsonParser().parse(body)
                 if (el.isJsonObject) el.asJsonObject.get("model")?.asString else null
             } catch (_: Exception) { null }
         }
+        // Path-encoded providers (Gemini's /v1beta/models/<model>:generateContent)
+        // don't include `model` in the body. Pull it from the URL segment between
+        // "/models/" and the next "/" or ":" so trace.model still matches.
+        val modelFromUrl: String? = run {
+            val u = request.url.toString()
+            val seg = u.substringAfter("/models/", "")
+            if (seg.isEmpty()) null
+            else seg.substringBefore("/").substringBefore(":").takeIf { it.isNotBlank() }
+        }
+        val model = modelFromBody ?: modelFromUrl
 
         ApiTracer.saveTrace(ApiTrace(timestamp, hostname, ApiTracer.currentReportId, model, traceRequest,
             TraceResponse(response.code, responseHeaders, responseBody)))

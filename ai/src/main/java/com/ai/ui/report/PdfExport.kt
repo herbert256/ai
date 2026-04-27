@@ -558,7 +558,9 @@ private fun buildPdfHtml(
 // ===== Redaction helpers (PDF only — runtime traces stay unredacted) =====
 
 private fun redactJsonString(text: String?): String? {
-    if (text.isNullOrBlank()) return text
+    // Return null (not "") for blank input so the call site's `?: "(not captured)"`
+    // fallback fires instead of rendering an empty .code block.
+    if (text.isNullOrBlank()) return null
     return try {
         @Suppress("DEPRECATION")
         val root = JsonParser().parse(text)
