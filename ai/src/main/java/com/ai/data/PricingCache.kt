@@ -281,6 +281,9 @@ object PricingCache {
     fun liteLLMSupportedEndpoints(provider: AppService, model: String): List<String>? =
         findLiteLLMMeta(provider, model)?.supportedEndpoints
 
+    fun liteLLMSupportsSystemMessages(provider: AppService, model: String): Boolean? =
+        findLiteLLMMeta(provider, model)?.supportsSystemMessages
+
     /** ModelType constant derived from LiteLLM's `mode` field, or null
      *  when no mapping applies. "chat" → CHAT, "embedding" → EMBEDDING,
      *  etc. CHAT is rarely useful (it's the default heuristic anyway) so
@@ -488,7 +491,8 @@ object PricingCache {
          *  `supported_endpoints` field — e.g. ["/v1/chat/completions",
          *  "/v1/responses"]. Combined with the provider's baseUrl by
          *  callers when offering endpoint suggestions. */
-        val supportedEndpoints: List<String>? = null
+        val supportedEndpoints: List<String>? = null,
+        val supportsSystemMessages: Boolean? = null
     )
 
     /** Walk the litellm pricing JSON via the tree model so duplicate keys
@@ -526,14 +530,15 @@ object PricingCache {
             val mode = flat["mode"] as? String
             val sv = flat["supports_vision"] as? Boolean
             val sw = flat["supports_web_search"] as? Boolean
+            val sm = flat["supports_system_messages"] as? Boolean
             val seArr = infoObj.get("supported_endpoints")
             val se = if (seArr != null && seArr.isJsonArray) {
                 seArr.asJsonArray.mapNotNull { el ->
                     if (el.isJsonPrimitive) el.asString else null
                 }.takeIf { it.isNotEmpty() }
             } else null
-            if (mode != null || sv != null || sw != null || se != null) {
-                meta[modelId] = LiteLLMMeta(mode, sv, sw, se)
+            if (mode != null || sv != null || sw != null || se != null || sm != null) {
+                meta[modelId] = LiteLLMMeta(mode, sv, sw, se, sm)
             }
         }
         return pricing to meta

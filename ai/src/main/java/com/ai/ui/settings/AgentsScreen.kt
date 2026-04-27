@@ -222,6 +222,24 @@ fun AgentEditScreen(
                     colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
                 ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
+            // Per-litellm: warn when the model is known not to accept system
+            // messages — anything chosen on either the System Prompt button
+            // above or via the Parameters preset's systemPrompt field would
+            // otherwise be silently folded or dropped at the dispatch layer.
+            run {
+                val spActive = selectedSystemPromptId != null ||
+                    selectedParamsIds.any { aiSettings.getParametersById(it)?.systemPrompt?.isNotBlank() == true }
+                if (!spActive) return@run
+                val supportsSystem = if (effectiveModel.isNotBlank())
+                    com.ai.data.PricingCache.liteLLMSupportsSystemMessages(selectedProvider, effectiveModel)
+                else null
+                if (supportsSystem == false) {
+                    Text(
+                        "⚠ ${selectedProvider.displayName} / $effectiveModel does not accept system messages — the system prompt may be ignored or folded into the user message at dispatch time.",
+                        fontSize = 11.sp, color = AppColors.Red
+                    )
+                }
+            }
 
             // Test
             if (apiKey.isNotBlank() || aiSettings.getApiKey(selectedProvider).isNotBlank()) {
