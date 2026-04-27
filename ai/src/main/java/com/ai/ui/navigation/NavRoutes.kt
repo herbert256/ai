@@ -22,6 +22,8 @@ object NavRoutes {
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
+    const val AI_IMPORT_EXPORT = "ai_import_export"
+    const val AI_REFRESH = "ai_refresh"
     const val AI_CHATS_HUB = "ai_chats_hub"
     const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
     const val AI_CHAT_WITH_AGENT = "ai_chat_with_agent/{agentId}"

@@ -27,7 +27,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun HousekeepingScreen(
     onBackToHome: () -> Unit,
-    onClearConfiguration: () -> Unit = {}
+    onClearConfiguration: () -> Unit = {},
+    onNavigateToImportExport: () -> Unit = {},
+    onNavigateToRefresh: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
@@ -179,6 +181,26 @@ fun HousekeepingScreen(
         TitleBar(title = "Housekeeping", onBackClick = onBackToHome, onAiClick = onBackToHome)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            // Configuration shortcuts — moved here from AI Setup so all the
+            // "manage app data" actions live together.
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Configuration", fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onNavigateToImportExport,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                        ) { Text("Export / Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        Button(
+                            onClick = onNavigateToRefresh,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                        ) { Text("Refresh", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                }
+            }
 
             // Backup / restore — uses Android's Storage Access Framework so the
             // user picks the destination on save (Google Drive, OneDrive, local

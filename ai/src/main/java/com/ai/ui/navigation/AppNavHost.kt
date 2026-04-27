@@ -335,7 +335,30 @@ fun AppNavHost(
 
         // ===== Admin =====
         composable(NavRoutes.AI_HOUSEKEEPING) {
-            HousekeepingScreenNav(viewModel = appViewModel, onNavigateHome = navigateHome)
+            HousekeepingScreenNav(
+                viewModel = appViewModel,
+                onNavigateHome = navigateHome,
+                onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
+                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) }
+            )
+        }
+        composable(NavRoutes.AI_IMPORT_EXPORT) {
+            SettingsScreenNav(
+                viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                initialSubScreen = SettingsSubScreen.AI_IMPORT_EXPORT
+            )
+        }
+        composable(NavRoutes.AI_REFRESH) {
+            SettingsScreenNav(
+                viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                initialSubScreen = SettingsSubScreen.AI_REFRESH
+            )
         }
         composable(NavRoutes.HELP) {
             HelpScreen(onBack = safePopBack, onNavigateHome = navigateHome)
@@ -444,12 +467,19 @@ fun SetupScreenNav(
 }
 
 @Composable
-fun HousekeepingScreenNav(viewModel: AppViewModel, onNavigateHome: () -> Unit) {
+fun HousekeepingScreenNav(
+    viewModel: AppViewModel,
+    onNavigateHome: () -> Unit,
+    onNavigateToImportExport: () -> Unit = {},
+    onNavigateToRefresh: () -> Unit = {}
+) {
     HousekeepingScreen(
         onBackToHome = onNavigateHome,
         onClearConfiguration = {
             viewModel.updateSettings(Settings())
             viewModel.updateGeneralSettings(GeneralSettings())
-        }
+        },
+        onNavigateToImportExport = onNavigateToImportExport,
+        onNavigateToRefresh = onNavigateToRefresh
     )
 }

@@ -73,7 +73,13 @@ fun SettingsScreen(
     // its rememberSaveable state away.
     var providersActiveOnly by remember { mutableStateOf(true) }
 
-    val goBack: () -> Unit = {
+    val goBack: () -> Unit = goBack@ {
+        // If the user landed directly on a deep-linked sub-screen (e.g. opened
+        // Export/Import or Refresh from Housekeeping), back from that screen
+        // should exit to the caller, not climb the Settings hierarchy.
+        if (currentSubScreen == initialSubScreen && initialSubScreen != SettingsSubScreen.MAIN) {
+            onBack(); return@goBack
+        }
         when (currentSubScreen) {
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_SETUP -> if (initialSubScreen == SettingsSubScreen.AI_SETUP) onBack() else currentSubScreen = SettingsSubScreen.MAIN

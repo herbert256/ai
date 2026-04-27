@@ -76,10 +76,6 @@ fun SetupScreen(
                 onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
-            SetupNavCard("📦", "Export / Import", "Configuration, API keys, and costs", "",
-                onClick = { onNavigate(SettingsSubScreen.AI_IMPORT_EXPORT) })
-            SetupNavCard("🔄", "Refresh", "Providers, models, OpenRouter, default agents", "",
-                onClick = { onNavigate(SettingsSubScreen.AI_REFRESH) })
         }
     }
 }
