@@ -238,6 +238,10 @@ fun SettingsScreen(
                     else aiSettings.copy(agents = aiSettings.agents + saved)
                     onSaveAi(updated); goBack()
                 },
+                onAddEndpoint = { provider, ep ->
+                    val current = aiSettings.getEndpointsForProvider(provider)
+                    onSaveAi(aiSettings.withEndpoints(provider, current + ep))
+                },
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 loadingModelsFor = loadingModelsFor,
                 onNavigateToTrace = onNavigateToTrace

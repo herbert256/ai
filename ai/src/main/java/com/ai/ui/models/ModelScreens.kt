@@ -211,6 +211,10 @@ fun ModelInfoScreen(
                 onSaveSettings(aiSettings.copy(agents = aiSettings.agents + agent))
                 showAgentEdit = false
             },
+            onAddEndpoint = { p, ep ->
+                val current = aiSettings.getEndpointsForProvider(p)
+                onSaveSettings(aiSettings.withEndpoints(p, current + ep))
+            },
             onBack = { showAgentEdit = false },
             onNavigateHome = onNavigateHome
         )

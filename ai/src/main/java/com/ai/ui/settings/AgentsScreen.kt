@@ -60,7 +60,13 @@ fun AgentEditScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     loadingModelsFor: Set<AppService> = emptySet(),
-    onNavigateToTrace: ((String) -> Unit)? = null
+    onNavigateToTrace: ((String) -> Unit)? = null,
+    /** Optional callback fired when the agent picks a LiteLLM-listed
+     *  endpoint that isn't yet in the provider's configured endpoints —
+     *  the parent should append it to aiSettings.endpoints. Without this
+     *  the LiteLLM choices are still selectable but won't persist beyond
+     *  this edit session. */
+    onAddEndpoint: (AppService, com.ai.model.Endpoint) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val scope = rememberCoroutineScope()
@@ -146,14 +152,60 @@ fun AgentEditScreen(
                 singleLine = true, colors = AppColors.outlinedFieldColors()
             )
 
-            // Endpoint
+            // Endpoint — combines configured per-provider endpoints with
+            // any extra paths LiteLLM lists in `supported_endpoints` for
+            // the selected model. Picking a LiteLLM-derived option
+            // materializes a real Endpoint via onAddEndpoint so it persists
+            // on the provider's endpoint list.
             val endpoints = aiSettings.getEndpointsForProvider(selectedProvider)
-            if (endpoints.size > 1) {
-                val epName = selectedEndpointId?.let { id -> endpoints.find { it.id == id }?.name } ?: "Default"
-                OutlinedButton(onClick = {
-                    selectedEndpointId = if (selectedEndpointId == null) endpoints.firstOrNull { !it.isDefault }?.id else null
-                }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                    Text("Endpoint: $epName", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val effModel = model.ifBlank { aiSettings.getModel(selectedProvider) }
+            val litellmPaths = remember(selectedProvider, effModel) {
+                if (effModel.isNotBlank()) com.ai.data.PricingCache.liteLLMSupportedEndpoints(selectedProvider, effModel) ?: emptyList()
+                else emptyList()
+            }
+            val knownUrls = endpoints.map { it.url }.toSet()
+            val litellmExtras = litellmPaths.mapNotNull { path ->
+                val cleaned = path.trimStart('/')
+                val base = selectedProvider.baseUrl.trimEnd('/')
+                val full = "$base/$cleaned"
+                if (full in knownUrls) null else path to full
+            }
+            if (endpoints.size > 1 || litellmExtras.isNotEmpty()) {
+                var endpointMenuOpen by remember { mutableStateOf(false) }
+                val epLabel = selectedEndpointId?.let { id -> endpoints.find { it.id == id }?.name } ?: "Default"
+                Box {
+                    OutlinedButton(
+                        onClick = { endpointMenuOpen = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Endpoint: $epLabel", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    DropdownMenu(expanded = endpointMenuOpen, onDismissRequest = { endpointMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Default") },
+                            onClick = { selectedEndpointId = null; endpointMenuOpen = false }
+                        )
+                        endpoints.filter { !it.isDefault }.forEach { ep ->
+                            DropdownMenuItem(
+                                text = { Text(ep.name) },
+                                onClick = { selectedEndpointId = ep.id; endpointMenuOpen = false }
+                            )
+                        }
+                        if (litellmExtras.isNotEmpty()) {
+                            HorizontalDivider()
+                            litellmExtras.forEach { (path, full) ->
+                                DropdownMenuItem(
+                                    text = { Text("LiteLLM: $path") },
+                                    onClick = {
+                                        val newId = "litellm-${java.util.UUID.randomUUID()}"
+                                        val ep = com.ai.model.Endpoint(id = newId, name = "LiteLLM $path", url = full, isDefault = false)
+                                        onAddEndpoint(selectedProvider, ep)
+                                        selectedEndpointId = newId
+                                        endpointMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

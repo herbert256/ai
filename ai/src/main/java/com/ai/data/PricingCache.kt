@@ -275,6 +275,12 @@ object PricingCache {
     fun liteLLMSupportsWebSearch(provider: AppService, model: String): Boolean? =
         findLiteLLMMeta(provider, model)?.supportsWebSearch
 
+    /** Paths from LiteLLM's supported_endpoints (e.g. "/v1/responses",
+     *  "/v1/chat/completions"). Caller combines with provider.baseUrl
+     *  to produce a full URL. Empty / null when no entry. */
+    fun liteLLMSupportedEndpoints(provider: AppService, model: String): List<String>? =
+        findLiteLLMMeta(provider, model)?.supportedEndpoints
+
     /** ModelType constant derived from LiteLLM's `mode` field, or null
      *  when no mapping applies. "chat" → CHAT, "embedding" → EMBEDDING,
      *  etc. CHAT is rarely useful (it's the default heuristic anyway) so
@@ -477,7 +483,12 @@ object PricingCache {
     data class LiteLLMMeta(
         val mode: String? = null,
         val supportsVision: Boolean? = null,
-        val supportsWebSearch: Boolean? = null
+        val supportsWebSearch: Boolean? = null,
+        /** Paths the model is callable on, as listed in the upstream JSON's
+         *  `supported_endpoints` field — e.g. ["/v1/chat/completions",
+         *  "/v1/responses"]. Combined with the provider's baseUrl by
+         *  callers when offering endpoint suggestions. */
+        val supportedEndpoints: List<String>? = null
     )
 
     /** Walk the litellm pricing JSON via the tree model so duplicate keys
@@ -509,12 +520,20 @@ object PricingCache {
             liteLLMEntry(modelId, flat)?.let { pricing[it.first] = it.second }
             // Capability sidecar — populated even for entries with no
             // input/output cost (some embedding / tts models have flag
-            // info but free-of-charge pricing).
+            // info but free-of-charge pricing). supported_endpoints is a
+            // JSON array, so it's pulled from the raw JsonObject rather
+            // than the flat primitive map.
             val mode = flat["mode"] as? String
             val sv = flat["supports_vision"] as? Boolean
             val sw = flat["supports_web_search"] as? Boolean
-            if (mode != null || sv != null || sw != null) {
-                meta[modelId] = LiteLLMMeta(mode, sv, sw)
+            val seArr = infoObj.get("supported_endpoints")
+            val se = if (seArr != null && seArr.isJsonArray) {
+                seArr.asJsonArray.mapNotNull { el ->
+                    if (el.isJsonPrimitive) el.asString else null
+                }.takeIf { it.isNotEmpty() }
+            } else null
+            if (mode != null || sv != null || sw != null || se != null) {
+                meta[modelId] = LiteLLMMeta(mode, sv, sw, se)
             }
         }
         return pricing to meta
