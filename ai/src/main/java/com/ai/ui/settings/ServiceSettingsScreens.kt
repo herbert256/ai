@@ -28,6 +28,7 @@ import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.SelectModelScreen
+import com.ai.ui.shared.VisionBadge
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.launch
 
@@ -317,6 +318,7 @@ fun ProviderModelSettingsScreen(
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        VisionBadge(aiSettings.isVisionCapable(service, modelId))
                         // getModelType() consults the user's manual overrides first, so
                         // edits in AI Setup → Manual model types overrides surface here
                         // immediately without needing a re-fetch.

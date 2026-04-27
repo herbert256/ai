@@ -190,6 +190,7 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
                         val real = p.source != "DEFAULT"
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                             Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -248,7 +249,10 @@ internal fun ReportSelectAllModelsDialog(aiSettings: Settings, onSelectModel: (A
                         val real = p.source != "DEFAULT"
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(provider, model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
+                                }
                                 if (selectedProvider == null) Text(provider.displayName, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1)
                             }
                             Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)

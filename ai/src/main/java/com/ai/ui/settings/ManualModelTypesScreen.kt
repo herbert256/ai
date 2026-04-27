@@ -153,9 +153,16 @@ private fun ManualModelTypeEditScreen(
                 Text("Known models for this provider", fontSize = 11.sp, color = AppColors.TextTertiary)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     knownModels.take(20).forEach { m ->
+                        val provider = AppService.findById(providerId)
+                        val vision = provider != null && aiSettings.isVisionCapable(provider, m)
                         AssistChip(
                             onClick = { modelId = m },
-                            label = { Text(m, fontSize = 12.sp) }
+                            label = {
+                                Text(
+                                    if (vision) "$m 👁" else m,
+                                    fontSize = 12.sp
+                                )
+                            }
                         )
                     }
                     if (knownModels.size > 20) {

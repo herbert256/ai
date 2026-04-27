@@ -106,14 +106,18 @@ fun ModelSearchScreen(
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             items(filteredModels, key = { "${it.provider.id}:${it.modelName}" }) { item ->
-                ModelSearchResultCard(item = item, onClick = { onNavigateToModelInfo(item.provider, item.modelName) })
+                ModelSearchResultCard(
+                    item = item,
+                    isVisionCapable = aiSettings.isVisionCapable(item.provider, item.modelName),
+                    onClick = { onNavigateToModelInfo(item.provider, item.modelName) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ModelSearchResultCard(item: ModelSearchItem, onClick: () -> Unit) {
+private fun ModelSearchResultCard(item: ModelSearchItem, isVisionCapable: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
     val pricing = remember(item.provider, item.modelName) { formatPricingPerMillion(context, item.provider, item.modelName) }
 
@@ -121,7 +125,10 @@ private fun ModelSearchResultCard(item: ModelSearchItem, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.modelName, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(item.modelName, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    com.ai.ui.shared.VisionBadge(isVisionCapable)
+                }
                 Text(item.providerName, fontSize = 12.sp, color = AppColors.Blue)
             }
             Text(pricing.text, fontSize = 11.sp, color = if (pricing.isDefault) AppColors.PricingDefault else AppColors.PricingReal)

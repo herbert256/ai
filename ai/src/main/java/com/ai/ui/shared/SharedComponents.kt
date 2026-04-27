@@ -13,6 +13,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
+ * Tiny "vision-capable" badge for model lists. Renders nothing when the
+ * model isn't flagged so the row stays compact for the long tail of
+ * text-only models.
+ */
+@Composable
+fun VisionBadge(isVisionCapable: Boolean) {
+    if (!isVisionCapable) return
+    Text(
+        text = "👁",
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+/**
  * Generic title bar used across all screens.
  * Shows a back button on the left, optional title in the middle, and "AI" on the right.
  */

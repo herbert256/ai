@@ -157,7 +157,10 @@ fun SwarmEditScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(member.provider.displayName, fontSize = 13.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(member.model, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(member.model, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(member.provider, member.model))
+                        }
                     }
                 }
             }
