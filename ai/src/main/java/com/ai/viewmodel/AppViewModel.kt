@@ -238,12 +238,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     state.copy(aiSettings = withSelf.applyOpenRouterTypes(), loadingModelsFor = state.loadingModelsFor - service)
                 }
                 val final = _uiState.value.aiSettings
-                settingsPrefs.saveModelsForProvider(service, fetched.ids, final.getProvider(service).modelTypes)
+                val cfgSelf = final.getProvider(service)
+                settingsPrefs.saveModelsForProvider(service, fetched.ids, cfgSelf.modelTypes, cfgSelf.visionModels, cfgSelf.modelCapabilities)
                 if (service.id == "OPENROUTER") {
                     // Persist the freshly cross-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->
                         val cfg = final.getProvider(other)
-                        if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelTypes)
+                        if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities)
                     }
                 }
             } catch (e: Exception) {
@@ -270,7 +271,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         try {
                             val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
                             _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities)) }
-                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types)
+                            // Persist with the freshly-merged visionModels (auto + user override) and capability map.
+                            val cfg = _uiState.value.aiSettings.getProvider(service)
+                            settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types, cfg.visionModels, cfg.modelCapabilities)
                             service to fetched.ids.size
                         } catch (_: Exception) { service to -1 }
                     }
@@ -285,7 +288,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val final = _uiState.value.aiSettings
             successful.forEach { service ->
                 val cfg = final.getProvider(service)
-                if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelTypes)
+                if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities)
             }
             results.associate { it.first.displayName to it.second }
         }

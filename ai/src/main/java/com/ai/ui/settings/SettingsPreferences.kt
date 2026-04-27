@@ -103,16 +103,39 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             // the types column, so the UI / dispatcher always has *some* classification.
             val types = models.associateWith { id -> storedTypes[id] ?: com.ai.data.ModelType.infer(id) }
 
+            // visionModels (user override + auto-flagged on fetch) and
+            // webSearchModels are JSON-encoded string lists. Falsy/missing
+            // values fall through to empty sets — older prefs files migrate
+            // transparently.
+            val visionModels = loadJsonStringSet("${key}_vision_models")
+            val webSearchModels = loadJsonStringSet("${key}_web_search_models")
+            val modelCapabilities: Map<String, com.ai.data.ModelCapabilities> = prefs.getString("${key}_model_capabilities", null)?.let {
+                try {
+                    val mapType = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.ModelCapabilities>>() {}.type
+                    gson.fromJson(it, mapType) ?: emptyMap()
+                } catch (_: Exception) { null }
+            } ?: emptyMap()
+
             ProviderConfig(
                 apiKey = prefs.getString("${key}_api_key", "") ?: "",
                 model = prefs.getString("${key}_model", service.defaultModel) ?: service.defaultModel,
                 modelSource = modelSource, models = models, modelTypes = types,
+                visionModels = visionModels, webSearchModels = webSearchModels,
+                modelCapabilities = modelCapabilities,
                 adminUrl = prefs.getString("${key}_admin_url", service.adminUrl) ?: service.adminUrl,
                 modelListUrl = prefs.getString("${key}_model_list_url", "") ?: "",
                 parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList()
             )
         }
         return Settings(providers = providers)
+    }
+
+    private fun loadJsonStringSet(key: String): Set<String> {
+        val json = prefs.getString(key, null) ?: return emptySet()
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            (gson.fromJson(json, List::class.java) as? List<String>)?.toSet() ?: emptySet()
+        } catch (_: Exception) { emptySet() }
     }
 
     fun saveSettings(settings: Settings) {
@@ -125,6 +148,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 putString("${key}_model_source", config.modelSource.name)
                 putString("${key}_manual_models", gson.toJson(config.models))
                 putString("${key}_model_types", gson.toJson(config.modelTypes))
+                // User-curated vision / web-search overrides + the per-fetch
+                // capability sidecar. Without these the in-memory state was
+                // dropping on every app restart, and the backup zip never
+                // saw it either.
+                putString("${key}_vision_models", if (config.visionModels.isEmpty()) null else gson.toJson(config.visionModels.toList()))
+                putString("${key}_web_search_models", if (config.webSearchModels.isEmpty()) null else gson.toJson(config.webSearchModels.toList()))
+                putString("${key}_model_capabilities", if (config.modelCapabilities.isEmpty()) null else gson.toJson(config.modelCapabilities))
                 putString("${key}_admin_url", config.adminUrl)
                 putString("${key}_model_list_url", config.modelListUrl)
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
@@ -141,10 +171,20 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    fun saveModelsForProvider(service: AppService, models: List<String>, types: Map<String, String> = emptyMap()) {
+    fun saveModelsForProvider(
+        service: AppService, models: List<String>, types: Map<String, String> = emptyMap(),
+        visionModels: Set<String>? = null,
+        modelCapabilities: Map<String, com.ai.data.ModelCapabilities>? = null
+    ) {
         prefs.edit {
             putString("${service.prefsKey}_manual_models", gson.toJson(models))
             putString("${service.prefsKey}_model_types", gson.toJson(types))
+            if (visionModels != null) {
+                putString("${service.prefsKey}_vision_models", if (visionModels.isEmpty()) null else gson.toJson(visionModels.toList()))
+            }
+            if (modelCapabilities != null) {
+                putString("${service.prefsKey}_model_capabilities", if (modelCapabilities.isEmpty()) null else gson.toJson(modelCapabilities))
+            }
         }
     }
 
