@@ -199,7 +199,11 @@ fun HousekeepingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
                         ) { Text("Backup", maxLines = 1, softWrap = false) }
                         Button(
-                            onClick = { restorePickLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) },
+                            // Restrict the picker to .zip files. Some providers report
+                            // the mime as application/octet-stream rather than
+                            // application/zip — accept both, but drop the */* fallback
+                            // so unrelated documents don't clutter the picker.
+                            onClick = { restorePickLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
                             enabled = busyLabel == null,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
