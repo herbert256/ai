@@ -104,6 +104,7 @@ private fun ManualModelTypeEditScreen(
     var supportsVision by remember { mutableStateOf(initial?.supportsVision ?: false) }
     var supportsWebSearch by remember { mutableStateOf(initial?.supportsWebSearch ?: false) }
     var providerExpanded by remember { mutableStateOf(false) }
+    var modelExpanded by remember { mutableStateOf(false) }
 
     val canSave = providerId.isNotBlank() && modelId.trim().isNotBlank()
     val knownModels = remember(providerId, aiSettings) {
@@ -141,41 +142,47 @@ private fun ManualModelTypeEditScreen(
                     allProviders.forEach { p ->
                         DropdownMenuItem(
                             text = { Text(p.displayName) },
-                            onClick = { providerId = p.id; providerExpanded = false }
+                            onClick = {
+                                if (providerId != p.id) modelId = ""
+                                providerId = p.id
+                                providerExpanded = false
+                            }
                         )
                     }
                 }
             }
 
-            // Model id — free-form text so unfetched models can be overridden too.
-            OutlinedTextField(
-                value = modelId, onValueChange = { modelId = it },
-                label = { Text("Model id") },
-                placeholder = { Text("e.g. text-embedding-3-small") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedFieldColors()
-            )
-
-            // Suggestions chip list — tap to fill the model id field.
-            if (knownModels.isNotEmpty()) {
-                Text("Known models for this provider", fontSize = 11.sp, color = AppColors.TextTertiary)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    knownModels.take(20).forEach { m ->
-                        val provider = AppService.findById(providerId)
+            // Model id picker — readOnly dropdown over the provider's known
+            // models, mirroring the Provider field. Falls back to whatever
+            // modelId is currently set to (so an override for an unfetched
+            // model id is preserved on edit) and shows a hint when the
+            // provider has no known models yet.
+            ExposedDropdownMenuBox(
+                expanded = modelExpanded && knownModels.isNotEmpty(),
+                onExpandedChange = { if (knownModels.isNotEmpty()) modelExpanded = !modelExpanded }
+            ) {
+                val provider = AppService.findById(providerId)
+                OutlinedTextField(
+                    value = modelId,
+                    onValueChange = {}, readOnly = true,
+                    label = { Text("Model") },
+                    placeholder = { Text(if (knownModels.isEmpty()) "No models — fetch this provider first" else "Pick a model") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, knownModels.isNotEmpty()),
+                    colors = AppColors.outlinedFieldColors()
+                )
+                ExposedDropdownMenu(expanded = modelExpanded, onDismissRequest = { modelExpanded = false }) {
+                    knownModels.forEach { m ->
                         val vision = provider != null && aiSettings.isVisionCapable(provider, m)
                         val websearch = provider != null && aiSettings.isWebSearchCapable(provider, m)
                         val suffix = buildString {
                             if (vision) append(" 👁")
                             if (websearch) append(" 🌐")
                         }
-                        AssistChip(
-                            onClick = { modelId = m },
-                            label = { Text("$m$suffix", fontSize = 12.sp) }
+                        DropdownMenuItem(
+                            text = { Text("$m$suffix") },
+                            onClick = { modelId = m; modelExpanded = false }
                         )
-                    }
-                    if (knownModels.size > 20) {
-                        Text("…and ${knownModels.size - 20} more", fontSize = 11.sp, color = AppColors.TextDim)
                     }
                 }
             }
