@@ -239,7 +239,7 @@ private suspend fun AnalysisRepository.chatOpenAi(
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
     val chatUrl = buildChatUrl(baseUrl, service.chatPath)
-    val openAiMessages = messages.map { OpenAiMessage(it.role, it.content) }
+    val openAiMessages = messages.map { it.toOpenAiMessage() }
     val request = OpenAiRequest(
         model = model, messages = openAiMessages,
         max_tokens = params.maxTokens, temperature = params.temperature,
@@ -249,7 +249,7 @@ private suspend fun AnalysisRepository.chatOpenAi(
     )
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
-        return response.body()?.choices?.firstOrNull()?.message?.content ?: throw Exception("No response content")
+        return response.body()?.choices?.firstOrNull()?.message?.contentAsString() ?: throw Exception("No response content")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
@@ -281,7 +281,7 @@ private suspend fun AnalysisRepository.chatAnthropic(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
 ): String {
     val api = ApiFactory.createClaudeApi(service.baseUrl)
-    val claudeMessages = messages.filter { it.role != "system" }.map { ClaudeMessage(it.role, it.content) }
+    val claudeMessages = messages.filter { it.role != "system" }.map { it.toClaudeMessage() }
     val systemPrompt = messages.find { it.role == "system" }?.content
     val request = ClaudeRequest(
         model = model, messages = claudeMessages, max_tokens = params.maxTokens ?: defaultClaudeMaxTokens(model),
@@ -301,10 +301,8 @@ private suspend fun AnalysisRepository.chatGemini(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
 ): String {
     val api = ApiFactory.createGeminiApi(service.baseUrl)
-    val contents = messages.filter { it.role != "system" }.map {
-        GeminiContent(listOf(GeminiPart(it.content)), if (it.role == "user") "user" else "model")
-    }
-    val systemInstruction = messages.find { it.role == "system" }?.let { GeminiContent(listOf(GeminiPart(it.content))) }
+    val contents = messages.filter { it.role != "system" }.map { it.toGeminiContent() }
+    val systemInstruction = messages.find { it.role == "system" }?.let { GeminiContent(listOf(GeminiPart(text = it.content))) }
     val request = GeminiRequest(contents, GeminiGenerationConfig(
         params.temperature, params.topP, params.topK, params.maxTokens,
         search = if (params.searchEnabled) true else null
@@ -455,7 +453,7 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
                 val responseBody = response.body?.string()
                 try {
                     val oaiResponse = createAppGson().fromJson(responseBody, OpenAiResponse::class.java)
-                    val content = oaiResponse?.choices?.firstOrNull()?.message?.content
+                    val content = oaiResponse?.choices?.firstOrNull()?.message?.contentAsString()
                     val usage = oaiResponse?.usage?.toTokenUsage(service)
                     if (content != null) AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
                     else AnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
@@ -498,9 +496,9 @@ private fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService, 
     return if (response.isSuccessful) {
         val body = response.body()
         val content = body?.choices?.let { choices ->
-            choices.firstOrNull()?.message?.content
+            choices.firstOrNull()?.message?.contentAsString()
                 ?: choices.firstOrNull()?.message?.reasoning_content
-                ?: choices.firstNotNullOfOrNull { it.message.content }
+                ?: choices.firstNotNullOfOrNull { it.message.contentAsString() }
                 ?: choices.firstNotNullOfOrNull { it.message.reasoning_content }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
@@ -547,4 +545,56 @@ internal fun buildChatUrl(baseUrl: String, chatPath: String): String {
     } else {
         "$trimmedUrl/$cleanedChatPath"
     }
+}
+
+/** Read [OpenAiMessage.content] as a String regardless of whether it was a
+ *  raw String or (after a future round-trip) a serialized list. Response
+ *  bodies always come back with content as a JSON string, so this is safe. */
+internal fun OpenAiMessage.contentAsString(): String? = when (val c = content) {
+    is String -> c
+    null -> null
+    else -> c.toString()
+}
+
+// ============================================================================
+// Vision helpers — convert a ChatMessage with optional image attachment into
+// per-format request shapes. Text-only messages keep the simple String content
+// form so the wire payload is identical to before.
+// ============================================================================
+
+internal fun ChatMessage.toOpenAiMessage(): OpenAiMessage {
+    if (imageBase64 == null) return OpenAiMessage(role, content)
+    val mime = imageMime ?: "image/png"
+    val parts = buildList {
+        if (content.isNotBlank()) add(mapOf("type" to "text", "text" to content))
+        add(mapOf(
+            "type" to "image_url",
+            "image_url" to mapOf("url" to "data:$mime;base64,$imageBase64")
+        ))
+    }
+    return OpenAiMessage(role, parts)
+}
+
+internal fun ChatMessage.toClaudeMessage(): ClaudeMessage {
+    if (imageBase64 == null) return ClaudeMessage(role, content)
+    val mime = imageMime ?: "image/png"
+    val blocks = buildList {
+        add(mapOf(
+            "type" to "image",
+            "source" to mapOf("type" to "base64", "media_type" to mime, "data" to imageBase64)
+        ))
+        if (content.isNotBlank()) add(mapOf("type" to "text", "text" to content))
+    }
+    return ClaudeMessage(role, blocks)
+}
+
+internal fun ChatMessage.toGeminiContent(): GeminiContent {
+    val role = if (role == "user") "user" else "model"
+    val parts = buildList {
+        if (imageBase64 != null) {
+            add(GeminiPart(inlineData = GeminiInlineData(mimeType = imageMime ?: "image/png", data = imageBase64)))
+        }
+        if (content.isNotBlank()) add(GeminiPart(text = content))
+    }
+    return GeminiContent(parts.ifEmpty { listOf(GeminiPart(text = "")) }, role)
 }

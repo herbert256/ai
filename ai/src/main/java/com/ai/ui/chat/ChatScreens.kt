@@ -1,8 +1,13 @@
 package com.ai.ui.chat
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,9 +22,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -232,6 +239,24 @@ fun ChatSessionScreen(
     var isStreaming by remember { mutableStateOf(false) }
     val streamingContentState = remember { mutableStateOf("") }
     var totalCost by remember { mutableDoubleStateOf(0.0) }
+    // (mime, base64) of an image attached to the next user message.
+    var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val mime = context.contentResolver.getType(uri) ?: "image/png"
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes != null) {
+                    attachedImage = mime to Base64.encodeToString(bytes, Base64.NO_WRAP)
+                }
+            } catch (e: Exception) {
+                error = "Failed to attach image: ${e.message}"
+            }
+        }
+    }
 
     val pricing = remember(provider, model) { PricingCache.getPricing(context, provider, model) }
 
@@ -268,9 +293,16 @@ fun ChatSessionScreen(
     }
 
     fun sendMessage(input: String) {
-        val userMessage = ChatMessage(role = "user", content = input)
+        val img = attachedImage
+        val userMessage = ChatMessage(
+            role = "user",
+            content = input,
+            imageBase64 = img?.second,
+            imageMime = img?.first
+        )
         messages = messages + userMessage
         userInput = ""; error = null
+        attachedImage = null
         saveSession(messages)
 
         val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
@@ -351,7 +383,30 @@ fun ChatSessionScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        attachedImage?.let { (mime, b64) ->
+            val bmp = remember(b64) {
+                try {
+                    val bytes = Base64.decode(b64, Base64.NO_WRAP)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                } catch (_: Exception) { null }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
+                if (bmp != null) {
+                    Image(bitmap = bmp.asImageBitmap(), contentDescription = "Attached image",
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Image attached (${mime.substringAfter('/')})", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+                TextButton(onClick = { attachedImage = null }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+            }
+        }
+
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+            OutlinedButton(
+                onClick = { pickImageLauncher.launch("image/*") },
+                enabled = !isStreaming,
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("📎", fontSize = 18.sp, maxLines = 1, softWrap = false) }
             OutlinedTextField(
                 value = userInput, onValueChange = { userInput = it },
                 modifier = Modifier.weight(1f).focusRequester(focusRequester),
@@ -359,8 +414,8 @@ fun ChatSessionScreen(
                 maxLines = 4, colors = AppColors.outlinedFieldColors()
             )
             Button(
-                onClick = { if (userInput.isNotBlank() && !isStreaming) sendMessage(userInput.trim()) },
-                enabled = userInput.isNotBlank() && !isStreaming,
+                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming) sendMessage(userInput.trim()) },
+                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming,
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }
@@ -386,7 +441,24 @@ private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
                 color = if (isUser) AppColors.Purple else AppColors.Blue
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(message.content, fontSize = 14.sp, color = Color.White)
+            message.imageBase64?.let { b64 ->
+                val bmp = remember(b64) {
+                    try {
+                        val bytes = Base64.decode(b64, Base64.NO_WRAP)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } catch (_: Exception) { null }
+                }
+                if (bmp != null) {
+                    Image(
+                        bitmap = bmp.asImageBitmap(), contentDescription = "Attached image",
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(8.dp))
+                    )
+                    if (message.content.isNotBlank()) Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+            if (message.content.isNotBlank()) {
+                Text(message.content, fontSize = 14.sp, color = Color.White)
+            }
         }
     }
 }

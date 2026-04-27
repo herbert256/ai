@@ -146,7 +146,7 @@ private fun AnalysisRepository.streamOpenAi(
     } else {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
         val chatUrl = buildChatUrl(baseUrl, service.chatPath)
-        val openAiMessages = messages.map { OpenAiMessage(it.role, it.content) }
+        val openAiMessages = messages.map { it.toOpenAiMessage() }
         val request = OpenAiRequest(
             model = model, messages = openAiMessages, stream = true,
             max_tokens = params.maxTokens, temperature = params.temperature,
@@ -170,7 +170,7 @@ private fun AnalysisRepository.streamAnthropic(
     params: ChatParameters, baseUrl: String
 ): Flow<String> = flow {
     val api = ApiFactory.createClaudeApi(baseUrl)
-    val claudeMessages = messages.filter { it.role != "system" }.map { ClaudeMessage(it.role, it.content) }
+    val claudeMessages = messages.filter { it.role != "system" }.map { it.toClaudeMessage() }
     val systemPrompt = messages.find { it.role == "system" }?.content
     val request = ClaudeRequest(
         model = model, messages = claudeMessages, stream = true,
@@ -196,10 +196,8 @@ private fun AnalysisRepository.streamGemini(
     params: ChatParameters, baseUrl: String
 ): Flow<String> = flow {
     val api = ApiFactory.createGeminiApi(baseUrl)
-    val contents = messages.filter { it.role != "system" }.map {
-        GeminiContent(listOf(GeminiPart(it.content)), if (it.role == "user") "user" else "model")
-    }
-    val systemInstruction = messages.find { it.role == "system" }?.let { GeminiContent(listOf(GeminiPart(it.content))) }
+    val contents = messages.filter { it.role != "system" }.map { it.toGeminiContent() }
+    val systemInstruction = messages.find { it.role == "system" }?.let { GeminiContent(listOf(GeminiPart(text = it.content))) }
     val request = GeminiRequest(contents, GeminiGenerationConfig(
         params.temperature, params.topP, params.topK, params.maxTokens,
         search = if (params.searchEnabled) true else null

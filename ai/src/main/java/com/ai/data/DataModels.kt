@@ -20,12 +20,17 @@ data class AgentParameters(
 )
 
 /**
- * A single message in a chat conversation.
+ * A single message in a chat conversation. When [imageBase64] is non-null,
+ * the message carries a vision attachment that the dispatch layer turns into
+ * a per-format content block (OpenAI image_url, Anthropic image source,
+ * Gemini inline_data). [imageMime] is the MIME type of the encoded bytes.
  */
 data class ChatMessage(
     val role: String,
     val content: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val imageBase64: String? = null,
+    val imageMime: String? = null
 )
 
 /**

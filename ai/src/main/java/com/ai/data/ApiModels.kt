@@ -42,9 +42,14 @@ class FlexibleCostDeserializer : JsonDeserializer<Double?> {
 // OpenAI models — single request class with optional stream field
 // ============================================================================
 
+/**
+ * OpenAI-compatible chat message. [content] is `Any?` because the API accepts
+ * either a String (text-only) or a List of typed parts (text + image_url) for
+ * vision requests. Response messages always come back with content as String.
+ */
 data class OpenAiMessage(
     val role: String,
-    val content: String?,
+    val content: Any?,
     val reasoning_content: String? = null
 )
 
@@ -159,7 +164,11 @@ data class OpenAiResponsesError(val message: String?, val type: String?, val cod
 // Anthropic models — single request class with optional stream field
 // ============================================================================
 
-data class ClaudeMessage(val role: String, val content: String)
+/**
+ * Anthropic message. [content] accepts either a String (text-only) or a List
+ * of content blocks (text + image source) for vision requests.
+ */
+data class ClaudeMessage(val role: String, val content: Any)
 
 data class ClaudeRequest(
     val model: String,
@@ -204,7 +213,15 @@ data class ClaudeError(val type: String?, val message: String?)
 // Google Gemini models
 // ============================================================================
 
-data class GeminiPart(val text: String)
+data class GeminiPart(
+    val text: String? = null,
+    @SerializedName("inline_data") val inlineData: GeminiInlineData? = null
+)
+
+data class GeminiInlineData(
+    @SerializedName("mime_type") val mimeType: String,
+    val data: String
+)
 
 data class GeminiContent(
     val parts: List<GeminiPart>,
