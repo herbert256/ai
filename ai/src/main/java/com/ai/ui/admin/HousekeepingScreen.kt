@@ -3,6 +3,8 @@ package com.ai.ui.admin
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,9 +16,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun HousekeepingScreen(
@@ -25,10 +31,79 @@ fun HousekeepingScreen(
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showClearAllConfirm by remember { mutableStateOf(false) }
     var showClearConfigConfirm by remember { mutableStateOf(false) }
+    var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
+    var busyLabel by remember { mutableStateOf<String?>(null) }
     var daysToKeepText by remember { mutableStateOf("30") }
     val daysToKeep = daysToKeepText.toIntOrNull()
+
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busyLabel = "Backing up…"
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        BackupManager.backup(context, out)
+                    } ?: error("Could not open output stream")
+                }
+            }
+            busyLabel = null
+            val msg = result.fold(
+                onSuccess = { "Backup written to selected location" },
+                onFailure = { "Backup failed: ${it.javaClass.simpleName}: ${it.message}" }
+            )
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val restorePickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) showRestoreConfirm = uri
+    }
+
+    showRestoreConfirm?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirm = null },
+            title = { Text("Restore from backup?") },
+            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. The app will need to be restarted afterwards.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestoreConfirm = null
+                        busyLabel = "Restoring…"
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    context.contentResolver.openInputStream(uri)?.use { input ->
+                                        BackupManager.restore(context, input)
+                                    } ?: error("Could not open input stream")
+                                }
+                            }
+                            busyLabel = null
+                            val msg = result.fold(
+                                onSuccess = { s -> "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files. Please restart the app." },
+                                onFailure = { "Restore failed: ${it.javaClass.simpleName}: ${it.message}" }
+                            )
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Restore", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { showRestoreConfirm = null }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
+    busyLabel?.let { label ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(label) },
+            text = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {}
+        )
+    }
 
     if (showClearConfigConfirm) {
         AlertDialog(
@@ -79,6 +154,35 @@ fun HousekeepingScreen(
         TitleBar(title = "Housekeeping", onBackClick = onBackToHome, onAiClick = onBackToHome)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            // Backup / restore — uses Android's Storage Access Framework so the
+            // user picks the destination on save (Google Drive, OneDrive, local
+            // file, etc., all show up as choices when the corresponding app is
+            // installed) and the source on restore. We never see the underlying
+            // location; SAF gives us a Uri to write to / read from.
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Backup & Restore", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "Saves a single .zip with everything: configuration, API keys, reports, chats, traces, and prompt cache. The Android picker lets you pick Google Drive (or any other cloud storage app you have installed) as the destination.",
+                        fontSize = 12.sp, color = AppColors.TextTertiary
+                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { backupLauncher.launch(BackupManager.defaultFileName()) },
+                            enabled = busyLabel == null,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                        ) { Text("Backup", maxLines = 1, softWrap = false) }
+                        Button(
+                            onClick = { restorePickLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) },
+                            enabled = busyLabel == null,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                        ) { Text("Restore", maxLines = 1, softWrap = false) }
+                    }
+                }
+            }
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
