@@ -517,20 +517,18 @@ fun ModelInfoScreen(
                                     Text(webLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
                                     Text(webSrc, fontSize = 12.sp, color = AppColors.TextTertiary)
                                 }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                // Add / edit manual override — opens the same form the
+                                // Manual model types CRUD uses, pre-filled with this
+                                // (provider, model). If an override already exists
+                                // for this pair the form opens in edit mode.
+                                Button(
+                                    onClick = { onNavigateToAddManualOverride(provider, modelName) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                                ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
                             }
                         }
-                    }
-
-                    // Add / edit manual override — opens the same form the
-                    // Manual model types CRUD uses, pre-filled with this
-                    // (provider, model). If an override already exists for
-                    // this pair the form opens in edit mode.
-                    item {
-                        Button(
-                            onClick = { onNavigateToAddManualOverride(provider, modelName) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                        ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
                     }
 
                     // Trace count card — clickable, opens the Traces list filtered to this model.
