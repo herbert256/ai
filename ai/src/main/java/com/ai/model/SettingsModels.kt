@@ -36,6 +36,17 @@ data class ProviderConfig(
      *  google_search / OpenAI Responses web_search_preview). Same pattern
      *  as visionModels — user override layered on top of a name heuristic. */
     val webSearchModels: Set<String> = emptySet(),
+    /** Pre-computed result of the layered isVisionCapable lookup for every
+     *  id in [models]. Populated by [Settings.recomputeCapabilities]
+     *  whenever the model list refreshes or a capability source (LiteLLM,
+     *  models.dev) changes. Read directly by [Settings.isVisionCapable]
+     *  to avoid re-running ~1k-entry catalog scans on every UI render —
+     *  long lists were spending all their render time in those scans.
+     *  User overrides ([visionModels]) and [ModelTypeOverride] are still
+     *  consulted first, so toggling a single model doesn't require a
+     *  full recompute. */
+    val visionCapableComputed: Set<String> = emptySet(),
+    val webSearchCapableComputed: Set<String> = emptySet(),
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -182,9 +193,10 @@ data class Settings(
     fun withModel(service: AppService, model: String) = withProvider(service, getProvider(service).copy(model = model))
     fun getModelSource(service: AppService) = getProvider(service).modelSource
     fun getModels(service: AppService) = getProvider(service).models
-    fun withModels(service: AppService, models: List<String>) = withProvider(service, getProvider(service).copy(models = models))
+    fun withModels(service: AppService, models: List<String>) =
+        withProvider(service, getProvider(service).copy(models = models)).recomputeCapabilities(service)
     fun withModels(service: AppService, models: List<String>, types: Map<String, String>) =
-        withProvider(service, getProvider(service).copy(models = models, modelTypes = types))
+        withProvider(service, getProvider(service).copy(models = models, modelTypes = types)).recomputeCapabilities(service)
     /** Same as [withModels] but also unions [autoVisionModels] (auto-detected
      *  by the fetcher, e.g. OpenRouter input_modalities) into the per-provider
      *  visionModels set. The set is union-only — refetching never removes a
@@ -193,6 +205,7 @@ data class Settings(
         val cfg = getProvider(service)
         val merged = cfg.visionModels + autoVisionModels
         return withProvider(service, cfg.copy(models = models, modelTypes = types, visionModels = merged))
+            .recomputeCapabilities(service)
     }
     /** Same as the 4-arg overload, plus a per-model capability bundle from
      *  the provider's own /models endpoint (Mistral, Gemini, Cohere, etc.).
@@ -209,7 +222,7 @@ data class Settings(
             models = models, modelTypes = types,
             visionModels = merged, modelCapabilities = capabilities,
             modelListRawJson = rawResponse ?: cfg.modelListRawJson
-        ))
+        )).recomputeCapabilities(service)
     }
     /** User-supplied manual override always wins; otherwise consult LiteLLM
      *  for a specific (non-CHAT) classification, then fall back to the
@@ -238,9 +251,24 @@ data class Settings(
      *   4. Naming heuristic — covers gpt-4o, claude-3.x/4.x, gemini-1.5+,
      *      llava/pixtral/qwen-vl/etc. False on miss. */
     fun isVisionCapable(service: AppService, modelId: String): Boolean {
-        if (modelId in getProvider(service).visionModels) return true
+        val cfg = getProvider(service)
+        if (modelId in cfg.visionModels) return true
         if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsVision }) return true
-        // Provider's own /models response — most authoritative when present.
+        // Pre-computed result of the slow layered lookup. Populated by
+        // recomputeCapabilities after every model-list / catalog refresh.
+        if (modelId in cfg.visionCapableComputed) return true
+        // Fall through only when the model isn't in the precomputed set —
+        // covers freshly-added manual entries before a recompute fires and
+        // the read-only Manual Override CRUD that asks about ids never
+        // listed under any provider.
+        return computeVisionCapableSlow(service, modelId)
+    }
+
+    /** Runs the full layered lookup ignoring [visionModels] and
+     *  [modelTypeOverrides] — those are user-curated short-circuits already
+     *  handled by [isVisionCapable]. Used both for the per-call fallback
+     *  path and to populate [ProviderConfig.visionCapableComputed]. */
+    private fun computeVisionCapableSlow(service: AppService, modelId: String): Boolean {
         getProvider(service).modelCapabilities[modelId]?.supportsVision?.let { return it }
         com.ai.data.PricingCache.liteLLMSupportsVision(service, modelId)?.let { return it }
         com.ai.data.PricingCache.modelsDevSupportsVision(service, modelId)?.let { return it }
@@ -260,8 +288,14 @@ data class Settings(
      *  supports_web_search flag (authoritative true/false when present),
      *  then the name + apiFormat heuristic. */
     fun isWebSearchCapable(service: AppService, modelId: String): Boolean {
-        if (modelId in getProvider(service).webSearchModels) return true
+        val cfg = getProvider(service)
+        if (modelId in cfg.webSearchModels) return true
         if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsWebSearch }) return true
+        if (modelId in cfg.webSearchCapableComputed) return true
+        return computeWebSearchCapableSlow(service, modelId)
+    }
+
+    private fun computeWebSearchCapableSlow(service: AppService, modelId: String): Boolean {
         // Provider's own function-calling flag is a strong proxy for "tool
         // descriptors are accepted" — Mistral surfaces this directly.
         getProvider(service).modelCapabilities[modelId]?.supportsFunctionCalling?.let { return it }
@@ -272,6 +306,29 @@ data class Settings(
         // heuristic still wins on a true LiteLLM negative.
         com.ai.data.PricingCache.modelsDevSupportsToolCall(service, modelId)?.let { return it }
         return com.ai.data.ModelType.inferWebSearch(service, modelId)
+    }
+
+    /** Walk every model in [service]'s list, run the slow layered lookup
+     *  once per id, and store the resolved booleans in
+     *  [ProviderConfig.visionCapableComputed] / [webSearchCapableComputed].
+     *  Cheap relative to fetching the model list, dirt-cheap on subsequent
+     *  isVisionCapable / isWebSearchCapable calls (single set lookup). */
+    fun recomputeCapabilities(service: AppService): Settings {
+        val cfg = getProvider(service)
+        if (cfg.models.isEmpty()) return this
+        val vision = cfg.models.filterTo(mutableSetOf()) { computeVisionCapableSlow(service, it) }
+        val web = cfg.models.filterTo(mutableSetOf()) { computeWebSearchCapableSlow(service, it) }
+        if (vision == cfg.visionCapableComputed && web == cfg.webSearchCapableComputed) return this
+        return withProvider(service, cfg.copy(visionCapableComputed = vision, webSearchCapableComputed = web))
+    }
+
+    /** Recompute precomputed capability sets for every provider — used after
+     *  a LiteLLM or models.dev refresh, where the underlying answers may
+     *  have shifted but per-provider model lists haven't. */
+    fun recomputeAllCapabilities(): Settings {
+        var s: Settings = this
+        for (service in AppService.entries) s = s.recomputeCapabilities(service)
+        return s
     }
 
     fun withWebSearchCapable(service: AppService, modelId: String, enabled: Boolean): Settings {

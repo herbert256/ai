@@ -321,6 +321,11 @@ fun RefreshScreen(
                         progressText = "Downloading model_prices_and_context_window.json…"
                         val n = PricingCache.fetchLiteLLMPricingOnline(context)
                         litellmResult = n
+                        // Catalog answers may have shifted — refresh the
+                        // precomputed vision / web-search sets so list
+                        // renders pick up the new state without falling
+                        // back to slow per-row scans.
+                        if (n != null) onSave(aiSettings.recomputeAllCapabilities())
                         showLiteLLMDialog = true
                     }
                 }
@@ -335,6 +340,7 @@ fun RefreshScreen(
                         progressText = "Downloading models.dev/api.json…"
                         val n = PricingCache.fetchModelsDevOnline(context)
                         modelsDevResult = n
+                        if (n != null) onSave(aiSettings.recomputeAllCapabilities())
                         showModelsDevDialog = true
                     }
                 }

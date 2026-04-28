@@ -221,6 +221,14 @@ object PricingCache {
         }
     }
 
+    /** Synchronous load — caller MUST be off the main thread. Used by
+     *  bootstrap migrations that need LiteLLM / models.dev populated
+     *  before running [Settings.recomputeAllCapabilities]. */
+    fun ensureLoadedBlocking(context: Context) {
+        ensureLoaded(context)
+        preloadCompleted = true
+    }
+
     /**
      * Get pricing for a model using five-tier lookup.
      *

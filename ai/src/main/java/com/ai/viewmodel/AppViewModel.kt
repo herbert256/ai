@@ -156,6 +156,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         var gs = settingsPrefs.loadGeneralSettings()
         var ai = settingsPrefs.loadSettingsWithMigration()
 
+        // One-time migration for builds that didn't persist the precomputed
+        // vision / web-search sets. Without this, list renders fall through
+        // to the per-row layered lookup until the next manual refresh.
+        // We're already on Dispatchers.IO so the synchronous catalog load
+        // is safe.
+        val anyMissingComputed = ai.providers.values.any {
+            it.models.isNotEmpty() && it.visionCapableComputed.isEmpty() && it.webSearchCapableComputed.isEmpty()
+        }
+        if (anyMissingComputed) {
+            PricingCache.ensureLoadedBlocking(application)
+            ai = ai.recomputeAllCapabilities()
+            settingsPrefs.saveSettings(ai)
+        }
+
         val alreadyImported = application.readBoolean(AppPrefKeys.SETUP_IMPORTED)
         if (!alreadyImported) {
             // One-shot bootstrap: read the setup flag from DataStore for atomicity guarantees
