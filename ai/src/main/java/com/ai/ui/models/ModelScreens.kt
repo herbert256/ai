@@ -507,6 +507,51 @@ fun ModelInfoScreen(
                         }
                     }
 
+                    // Per-tier price snapshot — LiteLLM / OpenRouter / Override
+                    // shown as $/M-token rows when populated. Default tier is
+                    // omitted; if all three are missing, render a single
+                    // "no source-specific price" line so the card still
+                    // explains why the cost lookup will fall back.
+                    item {
+                        val breakdown = remember(provider, modelName) {
+                            PricingCache.getTierBreakdown(context, provider, modelName)
+                        }
+                        val rows = listOfNotNull(
+                            breakdown.litellm?.let { "LiteLLM" to it },
+                            breakdown.modelsDev?.let { "models.dev" to it },
+                            breakdown.helicone?.let { "Helicone" to it },
+                            breakdown.llmPrices?.let { "llm-prices.com" to it },
+                            breakdown.artificialAnalysis?.let { "Artificial Analysis" to it },
+                            breakdown.openrouter?.let { "OpenRouter" to it },
+                            breakdown.override?.let { "Override" to it }
+                        )
+                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Costs (per million tokens)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                if (rows.isEmpty()) {
+                                    Text("No LiteLLM / models.dev / OpenRouter / Override entry — lookup falls back to the built-in default.",
+                                        fontSize = 12.sp, color = AppColors.TextTertiary)
+                                } else {
+                                    rows.forEach { (label, p) ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                            Text(
+                                                "${"%.4f".format(Locale.US, p.promptPrice * 1_000_000)} / ${"%.4f".format(Locale.US, p.completionPrice * 1_000_000)}",
+                                                fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Button(
+                                    onClick = { onNavigateToAddCostOverride(provider, modelName) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                                ) { Text("Add manual cost override", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                            }
+                        }
+                    }
+
                     // Capability summary — read-only. The user pins overrides
                     // through the Manual model overrides CRUD (Add manual
                     // override button below). Source line tells the user
@@ -558,51 +603,6 @@ fun ModelInfoScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                                 ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
-                            }
-                        }
-                    }
-
-                    // Per-tier price snapshot — LiteLLM / OpenRouter / Override
-                    // shown as $/M-token rows when populated. Default tier is
-                    // omitted; if all three are missing, render a single
-                    // "no source-specific price" line so the card still
-                    // explains why the cost lookup will fall back.
-                    item {
-                        val breakdown = remember(provider, modelName) {
-                            PricingCache.getTierBreakdown(context, provider, modelName)
-                        }
-                        val rows = listOfNotNull(
-                            breakdown.litellm?.let { "LiteLLM" to it },
-                            breakdown.modelsDev?.let { "models.dev" to it },
-                            breakdown.helicone?.let { "Helicone" to it },
-                            breakdown.llmPrices?.let { "llm-prices.com" to it },
-                            breakdown.artificialAnalysis?.let { "Artificial Analysis" to it },
-                            breakdown.openrouter?.let { "OpenRouter" to it },
-                            breakdown.override?.let { "Override" to it }
-                        )
-                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Costs (per million tokens)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-                                if (rows.isEmpty()) {
-                                    Text("No LiteLLM / models.dev / OpenRouter / Override entry — lookup falls back to the built-in default.",
-                                        fontSize = 12.sp, color = AppColors.TextTertiary)
-                                } else {
-                                    rows.forEach { (label, p) ->
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-                                            Text(
-                                                "${"%.4f".format(Locale.US, p.promptPrice * 1_000_000)} / ${"%.4f".format(Locale.US, p.completionPrice * 1_000_000)}",
-                                                fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
-                                            )
-                                        }
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Button(
-                                    onClick = { onNavigateToAddCostOverride(provider, modelName) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                                ) { Text("Add manual cost override", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
                     }
