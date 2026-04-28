@@ -325,7 +325,21 @@ fun ReportsScreen(
     if (showSelectSwarm) { ReportSelectSwarmDialog(aiSettings, onSelectSwarm = { models = deduplicateModels(models + expandSwarmToModels(it, aiSettings)); showSelectSwarm = false }, onDismiss = { showSelectSwarm = false }); return }
     if (showSelectProvider) { ReportSelectProviderDialog(aiSettings, onSelectProvider = { pendingProvider = it; showSelectProvider = false }, onDismiss = { showSelectProvider = false }); return }
     if (pendingProvider != null) { ReportSelectModelDialog(pendingProvider!!, aiSettings, onSelectModel = { models = deduplicateModels(models + toReportModel(pendingProvider!!, it)); pendingProvider = null }, onDismiss = { pendingProvider = null }); return }
-    if (showSelectAllModels) { ReportSelectAllModelsDialog(aiSettings, onSelectModel = { prov, model -> models = deduplicateModels(models + toReportModel(prov, model)); showSelectAllModels = false }, onDismiss = { showSelectAllModels = false }); return }
+    if (showSelectAllModels) {
+        val already = remember(models) { models.map { it.provider to it.model }.toSet() }
+        ReportSelectModelsScreen(
+            aiSettings = aiSettings,
+            alreadySelected = already,
+            onConfirm = { picks ->
+                val toAdd = picks.map { (prov, m) -> toReportModel(prov, m) }
+                models = deduplicateModels(models + toAdd)
+                showSelectAllModels = false
+            },
+            onBack = { showSelectAllModels = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
 
     // Share dialog
     if (showDeleteConfirm && currentReportId != null) {

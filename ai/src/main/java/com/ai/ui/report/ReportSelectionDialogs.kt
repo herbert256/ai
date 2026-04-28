@@ -1,5 +1,6 @@
 package com.ai.ui.report
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +22,7 @@ import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.TitleBar
 
 private fun dlgFmtPrice(pricePerToken: Double): String {
     val m = pricePerToken * 1_000_000
@@ -203,67 +205,118 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
     }
 }
 
+/** Full-screen multi-select picker behind the +Model button on the
+ *  report selection screen. Mirrors SwarmEditScreen's member list:
+ *  search, provider filter, checkbox per row, selected models float to
+ *  the top, Add commits the whole batch in one go. Replaces an earlier
+ *  single-select Dialog that forced the user to re-open the picker for
+ *  every model they wanted to add. */
 @Composable
-internal fun ReportSelectAllModelsDialog(aiSettings: Settings, onSelectModel: (AppService, String) -> Unit, onDismiss: () -> Unit) {
+internal fun ReportSelectModelsScreen(
+    aiSettings: Settings,
+    alreadySelected: Set<Pair<AppService, String>>,
+    onConfirm: (List<Pair<AppService, String>>) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     var search by remember { mutableStateOf("") }
     val activeServices = aiSettings.getActiveServices()
-    var selectedProvider by remember { mutableStateOf<AppService?>(null) }
+    var providerFilter by remember { mutableStateOf<AppService?>(null) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
+    var checked by remember { mutableStateOf<Set<Pair<AppService, String>>>(emptySet()) }
 
-    val all = activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
-    val providerFiltered = if (selectedProvider != null) all.filter { it.first == selectedProvider } else all
-    val filtered = if (search.isBlank()) providerFiltered else providerFiltered.filter { (prov, model) ->
+    val all = remember(aiSettings) {
+        activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
+    }
+    val providerFiltered = if (providerFilter != null) all.filter { it.first == providerFilter } else all
+    val searched = if (search.isBlank()) providerFiltered else providerFiltered.filter { (prov, model) ->
         prov.displayName.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
     }
-    val sorted = filtered.sortedWith(compareBy({ it.first.displayName.lowercase() }, { it.second.lowercase() }))
+    val sorted = remember(searched, checked, alreadySelected) {
+        searched.sortedWith(
+            compareByDescending<Pair<AppService, String>> { it in checked || it in alreadySelected }
+                .thenBy { it.first.displayName.lowercase() }
+                .thenBy { it.second.lowercase() }
+        )
+    }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("All models \u2014 ${all.size}", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
-                Spacer(modifier = Modifier.height(6.dp))
-                Box {
-                    OutlinedButton(onClick = { providerDropdownExpanded = true }, modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White), border = BorderStroke(1.dp, AppColors.BorderUnfocused)) {
-                        Text(selectedProvider?.displayName ?: "All Providers", modifier = Modifier.weight(1f), fontSize = 13.sp, color = if (selectedProvider != null) Color.White else AppColors.TextTertiary)
-                        Text("\u25BE", color = AppColors.TextTertiary)
-                    }
-                    DropdownMenu(expanded = providerDropdownExpanded, onDismissRequest = { providerDropdownExpanded = false }, modifier = Modifier.background(Color(0xFF2D2D2D))) {
-                        DropdownMenuItem(text = { Text("All Providers", color = if (selectedProvider == null) AppColors.Blue else Color.White, fontSize = 13.sp) },
-                            onClick = { selectedProvider = null; providerDropdownExpanded = false })
-                        remember(activeServices) { activeServices.sortedBy { it.displayName.lowercase() } }.forEach { provider ->
-                            val mc = aiSettings.getModels(provider).size
-                            DropdownMenuItem(text = { Text("${provider.displayName} ($mc)", color = if (selectedProvider == provider) AppColors.Blue else Color.White, fontSize = 13.sp) },
-                                onClick = { selectedProvider = provider; providerDropdownExpanded = false })
-                        }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(title = "Add Models", onBackClick = onBack, onAiClick = onNavigateHome)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = { providerDropdownExpanded = true }, modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White), border = BorderStroke(1.dp, AppColors.BorderUnfocused)) {
+                    Text(providerFilter?.displayName ?: "All Providers", modifier = Modifier.weight(1f), fontSize = 13.sp,
+                        color = if (providerFilter != null) Color.White else AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("\u25be", color = AppColors.TextTertiary)
+                }
+                DropdownMenu(expanded = providerDropdownExpanded, onDismissRequest = { providerDropdownExpanded = false }, modifier = Modifier.background(Color(0xFF2D2D2D))) {
+                    DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.Blue else Color.White, fontSize = 13.sp) },
+                        onClick = { providerFilter = null; providerDropdownExpanded = false })
+                    remember(activeServices) { activeServices.sortedBy { it.displayName.lowercase() } }.forEach { provider ->
+                        val mc = aiSettings.getModels(provider).size
+                        DropdownMenuItem(text = { Text("${provider.displayName} ($mc)", color = if (providerFilter == provider) AppColors.Blue else Color.White, fontSize = 13.sp) },
+                            onClick = { providerFilter = provider; providerDropdownExpanded = false })
                     }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
-                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp) } })
-                Spacer(modifier = Modifier.height(6.dp))
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(sorted, key = { "${it.first.id}:${it.second}" }) { (provider, model) ->
-                        val p = PricingCache.getPricing(context, provider, model)
-                        val real = p.source != "DEFAULT"
-                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(provider, model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
-                                    com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
-                                }
-                                if (selectedProvider == null) Text(provider.displayName, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1)
-                            }
-                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+            }
+            Button(
+                onClick = { onConfirm(checked.toList()) },
+                enabled = checked.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Add (${checked.size})", maxLines = 1, softWrap = false) }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search models...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp) } })
+        Text("${checked.size} selected of ${all.size}", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
+
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(sorted, key = { "${it.first.id}:${it.second}" }) { entry ->
+                val (provider, model) = entry
+                val isAlreadyAdded = entry in alreadySelected
+                val isChecked = entry in checked
+                val pricing = aiSettings.getModelPricing(provider, model)
+                    ?: PricingCache.getPricing(context, provider, model)
+                val real = pricing.source != "DEFAULT"
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable(enabled = !isAlreadyAdded) {
+                            checked = if (isChecked) checked - entry else checked + entry
                         }
-                        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = isChecked || isAlreadyAdded,
+                        enabled = !isAlreadyAdded,
+                        onCheckedChange = {
+                            if (!isAlreadyAdded) checked = if (isChecked) checked - entry else checked + entry
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(provider.displayName, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
+                            com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
+                        }
                     }
+                    Text("${dlgFmtPrice(pricing.promptPrice)}/${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                        color = if (real) AppColors.Red else AppColors.SurfaceDark,
+                        modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
         }
     }
 }
+
