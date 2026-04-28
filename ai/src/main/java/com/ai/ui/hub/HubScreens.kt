@@ -52,17 +52,20 @@ fun HubScreen(
     BackHandler { (context as? Activity)?.moveTaskToBack(true) }
 
     val hasAnyAgent = remember(uiState.aiSettings.agents) { uiState.aiSettings.agents.isNotEmpty() }
-    // Run once per Hub mount on Dispatchers.IO. Was keyed on uiState, which
-    // re-fired ~30 times during refreshAllModelLists and dragged the main
-    // thread through 250+ trace-file reads + Gson parses on each pass —
-    // exactly the "AI Usage card slow to be clickable" feel at startup.
-    val hasStatisticsData by produceState(initialValue = false) {
+    // Re-fire whenever the agent list changes. Was keyed on the whole
+    // uiState, which churned ~30 times during refreshAllModelLists (each
+    // model-list fetch touches aiSettings.providers but not agents) and
+    // dragged the main thread through repeated disk work for nothing. The
+    // narrower key still picks up the once-per-bootstrap transition that
+    // ensureUsageStatsCache needs to retry past a ProviderRegistry-init
+    // race, plus any agent edit during the session.
+    val hasStatisticsData by produceState(initialValue = false, uiState.aiSettings.agents) {
         value = withContext(Dispatchers.IO) {
             val sp = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
             sp.loadUsageStats().isNotEmpty()
         }
     }
-    val hasTraces by produceState(initialValue = false) {
+    val hasTraces by produceState(initialValue = false, uiState.aiSettings.agents) {
         // hasAnyTraceFile only enumerates filenames — no JSON parse, vs the
         // ~250-file parse getTraceFiles() does for the full list.
         value = withContext(Dispatchers.IO) { ApiTracer.hasAnyTraceFile() }
