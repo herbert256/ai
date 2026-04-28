@@ -172,6 +172,9 @@ object ApiFactory {
     private val gsonConverterFactory = GsonConverterFactory.create()
 
     private val okHttpClient = OkHttpClient.Builder()
+        // Rate-limit retry first so each attempt (including retries) flows
+        // through the trace recorder below — visible on the Trace screen.
+        .addInterceptor(RateLimitRetryInterceptor())
         .addInterceptor(TracingInterceptor())
         .connectTimeout(com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .readTimeout(com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)

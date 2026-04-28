@@ -166,3 +166,33 @@ class TracingInterceptor : Interceptor {
     }
 
 }
+
+/** Retry on HTTP 429 (rate-limit) responses. Sleeps [backoffMs] before
+ *  reissuing the same request, up to [maxRetries] times. Placed ahead of
+ *  [TracingInterceptor] in the OkHttp chain so every attempt — including
+ *  retries — gets a separate trace entry, which makes throttling visible
+ *  on the Trace screen instead of hiding inside the network layer. */
+class RateLimitRetryInterceptor(
+    private val maxRetries: Int = 5,
+    private val backoffMs: Long = 3_000L
+) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        var response = chain.proceed(request)
+        var attempt = 0
+        while (response.code == 429 && attempt < maxRetries) {
+            // Always close the previous response before reissuing — leaving
+            // the body open leaks an OkHttp connection.
+            response.close()
+            try {
+                Thread.sleep(backoffMs)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw e
+            }
+            attempt++
+            response = chain.proceed(request)
+        }
+        return response
+    }
+}
