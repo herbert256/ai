@@ -37,9 +37,13 @@ object PricingCache {
     private const val KEY_LLMPRICES_PRICING = "llmprices_pricing"
     private const val KEY_LLMPRICES_TIMESTAMP = "llmprices_timestamp"
     // Artificial Analysis — pricing + intelligence/speed scores. Needs API key.
-    private const val KEY_AA_PRICING = "aa_pricing"
-    private const val KEY_AA_META = "aa_meta"
-    private const val KEY_AA_TIMESTAMP = "aa_timestamp"
+    // _v2 keys: the original parser used AA's UUID `id` field as the
+    // composite key, so model-name lookups never matched. Bumping the key
+    // names invalidates that bad data on existing installs — next refresh
+    // writes the slug-keyed format and reads pick up correctly.
+    private const val KEY_AA_PRICING = "aa_pricing_v2"
+    private const val KEY_AA_META = "aa_meta_v2"
+    private const val KEY_AA_TIMESTAMP = "aa_timestamp_v2"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000
 
@@ -1031,10 +1035,28 @@ object PricingCache {
     // Auth: x-api-key header (free tier, requires sign-up)
     // ============================================================================
 
+    /** Parse AA's /api/v2/data/llms/models response.
+     *
+     *  Real shape (verified against a captured trace):
+     *  ```
+     *  { "data": [ {
+     *      "id": "<uuid>",                   // not useful — internal AA id
+     *      "name": "Claude Opus 4.6",
+     *      "slug": "claude-opus-4-6",       // matchable model id
+     *      "model_creator": { "slug": "anthropic", "name": "Anthropic" },
+     *      "evaluations": { "artificial_analysis_intelligence_index": 56.3, ... },
+     *      "pricing": { "price_1m_input_tokens": 5.0, "price_1m_output_tokens": 25.0 },
+     *      "median_output_tokens_per_second": 168.5,
+     *      "median_time_to_first_token_seconds": 0.55
+     *  }, ... ] }
+     *  ```
+     *
+     *  Composite key: `<creator_slug>/<slug>` so it lines up with how the
+     *  rest of the chain stores LiteLLM / models.dev entries (the existing
+     *  prefix-bucket lookup then handles dots-vs-dashes via normalizeModelId). */
     private fun parseArtificialAnalysisJson(json: String): Pair<Map<String, ModelPricing>, Map<String, ArtificialAnalysisMeta>> {
         @Suppress("DEPRECATION")
         val rootEl = JsonParser().parse(json)
-        // Response may be either {data: [...]} or a bare array — handle both.
         val arr = when {
             rootEl.isJsonArray -> rootEl.asJsonArray
             rootEl.isJsonObject -> rootEl.asJsonObject.get("data")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyMap<String, ModelPricing>() to emptyMap()
@@ -1045,34 +1067,30 @@ object PricingCache {
         for (el in arr) {
             if (!el.isJsonObject) continue
             val m = el.asJsonObject
-            // AA's id field is the canonical model identifier (slug-style).
-            val id = (m.get("id") ?: m.get("slug") ?: m.get("api_id"))?.takeIf { it.isJsonPrimitive }?.asString ?: continue
-            // Host/creator names the provider — try a few field names.
-            val host = (m.get("host") ?: m.get("api_host") ?: m.get("model_creator"))?.takeIf { it.isJsonPrimitive }?.asString
-                ?: (m.get("creator")?.takeIf { it.isJsonObject }?.asJsonObject?.get("name")?.takeIf { it.isJsonPrimitive }?.asString)
-                ?: ""
-            val composite = if (host.isNotBlank()) "${host.lowercase()}/$id" else id
-            // Pricing — AA uses $/M tokens.
+            val slug = m.get("slug")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+            val creatorObj = m.get("model_creator")?.takeIf { it.isJsonObject }?.asJsonObject
+            val creatorSlug = creatorObj?.get("slug")?.takeIf { it.isJsonPrimitive }?.asString
+            val creatorName = creatorObj?.get("name")?.takeIf { it.isJsonPrimitive }?.asString
+            val composite = if (!creatorSlug.isNullOrBlank()) "${creatorSlug.lowercase()}/$slug" else slug
+
             val priceObj = m.get("pricing")?.takeIf { it.isJsonObject }?.asJsonObject
-            val ic = (priceObj?.get("price_1m_input_tokens") ?: priceObj?.get("input"))?.takeIf { it.isJsonPrimitive }?.asDouble
-            val oc = (priceObj?.get("price_1m_output_tokens") ?: priceObj?.get("output"))?.takeIf { it.isJsonPrimitive }?.asDouble
+            val ic = priceObj?.get("price_1m_input_tokens")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val oc = priceObj?.get("price_1m_output_tokens")?.takeIf { it.isJsonPrimitive }?.asDouble
             if (ic != null && oc != null) {
                 pricing[composite] = ModelPricing(
-                    modelId = id,
+                    modelId = slug,
                     promptPrice = ic / 1_000_000.0,
                     completionPrice = oc / 1_000_000.0,
                     source = "ARTIFICIALANALYSIS"
                 )
             }
-            // Sidecar — composite quality index plus output speed / latency.
-            val intelligenceIndex = m.get("intelligence_index")?.takeIf { it.isJsonPrimitive }?.asDouble
-            val outputSpeed = (m.get("output_tokens_per_second") ?: m.get("output_speed") ?: m.get("median_output_tokens_per_second"))?.takeIf { it.isJsonPrimitive }?.asDouble
-            val firstChunk = (m.get("first_chunk_seconds") ?: m.get("median_first_chunk_seconds") ?: m.get("median_time_to_first_token_seconds"))?.takeIf { it.isJsonPrimitive }?.asDouble
-            val ctx = (m.get("context_window") ?: m.get("max_input_tokens"))?.takeIf { it.isJsonPrimitive }?.asInt
-            val creator = (m.get("model_creator") ?: m.get("creator")?.takeIf { it.isJsonPrimitive })?.takeIf { it.isJsonPrimitive }?.asString
-                ?: m.get("creator")?.takeIf { it.isJsonObject }?.asJsonObject?.get("name")?.takeIf { it.isJsonPrimitive }?.asString
-            if (intelligenceIndex != null || outputSpeed != null || firstChunk != null || ctx != null || creator != null) {
-                meta[composite] = ArtificialAnalysisMeta(intelligenceIndex, outputSpeed, firstChunk, ctx, creator)
+
+            val evals = m.get("evaluations")?.takeIf { it.isJsonObject }?.asJsonObject
+            val intelligenceIndex = evals?.get("artificial_analysis_intelligence_index")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val outputSpeed = m.get("median_output_tokens_per_second")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val firstChunk = m.get("median_time_to_first_token_seconds")?.takeIf { it.isJsonPrimitive }?.asDouble
+            if (intelligenceIndex != null || outputSpeed != null || firstChunk != null || creatorName != null) {
+                meta[composite] = ArtificialAnalysisMeta(intelligenceIndex, outputSpeed, firstChunk, creatorName)
             }
         }
         return pricing to meta
@@ -1285,7 +1303,6 @@ object PricingCache {
         val intelligenceIndex: Double? = null,
         val outputSpeed: Double? = null,
         val firstChunkSeconds: Double? = null,
-        val contextWindow: Int? = null,
         val modelCreator: String? = null
     )
 
