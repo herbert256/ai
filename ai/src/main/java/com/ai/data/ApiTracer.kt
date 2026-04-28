@@ -178,12 +178,19 @@ class RateLimitRetryInterceptor(
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        var response = chain.proceed(request)
+        val response = chain.proceed(request)
+        // Defensive: never block the main thread. Retrofit suspend funcs
+        // and the existing withContext(Dispatchers.IO) wrappers should
+        // keep us off main, but if anything ever sneaks through, sleeping
+        // here for up to maxRetries × backoffMs would ANR the UI.
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
+        if (response.code != 429) return response
+        var current = response
         var attempt = 0
-        while (response.code == 429 && attempt < maxRetries) {
+        while (current.code == 429 && attempt < maxRetries) {
             // Always close the previous response before reissuing — leaving
             // the body open leaks an OkHttp connection.
-            response.close()
+            current.close()
             try {
                 Thread.sleep(backoffMs)
             } catch (e: InterruptedException) {
@@ -191,8 +198,8 @@ class RateLimitRetryInterceptor(
                 throw e
             }
             attempt++
-            response = chain.proceed(request)
+            current = chain.proceed(request)
         }
-        return response
+        return current
     }
 }
