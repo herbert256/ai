@@ -160,21 +160,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         var gs = settingsPrefs.loadGeneralSettings()
         var ai = settingsPrefs.loadSettingsWithMigration()
 
-        // One-time migration for builds that didn't persist the precomputed
-        // vision / web-search sets. Without this, list renders fall through
-        // to the per-row layered lookup until the next manual refresh.
-        // We're already on Dispatchers.IO so the synchronous catalog load
-        // is safe.
-        val anyMissingComputed = ai.providers.values.any {
-            it.models.isNotEmpty() && (
-                (it.visionCapableComputed.isEmpty() && it.webSearchCapableComputed.isEmpty())
-                    || it.modelPricing.isEmpty()
-            )
-        }
-        if (anyMissingComputed) {
-            PricingCache.ensureLoadedBlocking(application)
-            ai = ai.recomputeAllCapabilities()
-            settingsPrefs.saveSettings(ai)
+        // One-shot migration for installs that predate the precomputed
+        // vision / web-search / pricing sets. Gated on a version flag so it
+        // doesn't re-run on every cold start (the previous heuristic check
+        // could fire repeatedly for providers whose models legitimately
+        // have no vision/web-search-capable entries, dragging startup down
+        // by reparsing 1.2 MB of LiteLLM JSON every time).
+        // Bump CAPS_PRECOMPUTED_VERSION when the precompute logic changes
+        // and the migration needs to re-run on existing installs.
+        val storedVersion = prefs.getInt(KEY_CAPS_PRECOMPUTED_VERSION, 0)
+        if (storedVersion < CAPS_PRECOMPUTED_VERSION) {
+            // Only recompute providers that actually need it — skip ones
+            // that already have populated precomputed data.
+            val needsRecompute = ai.providers.entries
+                .filter { (_, cfg) ->
+                    cfg.models.isNotEmpty() && cfg.modelPricing.isEmpty()
+                }
+                .map { it.key }
+            if (needsRecompute.isNotEmpty()) {
+                PricingCache.ensureLoadedBlocking(application)
+                var s: Settings = ai
+                for (svc in needsRecompute) s = s.recomputeCapabilities(svc)
+                ai = s
+                settingsPrefs.saveSettings(ai)
+            }
+            prefs.edit().putInt(KEY_CAPS_PRECOMPUTED_VERSION, CAPS_PRECOMPUTED_VERSION).apply()
         }
 
         val alreadyImported = application.readBoolean(AppPrefKeys.SETUP_IMPORTED)
@@ -399,5 +409,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
         internal val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)
+
+        // Bootstrap migration for the per-provider precomputed sets
+        // (visionCapableComputed / webSearchCapableComputed / modelPricing).
+        // The flag stops the migration from re-firing on every cold start —
+        // bump the version when the precompute logic changes and the
+        // existing data on disk is no longer good enough.
+        internal const val KEY_CAPS_PRECOMPUTED_VERSION = "caps_precomputed_version"
+        internal const val CAPS_PRECOMPUTED_VERSION = 1
     }
 }

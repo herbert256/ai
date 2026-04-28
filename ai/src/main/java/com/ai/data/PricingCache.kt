@@ -24,6 +24,7 @@ object PricingCache {
     private const val KEY_OPENROUTER_PRICING = "openrouter_pricing"
     private const val KEY_OPENROUTER_TIMESTAMP = "openrouter_timestamp"
     private const val KEY_LITELLM_PRICING = "litellm_pricing"
+    private const val KEY_LITELLM_META = "litellm_meta"
     private const val KEY_LITELLM_TIMESTAMP = "litellm_timestamp"
     private const val KEY_MODELS_DEV_PRICING = "models_dev_pricing"
     private const val KEY_MODELS_DEV_META = "models_dev_meta"
@@ -593,6 +594,9 @@ object PricingCache {
         litellmTimestamp = System.currentTimeMillis()
         getPrefs(context).edit {
             putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
+            // Persist the capability sidecar so cold start doesn't have to
+            // reparse the 1.2 MB bundled asset every time.
+            putString(KEY_LITELLM_META, gson.toJson(meta))
             putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
         }
     }
@@ -619,6 +623,7 @@ object PricingCache {
                 litellmTimestamp = System.currentTimeMillis()
                 getPrefs(context).edit {
                     putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
+                    putString(KEY_LITELLM_META, gson.toJson(meta))
                     putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
                 }
             }
@@ -1163,12 +1168,24 @@ object PricingCache {
             }
             if (litellmPricing == null) refreshLiteLLMPricing(context)
         }
-        // Pricing comes from prefs (parsed ModelPricing) but the capability
-        // sidecar isn't persisted — repopulate it from the bundled asset on
-        // cold start so vision/web-search/mode lookups have data even when
-        // pricing is loaded from prefs.
+        // The capability sidecar is persisted alongside pricing — read from
+        // prefs first; only reparse the 1.2 MB bundled asset as a fallback
+        // (first run, prefs missing/corrupt, or app freshly installed).
+        // Reparsing on every cold start was a measurable startup cost.
         if (litellmMeta == null) {
-            litellmMeta = parseLiteLLMPricing(context).second
+            val prefs = getPrefs(context)
+            prefs.getString(KEY_LITELLM_META, null)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, LiteLLMMeta>>() {}.type
+                    litellmMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+            if (litellmMeta == null) {
+                val (_, meta) = parseLiteLLMPricing(context)
+                litellmMeta = meta
+                // Save it now so the next cold start reads from prefs.
+                getPrefs(context).edit { putString(KEY_LITELLM_META, gson.toJson(meta)) }
+            }
             litellmMetaLookupCache.clear()
         }
         // models.dev: no bundled asset (network only). Both maps live in
