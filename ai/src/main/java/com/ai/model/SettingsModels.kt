@@ -47,6 +47,13 @@ data class ProviderConfig(
      *  full recompute. */
     val visionCapableComputed: Set<String> = emptySet(),
     val webSearchCapableComputed: Set<String> = emptySet(),
+    /** Pre-computed pricing for every id in [models], keyed by model id —
+     *  same idea as [visionCapableComputed]. List rows pull prompt /
+     *  completion price (and `source` for the color tag) straight from
+     *  this map instead of running PricingCache's catalog scans on every
+     *  recomposition. Populated by [Settings.recomputeCapabilities] and
+     *  refreshed alongside the capability sets after a catalog refresh. */
+    val modelPricing: Map<String, com.ai.data.PricingCache.ModelPricing> = emptyMap(),
     val adminUrl: String = "",
     val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
@@ -318,8 +325,16 @@ data class Settings(
         if (cfg.models.isEmpty()) return this
         val vision = cfg.models.filterTo(mutableSetOf()) { computeVisionCapableSlow(service, it) }
         val web = cfg.models.filterTo(mutableSetOf()) { computeWebSearchCapableSlow(service, it) }
-        if (vision == cfg.visionCapableComputed && web == cfg.webSearchCapableComputed) return this
-        return withProvider(service, cfg.copy(visionCapableComputed = vision, webSearchCapableComputed = web))
+        // Snapshot the layered cost lookup so per-row UIs don't re-scan
+        // catalogs on every render — same precompute idea, applied to the
+        // 2 cost fields. lookupPricing is context-free; PricingCache must
+        // have been loaded by an earlier ensureLoadedBlocking / preloadAsync.
+        val pricing = cfg.models.associateWith { com.ai.data.PricingCache.lookupPricing(service, it) }
+        if (vision == cfg.visionCapableComputed && web == cfg.webSearchCapableComputed && pricing == cfg.modelPricing) return this
+        return withProvider(service, cfg.copy(
+            visionCapableComputed = vision, webSearchCapableComputed = web,
+            modelPricing = pricing
+        ))
     }
 
     /** Recompute precomputed capability sets for every provider — used after
@@ -330,6 +345,15 @@ data class Settings(
         for (service in AppService.entries) s = s.recomputeCapabilities(service)
         return s
     }
+
+    /** Pre-computed [com.ai.data.PricingCache.ModelPricing] for the
+     *  (provider, model) pair, or null when the model isn't in the
+     *  provider's stored list (e.g. arbitrary id from the Manual Override
+     *  CRUD). Callers should fall back to [com.ai.data.PricingCache.getPricing]
+     *  on a null result. Read straight from in-memory state — fast even
+     *  inside lazy-list item composables. */
+    fun getModelPricing(service: AppService, modelId: String): com.ai.data.PricingCache.ModelPricing? =
+        getProvider(service).modelPricing[modelId]
 
     fun withWebSearchCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
         val cfg = getProvider(service)

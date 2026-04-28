@@ -162,7 +162,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // We're already on Dispatchers.IO so the synchronous catalog load
         // is safe.
         val anyMissingComputed = ai.providers.values.any {
-            it.models.isNotEmpty() && it.visionCapableComputed.isEmpty() && it.webSearchCapableComputed.isEmpty()
+            it.models.isNotEmpty() && (
+                (it.visionCapableComputed.isEmpty() && it.webSearchCapableComputed.isEmpty())
+                    || it.modelPricing.isEmpty()
+            )
         }
         if (anyMissingComputed) {
             PricingCache.ensureLoadedBlocking(application)

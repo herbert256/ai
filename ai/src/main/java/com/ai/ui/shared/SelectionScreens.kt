@@ -167,7 +167,8 @@ fun SelectModelScreen(
             }
 
             items(filteredModels, key = { it }) { modelName ->
-                val pricing = PricingCache.getPricing(context, provider, modelName)
+                val pricing = aiSettings.getModelPricing(provider, modelName)
+                    ?: PricingCache.getPricing(context, provider, modelName)
                 val isSelected = modelName == currentModel
                 val priceColor = if (pricing.source == "default") AppColors.TextDim else AppColors.Red
 
@@ -325,7 +326,8 @@ fun SelectAgentScreen(
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(filteredAgents, key = { it.id }) { agent ->
                 val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
-                val pricing = PricingCache.getPricing(context, agent.provider, effectiveModel)
+                val pricing = aiSettings.getModelPricing(agent.provider, effectiveModel)
+                    ?: PricingCache.getPricing(context, agent.provider, effectiveModel)
                 val priceColor = if (pricing.source == "default") AppColors.TextDim else AppColors.Red
 
                 Row(

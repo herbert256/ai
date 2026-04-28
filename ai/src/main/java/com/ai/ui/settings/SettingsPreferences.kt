@@ -111,6 +111,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val webSearchModels = loadJsonStringSet("${key}_web_search_models")
             val visionCapableComputed = loadJsonStringSet("${key}_vision_capable_computed")
             val webSearchCapableComputed = loadJsonStringSet("${key}_web_search_capable_computed")
+            val modelPricing: Map<String, com.ai.data.PricingCache.ModelPricing> = prefs.getString("${key}_model_pricing", null)?.let {
+                try {
+                    val mapType = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.PricingCache.ModelPricing>>() {}.type
+                    gson.fromJson(it, mapType) ?: emptyMap()
+                } catch (_: Exception) { null }
+            } ?: emptyMap()
             val modelCapabilities: Map<String, com.ai.data.ModelCapabilities> = prefs.getString("${key}_model_capabilities", null)?.let {
                 try {
                     val mapType = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.ModelCapabilities>>() {}.type
@@ -126,6 +132,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 visionModels = visionModels, webSearchModels = webSearchModels,
                 visionCapableComputed = visionCapableComputed,
                 webSearchCapableComputed = webSearchCapableComputed,
+                modelPricing = modelPricing,
                 modelCapabilities = modelCapabilities,
                 modelListRawJson = modelListRawJson,
                 adminUrl = prefs.getString("${key}_admin_url", service.adminUrl) ?: service.adminUrl,
@@ -166,6 +173,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 // of re-running ~1k-entry catalog scans on every row.
                 putString("${key}_vision_capable_computed", if (config.visionCapableComputed.isEmpty()) null else gson.toJson(config.visionCapableComputed.toList()))
                 putString("${key}_web_search_capable_computed", if (config.webSearchCapableComputed.isEmpty()) null else gson.toJson(config.webSearchCapableComputed.toList()))
+                putString("${key}_model_pricing", if (config.modelPricing.isEmpty()) null else gson.toJson(config.modelPricing))
                 putString("${key}_model_capabilities", if (config.modelCapabilities.isEmpty()) null else gson.toJson(config.modelCapabilities))
                 // Raw /models response — kept verbatim so a later parser
                 // revision can pull out new fields without forcing a refetch.

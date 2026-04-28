@@ -263,6 +263,22 @@ object PricingCache {
         return DEFAULT_PRICING
     }
 
+    /** Context-free, in-memory-only variant of [getPricing] used by
+     *  [com.ai.model.Settings.recomputeCapabilities] to fill the
+     *  per-provider modelPricing snapshot. Caller must have triggered
+     *  [ensureLoadedBlocking] / [preloadAsync] first; this method itself
+     *  never touches SharedPreferences or the bundled asset and never
+     *  blocks. Returns DEFAULT_PRICING when catalogs aren't loaded. */
+    fun lookupPricing(provider: AppService, model: String): ModelPricing {
+        val isOpenRouter = provider.id == "OPENROUTER"
+        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
+        findLiteLLMPricing(provider, model)?.let { return it }
+        findModelsDevPricing(provider, model)?.let { return it }
+        manualPricing?.get("${provider.id}:$model")?.let { return it }
+        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
+        return DEFAULT_PRICING
+    }
+
     /** OpenRouter and Anthropic disagree on punctuation — Anthropic ships
      *  "claude-opus-4-6" while OpenRouter catalogs "anthropic/claude-opus-4.6".
      *  Normalize both sides to lowercase-dash for matching. */
