@@ -539,28 +539,6 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // Trace count card — clickable, opens the Traces list filtered to this model.
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().clickable(enabled = traceCount > 0) {
-                                onNavigateToTracesForModel(provider, modelName)
-                            },
-                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("API Traces", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-                                    Text(
-                                        if (traceCount == 0) "No traces recorded for this model" else "$traceCount traces — tap to view",
-                                        fontSize = 12.sp, color = AppColors.TextTertiary
-                                    )
-                                }
-                                Text("$traceCount", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                if (traceCount > 0) Text(" >", fontSize = 16.sp, color = AppColors.Blue)
-                            }
-                        }
-                    }
-
                     // Per-tier price snapshot — LiteLLM / OpenRouter / Override
                     // shown as $/M-token rows when populated. Default tier is
                     // omitted; if all three are missing, render a single
@@ -602,6 +580,28 @@ fun ModelInfoScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                                 ) { Text("Add manual cost override", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                            }
+                        }
+                    }
+
+                    // Trace count card — clickable, opens the Traces list filtered to this model.
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable(enabled = traceCount > 0) {
+                                onNavigateToTracesForModel(provider, modelName)
+                            },
+                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
+                        ) {
+                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("API Traces", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    Text(
+                                        if (traceCount == 0) "No traces recorded for this model" else "$traceCount traces — tap to view",
+                                        fontSize = 12.sp, color = AppColors.TextTertiary
+                                    )
+                                }
+                                Text("$traceCount", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                if (traceCount > 0) Text(" >", fontSize = 16.sp, color = AppColors.Blue)
                             }
                         }
                     }
