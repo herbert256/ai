@@ -1,5 +1,6 @@
 package com.ai.ui.settings
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -375,6 +376,15 @@ fun RefreshScreen(
                         runProviders(false)
                         runModels(false)
                         runDefaultAgents(false)
+                        // Auto-restart so the freshly-loaded catalogs and
+                        // recomputed precomputed sets are picked up cleanly
+                        // — saves the user from a manual kill/relaunch.
+                        progressText = "Restarting…"
+                        kotlinx.coroutines.delay(400)
+                        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                        launch?.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        if (launch != null) context.startActivity(launch)
+                        Runtime.getRuntime().exit(0)
                     }
                 }
             )
