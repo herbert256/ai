@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,7 +45,11 @@ fun UsageScreen(
     var stats by remember { mutableStateOf<Map<String, UsageStats>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
     var pricingReady by remember { mutableStateOf(false) }
-    var expandedProviders by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Saveable so the expanded-provider state survives navigation to Model
+    // Info and back. List instead of Set because autoSaver doesn't reliably
+    // round-trip arbitrary Set implementations through the saved Bundle.
+    var expandedProvidersList by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    val expandedProviders = expandedProvidersList.toSet()
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -102,7 +107,7 @@ fun UsageScreen(
                     val isExpanded = group.provider.id in expandedProviders
                     UsageProviderCard(
                         group = group, isExpanded = isExpanded,
-                        onToggle = { expandedProviders = if (isExpanded) expandedProviders - group.provider.id else expandedProviders + group.provider.id },
+                        onToggle = { expandedProvidersList = if (isExpanded) expandedProvidersList - group.provider.id else expandedProvidersList + group.provider.id },
                         onModelClick = { model -> onNavigateToModelInfo(group.provider, model) }
                     )
                 }
