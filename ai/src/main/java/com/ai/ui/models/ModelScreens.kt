@@ -365,17 +365,20 @@ fun ModelInfoScreen(
                     // Action buttons: start a chat, or create an agent for this model.
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = { onStartChat(provider, modelName) },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                                ) { Text("Start AI Chat", maxLines = 1, softWrap = false) }
-                                Button(
-                                    onClick = { showAgentEdit = true },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                                ) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = { onStartChat(provider, modelName) },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                    ) { Text("Start AI Chat", maxLines = 1, softWrap = false) }
+                                    Button(
+                                        onClick = { showAgentEdit = true },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                                    ) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
+                                }
                             }
                         }
                     }
