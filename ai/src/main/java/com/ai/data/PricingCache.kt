@@ -592,9 +592,17 @@ object PricingCache {
      */
     suspend fun fetchModelsDevOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
-            val url = java.net.URL("https://models.dev/api.json")
-            val json = url.openStream().bufferedReader().use { it.readText() }
+            // Route through the shared OkHttp client (TracingInterceptor +
+            // proper timeouts) instead of java.net.URL.openStream — so a
+            // silent failure shows up in the in-app Trace screen rather
+            // than vanishing into Log.e nobody reads.
+            val json = ApiFactory.fetchUrlAsString("https://models.dev/api.json")
+            if (json.isNullOrBlank()) {
+                android.util.Log.w("PricingCache", "models.dev refresh: empty / failed response")
+                return@withContext null
+            }
             val (pricing, meta) = parseModelsDevJson(json)
+            android.util.Log.i("PricingCache", "models.dev parse: ${pricing.size} priced, ${meta.size} meta entries (raw ${json.length} bytes)")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
             synchronized(lock) {
                 modelsDevPricing = pricing
