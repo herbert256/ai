@@ -28,6 +28,7 @@ import kotlinx.coroutines.withContext
 fun RefreshScreen(
     aiSettings: Settings,
     openRouterApiKey: String,
+    artificialAnalysisApiKey: String,
     onSave: (Settings) -> Unit,
     onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int>,
     onTestApiKey: suspend (AppService, String, String) -> String?,
@@ -48,11 +49,17 @@ fun RefreshScreen(
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
     var litellmResult by remember { mutableStateOf<Int?>(null) }
     var modelsDevResult by remember { mutableStateOf<Int?>(null) }
+    var heliconeResult by remember { mutableStateOf<Int?>(null) }
+    var llmPricesResult by remember { mutableStateOf<Int?>(null) }
+    var aaResult by remember { mutableStateOf<Int?>(null) }
     var showResultsDialog by remember { mutableStateOf(false) }
     var showProviderStateDialog by remember { mutableStateOf(false) }
     var showOpenRouterDialog by remember { mutableStateOf(false) }
     var showLiteLLMDialog by remember { mutableStateOf(false) }
     var showModelsDevDialog by remember { mutableStateOf(false) }
+    var showHeliconeDialog by remember { mutableStateOf(false) }
+    var showLLMPricesDialog by remember { mutableStateOf(false) }
+    var showAaDialog by remember { mutableStateOf(false) }
     // (providerName, state) where state == null means "pending" (still being tested);
     // any other string is the final state ("ok"/"error"/"inactive"/"not-used").
     val providerStateRows = remember { mutableStateListOf<Pair<String, String?>>() }
@@ -145,6 +152,45 @@ fun RefreshScreen(
             confirmButton = { TextButton(onClick = { showModelsDevDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
+    if (showHeliconeDialog) {
+        val n = heliconeResult
+        AlertDialog(onDismissRequest = { showHeliconeDialog = false }, title = { Text("Helicone") },
+            text = {
+                Text(
+                    if (n == null) "Failed to fetch from Helicone. Check connectivity and try again."
+                    else "Loaded $n Helicone entries (exact + pattern). Used as a pricing fallback."
+                )
+            },
+            confirmButton = { TextButton(onClick = { showHeliconeDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+    }
+
+    if (showLLMPricesDialog) {
+        val n = llmPricesResult
+        AlertDialog(onDismissRequest = { showLLMPricesDialog = false }, title = { Text("llm-prices.com") },
+            text = {
+                Text(
+                    if (n == null) "Failed to fetch from simonw/llm-prices. Check connectivity and try again."
+                    else "Loaded $n curated entries across 10 vendors from llm-prices.com."
+                )
+            },
+            confirmButton = { TextButton(onClick = { showLLMPricesDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+    }
+
+    if (showAaDialog) {
+        val n = aaResult
+        AlertDialog(onDismissRequest = { showAaDialog = false }, title = { Text("Artificial Analysis") },
+            text = {
+                Text(
+                    when {
+                        n == null && artificialAnalysisApiKey.isBlank() -> "Add the Artificial Analysis API key under External Services first."
+                        n == null -> "Failed to fetch from Artificial Analysis. Check the API key and try again."
+                        else -> "Loaded $n entries (pricing + intelligence/speed scores) from Artificial Analysis."
+                    }
+                )
+            },
+            confirmButton = { TextButton(onClick = { showAaDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+    }
+
     if (showGenerationDialog) {
         val doneCount = generationRows.count { it.second != null }
         val totalCount = generationRows.size
@@ -197,6 +243,25 @@ fun RefreshScreen(
         modelsDevResult = n
         if (n != null) onSave(aiSettings.recomputeAllCapabilities())
         if (showDialogAtEnd) showModelsDevDialog = true
+    }
+    val runHelicone: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading helicone.ai/api/llm-costs…"
+        val n = PricingCache.fetchHeliconeOnline(context)
+        heliconeResult = n
+        // Helicone is pricing-only — no capability flags, so no recompute.
+        if (showDialogAtEnd) showHeliconeDialog = true
+    }
+    val runLLMPrices: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading simonw/llm-prices vendor files…"
+        val n = PricingCache.fetchLLMPricesOnline(context)
+        llmPricesResult = n
+        if (showDialogAtEnd) showLLMPricesDialog = true
+    }
+    val runArtificialAnalysis: suspend (Boolean) -> Unit = { showDialogAtEnd ->
+        progressText = "Downloading artificialanalysis.ai/api/v2/data/llms/models…"
+        val n = PricingCache.fetchArtificialAnalysisOnline(context, artificialAnalysisApiKey)
+        aaResult = n
+        if (showDialogAtEnd) showAaDialog = true
     }
     val runProviders: suspend (Boolean) -> Unit = { showProgressDialog ->
         data class Seed(val service: AppService, val final: String?, val testModel: String?)
@@ -304,6 +369,9 @@ fun RefreshScreen(
                         if (openRouterApiKey.isNotBlank()) runOpenRouter(false)
                         runLiteLLM(false)
                         runModelsDev(false)
+                        runHelicone(false)
+                        runLLMPrices(false)
+                        if (artificialAnalysisApiKey.isNotBlank()) runArtificialAnalysis(false)
                         runProviders(false)
                         runModels(false)
                         runDefaultAgents(false)
@@ -330,6 +398,24 @@ fun RefreshScreen(
                 description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
                 enabled = !isAnyRunning,
                 onClick = { launchTask("Refreshing models.dev") { runModelsDev(true) } }
+            )
+            RefreshAction(
+                label = "Helicone",
+                description = "Pull Helicone's pricing aggregator (helicone.ai/api/llm-costs). Pricing-only fallback after LiteLLM and models.dev.",
+                enabled = !isAnyRunning,
+                onClick = { launchTask("Refreshing Helicone") { runHelicone(true) } }
+            )
+            RefreshAction(
+                label = "llm-prices.com",
+                description = "Pull Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers.",
+                enabled = !isAnyRunning,
+                onClick = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } }
+            )
+            RefreshAction(
+                label = "Artificial Analysis",
+                description = "Pull Artificial Analysis (pricing + intelligence_index + output speed). Needs the API key under External Services.",
+                enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
+                onClick = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } }
             )
 
             // Per-provider work (depends on the catalogs above).

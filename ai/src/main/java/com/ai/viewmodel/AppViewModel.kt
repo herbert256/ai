@@ -25,6 +25,10 @@ data class GeneralSettings(
     val userName: String = "user",
     val huggingFaceApiKey: String = "",
     val openRouterApiKey: String = "",
+    /** Free-tier API key for artificialanalysis.ai/api/v2/data/llms/models —
+     *  empty until the user pastes one in External Services. The Refresh
+     *  screen disables the AA button while this is blank. */
+    val artificialAnalysisApiKey: String = "",
     val defaultEmail: String = "",
     /** Default API path per model type. Used when a provider doesn't declare a
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS

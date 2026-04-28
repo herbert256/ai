@@ -26,12 +26,14 @@ fun SetupScreen(
     aiSettings: Settings,
     huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
+    aaApiKey: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
     onSave: (Settings) -> Unit = {},
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
+    onSaveArtificialAnalysisApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {}
 ) {
     BackHandler { onBackToSettings() }
@@ -45,8 +47,10 @@ fun SetupScreen(
     }
     val agentCount = remember(aiSettings.agents) { aiSettings.agents.count { aiSettings.isProviderActive(it.provider) } }
     val costCount = remember { PricingCache.getAllManualPricing(context).size }
-    val externalCount = remember(huggingFaceApiKey, openRouterApiKey) {
-        (if (huggingFaceApiKey.isNotBlank()) 1 else 0) + (if (openRouterApiKey.isNotBlank()) 1 else 0)
+    val externalCount = remember(huggingFaceApiKey, openRouterApiKey, aaApiKey) {
+        (if (huggingFaceApiKey.isNotBlank()) 1 else 0) +
+        (if (openRouterApiKey.isNotBlank()) 1 else 0) +
+        (if (aaApiKey.isNotBlank()) 1 else 0)
     }
 
     Column(
@@ -253,14 +257,17 @@ fun ProvidersScreen(
 fun ExternalServicesScreen(
     huggingFaceApiKey: String,
     openRouterApiKey: String,
+    artificialAnalysisApiKey: String,
     onSaveHuggingFaceApiKey: (String) -> Unit,
     onSaveOpenRouterApiKey: (String) -> Unit,
+    onSaveArtificialAnalysisApiKey: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     var hfKey by remember { mutableStateOf(huggingFaceApiKey) }
     var orKey by remember { mutableStateOf(openRouterApiKey) }
+    var aaKey by remember { mutableStateOf(artificialAnalysisApiKey) }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -287,6 +294,16 @@ fun ExternalServicesScreen(
                 Text("Used for pricing data and model specifications", fontSize = 12.sp, color = AppColors.TextTertiary)
                 OutlinedTextField(
                     value = orKey, onValueChange = { orKey = it; onSaveOpenRouterApiKey(it) },
+                    label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+
+                HorizontalDivider(color = AppColors.DividerDark)
+
+                Text("Artificial Analysis", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api", fontSize = 12.sp, color = AppColors.TextTertiary)
+                OutlinedTextField(
+                    value = aaKey, onValueChange = { aaKey = it; onSaveArtificialAnalysisApiKey(it) },
                     label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

@@ -28,6 +28,17 @@ object PricingCache {
     private const val KEY_MODELS_DEV_PRICING = "models_dev_pricing"
     private const val KEY_MODELS_DEV_META = "models_dev_meta"
     private const val KEY_MODELS_DEV_TIMESTAMP = "models_dev_timestamp"
+    // Helicone — pricing aggregator (helicone.ai/api/llm-costs). Pricing only.
+    private const val KEY_HELICONE_PRICING = "helicone_pricing"
+    private const val KEY_HELICONE_PATTERNS = "helicone_patterns"
+    private const val KEY_HELICONE_TIMESTAMP = "helicone_timestamp"
+    // llm-prices.com — Simon Willison's curated per-vendor pricing tables.
+    private const val KEY_LLMPRICES_PRICING = "llmprices_pricing"
+    private const val KEY_LLMPRICES_TIMESTAMP = "llmprices_timestamp"
+    // Artificial Analysis — pricing + intelligence/speed scores. Needs API key.
+    private const val KEY_AA_PRICING = "aa_pricing"
+    private const val KEY_AA_META = "aa_meta"
+    private const val KEY_AA_TIMESTAMP = "aa_timestamp"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000
 
@@ -49,9 +60,25 @@ object PricingCache {
      *  matching entry. Keyed `<provider>/<modelId>` to mirror LiteLLM. */
     @Volatile private var modelsDevPricing: Map<String, ModelPricing>? = null
     @Volatile private var modelsDevMeta: Map<String, ModelsDevMeta>? = null
+    /** Helicone exact-match entries (operator="equals"), keyed `<provider>/<modelId>`
+     *  using the provider name from Helicone lowercased. */
+    @Volatile private var heliconePricing: Map<String, ModelPricing>? = null
+    /** Helicone non-exact entries (operator="startsWith" / "includes") sorted
+     *  by descending pattern length so the longest-matching prefix wins. */
+    @Volatile private var heliconePatterns: List<HeliconePattern>? = null
+    /** llm-prices.com per-vendor curated pricing — pulled from simonw/llm-prices
+     *  on GitHub. Composite key `<vendor>/<modelId>`. */
+    @Volatile private var llmPricesPricing: Map<String, ModelPricing>? = null
+    /** Artificial Analysis pricing — ships alongside intelligence_index and
+     *  speed scores. Composite key `<host>/<modelId>` (lowercased). */
+    @Volatile private var aaPricing: Map<String, ModelPricing>? = null
+    @Volatile private var aaMeta: Map<String, ArtificialAnalysisMeta>? = null
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var modelsDevTimestamp: Long = 0
+    @Volatile private var heliconeTimestamp: Long = 0
+    @Volatile private var llmPricesTimestamp: Long = 0
+    @Volatile private var aaTimestamp: Long = 0
     @Volatile private var preloadCompleted = false
 
     // Per-(provider, model) memoization for the LiteLLM / models.dev meta
@@ -151,6 +178,10 @@ object PricingCache {
             val withoutOverride = getPricingWithoutOverride(context, service, modelId)
             val matchesWithoutOverride = pricesEqual(override, withoutOverride)
             val shouldRemove = breakdown.litellm != null ||
+                breakdown.modelsDev != null ||
+                breakdown.helicone != null ||
+                breakdown.llmPrices != null ||
+                breakdown.artificialAnalysis != null ||
                 breakdown.openrouter != null ||
                 matchesDefault ||
                 matchesWithoutOverride
@@ -241,12 +272,15 @@ object PricingCache {
         ensureLoaded(context)
         val isOpenRouter = provider.id == "OPENROUTER"
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        // LITELLM → MODELSDEV (LiteLLM fallback) → OVERRIDE → OPENROUTER → DEFAULT.
-        // models.dev sits next to LiteLLM as a second curated bulk source so
-        // newer models / -latest aliases that haven't reached litellm yet
-        // still bypass user-managed overrides.
+        // Curated bulk sources first, then user OVERRIDE, then OPENROUTER fallback.
+        // Order within the curated group: LITELLM → MODELSDEV → HELICONE →
+        // LLMPRICES → AA. LiteLLM is the most exhaustive; the others slot in
+        // as fallbacks for entries LiteLLM hasn't picked up.
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
+        findHeliconePricing(provider, model)?.let { return it }
+        findLLMPricesPricing(provider, model)?.let { return it }
+        findArtificialAnalysisPricing(provider, model)?.let { return it }
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
@@ -260,6 +294,9 @@ object PricingCache {
         findOpenRouterPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
+        findHeliconePricing(provider, model)?.let { return it }
+        findLLMPricesPricing(provider, model)?.let { return it }
+        findArtificialAnalysisPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
     }
 
@@ -274,6 +311,9 @@ object PricingCache {
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
+        findHeliconePricing(provider, model)?.let { return it }
+        findLLMPricesPricing(provider, model)?.let { return it }
+        findArtificialAnalysisPricing(provider, model)?.let { return it }
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
@@ -484,6 +524,9 @@ object PricingCache {
     data class TierBreakdown(
         val litellm: ModelPricing?,
         val modelsDev: ModelPricing?,
+        val helicone: ModelPricing?,
+        val llmPrices: ModelPricing?,
+        val artificialAnalysis: ModelPricing?,
         val override: ModelPricing?,
         val openrouter: ModelPricing?,
         val default: ModelPricing
@@ -493,9 +536,12 @@ object PricingCache {
         ensureLoaded(context)
         val litellm = findLiteLLMPricing(provider, model)
         val modelsDev = findModelsDevPricing(provider, model)
+        val helicone = findHeliconePricing(provider, model)
+        val llmPrices = findLLMPricesPricing(provider, model)
+        val aa = findArtificialAnalysisPricing(provider, model)
         val override = manualPricing?.get("${provider.id}:$model")
         val openrouter = findOpenRouterPricing(provider, model)
-        return TierBreakdown(litellm, modelsDev, override, openrouter, DEFAULT_PRICING)
+        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, override, openrouter, DEFAULT_PRICING)
     }
 
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
@@ -776,6 +822,317 @@ object PricingCache {
             ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())
     }
 
+    // ============================================================================
+    // Helicone — pricing aggregator (helicone.ai/api/llm-costs)
+    // ============================================================================
+
+    /** Parse Helicone's /api/llm-costs response. Each entry has provider /
+     *  model / operator (equals / startsWith / includes) / input_cost_per_1m /
+     *  output_cost_per_1m. The exact-match map covers ~95% of entries; the
+     *  pattern list handles the rest at lookup time. */
+    private fun parseHeliconeJson(json: String): Pair<Map<String, ModelPricing>, List<HeliconePattern>> {
+        @Suppress("DEPRECATION")
+        val root = JsonParser().parse(json).asJsonObject
+        val data = root.get("data")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyMap<String, ModelPricing>() to emptyList()
+        val exact = mutableMapOf<String, ModelPricing>()
+        val patterns = mutableListOf<HeliconePattern>()
+        for (el in data) {
+            if (!el.isJsonObject) continue
+            val obj = el.asJsonObject
+            val provider = obj.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+            val modelStr = obj.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+            val op = obj.get("operator")?.takeIf { it.isJsonPrimitive }?.asString ?: "equals"
+            val ic = obj.get("input_cost_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
+            val oc = obj.get("output_cost_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
+            val cr = obj.get("prompt_cache_read_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val cw = obj.get("prompt_cache_write_per_1m")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val pricing = ModelPricing(
+                modelId = modelStr,
+                promptPrice = ic / 1_000_000.0,
+                completionPrice = oc / 1_000_000.0,
+                source = "HELICONE",
+                cachedReadPrice = cr?.div(1_000_000.0),
+                cachedWritePrice = cw?.div(1_000_000.0)
+            )
+            val composite = "${provider.lowercase()}/$modelStr"
+            if (op == "equals") exact[composite] = pricing
+            else patterns.add(HeliconePattern(provider.lowercase(), modelStr, op, pricing))
+        }
+        // Longest-pattern-first means a more specific rule (e.g. "claude-opus-4-5")
+        // wins over a generic one (e.g. "claude") when both could match.
+        patterns.sortByDescending { it.pattern.length }
+        return exact to patterns
+    }
+
+    suspend fun fetchHeliconeOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val json = ApiFactory.fetchUrlAsString("https://www.helicone.ai/api/llm-costs")
+            if (json.isNullOrBlank()) {
+                android.util.Log.w("PricingCache", "Helicone refresh: empty / failed response")
+                return@withContext null
+            }
+            val (exact, patterns) = parseHeliconeJson(json)
+            android.util.Log.i("PricingCache", "Helicone parse: ${exact.size} exact, ${patterns.size} patterns")
+            if (exact.isEmpty() && patterns.isEmpty()) return@withContext null
+            synchronized(lock) {
+                heliconePricing = exact
+                heliconePatterns = patterns
+                heliconeTimestamp = System.currentTimeMillis()
+                getPrefs(context).edit {
+                    putString(KEY_HELICONE_PRICING, gson.toJson(exact))
+                    putString(KEY_HELICONE_PATTERNS, gson.toJson(patterns))
+                    putLong(KEY_HELICONE_TIMESTAMP, heliconeTimestamp)
+                }
+            }
+            exact.size + patterns.size
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "Helicone refresh failed: ${e.message}", e)
+            null
+        }
+    }
+
+    private fun findHeliconePricing(provider: AppService, model: String): ModelPricing? {
+        val exact = heliconePricing ?: return null
+        exact[model]?.let { return it }
+        findBestPrefixedMatch(exact, provider, model, useLitellmPrefix = true)?.let { return it }
+        // Pattern fallback — Helicone's startsWith/includes rules. We bias
+        // toward our provider's own prefix to avoid an Azure/Bedrock pattern
+        // hijacking a native call.
+        val patterns = heliconePatterns ?: return null
+        val target = normalizeModelId(model)
+        val ourPrefixes = listOfNotNull(provider.id.lowercase(), provider.litellmPrefix?.lowercase()).toSet()
+        for (p in patterns) {
+            val pat = normalizeModelId(p.pattern)
+            val matches = when (p.operator) {
+                "startsWith" -> target.startsWith(pat)
+                "includes" -> target.contains(pat)
+                else -> target == pat
+            }
+            if (!matches) continue
+            // Prefer matches from the same provider family as the request.
+            if (p.provider in ourPrefixes) return p.pricing
+        }
+        // No same-provider pattern hit — fall back to the first cross-provider
+        // pattern as a last resort (e.g. when the user routes a model id
+        // through a generic provider).
+        for (p in patterns) {
+            val pat = normalizeModelId(p.pattern)
+            val matches = when (p.operator) {
+                "startsWith" -> target.startsWith(pat)
+                "includes" -> target.contains(pat)
+                else -> target == pat
+            }
+            if (matches) return p.pricing
+        }
+        return null
+    }
+
+    fun getHeliconeRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val exact = heliconePricing ?: return null
+        val pricing = findHeliconePricing(provider, model) ?: return null
+        // Reverse-lookup the composite key (or pattern provider/pattern) so
+        // the user can see *why* this entry matched their request.
+        val key = exact.entries.firstOrNull { it.value === pricing }?.key
+            ?: heliconePatterns?.firstOrNull { it.pricing === pricing }?.let { "${it.provider}/${it.pattern} (${it.operator})" }
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf("key" to (key ?: "?"), "pricing" to pricing))
+    }
+
+    // ============================================================================
+    // llm-prices.com — Simon Willison's per-vendor curated tables
+    // ============================================================================
+
+    /** Vendors hosted under simonw/llm-prices's data/ folder. Stable list —
+     *  add to it if upstream adds new vendor JSON files. */
+    private val llmPricesVendors = listOf(
+        "amazon", "anthropic", "deepseek", "google", "minimax",
+        "mistral", "moonshot-ai", "openai", "qwen", "xai"
+    )
+
+    private fun parseLLMPricesVendorJson(vendor: String, json: String): Map<String, ModelPricing> {
+        @Suppress("DEPRECATION")
+        val root = JsonParser().parse(json).asJsonObject
+        val models = root.get("models")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyMap()
+        val out = mutableMapOf<String, ModelPricing>()
+        for (el in models) {
+            if (!el.isJsonObject) continue
+            val m = el.asJsonObject
+            val id = m.get("id")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+            // price_history is reverse-chronological — first non-archived row
+            // is the current price (to_date == null marks the active entry).
+            val history = m.get("price_history")?.takeIf { it.isJsonArray }?.asJsonArray ?: continue
+            val current = history.firstOrNull { e ->
+                e.isJsonObject && (e.asJsonObject.get("to_date")?.isJsonNull ?: true)
+            }?.asJsonObject ?: history.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject ?: continue
+            val ic = current.get("input")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
+            val oc = current.get("output")?.takeIf { it.isJsonPrimitive }?.asDouble ?: continue
+            val cached = current.get("input_cached")?.takeIf { it.isJsonPrimitive }?.asDouble
+            out["$vendor/$id"] = ModelPricing(
+                modelId = id,
+                promptPrice = ic / 1_000_000.0,
+                completionPrice = oc / 1_000_000.0,
+                source = "LLMPRICES",
+                cachedReadPrice = cached?.div(1_000_000.0)
+            )
+        }
+        return out
+    }
+
+    suspend fun fetchLLMPricesOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val combined = mutableMapOf<String, ModelPricing>()
+            for (vendor in llmPricesVendors) {
+                val url = "https://raw.githubusercontent.com/simonw/llm-prices/main/data/$vendor.json"
+                val json = ApiFactory.fetchUrlAsString(url) ?: continue
+                combined.putAll(parseLLMPricesVendorJson(vendor, json))
+            }
+            android.util.Log.i("PricingCache", "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size} vendors")
+            if (combined.isEmpty()) return@withContext null
+            synchronized(lock) {
+                llmPricesPricing = combined
+                llmPricesTimestamp = System.currentTimeMillis()
+                getPrefs(context).edit {
+                    putString(KEY_LLMPRICES_PRICING, gson.toJson(combined))
+                    putLong(KEY_LLMPRICES_TIMESTAMP, llmPricesTimestamp)
+                }
+            }
+            combined.size
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "llm-prices refresh failed: ${e.message}", e)
+            null
+        }
+    }
+
+    private fun findLLMPricesPricing(provider: AppService, model: String): ModelPricing? {
+        val pricing = llmPricesPricing ?: return null
+        pricing[model]?.let { return it }
+        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    fun getLLMPricesRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val pricing = llmPricesPricing ?: return null
+        val resolved = findLLMPricesPricing(provider, model) ?: return null
+        val key = pricing.entries.firstOrNull { it.value === resolved }?.key
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf("key" to (key ?: "?"), "pricing" to resolved))
+    }
+
+    // ============================================================================
+    // Artificial Analysis — pricing + intelligence/speed scores
+    // Endpoint: https://artificialanalysis.ai/api/v2/data/llms/models
+    // Auth: x-api-key header (free tier, requires sign-up)
+    // ============================================================================
+
+    private fun parseArtificialAnalysisJson(json: String): Pair<Map<String, ModelPricing>, Map<String, ArtificialAnalysisMeta>> {
+        @Suppress("DEPRECATION")
+        val rootEl = JsonParser().parse(json)
+        // Response may be either {data: [...]} or a bare array — handle both.
+        val arr = when {
+            rootEl.isJsonArray -> rootEl.asJsonArray
+            rootEl.isJsonObject -> rootEl.asJsonObject.get("data")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyMap<String, ModelPricing>() to emptyMap()
+            else -> return emptyMap<String, ModelPricing>() to emptyMap()
+        }
+        val pricing = mutableMapOf<String, ModelPricing>()
+        val meta = mutableMapOf<String, ArtificialAnalysisMeta>()
+        for (el in arr) {
+            if (!el.isJsonObject) continue
+            val m = el.asJsonObject
+            // AA's id field is the canonical model identifier (slug-style).
+            val id = (m.get("id") ?: m.get("slug") ?: m.get("api_id"))?.takeIf { it.isJsonPrimitive }?.asString ?: continue
+            // Host/creator names the provider — try a few field names.
+            val host = (m.get("host") ?: m.get("api_host") ?: m.get("model_creator"))?.takeIf { it.isJsonPrimitive }?.asString
+                ?: (m.get("creator")?.takeIf { it.isJsonObject }?.asJsonObject?.get("name")?.takeIf { it.isJsonPrimitive }?.asString)
+                ?: ""
+            val composite = if (host.isNotBlank()) "${host.lowercase()}/$id" else id
+            // Pricing — AA uses $/M tokens.
+            val priceObj = m.get("pricing")?.takeIf { it.isJsonObject }?.asJsonObject
+            val ic = (priceObj?.get("price_1m_input_tokens") ?: priceObj?.get("input"))?.takeIf { it.isJsonPrimitive }?.asDouble
+            val oc = (priceObj?.get("price_1m_output_tokens") ?: priceObj?.get("output"))?.takeIf { it.isJsonPrimitive }?.asDouble
+            if (ic != null && oc != null) {
+                pricing[composite] = ModelPricing(
+                    modelId = id,
+                    promptPrice = ic / 1_000_000.0,
+                    completionPrice = oc / 1_000_000.0,
+                    source = "ARTIFICIALANALYSIS"
+                )
+            }
+            // Sidecar — composite quality index plus output speed / latency.
+            val intelligenceIndex = m.get("intelligence_index")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val outputSpeed = (m.get("output_tokens_per_second") ?: m.get("output_speed") ?: m.get("median_output_tokens_per_second"))?.takeIf { it.isJsonPrimitive }?.asDouble
+            val firstChunk = (m.get("first_chunk_seconds") ?: m.get("median_first_chunk_seconds") ?: m.get("median_time_to_first_token_seconds"))?.takeIf { it.isJsonPrimitive }?.asDouble
+            val ctx = (m.get("context_window") ?: m.get("max_input_tokens"))?.takeIf { it.isJsonPrimitive }?.asInt
+            val creator = (m.get("model_creator") ?: m.get("creator")?.takeIf { it.isJsonPrimitive })?.takeIf { it.isJsonPrimitive }?.asString
+                ?: m.get("creator")?.takeIf { it.isJsonObject }?.asJsonObject?.get("name")?.takeIf { it.isJsonPrimitive }?.asString
+            if (intelligenceIndex != null || outputSpeed != null || firstChunk != null || ctx != null || creator != null) {
+                meta[composite] = ArtificialAnalysisMeta(intelligenceIndex, outputSpeed, firstChunk, ctx, creator)
+            }
+        }
+        return pricing to meta
+    }
+
+    suspend fun fetchArtificialAnalysisOnline(context: Context, apiKey: String): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (apiKey.isBlank()) {
+            android.util.Log.w("PricingCache", "Artificial Analysis refresh skipped: missing API key")
+            return@withContext null
+        }
+        try {
+            val json = ApiFactory.fetchUrlAsString(
+                "https://artificialanalysis.ai/api/v2/data/llms/models",
+                headers = mapOf("x-api-key" to apiKey)
+            )
+            if (json.isNullOrBlank()) {
+                android.util.Log.w("PricingCache", "Artificial Analysis refresh: empty / failed response")
+                return@withContext null
+            }
+            val (pricing, meta) = parseArtificialAnalysisJson(json)
+            android.util.Log.i("PricingCache", "Artificial Analysis parse: ${pricing.size} priced, ${meta.size} meta entries")
+            if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
+            synchronized(lock) {
+                aaPricing = pricing
+                aaMeta = meta
+                aaTimestamp = System.currentTimeMillis()
+                getPrefs(context).edit {
+                    putString(KEY_AA_PRICING, gson.toJson(pricing))
+                    putString(KEY_AA_META, gson.toJson(meta))
+                    putLong(KEY_AA_TIMESTAMP, aaTimestamp)
+                }
+            }
+            pricing.size + meta.size
+        } catch (e: Exception) {
+            android.util.Log.e("PricingCache", "Artificial Analysis refresh failed: ${e.message}", e)
+            null
+        }
+    }
+
+    private fun findArtificialAnalysisPricing(provider: AppService, model: String): ModelPricing? {
+        val pricing = aaPricing ?: return null
+        pricing[model]?.let { return it }
+        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+    }
+
+    private fun findArtificialAnalysisMeta(provider: AppService, model: String): ArtificialAnalysisMeta? {
+        val meta = aaMeta ?: return null
+        meta[model]?.let { return it }
+        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+    }
+
+    fun getArtificialAnalysisRawEntry(context: Context, provider: AppService, model: String): String? {
+        ensureLoaded(context)
+        val pricing = findArtificialAnalysisPricing(provider, model)
+        val meta = findArtificialAnalysisMeta(provider, model)
+        if (pricing == null && meta == null) return null
+        val pretty = createAppGson(prettyPrint = true)
+        return pretty.toJson(mapOf(
+            "pricing" to pricing,
+            "meta" to meta
+        ))
+    }
+
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
         return try {
@@ -831,6 +1188,43 @@ object PricingCache {
             }
             modelsDevMetaLookupCache.clear()
         }
+        // Helicone — exact map plus pattern list. Both are network-only
+        // (no bundled asset); empty until the user runs the refresh.
+        if (heliconePricing == null || heliconePatterns == null) {
+            val prefs = getPrefs(context)
+            heliconeTimestamp = prefs.getLong(KEY_HELICONE_TIMESTAMP, 0)
+            prefs.getString(KEY_HELICONE_PRICING, null)?.let { json ->
+                try { heliconePricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+            prefs.getString(KEY_HELICONE_PATTERNS, null)?.let { json ->
+                try {
+                    val type = object : TypeToken<List<HeliconePattern>>() {}.type
+                    heliconePatterns = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+        }
+        // llm-prices.com — single combined map.
+        if (llmPricesPricing == null) {
+            val prefs = getPrefs(context)
+            llmPricesTimestamp = prefs.getLong(KEY_LLMPRICES_TIMESTAMP, 0)
+            prefs.getString(KEY_LLMPRICES_PRICING, null)?.let { json ->
+                try { llmPricesPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+        }
+        // Artificial Analysis — pricing + sidecar.
+        if (aaPricing == null || aaMeta == null) {
+            val prefs = getPrefs(context)
+            aaTimestamp = prefs.getLong(KEY_AA_TIMESTAMP, 0)
+            prefs.getString(KEY_AA_PRICING, null)?.let { json ->
+                try { aaPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            }
+            prefs.getString(KEY_AA_META, null)?.let { json ->
+                try {
+                    val type = object : TypeToken<Map<String, ArtificialAnalysisMeta>>() {}.type
+                    aaMeta = gson.fromJson(json, type)
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     private fun loadFromPrefs(context: Context) {
@@ -855,6 +1249,28 @@ object PricingCache {
             parseLiteLLMJson(json)
         } catch (_: Exception) { emptyMap<String, ModelPricing>() to emptyMap() }
     }
+
+    /** Helicone non-exact entry — keeps the original provider/model strings
+     *  alongside the operator so we can match arbitrary requests against
+     *  prefix or substring rules at lookup time. Sorted longest-first so
+     *  more specific patterns win. */
+    data class HeliconePattern(
+        val provider: String,
+        val pattern: String,
+        val operator: String,
+        val pricing: ModelPricing
+    )
+
+    /** Artificial Analysis sidecar — surfaces the unique data points AA
+     *  exposes that nothing else in the chain has: the composite quality
+     *  index and median output speed. Other fields kept for the raw view. */
+    data class ArtificialAnalysisMeta(
+        val intelligenceIndex: Double? = null,
+        val outputSpeed: Double? = null,
+        val firstChunkSeconds: Double? = null,
+        val contextWindow: Int? = null,
+        val modelCreator: String? = null
+    )
 
     /** Capability sidecar derived from models.dev's per-model JSON. The
      *  fields we lift mirror what LiteLLMMeta carries so capability

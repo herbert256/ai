@@ -137,6 +137,8 @@ fun ImportExportScreen(
         fun fmt(p: Double?): String = p?.let { "%.4f".format(Locale.US, it * 1_000_000) } ?: ""
         val header = "provider,model,new_input_per_million,new_output_per_million," +
             "litellm_in,litellm_out,modelsdev_in,modelsdev_out," +
+            "helicone_in,helicone_out,llmprices_in,llmprices_out," +
+            "aa_in,aa_out," +
             "override_in,override_out,openrouter_in,openrouter_out," +
             "default_in,default_out"
         val rows = aiSettings.getActiveServices()
@@ -146,13 +148,16 @@ fun ImportExportScreen(
         var kept = 0
         rows.forEach { (provider, model) ->
             val b = PricingCache.getTierBreakdown(context, provider, model)
-            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.openrouter != null)) return@forEach
+            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.helicone != null || b.llmPrices != null || b.artificialAnalysis != null || b.openrouter != null)) return@forEach
             kept++
             lines.add(
                 listOf(
                     provider.id, model, "", "",
                     fmt(b.litellm?.promptPrice), fmt(b.litellm?.completionPrice),
                     fmt(b.modelsDev?.promptPrice), fmt(b.modelsDev?.completionPrice),
+                    fmt(b.helicone?.promptPrice), fmt(b.helicone?.completionPrice),
+                    fmt(b.llmPrices?.promptPrice), fmt(b.llmPrices?.completionPrice),
+                    fmt(b.artificialAnalysis?.promptPrice), fmt(b.artificialAnalysis?.completionPrice),
                     fmt(b.override?.promptPrice), fmt(b.override?.completionPrice),
                     fmt(b.openrouter?.promptPrice), fmt(b.openrouter?.completionPrice),
                     fmt(b.default.promptPrice), fmt(b.default.completionPrice)

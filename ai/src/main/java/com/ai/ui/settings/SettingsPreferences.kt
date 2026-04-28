@@ -50,6 +50,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
+            artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
         )
@@ -60,6 +61,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
             putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
             putString(KEY_OPENROUTER_API_KEY, settings.openRouterApiKey)
+            putString(KEY_AA_API_KEY, settings.artificialAnalysisApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
         }
@@ -380,6 +382,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_HUGGINGFACE_API_KEY = "huggingface_api_key"
         private const val KEY_OPENROUTER_API_KEY = "openrouter_api_key"
+        private const val KEY_AA_API_KEY = "artificial_analysis_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_AI_AGENTS = "ai_agents"

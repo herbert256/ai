@@ -47,6 +47,7 @@ fun SettingsScreen(
     onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
+    onSaveArtificialAnalysisApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
@@ -119,9 +120,11 @@ fun SettingsScreen(
             SetupScreen(
                 aiSettings = aiSettings,
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
+                aaApiKey = generalSettings.artificialAnalysisApiKey,
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+                onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onNavigateToCostConfig = onNavigateToCostConfig
             )
         }
@@ -350,7 +353,9 @@ fun SettingsScreen(
         SettingsSubScreen.AI_EXTERNAL_SERVICES -> {
             ExternalServicesScreen(
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
+                artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
+                onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
@@ -369,6 +374,7 @@ fun SettingsScreen(
             RefreshScreen(
                 aiSettings = aiSettings,
                 openRouterApiKey = generalSettings.openRouterApiKey,
+                artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSave = onSaveAi,
                 onRefreshAllModels = onRefreshAllModels,
                 onTestApiKey = onTestAiModel,

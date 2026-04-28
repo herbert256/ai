@@ -395,41 +395,84 @@ fun ModelInfoScreen(
                             PricingCache.getModelsDevRawEntry(context, provider, modelName)
                         }
                         val hasModelsDev = modelsDevRaw != null
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Button(
-                                onClick = {
-                                    val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
-                                    rawView = "HuggingFace · $modelName" to body
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.Green else AppColors.Red),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                            ) { Text("HuggingFace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                            Button(
-                                onClick = {
-                                    val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
-                                    rawView = "OpenRouter · $modelName" to body
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.Green else AppColors.Red),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                            ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                            Button(
-                                onClick = {
-                                    rawView = "LiteLLM · $modelName" to (liteLLMRaw ?: "(no LiteLLM data)")
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.Green else AppColors.Red),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                            ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                            Button(
-                                onClick = {
-                                    rawView = "models.dev · $modelName" to (modelsDevRaw ?: "(no models.dev data)")
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.Green else AppColors.Red),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                            ) { Text("models.dev", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                        val heliconeRaw = remember(provider, modelName) {
+                            PricingCache.getHeliconeRawEntry(context, provider, modelName)
+                        }
+                        val hasHelicone = heliconeRaw != null
+                        val llmPricesRaw = remember(provider, modelName) {
+                            PricingCache.getLLMPricesRawEntry(context, provider, modelName)
+                        }
+                        val hasLLMPrices = llmPricesRaw != null
+                        val aaRaw = remember(provider, modelName) {
+                            PricingCache.getArtificialAnalysisRawEntry(context, provider, modelName)
+                        }
+                        val hasAa = aaRaw != null
+                        // Two rows of buttons — first the original four catalog
+                        // sources, then the three additional pricing tiers
+                        // (Helicone / llm-prices.com / Artificial Analysis).
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Button(
+                                    onClick = {
+                                        val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
+                                        rawView = "HuggingFace · $modelName" to body
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.Green else AppColors.Red),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) { Text("HuggingFace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                Button(
+                                    onClick = {
+                                        val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
+                                        rawView = "OpenRouter · $modelName" to body
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.Green else AppColors.Red),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                Button(
+                                    onClick = {
+                                        rawView = "LiteLLM · $modelName" to (liteLLMRaw ?: "(no LiteLLM data)")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.Green else AppColors.Red),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                Button(
+                                    onClick = {
+                                        rawView = "models.dev · $modelName" to (modelsDevRaw ?: "(no models.dev data)")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.Green else AppColors.Red),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) { Text("models.dev", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Button(
+                                    onClick = {
+                                        rawView = "Helicone · $modelName" to (heliconeRaw ?: "(no Helicone data)")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (hasHelicone) AppColors.Green else AppColors.Red),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) { Text("Helicone", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                Button(
+                                    onClick = {
+                                        rawView = "llm-prices.com · $modelName" to (llmPricesRaw ?: "(no llm-prices data)")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (hasLLMPrices) AppColors.Green else AppColors.Red),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) { Text("llm-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                Button(
+                                    onClick = {
+                                        rawView = "Artificial Analysis · $modelName" to (aaRaw ?: "(no Artificial Analysis data)")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (hasAa) AppColors.Green else AppColors.Red),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                                ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
+                            }
                         }
                     }
 
@@ -524,6 +567,9 @@ fun ModelInfoScreen(
                         val rows = listOfNotNull(
                             breakdown.litellm?.let { "LiteLLM" to it },
                             breakdown.modelsDev?.let { "models.dev" to it },
+                            breakdown.helicone?.let { "Helicone" to it },
+                            breakdown.llmPrices?.let { "llm-prices.com" to it },
+                            breakdown.artificialAnalysis?.let { "Artificial Analysis" to it },
                             breakdown.openrouter?.let { "OpenRouter" to it },
                             breakdown.override?.let { "Override" to it }
                         )
