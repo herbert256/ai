@@ -202,7 +202,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 
-    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.defaultTypePaths)
+    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths)
 }
 
 /**

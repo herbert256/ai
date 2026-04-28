@@ -203,6 +203,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val updatedGs = gs.copy(
                         huggingFaceApiKey = result.huggingFaceApiKey ?: gs.huggingFaceApiKey,
                         openRouterApiKey = result.openRouterApiKey ?: gs.openRouterApiKey,
+                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: gs.artificialAnalysisApiKey,
                         defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths
                     )
                     if (updatedGs != gs) { gs = updatedGs; settingsPrefs.saveGeneralSettings(gs) }

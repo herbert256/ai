@@ -38,9 +38,11 @@ fun ImportExportScreen(
     generalSettings: com.ai.viewmodel.GeneralSettings,
     huggingFaceApiKey: String,
     openRouterApiKey: String,
+    artificialAnalysisApiKey: String,
     onSave: (Settings) -> Unit,
     onSaveHuggingFaceApiKey: (String) -> Unit,
     onSaveOpenRouterApiKey: (String) -> Unit,
+    onSaveArtificialAnalysisApiKey: (String) -> Unit,
     onSaveGeneral: (com.ai.viewmodel.GeneralSettings) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
@@ -75,6 +77,7 @@ fun ImportExportScreen(
         // (note: "HUGGINGFACE" is also an AppService id — the old key name was ambiguous).
         if (huggingFaceApiKey.isNotBlank()) keys["EXT_HUGGINGFACE"] = huggingFaceApiKey
         if (openRouterApiKey.isNotBlank()) keys["EXT_OPENROUTER"] = openRouterApiKey
+        if (artificialAnalysisApiKey.isNotBlank()) keys["EXT_ARTIFICIALANALYSIS"] = artificialAnalysisApiKey
         writeToUri(uri, createAppGson(prettyPrint = true).toJson(keys))
         Toast.makeText(context, "${keys.size} API keys exported", Toast.LENGTH_SHORT).show()
     }
@@ -190,6 +193,7 @@ fun ImportExportScreen(
                     onSave(result.aiSettings)
                     result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
                     result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
+                    result.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
                     result.defaultTypePaths?.let { onSaveGeneral(generalSettings.copy(defaultTypePaths = it)) }
                 }
             }
@@ -221,6 +225,7 @@ fun ImportExportScreen(
                             // New canonical names.
                             "EXT_HUGGINGFACE" -> { onSaveHuggingFaceApiKey(key); count++ }
                             "EXT_OPENROUTER" -> { onSaveOpenRouterApiKey(key); count++ }
+                            "EXT_ARTIFICIALANALYSIS" -> { onSaveArtificialAnalysisApiKey(key); count++ }
                             // Legacy aliases kept for backward-compatible imports of older keys.json files.
                             "HUGGINGFACE" -> { onSaveHuggingFaceApiKey(key); count++ }
                             "OPENROUTER_KEY" -> { onSaveOpenRouterApiKey(key); count++ }
