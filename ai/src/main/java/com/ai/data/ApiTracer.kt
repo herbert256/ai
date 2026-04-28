@@ -59,6 +59,15 @@ object ApiTracer {
         }?.sortedByDescending { it.timestamp } ?: emptyList()
     }
 
+    /** Cheap existence check for the Hub "AI API Traces" card. Avoids the
+     *  parse-every-file cost of [getTraceFiles] on a hot path that just
+     *  needs a yes/no answer. */
+    fun hasAnyTraceFile(): Boolean = lock.withLock {
+        val dir = traceDir ?: return false
+        if (!dir.exists()) return false
+        dir.listFiles()?.any { it.extension == "json" } == true
+    }
+
     fun getTraceFilesForReport(reportId: String) = getTraceFiles().filter { it.reportId == reportId }
 
     fun readTraceFile(filename: String): ApiTrace? = lock.withLock {

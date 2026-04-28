@@ -30,6 +30,8 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun HubScreen(
@@ -50,12 +52,20 @@ fun HubScreen(
     BackHandler { (context as? Activity)?.moveTaskToBack(true) }
 
     val hasAnyAgent = remember(uiState.aiSettings.agents) { uiState.aiSettings.agents.isNotEmpty() }
-    val hasStatisticsData by produceState(initialValue = false, uiState) {
-        val sp = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
-        value = sp.loadUsageStats().isNotEmpty()
+    // Run once per Hub mount on Dispatchers.IO. Was keyed on uiState, which
+    // re-fired ~30 times during refreshAllModelLists and dragged the main
+    // thread through 250+ trace-file reads + Gson parses on each pass —
+    // exactly the "AI Usage card slow to be clickable" feel at startup.
+    val hasStatisticsData by produceState(initialValue = false) {
+        value = withContext(Dispatchers.IO) {
+            val sp = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
+            sp.loadUsageStats().isNotEmpty()
+        }
     }
-    val hasTraces by produceState(initialValue = false, uiState) {
-        value = ApiTracer.getTraceFiles().isNotEmpty()
+    val hasTraces by produceState(initialValue = false) {
+        // hasAnyTraceFile only enumerates filenames — no JSON parse, vs the
+        // ~250-file parse getTraceFiles() does for the full list.
+        value = withContext(Dispatchers.IO) { ApiTracer.hasAnyTraceFile() }
     }
 
     val cardHeight = 50.dp
