@@ -54,6 +54,18 @@ object PricingCache {
     @Volatile private var modelsDevTimestamp: Long = 0
     @Volatile private var preloadCompleted = false
 
+    // Per-(provider, model) memoization for the LiteLLM / models.dev meta
+    // lookups. findLiteLLMMeta and findModelsDevMeta otherwise do two full
+    // ~1k-entry scans per call (findBestPrefixedMatch + findLatestAliasKey),
+    // which dominated render time on screens that show many model rows
+    // (each row asks for vision + web-search badges, so 4 scans per row).
+    // Cleared whenever the underlying catalog map is reassigned. The
+    // sentinel encodes "looked up, found nothing" — without it a missing
+    // entry would re-scan on every call.
+    private val litellmMetaLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
+    private val modelsDevMetaLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
+    private val MISSING_META: Any = Any()
+
     data class ModelPricing(
         val modelId: String,
         val promptPrice: Double,
@@ -314,13 +326,23 @@ object PricingCache {
 
     /** Look up the LiteLLM capability sidecar for (provider, model) using
      *  the same dash/dot normalization the pricing lookup uses. Returns
-     *  null when LiteLLM hasn't loaded yet OR the model isn't cataloged. */
+     *  null when LiteLLM hasn't loaded yet OR the model isn't cataloged.
+     *  Memoized per (provider, model); the cache is cleared when the
+     *  underlying catalog reloads. */
     private fun findLiteLLMMeta(provider: AppService, model: String): LiteLLMMeta? {
         val meta = litellmMeta ?: return null
-        meta[model]?.let { return it }
-        provider.litellmPrefix?.let { prefix -> meta["$prefix/$model"]?.let { return it } }
-        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+        val cacheKey = "${provider.id}|$model"
+        val cached = litellmMetaLookupCache[cacheKey]
+        if (cached != null) {
+            @Suppress("UNCHECKED_CAST")
+            return if (cached === MISSING_META) null else cached as LiteLLMMeta
+        }
+        val resolved = meta[model]
+            ?: provider.litellmPrefix?.let { prefix -> meta["$prefix/$model"] }
+            ?: findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
             ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+        litellmMetaLookupCache[cacheKey] = resolved ?: MISSING_META
+        return resolved
     }
 
     /** True/false from LiteLLM's supports_vision flag, or null when
@@ -497,6 +519,7 @@ object PricingCache {
         val (pricing, meta) = parseLiteLLMPricing(context)
         litellmPricing = pricing
         litellmMeta = meta
+        litellmMetaLookupCache.clear()
         litellmTimestamp = System.currentTimeMillis()
         getPrefs(context).edit {
             putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
@@ -522,6 +545,7 @@ object PricingCache {
             synchronized(lock) {
                 litellmPricing = pricing
                 litellmMeta = meta
+                litellmMetaLookupCache.clear()
                 litellmTimestamp = System.currentTimeMillis()
                 getPrefs(context).edit {
                     putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
@@ -551,6 +575,7 @@ object PricingCache {
             synchronized(lock) {
                 modelsDevPricing = pricing
                 modelsDevMeta = meta
+                modelsDevMetaLookupCache.clear()
                 modelsDevTimestamp = System.currentTimeMillis()
                 getPrefs(context).edit {
                     putString(KEY_MODELS_DEV_PRICING, gson.toJson(pricing))
@@ -637,9 +662,17 @@ object PricingCache {
 
     private fun findModelsDevMeta(provider: AppService, model: String): ModelsDevMeta? {
         val meta = modelsDevMeta ?: return null
-        meta[model]?.let { return it }
-        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
+        val cacheKey = "${provider.id}|$model"
+        val cached = modelsDevMetaLookupCache[cacheKey]
+        if (cached != null) {
+            @Suppress("UNCHECKED_CAST")
+            return if (cached === MISSING_META) null else cached as ModelsDevMeta
+        }
+        val resolved = meta[model]
+            ?: findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
             ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
+        modelsDevMetaLookupCache[cacheKey] = resolved ?: MISSING_META
+        return resolved
     }
 
     fun modelsDevSupportsVision(provider: AppService, model: String): Boolean? =
@@ -747,6 +780,7 @@ object PricingCache {
         // pricing is loaded from prefs.
         if (litellmMeta == null) {
             litellmMeta = parseLiteLLMPricing(context).second
+            litellmMetaLookupCache.clear()
         }
         // models.dev: no bundled asset (network only). Both maps live in
         // prefs, repopulate from there if present. The user's first
@@ -763,6 +797,7 @@ object PricingCache {
                     modelsDevMeta = gson.fromJson(json, type)
                 } catch (_: Exception) {}
             }
+            modelsDevMetaLookupCache.clear()
         }
     }
 
