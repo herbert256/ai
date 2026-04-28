@@ -480,6 +480,29 @@ fun ModelInfoScreen(
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                                 }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Button(
+                                    onClick = {
+                                        // Concatenate every source's raw JSON into one
+                                        // pretty-printed dump — saves tapping seven
+                                        // buttons in turn when comparing entries.
+                                        val sections = listOf(
+                                            "HuggingFace" to info?.huggingFaceInfo?.let { gson.toJson(it) },
+                                            "OpenRouter" to info?.openRouterInfo?.let { gson.toJson(it) },
+                                            "LiteLLM" to liteLLMRaw,
+                                            "models.dev" to modelsDevRaw,
+                                            "Helicone" to heliconeRaw,
+                                            "llm-prices.com" to llmPricesRaw,
+                                            "Artificial Analysis" to aaRaw
+                                        )
+                                        val body = sections.joinToString("\n\n") { (label, raw) ->
+                                            "=== $label ===\n${raw ?: "(no $label data)"}"
+                                        }
+                                        rawView = "All sources · $modelName" to body
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                ) { Text("Show all", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
                     }
