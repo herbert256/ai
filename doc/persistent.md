@@ -172,9 +172,9 @@ Used for atomic flags like `setup_imported`. See
 - WebView Chromium cookies and process state — intentionally excluded
   from the backup zip; doesn't make sense to restore on a different
   device.
-- The bundled `assets/model_prices_and_context_window.json` — this
-  ships in the APK as a fallback for when LiteLLM hasn't been fetched
-  yet. It's not "user data" so the backup zip skips it.
+- The `assets/setup.json` provider catalog — this ships in the APK
+  and is consumed once at first run; the merged result lives in
+  `provider_registry` prefs from then on.
 
 ## Cleanup paths
 

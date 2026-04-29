@@ -552,57 +552,36 @@ object PricingCache {
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
     fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return litellmPricing?.toMap() ?: emptyMap() }
 
-    /** Pretty-printed LiteLLM JSON entry for (provider, model), or null
-     *  when the model isn't cataloged. Loads the bundled asset on demand
-     *  so the 1.2MB blob doesn't sit in memory just for the rare raw-view
-     *  case. Same dash/dot normalization as findLiteLLMPricing. */
+    /** Pretty-printed synthetic LiteLLM JSON entry for (provider, model),
+     *  or null when the model isn't in the cache. Built from the parsed
+     *  fields persisted in pricing_cache prefs — there is no bundled
+     *  asset to fall back on, so a fresh install returns null until the
+     *  user runs Refresh → LiteLLM. The shape mirrors the relevant
+     *  subset of the upstream model_prices_and_context_window.json
+     *  entry so the Model Info "LiteLLM" source button keeps showing
+     *  the same fields. */
     fun getLiteLLMRawEntry(context: Context, provider: AppService, model: String): String? {
-        val pretty = createAppGson(prettyPrint = true)
-        val json = try {
-            context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
-        } catch (_: Exception) { return null }
-        val root = try {
-            @Suppress("DEPRECATION")
-            JsonParser().parse(json).asJsonObject
-        } catch (_: Exception) { return null }
-        val target = normalizeModelId(model)
-        val targetDeclared = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        val targetId = "${provider.id.lowercase()}/$target"
-        val keysList = root.keySet()
-        // Same prioritization the lookup uses: bare → declared prefix →
-        // id-lowercase prefix → any other prefix. Picks the provider's own
-        // catalog row over azure/bedrock/vertex variants.
-        val buckets = arrayOfNulls<String>(4)
-        var bareMatch: String? = null
-        for (key in keysList) {
-            val k = normalizeModelId(key)
-            when {
-                k == target -> { bareMatch = key; break }
-                targetDeclared != null && k == targetDeclared -> if (buckets[1] == null) buckets[1] = key
-                k == targetId -> if (buckets[2] == null) buckets[2] = key
-                k.endsWith("/$target") -> if (buckets[3] == null) buckets[3] = key
+        ensureLoaded(context)
+        val pricing = findLiteLLMPricing(provider, model) ?: return null
+        val meta = findLiteLLMMeta(provider, model)
+        val obj = com.google.gson.JsonObject().apply {
+            addProperty("input_cost_per_token", pricing.promptPrice)
+            addProperty("output_cost_per_token", pricing.completionPrice)
+            meta?.mode?.let { addProperty("mode", it) }
+            meta?.supportsVision?.let { addProperty("supports_vision", it) }
+            meta?.supportsWebSearch?.let { addProperty("supports_web_search", it) }
+            meta?.supportsSystemMessages?.let { addProperty("supports_system_messages", it) }
+            meta?.supportsResponseSchema?.let { addProperty("supports_response_schema", it) }
+            meta?.supportsReasoning?.let { addProperty("supports_reasoning", it) }
+            meta?.supportsNativeStreaming?.let { addProperty("supports_native_streaming", it) }
+            meta?.toolUseSystemPromptTokens?.let { addProperty("tool_use_system_prompt_tokens", it) }
+            meta?.supportedEndpoints?.let { eps ->
+                add("supported_endpoints", com.google.gson.JsonArray().apply {
+                    eps.forEach { add(it) }
+                })
             }
         }
-        val match = bareMatch
-            ?: buckets[1] ?: buckets[2] ?: buckets[3]
-            ?: findLatestAliasKey(keysList, model, provider.litellmPrefix, provider.id.lowercase())
-            ?: return null
-        return pretty.toJson(root.get(match))
-    }
-
-    fun refreshLiteLLMPricing(context: Context) {
-        val (pricing, meta) = parseLiteLLMPricing(context)
-        litellmPricing = pricing
-        litellmMeta = meta
-        litellmMetaLookupCache.clear()
-        litellmTimestamp = System.currentTimeMillis()
-        getPrefs(context).edit {
-            putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
-            // Persist the capability sidecar so cold start doesn't have to
-            // reparse the 1.2 MB bundled asset every time.
-            putString(KEY_LITELLM_META, gson.toJson(meta))
-            putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
-        }
+        return createAppGson(prettyPrint = true).toJson(obj)
     }
 
     /**
@@ -1177,19 +1156,19 @@ object PricingCache {
     private fun ensureLoaded(context: Context) = synchronized(lock) {
         if (manualPricing == null) loadManualPricing(context)
         if (openRouterPricing == null) loadFromPrefs(context)
+        // LiteLLM: no bundled asset (network only). The user populates the
+        // tier with Refresh → LiteLLM; subsequent app starts read from
+        // pricing_cache prefs. A fresh install with no refresh yet leaves
+        // litellmPricing/Meta as empty maps — the layered lookup just
+        // falls through to the next tier.
         if (litellmPricing == null) {
             val prefs = getPrefs(context)
-            val json = prefs.getString(KEY_LITELLM_PRICING, null)
-            if (json != null) {
+            prefs.getString(KEY_LITELLM_PRICING, null)?.let { json ->
                 try { litellmPricing = gson.fromJson(json, mapModelPricingType); litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0) }
                 catch (_: Exception) {}
             }
-            if (litellmPricing == null) refreshLiteLLMPricing(context)
+            if (litellmPricing == null) litellmPricing = emptyMap()
         }
-        // The capability sidecar is persisted alongside pricing — read from
-        // prefs first; only reparse the 1.2 MB bundled asset as a fallback
-        // (first run, prefs missing/corrupt, or app freshly installed).
-        // Reparsing on every cold start was a measurable startup cost.
         if (litellmMeta == null) {
             val prefs = getPrefs(context)
             prefs.getString(KEY_LITELLM_META, null)?.let { json ->
@@ -1198,12 +1177,7 @@ object PricingCache {
                     litellmMeta = gson.fromJson(json, type)
                 } catch (_: Exception) {}
             }
-            if (litellmMeta == null) {
-                val (_, meta) = parseLiteLLMPricing(context)
-                litellmMeta = meta
-                // Save it now so the next cold start reads from prefs.
-                getPrefs(context).edit { putString(KEY_LITELLM_META, gson.toJson(meta)) }
-            }
+            if (litellmMeta == null) litellmMeta = emptyMap()
             litellmMetaLookupCache.clear()
         }
         // models.dev: no bundled asset (network only). Both maps live in
@@ -1276,13 +1250,6 @@ object PricingCache {
         manualPricing = if (json != null) {
             try { gson.fromJson(json, mutableMapModelPricingType) } catch (_: Exception) { mutableMapOf() }
         } else mutableMapOf()
-    }
-
-    private fun parseLiteLLMPricing(context: Context): Pair<Map<String, ModelPricing>, Map<String, LiteLLMMeta>> {
-        return try {
-            val json = context.assets.open("model_prices_and_context_window.json").bufferedReader().use { it.readText() }
-            parseLiteLLMJson(json)
-        } catch (_: Exception) { emptyMap<String, ModelPricing>() to emptyMap() }
     }
 
     /** Helicone non-exact entry — keeps the original provider/model strings

@@ -166,11 +166,10 @@ compile success do not verify feature correctness here.
   HF token.
 - **Custom providers added by the user** live in the `provider_registry`
   prefs file, separate from `eval_prefs`. The backup zip captures both.
-- **Don't load files from `assets/` outside the bootstrap path.** The
-  bundled `model_prices_and_context_window.json` is read once at
-  install/Refresh, never on the hot path — its 1.2 MB JSON cost
-  visibly dragged earlier startup before the precompute migration
-  landed.
+- **Only `assets/setup.json` lives in the APK now.** The previously
+  bundled LiteLLM snapshot was removed — the user populates LiteLLM
+  pricing by running Refresh → LiteLLM at first install. Reparsing a
+  1.2 MB asset on every cold start was the worst startup offender.
 
 ## Versioning the precompute migration
 

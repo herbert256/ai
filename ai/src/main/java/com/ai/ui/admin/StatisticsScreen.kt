@@ -54,7 +54,6 @@ fun UsageScreen(
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             stats = settingsPrefs.loadUsageStats()
-            PricingCache.refreshLiteLLMPricing(context)
             if (openRouterApiKey.isNotBlank() && PricingCache.needsOpenRouterRefresh(context)) {
                 val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
                 if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)

@@ -32,9 +32,10 @@ winning when it surfaces the field directly.
   - `litellm_provider` — used to compose the lookup key together with
     `AppService.litellmPrefix`
 - **When fetched:** on Refresh screen → "LiteLLM"; also on Refresh All.
-- **Bundled fallback:** `assets/model_prices_and_context_window.json`
-  ships with the APK so a fresh install has pricing data immediately,
-  before the first online refresh.
+  No bundled fallback — a fresh install has zero LiteLLM coverage
+  until the user runs Refresh once. The layered lookup just falls
+  through to the next tier (models.dev / Helicone / …) for any model
+  whose pricing the user hasn't fetched yet.
 - **Cache key:** `pricing_cache` SharedPreferences, blobs `litellm_pricing`
   + `litellm_meta` + `litellm_timestamp`.
 
