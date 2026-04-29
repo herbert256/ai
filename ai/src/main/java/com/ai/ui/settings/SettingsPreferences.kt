@@ -271,7 +271,17 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             if (arr == null) return@synchronized cache
             arr.forEach { el ->
                 try {
-                    val stat = gson.fromJson(el, UsageStats::class.java)
+                    val raw = gson.fromJson(el, UsageStats::class.java)
+                    // Gson bypasses Kotlin's default-value constructors via
+                    // Unsafe, so rows written before `kind` was added have
+                    // a runtime-null `kind` even though the data class
+                    // declares `String = "report"`. Backfill to keep the
+                    // non-null contract — downstream code (the kind pill
+                    // on UsageModelRow) assumes a non-null String and
+                    // would NPE on the missing rows when the provider is
+                    // expanded.
+                    @Suppress("USELESS_CAST")
+                    val stat = if ((raw.kind as String?) == null) raw.copy(kind = "report") else raw
                     cache[stat.key] = stat
                 } catch (_: Exception) { /* skip rows that reference an unknown provider id */ }
             }

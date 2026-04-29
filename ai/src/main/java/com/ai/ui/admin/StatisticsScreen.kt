@@ -165,7 +165,14 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
                 // Type pill — only shown for non-default kinds (rerank,
                 // summarize). The default "report" kind matches the
                 // implicit assumption and would just be visual noise.
-                val kind = swc.stat.kind
+                // Defensive cast: legacy rows written before the kind
+                // field existed deserialize to a runtime-null String
+                // even though the property is declared non-null;
+                // SettingsPreferences.loadUsageStats backfills these on
+                // load but coerce again here so an in-flight write
+                // can't trip the renderer.
+                @Suppress("USELESS_CAST")
+                val kind = (swc.stat.kind as String?) ?: "report"
                 if (kind != "report") {
                     val kindColor = when (kind) {
                         "rerank" -> AppColors.Orange
