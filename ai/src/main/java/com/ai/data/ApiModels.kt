@@ -375,6 +375,27 @@ data class CohereModelInfo(
     val finetuned: Boolean? = null
 )
 
+/** Cohere v2 rerank request. The compatibility shim does not expose
+ *  /rerank — calls always go through the native api.cohere.com host. */
+data class CohereRerankRequest(
+    val model: String,
+    val query: String,
+    val documents: List<String>,
+    val top_n: Int? = null,
+    val return_documents: Boolean = false
+)
+
+data class CohereRerankResult(val index: Int, val relevance_score: Double)
+data class CohereRerankBilledUnits(val search_units: Int? = null)
+data class CohereRerankMeta(val billed_units: CohereRerankBilledUnits? = null)
+data class CohereRerankResponse(
+    val id: String? = null,
+    val results: List<CohereRerankResult>? = null,
+    val meta: CohereRerankMeta? = null,
+    /** Error envelope shape — populated only on 4xx/5xx with a JSON body. */
+    val message: String? = null
+)
+
 data class ClaudeModelsResponse(val data: List<ClaudeModelInfo>?)
 data class ClaudeModelInfo(val id: String?, val display_name: String?, val type: String?)
 

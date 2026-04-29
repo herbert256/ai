@@ -263,6 +263,107 @@ sealed class SecondaryScope {
     data class TopRanked(val count: Int, val rerankResultId: String) : SecondaryScope()
 }
 
+/** Result of an API-level rerank call (Cohere v2/rerank or compatible).
+ *  Outcome shape mirrors what the chat-model rerank flow already
+ *  produces — content is the structured JSON the rest of the system
+ *  reads (HTML export, Top-Ranked scope, etc.). */
+data class RerankApiResult(
+    val content: String?,           // JSON in the same shape as the chat prompt asks for
+    val errorMessage: String?,
+    val httpStatusCode: Int? = null,
+    val billedSearchUnits: Int? = null,
+    val durationMs: Long
+)
+
+/** Call the provider's dedicated rerank endpoint with the parent
+ *  report's prompt as the query and the per-agent response bodies as
+ *  documents, then convert the response into the same
+ *  `[{id, rank, score, reason}, ...]` JSON the chat-model rerank flow
+ *  uses — so the rest of the system (HTML export, Top-Ranked scope)
+ *  doesn't need a second code path.
+ *
+ *  Currently routes only Cohere; other providers fall through with an
+ *  explanatory error. Documents are passed in success-ordered position,
+ *  so each Cohere `index` (0-based) maps directly to the bracketed
+ *  [N] id (1-based) the rest of the app expects. */
+suspend fun callRerankApi(
+    provider: AppService, apiKey: String, model: String,
+    query: String, documents: List<String>
+): RerankApiResult {
+    val start = System.currentTimeMillis()
+    return when (provider.id) {
+        "COHERE" -> callCohereRerank(apiKey, model, query, documents, start)
+        else -> RerankApiResult(
+            content = null,
+            errorMessage = "Rerank API not wired for provider ${provider.displayName}. Pick a chat model instead, or open an issue to add ${provider.id} rerank support.",
+            durationMs = System.currentTimeMillis() - start
+        )
+    }
+}
+
+private suspend fun callCohereRerank(
+    apiKey: String, model: String, query: String, documents: List<String>, start: Long
+): RerankApiResult {
+    return try {
+        val api = ApiFactory.createCohereRerankApi()
+        val request = CohereRerankRequest(model, query, documents, top_n = documents.size)
+        val response = api.rerank("Bearer $apiKey", request)
+        val duration = System.currentTimeMillis() - start
+        if (!response.isSuccessful) {
+            val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+            return RerankApiResult(
+                content = null,
+                errorMessage = "${response.code()} ${response.message()}: ${errBody ?: ""}",
+                httpStatusCode = response.code(),
+                durationMs = duration
+            )
+        }
+        val body = response.body() ?: return RerankApiResult(
+            content = null, errorMessage = "Empty rerank response", httpStatusCode = response.code(), durationMs = duration
+        )
+        if (body.results.isNullOrEmpty()) {
+            return RerankApiResult(
+                content = null,
+                errorMessage = body.message ?: "Rerank returned no results",
+                httpStatusCode = response.code(), durationMs = duration
+            )
+        }
+        val json = rerankResultsToJson(body.results)
+        RerankApiResult(
+            content = json,
+            errorMessage = null,
+            httpStatusCode = response.code(),
+            billedSearchUnits = body.meta?.billed_units?.search_units,
+            durationMs = duration
+        )
+    } catch (e: Exception) {
+        RerankApiResult(
+            content = null,
+            errorMessage = "Rerank call failed: ${e.message ?: e.javaClass.simpleName}",
+            durationMs = System.currentTimeMillis() - start
+        )
+    }
+}
+
+/** Convert a list of (index, relevance_score) into the structured JSON
+ *  the rest of the secondary-result pipeline already parses. Higher
+ *  relevance gets a lower rank number (rank 1 = most relevant). Score
+ *  is rescaled to 0-100 for parity with the chat-model rerank prompt. */
+private fun rerankResultsToJson(results: List<CohereRerankResult>): String {
+    val sorted = results.sortedByDescending { it.relevance_score }
+    val arr = com.google.gson.JsonArray()
+    sorted.forEachIndexed { rank, r ->
+        val obj = com.google.gson.JsonObject().apply {
+            addProperty("id", r.index + 1)
+            addProperty("rank", rank + 1)
+            addProperty("score", (r.relevance_score * 100).toInt().coerceIn(0, 100))
+            addProperty("reason", "Relevance score: %.4f".format(r.relevance_score))
+        }
+        arr.add(obj)
+    }
+    return createAppGson(prettyPrint = true).toJson(arr)
+}
+
 /** Parse the structured JSON output of a rerank result and return the
  *  original [N] ids of the top [count] entries (sorted by `rank`). The
  *  prompt asks for `[{"id":N,"rank":R, ...}, ...]`; ``` fences are

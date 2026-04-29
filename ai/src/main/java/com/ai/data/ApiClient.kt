@@ -154,6 +154,16 @@ interface CohereNativeApi {
     ): Response<CohereModelsResponse>
 }
 
+/** Cohere v2 rerank API. Lives on api.cohere.com (not the compatibility
+ *  shim, which doesn't forward /rerank). */
+interface CohereRerankApi {
+    @POST("v2/rerank")
+    suspend fun rerank(
+        @Header("Authorization") authorization: String,
+        @Body request: CohereRerankRequest
+    ): Response<CohereRerankResponse>
+}
+
 /** Hugging Face model info. */
 interface HuggingFaceApi {
     @GET("models/{modelId}")
@@ -212,5 +222,6 @@ object ApiFactory {
     fun createOpenAiCompatibleApi(baseUrl: String): OpenAiCompatibleApi = getRetrofit(baseUrl).create(OpenAiCompatibleApi::class.java)
     fun createOpenRouterModelsApi(baseUrl: String): OpenRouterModelsApi = getRetrofit(baseUrl).create(OpenRouterModelsApi::class.java)
     fun createCohereNativeApi(): CohereNativeApi = getRetrofit("https://api.cohere.com/").create(CohereNativeApi::class.java)
+    fun createCohereRerankApi(): CohereRerankApi = getRetrofit("https://api.cohere.com/").create(CohereRerankApi::class.java)
     fun createHuggingFaceApi(): HuggingFaceApi = getRetrofit("https://huggingface.co/api/").create(HuggingFaceApi::class.java)
 }

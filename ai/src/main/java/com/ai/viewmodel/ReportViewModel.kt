@@ -580,7 +580,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 picks.map { (provider, model) ->
                     async {
                         sem.withPermit {
-                            executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings)
+                            executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report)
                             appViewModel.updateUiState { s ->
                                 val cur = s.secondaryRun
                                 if (cur != null && cur.reportId == reportId && cur.kind == kind) {
@@ -600,11 +600,41 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private suspend fun executeSecondaryTask(
         context: Context, reportId: String, kind: SecondaryKind,
-        provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings
+        provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings,
+        report: Report
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val agentName = "${provider.displayName} / $model"
         val placeholder = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
+
+        // Rerank-typed models (Cohere rerank-v3.5 etc.) don't have a chat
+        // endpoint — they take query + documents and return relevance
+        // scores. Detect that and route to the dedicated rerank API,
+        // converting the response back to the structured JSON the rest
+        // of the system already consumes (HTML export, Top-Ranked scope).
+        val isRerankApiPath = kind == SecondaryKind.RERANK
+            && aiSettings.getModelType(provider, model) == com.ai.data.ModelType.RERANK
+        if (isRerankApiPath) {
+            val docs = report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .map { it.responseBody!! }
+            val r = com.ai.data.callRerankApi(provider, apiKey, model, report.prompt, docs)
+            SecondaryResultStorage.save(context, placeholder.copy(
+                content = r.content,
+                errorMessage = r.errorMessage,
+                durationMs = r.durationMs
+            ))
+            // Cohere bills per "search unit" (1 search ≈ 1 query + ~100
+            // docs). Track it as a single rerank call so AI Usage's
+            // callCount stays meaningful even though token counts don't
+            // apply.
+            if (r.errorMessage == null) {
+                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                    provider, model, 0, 0, 0, kind = "rerank"
+                )
+            }
+            return
+        }
 
         val agent = Agent(
             id = "secondary:${kind.name}:${provider.id}:$model",
