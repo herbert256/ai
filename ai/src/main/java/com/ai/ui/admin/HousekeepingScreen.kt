@@ -29,7 +29,8 @@ fun HousekeepingScreen(
     onBackToHome: () -> Unit,
     onClearConfiguration: () -> Unit = {},
     onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {}
+    onNavigateToRefresh: () -> Unit = {},
+    onNavigateToProviderAdmin: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
@@ -199,6 +200,11 @@ fun HousekeepingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                         ) { Text("Refresh", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    Button(
+                        onClick = onNavigateToProviderAdmin,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                    ) { Text("Provider administration", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
 

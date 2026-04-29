@@ -402,7 +402,16 @@ fun AppNavHost(
                 viewModel = appViewModel,
                 onNavigateHome = navigateHome,
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
-                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) }
+                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) }
+            )
+        }
+        composable(NavRoutes.AI_PROVIDER_ADMIN) {
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.admin.ProviderAdminScreen(
+                aiSettings = uiState.aiSettings,
+                onBack = safePopBack,
+                onNavigateHome = navigateHome
             )
         }
         composable(NavRoutes.AI_IMPORT_EXPORT) {
@@ -535,7 +544,8 @@ fun HousekeepingScreenNav(
     viewModel: AppViewModel,
     onNavigateHome: () -> Unit,
     onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {}
+    onNavigateToRefresh: () -> Unit = {},
+    onNavigateToProviderAdmin: () -> Unit = {}
 ) {
     HousekeepingScreen(
         onBackToHome = onNavigateHome,
@@ -544,6 +554,7 @@ fun HousekeepingScreenNav(
             viewModel.updateGeneralSettings(GeneralSettings())
         },
         onNavigateToImportExport = onNavigateToImportExport,
-        onNavigateToRefresh = onNavigateToRefresh
+        onNavigateToRefresh = onNavigateToRefresh,
+        onNavigateToProviderAdmin = onNavigateToProviderAdmin
     )
 }
