@@ -198,6 +198,7 @@ fun ImportExportScreen(
                     result.defaultTypePaths?.let { gs = gs.copy(defaultTypePaths = it) }
                     result.rerankPrompt?.let { gs = gs.copy(rerankPrompt = it) }
                     result.summarizePrompt?.let { gs = gs.copy(summarizePrompt = it) }
+                    result.comparePrompt?.let { gs = gs.copy(comparePrompt = it) }
                     if (gs != generalSettings) onSaveGeneral(gs)
                 }
             }

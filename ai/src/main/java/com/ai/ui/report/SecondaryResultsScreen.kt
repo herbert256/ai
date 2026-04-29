@@ -63,7 +63,11 @@ internal fun SecondaryResultsScreen(
         return
     }
 
-    val title = if (kind == SecondaryKind.RERANK) "Reranks" else "Summaries"
+    val title = when (kind) {
+        SecondaryKind.RERANK -> "Reranks"
+        SecondaryKind.SUMMARIZE -> "Summaries"
+        SecondaryKind.COMPARE -> "Compares"
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
@@ -114,9 +118,14 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
     }
 
     if (confirmDelete) {
+        val noun = when (r.kind) {
+            SecondaryKind.RERANK -> "rerank"
+            SecondaryKind.SUMMARIZE -> "summary"
+            SecondaryKind.COMPARE -> "compare"
+        }
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this ${if (r.kind == SecondaryKind.RERANK) "rerank" else "summary"}?") },
+            title = { Text("Delete this $noun?") },
             text = { Text("$provider · ${r.model}") },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
@@ -137,7 +146,11 @@ internal fun SecondaryResultDetailScreen(
 ) {
     BackHandler { onBack() }
     val provider = AppService.findById(result.providerId)?.displayName ?: result.providerId
-    val title = if (result.kind == SecondaryKind.RERANK) "Rerank" else "Summary"
+    val title = when (result.kind) {
+        SecondaryKind.RERANK -> "Rerank"
+        SecondaryKind.SUMMARIZE -> "Summary"
+        SecondaryKind.COMPARE -> "Compare"
+    }
     var confirmDelete by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {

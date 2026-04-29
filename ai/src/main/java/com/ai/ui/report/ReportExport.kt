@@ -265,7 +265,11 @@ private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
                 (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
         }
         val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
-            val type = if (it.kind == SecondaryKind.RERANK) "rerank" else "summarize"
+            val type = when (it.kind) {
+                SecondaryKind.RERANK -> "rerank"
+                SecondaryKind.SUMMARIZE -> "summarize"
+                SecondaryKind.COMPARE -> "compare"
+            }
             Row(type, it.providerDisplay, it.model, it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
                 (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
         }
@@ -288,7 +292,8 @@ private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
 private fun appendSecondarySections(sb: StringBuilder, data: HtmlReportData) {
     val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
     val summaries = data.secondary.filter { it.kind == SecondaryKind.SUMMARIZE }
-    if (reranks.isEmpty() && summaries.isEmpty()) return
+    val compares = data.secondary.filter { it.kind == SecondaryKind.COMPARE }
+    if (reranks.isEmpty() && summaries.isEmpty() && compares.isEmpty()) return
 
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
 
@@ -316,6 +321,27 @@ private fun appendSecondarySections(sb: StringBuilder, data: HtmlReportData) {
                 sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
             } else if (!s.content.isNullOrBlank()) {
                 sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(s.content)}</div>")
+            }
+            sb.append("</div>")
+        }
+        sb.append("</div>")
+    }
+
+    if (compares.isNotEmpty()) {
+        sb.append("<div class='secondary-section secondary-compare'><h2 class='secondary-heading secondary-heading-compare'>Compares</h2>")
+        compares.forEach { c ->
+            sb.append("<div class='secondary-card secondary-card-compare'>")
+            sb.append("<div class='secondary-card-header secondary-card-header-compare'>${esc(c.providerDisplay)} · ${esc(c.model)} <span class='secondary-ts'>${esc(c.timestamp)}</span></div>")
+            if (c.errorMessage != null) {
+                sb.append("<div class='error'>Error: ${esc(c.errorMessage)}</div>")
+            } else if (!c.content.isNullOrBlank()) {
+                // Linkify [N] references the same way as rerank's fallback
+                // path so users can jump to any cited result card.
+                val linkified = Regex("""\[(\d+)\]""").replace(c.content) { m ->
+                    val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
+                    if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
+                }
+                sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(linkified)}</div>")
             }
             sb.append("</div>")
         }
@@ -474,6 +500,10 @@ ul{padding-left:20px}li{margin:4px 0}
 .rerank-table td{padding:4px 8px;border-bottom:1px solid #333}
 .rerank-table .num{text-align:right;font-family:monospace}
 .rerank-table a{color:#64B5F6;text-decoration:none;font-family:monospace}
+.secondary-heading-compare{color:#8B5CF6}
+.secondary-card-compare{border-left-color:#8B5CF6}
+.secondary-card-header-compare{color:#8B5CF6}
+.secondary-body a{color:#64B5F6;text-decoration:none;font-family:monospace}
 </style></head>
 """
 

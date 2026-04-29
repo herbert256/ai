@@ -125,6 +125,7 @@ fun SettingsScreen(
                 aaApiKey = generalSettings.artificialAnalysisApiKey,
                 rerankPrompt = generalSettings.rerankPrompt,
                 summarizePrompt = generalSettings.summarizePrompt,
+                comparePrompt = generalSettings.comparePrompt,
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,

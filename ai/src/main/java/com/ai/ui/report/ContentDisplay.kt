@@ -208,7 +208,11 @@ fun ReportCostTable(report: Report) {
         val providerDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
         val inCents = (s.inputCost ?: 0.0) * 100
         val outCents = (s.outputCost ?: 0.0) * 100
-        val type = if (s.kind == SecondaryKind.RERANK) "rerank" else "summarize"
+        val type = when (s.kind) {
+            SecondaryKind.RERANK -> "rerank"
+            SecondaryKind.SUMMARIZE -> "summarize"
+            SecondaryKind.COMPARE -> "compare"
+        }
         CostRow(type, providerDisplay, s.model, s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
     val rows = (agentRows + secondaryRows).sortedByDescending { it.inputCents + it.outputCents }
@@ -240,7 +244,7 @@ fun ReportCostTable(report: Report) {
                 }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(624.dp))
                 rows.forEach { r ->
-                    val typeColor = when (r.type) { "rerank" -> AppColors.Orange; "summarize" -> AppColors.Indigo; else -> vColor }
+                    val typeColor = when (r.type) { "rerank" -> AppColors.Orange; "summarize" -> AppColors.Indigo; "compare" -> AppColors.Purple; else -> vColor }
                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
                         Text(fmtC(r.inputCents + r.outputCents), fontSize = vSize, color = vColor, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(r.type, fontSize = vSize, color = typeColor, modifier = Modifier.width(70.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-enum class SecondaryKind { RERANK, SUMMARIZE }
+enum class SecondaryKind { RERANK, SUMMARIZE, COMPARE }
 
 /**
  * A meta-result that operates on a parent Report's per-agent outputs:
@@ -120,25 +120,28 @@ object SecondaryResultStorage {
         }
     }
 
-    /** Counts persisted across both kinds for a report. Used by the Report
-     *  result screen to decide whether to surface the View Reranks/Summaries
-     *  buttons without paying for the full file parse on every recomposition. */
-    fun countForReport(context: Context, reportId: String): Pair<Int, Int> {
+    /** Counts persisted across all kinds for a report. Used by the Report
+     *  result screen to decide whether to surface the View Reranks /
+     *  Summaries / Compares buttons without paying for the full file parse
+     *  on every recomposition. */
+    data class Counts(val rerank: Int, val summarize: Int, val compare: Int)
+    fun countForReport(context: Context, reportId: String): Counts {
         init(context)
         return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock 0 to 0
-            if (!dir.exists()) return@withLock 0 to 0
-            var rerank = 0; var summarize = 0
+            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0)
+            if (!dir.exists()) return@withLock Counts(0, 0, 0)
+            var rerank = 0; var summarize = 0; var compare = 0
             dir.listFiles { f -> f.extension == "json" }?.forEach { file ->
                 try {
                     val r = gson.fromJson(file.readText(), SecondaryResult::class.java)
                     when (r.kind) {
                         SecondaryKind.RERANK -> rerank++
                         SecondaryKind.SUMMARIZE -> summarize++
+                        SecondaryKind.COMPARE -> compare++
                     }
                 } catch (_: Exception) {}
             }
-            rerank to summarize
+            Counts(rerank, summarize, compare)
         }
     }
 }
@@ -184,6 +187,28 @@ Guidelines:
 - Drop redundancy. Do not repeat the question.
 - Match the tone and depth of the original responses.
 - Do not mention that you are summarizing or reference the source responses by number."""
+
+    const val DEFAULT_COMPARE = """You are comparing @COUNT@ AI responses to the same question. Identify where they agree and where they diverge.
+
+QUESTION:
+@QUESTION@
+
+RESPONSES:
+@RESULTS@
+
+Produce a comparative analysis with these sections:
+
+## Points of agreement
+Claims, conclusions, or recommendations that most or all responses share. Reference responses by [N] where relevant.
+
+## Points of disagreement
+Where responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.
+
+## Unique contributions
+Facts, framings, or arguments that only one response raised. Note the source [N] and whether the contribution adds genuine value.
+
+## Overall takeaway
+One paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above."""
 }
 
 /** Substitutes placeholders in [template] using the values for the

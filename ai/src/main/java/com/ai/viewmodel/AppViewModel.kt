@@ -34,11 +34,13 @@ data class GeneralSettings(
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS
      *  when this map is empty for a given type. */
     val defaultTypePaths: Map<String, String> = emptyMap(),
-    /** Templates for the rerank / summarize secondary-result flows. Empty
-     *  means "use the hardcoded default in SecondaryPrompts." Both round-trip
-     *  through the eval_prefs backup zip and the JSON config export. */
+    /** Templates for the rerank / summarize / compare secondary-result
+     *  flows. Empty means "use the hardcoded default in SecondaryPrompts."
+     *  All three round-trip through the eval_prefs backup zip and the
+     *  JSON config export. */
     val rerankPrompt: String = "",
-    val summarizePrompt: String = ""
+    val summarizePrompt: String = "",
+    val comparePrompt: String = ""
 )
 
 // Prompt history entry
@@ -227,7 +229,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: gs.artificialAnalysisApiKey,
                         defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths,
                         rerankPrompt = result.rerankPrompt ?: gs.rerankPrompt,
-                        summarizePrompt = result.summarizePrompt ?: gs.summarizePrompt
+                        summarizePrompt = result.summarizePrompt ?: gs.summarizePrompt,
+                        comparePrompt = result.comparePrompt ?: gs.comparePrompt
                     )
                     if (updatedGs != gs) { gs = updatedGs; settingsPrefs.saveGeneralSettings(gs) }
                 }

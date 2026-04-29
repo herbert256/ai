@@ -163,6 +163,7 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
                     val kindColor = when (kind) {
                         "rerank" -> AppColors.Orange
                         "summarize" -> AppColors.Indigo
+                        "compare" -> AppColors.Purple
                         else -> AppColors.TextDim
                     }
                     Text(

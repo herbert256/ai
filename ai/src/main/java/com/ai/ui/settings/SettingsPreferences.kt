@@ -54,7 +54,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
             rerankPrompt = prefs.getString(KEY_RERANK_PROMPT, "") ?: "",
-            summarizePrompt = prefs.getString(KEY_SUMMARIZE_PROMPT, "") ?: ""
+            summarizePrompt = prefs.getString(KEY_SUMMARIZE_PROMPT, "") ?: "",
+            comparePrompt = prefs.getString(KEY_COMPARE_PROMPT, "") ?: ""
         )
     }
 
@@ -68,6 +69,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putString(KEY_RERANK_PROMPT, settings.rerankPrompt)
             putString(KEY_SUMMARIZE_PROMPT, settings.summarizePrompt)
+            putString(KEY_COMPARE_PROMPT, settings.comparePrompt)
         }
     }
 
@@ -391,6 +393,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_RERANK_PROMPT = "rerank_prompt"
         private const val KEY_SUMMARIZE_PROMPT = "summarize_prompt"
+        private const val KEY_COMPARE_PROMPT = "compare_prompt"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

@@ -32,21 +32,22 @@ fun SecondaryPromptsScreen(
     BackHandler { onBack() }
     var rerank by remember { mutableStateOf(generalSettings.rerankPrompt) }
     var summarize by remember { mutableStateOf(generalSettings.summarizePrompt) }
+    var compare by remember { mutableStateOf(generalSettings.comparePrompt) }
 
-    LaunchedEffect(rerank, summarize) {
-        val updated = generalSettings.copy(rerankPrompt = rerank, summarizePrompt = summarize)
+    LaunchedEffect(rerank, summarize, compare) {
+        val updated = generalSettings.copy(rerankPrompt = rerank, summarizePrompt = summarize, comparePrompt = compare)
         if (updated != generalSettings) onSave(updated)
     }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Rerank & Summarize", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Rerank, Summarize & Compare", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Templates used by the Rerank and Summarize buttons on the Report screen. " +
+                "Templates used by the Rerank, Summarize and Compare buttons on the Report screen. " +
                     "Leave blank to use the built-in default. Variables are substituted at run time.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
@@ -71,6 +72,15 @@ fun SecondaryPromptsScreen(
                 onValueChange = { summarize = it },
                 onResetToDefault = { summarize = SecondaryPrompts.DEFAULT_SUMMARIZE },
                 onClear = { summarize = "" }
+            )
+
+            PromptCard(
+                title = "Compare prompt",
+                value = compare,
+                placeholder = SecondaryPrompts.DEFAULT_COMPARE,
+                onValueChange = { compare = it },
+                onResetToDefault = { compare = SecondaryPrompts.DEFAULT_COMPARE },
+                onClear = { compare = "" }
             )
         }
     }

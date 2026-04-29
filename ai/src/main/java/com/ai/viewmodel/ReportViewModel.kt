@@ -501,16 +501,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private var secondaryJob: Job? = null
 
     /** Resolve the prompt template for [kind]: prefer a user-supplied
-     *  Internal Prompt named "rerank" or "summarize", fall back to the
-     *  GeneralSettings dedicated field, finally fall back to the hardcoded
-     *  default in [SecondaryPrompts]. */
+     *  Internal Prompt named "rerank", "summarize", or "compare", fall back
+     *  to the GeneralSettings dedicated field, finally fall back to the
+     *  hardcoded default in [SecondaryPrompts]. */
     private fun resolveTemplate(aiSettings: Settings, generalSettings: GeneralSettings, kind: SecondaryKind): String {
-        val targetName = if (kind == SecondaryKind.RERANK) "rerank" else "summarize"
+        val targetName = when (kind) {
+            SecondaryKind.RERANK -> "rerank"
+            SecondaryKind.SUMMARIZE -> "summarize"
+            SecondaryKind.COMPARE -> "compare"
+        }
         val internal = aiSettings.prompts.firstOrNull { it.name.equals(targetName, ignoreCase = true) }
         if (internal != null && internal.promptText.isNotBlank()) return internal.promptText
-        val fromGs = if (kind == SecondaryKind.RERANK) generalSettings.rerankPrompt else generalSettings.summarizePrompt
+        val fromGs = when (kind) {
+            SecondaryKind.RERANK -> generalSettings.rerankPrompt
+            SecondaryKind.SUMMARIZE -> generalSettings.summarizePrompt
+            SecondaryKind.COMPARE -> generalSettings.comparePrompt
+        }
         if (fromGs.isNotBlank()) return fromGs
-        return if (kind == SecondaryKind.RERANK) SecondaryPrompts.DEFAULT_RERANK else SecondaryPrompts.DEFAULT_SUMMARIZE
+        return when (kind) {
+            SecondaryKind.RERANK -> SecondaryPrompts.DEFAULT_RERANK
+            SecondaryKind.SUMMARIZE -> SecondaryPrompts.DEFAULT_SUMMARIZE
+            SecondaryKind.COMPARE -> SecondaryPrompts.DEFAULT_COMPARE
+        }
     }
 
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
@@ -611,7 +623,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (response.error == null && tu != null) {
             appViewModel.settingsPrefs.updateUsageStatsAsync(
                 provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
-                kind = when (kind) { SecondaryKind.RERANK -> "rerank"; SecondaryKind.SUMMARIZE -> "summarize" }
+                kind = when (kind) {
+                    SecondaryKind.RERANK -> "rerank"
+                    SecondaryKind.SUMMARIZE -> "summarize"
+                    SecondaryKind.COMPARE -> "compare"
+                }
             )
         }
     }

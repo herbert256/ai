@@ -371,12 +371,17 @@ fun ReportsScreen(
                 prov to mod
             }.toSet()
         }
+        val pickerLabel = when (pickerKind) {
+            SecondaryKind.RERANK -> "Rerank"
+            SecondaryKind.SUMMARIZE -> "Summarize"
+            SecondaryKind.COMPARE -> "Compare"
+        }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
             alreadySelected = emptySet(),
             initialChecked = initialChecked,
-            titleText = if (pickerKind == SecondaryKind.RERANK) "Rerank — pick models" else "Summarize — pick models",
-            confirmLabel = if (pickerKind == SecondaryKind.RERANK) "Rerank" else "Summarize",
+            titleText = "$pickerLabel — pick models",
+            confirmLabel = pickerLabel,
             showRerankOnlyToggle = pickerKind == SecondaryKind.RERANK,
             onConfirm = { picks ->
                 onRunSecondary(rid, pickerKind, picks)
@@ -508,8 +513,10 @@ fun ReportsScreen(
                 onDelete = { showDeleteConfirm = true },
                 onRerank = { secondaryPickerKind = SecondaryKind.RERANK },
                 onSummarize = { secondaryPickerKind = SecondaryKind.SUMMARIZE },
+                onCompare = { secondaryPickerKind = SecondaryKind.COMPARE },
                 onViewReranks = { secondaryViewerKind = SecondaryKind.RERANK },
-                onViewSummaries = { secondaryViewerKind = SecondaryKind.SUMMARIZE }
+                onViewSummaries = { secondaryViewerKind = SecondaryKind.SUMMARIZE },
+                onViewCompares = { secondaryViewerKind = SecondaryKind.COMPARE }
             )
         }
     }
@@ -643,8 +650,10 @@ private fun ColumnScope.GenerationPhase(
     onDelete: () -> Unit,
     onRerank: () -> Unit = {},
     onSummarize: () -> Unit = {},
+    onCompare: () -> Unit = {},
     onViewReranks: () -> Unit = {},
-    onViewSummaries: () -> Unit = {}
+    onViewSummaries: () -> Unit = {},
+    onViewCompares: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -785,12 +794,14 @@ private fun ColumnScope.GenerationPhase(
         }
     } else {
         // Look up persisted secondary-result counts to decide whether to
-        // surface the View Reranks / Summaries buttons.
+        // surface the View Reranks / Summaries / Compares buttons.
         val secondaryCounts = remember(currentReportId) {
             if (currentReportId != null) com.ai.data.SecondaryResultStorage.countForReport(context, currentReportId)
-            else 0 to 0
+            else com.ai.data.SecondaryResultStorage.Counts(0, 0, 0)
         }
-        val (rerankCount, summarizeCount) = secondaryCounts
+        val rerankCount = secondaryCounts.rerank
+        val summarizeCount = secondaryCounts.summarize
+        val compareCount = secondaryCounts.compare
         val secondaryRun = uiState.secondaryRun?.takeIf { it.reportId == currentReportId }
         val secondaryRunning = secondaryRun != null
 
@@ -802,16 +813,21 @@ private fun ColumnScope.GenerationPhase(
             Button(onClick = onViewCosts, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Costs", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onTrace, enabled = currentReportId != null, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Trace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
-        if (rerankCount > 0 || summarizeCount > 0) {
+        if (rerankCount > 0 || summarizeCount > 0 || compareCount > 0) {
             Spacer(modifier = Modifier.height(6.dp))
+            // Three slots so missing kinds leave a visual gap rather than
+            // shoving the others to fill — keeps button widths consistent
+            // when the same report later gains the missing kind.
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (rerankCount > 0) {
                     Button(onClick = onViewReranks, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Reranks ($rerankCount)", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                }
+                } else Spacer(modifier = Modifier.weight(1f))
                 if (summarizeCount > 0) {
                     Button(onClick = onViewSummaries, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Summaries ($summarizeCount)", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                }
-                if (rerankCount == 0 || summarizeCount == 0) Spacer(modifier = Modifier.weight(1f))
+                } else Spacer(modifier = Modifier.weight(1f))
+                if (compareCount > 0) {
+                    Button(onClick = onViewCompares, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Compares ($compareCount)", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                } else Spacer(modifier = Modifier.weight(1f))
             }
         }
 
@@ -830,8 +846,9 @@ private fun ColumnScope.GenerationPhase(
             Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Export", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Delete", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
-        // Rerank / Summarize action row. Disabled while a secondary run is
-        // already in flight so two clicks can't kick off overlapping batches.
+        // Rerank / Summarize / Compare action row. Disabled while a
+        // secondary run is already in flight so two clicks can't kick off
+        // overlapping batches.
         Spacer(modifier = Modifier.height(6.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Button(onClick = onRerank, enabled = !secondaryRunning, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) {
@@ -840,9 +857,16 @@ private fun ColumnScope.GenerationPhase(
             Button(onClick = onSummarize, enabled = !secondaryRunning, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) {
                 Text("Summarize", fontSize = 11.sp, maxLines = 1, softWrap = false)
             }
+            Button(onClick = onCompare, enabled = !secondaryRunning, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                Text("Compare", fontSize = 11.sp, maxLines = 1, softWrap = false)
+            }
         }
         if (secondaryRunning && secondaryRun != null) {
-            val label = if (secondaryRun.kind == SecondaryKind.RERANK) "Reranking" else "Summarizing"
+            val label = when (secondaryRun.kind) {
+                SecondaryKind.RERANK -> "Reranking"
+                SecondaryKind.SUMMARIZE -> "Summarizing"
+                SecondaryKind.COMPARE -> "Comparing"
+            }
             Text(
                 "$label · ${secondaryRun.completed}/${secondaryRun.total} done",
                 fontSize = 11.sp, color = AppColors.Orange,
