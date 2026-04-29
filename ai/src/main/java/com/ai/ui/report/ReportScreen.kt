@@ -872,21 +872,39 @@ private fun ColumnScope.GenerationPhase(
             Button(onClick = onViewCosts, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Costs", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onTrace, enabled = currentReportId != null, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Trace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
-        if (rerankCount > 0 || summarizeCount > 0 || compareCount > 0) {
+        // The View row is also visible during a secondary run for the
+        // running kind, even if no results have landed yet — same visual
+        // treatment as the Action row's running button (disabled, gray,
+        // animated hourglass) so the user gets a consistent "this is
+        // happening" signal in both places.
+        val runningKind = secondaryRun?.kind
+        val showRerankView = rerankCount > 0 || runningKind == SecondaryKind.RERANK
+        val showSummarizeView = summarizeCount > 0 || runningKind == SecondaryKind.SUMMARIZE
+        val showCompareView = compareCount > 0 || runningKind == SecondaryKind.COMPARE
+        if (showRerankView || showSummarizeView || showCompareView) {
             Spacer(modifier = Modifier.height(6.dp))
-            // Three slots so missing kinds leave a visual gap rather than
-            // shoving the others to fill — keeps button widths consistent
-            // when the same report later gains the missing kind.
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (rerankCount > 0) {
-                    Button(onClick = onViewReranks, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Reranks ($rerankCount)", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                } else Spacer(modifier = Modifier.weight(1f))
-                if (summarizeCount > 0) {
-                    Button(onClick = onViewSummaries, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Summaries ($summarizeCount)", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                } else Spacer(modifier = Modifier.weight(1f))
-                if (compareCount > 0) {
-                    Button(onClick = onViewCompares, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Compares ($compareCount)", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                } else Spacer(modifier = Modifier.weight(1f))
+                SecondaryKindButton(
+                    label = "Reranks", count = rerankCount,
+                    visible = showRerankView,
+                    isRunning = runningKind == SecondaryKind.RERANK,
+                    onClick = onViewReranks,
+                    modifier = Modifier.weight(1f)
+                )
+                SecondaryKindButton(
+                    label = "Summaries", count = summarizeCount,
+                    visible = showSummarizeView,
+                    isRunning = runningKind == SecondaryKind.SUMMARIZE,
+                    onClick = onViewSummaries,
+                    modifier = Modifier.weight(1f)
+                )
+                SecondaryKindButton(
+                    label = "Compares", count = compareCount,
+                    visible = showCompareView,
+                    isRunning = runningKind == SecondaryKind.COMPARE,
+                    onClick = onViewCompares,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
@@ -905,20 +923,33 @@ private fun ColumnScope.GenerationPhase(
             Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Export", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Delete", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
-        // Rerank / Summarize / Compare action row. Disabled while a
-        // secondary run is already in flight so two clicks can't kick off
+        // Rerank / Summarize / Compare action row. The running kind's
+        // button shows an animated hourglass and goes disabled+gray;
+        // siblings stay disabled so two clicks can't kick off
         // overlapping batches.
         Spacer(modifier = Modifier.height(6.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = onRerank, enabled = !secondaryRunning, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) {
-                Text("Rerank", fontSize = 11.sp, maxLines = 1, softWrap = false)
-            }
-            Button(onClick = onSummarize, enabled = !secondaryRunning, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) {
-                Text("Summarize", fontSize = 11.sp, maxLines = 1, softWrap = false)
-            }
-            Button(onClick = onCompare, enabled = !secondaryRunning, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange), contentPadding = PaddingValues(horizontal = 2.dp)) {
-                Text("Compare", fontSize = 11.sp, maxLines = 1, softWrap = false)
-            }
+            SecondaryActionButton(
+                label = "Rerank",
+                isRunning = runningKind == SecondaryKind.RERANK,
+                disabled = secondaryRunning,
+                onClick = onRerank,
+                modifier = Modifier.weight(1f)
+            )
+            SecondaryActionButton(
+                label = "Summarize",
+                isRunning = runningKind == SecondaryKind.SUMMARIZE,
+                disabled = secondaryRunning,
+                onClick = onSummarize,
+                modifier = Modifier.weight(1f)
+            )
+            SecondaryActionButton(
+                label = "Compare",
+                isRunning = runningKind == SecondaryKind.COMPARE,
+                disabled = secondaryRunning,
+                onClick = onCompare,
+                modifier = Modifier.weight(1f)
+            )
         }
         if (secondaryRunning && secondaryRun != null) {
             val label = when (secondaryRun.kind) {
@@ -932,5 +963,74 @@ private fun ColumnScope.GenerationPhase(
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
+    }
+}
+
+/** Spinning ⏳ glyph used by every "in flight" indicator on the report
+ *  screen — agent rows, the Rerank/Summarize/Compare action buttons,
+ *  and the Reranks/Summaries/Compares view buttons during a secondary
+ *  run. Centralised here so the cadence stays consistent. */
+@Composable
+private fun AnimatedHourglass(fontSize: androidx.compose.ui.unit.TextUnit = 12.sp) {
+    val transition = rememberInfiniteTransition(label = "secondary-hourglass")
+    val angle by transition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+        label = "secondary-hourglass-rotation"
+    )
+    Text(text = "⏳", fontSize = fontSize, modifier = Modifier.rotate(angle))
+}
+
+/** Button on the View row for one of the three secondary kinds. Goes
+ *  disabled+gray with an animated hourglass when its kind is the
+ *  currently-running one; visible when [visible], otherwise renders an
+ *  empty Spacer so the three slots stay column-aligned. */
+@Composable
+private fun RowScope.SecondaryKindButton(
+    label: String, count: Int, visible: Boolean, isRunning: Boolean,
+    onClick: () -> Unit, modifier: Modifier
+) {
+    if (!visible) {
+        Spacer(modifier = modifier)
+        return
+    }
+    Button(
+        onClick = onClick,
+        enabled = !isRunning,
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
+        contentPadding = PaddingValues(horizontal = 2.dp)
+    ) {
+        if (isRunning) {
+            AnimatedHourglass()
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        val text = if (count > 0) "$label ($count)" else label
+        Text(text, fontSize = 11.sp, maxLines = 1, softWrap = false)
+    }
+}
+
+/** Button on the Actions row for one of the three secondary kinds.
+ *  When its kind is running, gets an animated hourglass and goes
+ *  disabled+gray; sibling kinds stay disabled while any run is in
+ *  flight (no hourglass), so the user can't kick off overlapping
+ *  batches. */
+@Composable
+private fun RowScope.SecondaryActionButton(
+    label: String, isRunning: Boolean, disabled: Boolean,
+    onClick: () -> Unit, modifier: Modifier
+) {
+    Button(
+        onClick = onClick,
+        enabled = !disabled && !isRunning,
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
+        contentPadding = PaddingValues(horizontal = 2.dp)
+    ) {
+        if (isRunning) {
+            AnimatedHourglass()
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false)
     }
 }
