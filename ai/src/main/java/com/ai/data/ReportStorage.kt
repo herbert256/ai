@@ -106,13 +106,29 @@ object ReportStorage {
             if (requestBody != null) agent.requestBody = requestBody
             if (responseHeaders != null) agent.responseHeaders = responseHeaders
             if (responseBody != null) agent.responseBody = responseBody
-            if (errorMessage != null) agent.errorMessage = errorMessage
+            // On a SUCCESS transition, every "result" field is replaced
+            // with what the new call provided — including clearing any
+            // leftover errorMessage / citations / etc. from a prior
+            // failed attempt. Without this a regen that recovered from
+            // an error would keep the stale failure on the per-model
+            // viewer (which checks errorMessage before responseBody).
+            // Other transitions keep the "preserve on null" behaviour
+            // so a partial mid-flight update doesn't drop earlier data.
+            if (status == ReportStatus.SUCCESS) {
+                agent.errorMessage = null
+                agent.citations = citations
+                agent.searchResults = searchResults
+                agent.relatedQuestions = relatedQuestions
+                agent.rawUsageJson = rawUsageJson
+            } else {
+                if (errorMessage != null) agent.errorMessage = errorMessage
+                if (citations != null) agent.citations = citations
+                if (searchResults != null) agent.searchResults = searchResults
+                if (relatedQuestions != null) agent.relatedQuestions = relatedQuestions
+                if (rawUsageJson != null) agent.rawUsageJson = rawUsageJson
+            }
             if (tokenUsage != null) agent.tokenUsage = tokenUsage
             if (cost != null) { agent.cost = cost; report.totalCost = report.agents.mapNotNull { it.cost }.sum() }
-            if (citations != null) agent.citations = citations
-            if (searchResults != null) agent.searchResults = searchResults
-            if (relatedQuestions != null) agent.relatedQuestions = relatedQuestions
-            if (rawUsageJson != null) agent.rawUsageJson = rawUsageJson
             if (durationMs != null) agent.durationMs = durationMs
             if (report.agents.all { it.reportStatus in listOf(ReportStatus.SUCCESS, ReportStatus.ERROR, ReportStatus.STOPPED) }) {
                 report.completedAt = System.currentTimeMillis()
