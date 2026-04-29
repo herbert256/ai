@@ -172,7 +172,8 @@ fun AppNavHost(
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
-                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) })
+                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,

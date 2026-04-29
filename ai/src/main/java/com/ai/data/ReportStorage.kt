@@ -224,4 +224,22 @@ object ReportStorage {
             true
         }
     }
+
+    /** Drop a single ReportAgent row from the report, recompute totalCost,
+     *  and persist. Used by the per-model viewer's "Remove model from
+     *  report" button so the user can prune dud responses without
+     *  rebuilding the whole report. Returns false when the report or
+     *  agent isn't found. */
+    fun removeAgent(context: Context, reportId: String, agentId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            report.agents.removeAt(idx)
+            report.totalCost = report.agents.mapNotNull { it.cost }.sum()
+            saveReport(report)
+            true
+        }
+    }
 }

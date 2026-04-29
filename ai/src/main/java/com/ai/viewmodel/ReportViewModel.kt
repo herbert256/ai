@@ -684,4 +684,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun deleteSecondaryResult(context: Context, reportId: String, resultId: String) {
         SecondaryResultStorage.delete(context, reportId, resultId)
     }
+
+    /** Remove a single agent from a report (storage + in-memory results
+     *  flow + the genericReportsSelectedAgents set the UI iterates). The
+     *  Report screen's row click leads to a single-result viewer with a
+     *  "Remove model from report" button — that's this. */
+    fun removeAgentFromReport(context: Context, reportId: String, agentId: String) {
+        ReportStorage.removeAgent(context, reportId, agentId)
+        _agentResults.update { it - agentId }
+        appViewModel.updateUiState { state ->
+            if (state.currentReportId != reportId) state
+            else state.copy(
+                genericReportsSelectedAgents = state.genericReportsSelectedAgents - agentId,
+                genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
+                genericReportsProgress = (state.genericReportsProgress - 1).coerceAtLeast(0)
+            )
+        }
+    }
 }

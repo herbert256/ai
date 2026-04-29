@@ -42,7 +42,8 @@ fun ReportsScreenNav(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
-    onNavigateToTraceFile: (String) -> Unit = {}
+    onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -108,6 +109,8 @@ fun ReportsScreenNav(
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToTraceFile = onNavigateToTraceFile,
+        onNavigateToModelInfo = onNavigateToModelInfo,
+        onRemoveAgent = { rid, aid -> reportViewModel.removeAgentFromReport(context, rid, aid) },
         onClearExternalInstructions = viewModel::clearExternalInstructions,
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onUpdateModelList = { rid, edited ->
@@ -201,6 +204,8 @@ fun ReportsScreen(
     onRunSecondary: (String, SecondaryKind, List<Pair<AppService, String>>, com.ai.data.SecondaryScope) -> Unit = { _, _, _, _ -> },
     onLoadSecondaryLastSelection: (String, SecondaryKind) -> Set<String> = { _, _ -> emptySet() },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportSections, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
@@ -216,6 +221,9 @@ fun ReportsScreen(
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
     var viewerSection by remember { mutableStateOf<String?>(null) }
+    // Per-row click → focused single-model viewer. Distinct from the
+    // multi-agent ReportsViewerScreen reached via View → Results.
+    var singleResultAgentId by remember { mutableStateOf<String?>(null) }
     var showExport by remember { mutableStateOf(false) }
     var showEditPrompt by remember { mutableStateOf(false) }
     var showEditParameters by remember { mutableStateOf(false) }
@@ -332,6 +340,19 @@ fun ReportsScreen(
     // Full-screen overlays
     if (showViewer && currentReportId != null) {
         ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome, onNavigateToTraceFile = onNavigateToTraceFile)
+        return
+    }
+    val singleAgentId = singleResultAgentId
+    if (singleAgentId != null && currentReportId != null) {
+        ReportSingleResultScreen(
+            reportId = currentReportId,
+            agentId = singleAgentId,
+            onBack = { singleResultAgentId = null },
+            onNavigateHome = onNavigateHome,
+            onNavigateToModelInfo = onNavigateToModelInfo,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onRemoveAgent = onRemoveAgent
+        )
         return
     }
     if (showAdvancedParameters) {
@@ -546,7 +567,7 @@ fun ReportsScreen(
                 onViewResults = { selectedAgentForViewer = null; viewerSection = null; showViewer = true },
                 onViewPrompt = { selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true },
                 onViewCosts = { selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true },
-                onViewAgent = { agentId -> selectedAgentForViewer = agentId; viewerSection = null; showViewer = true },
+                onViewAgent = { agentId -> singleResultAgentId = agentId },
                 onShare = { showExport = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
                 onEditPrompt = { showEditPrompt = true },
