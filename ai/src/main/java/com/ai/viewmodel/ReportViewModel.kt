@@ -535,7 +535,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         reportId: String,
         kind: SecondaryKind,
-        picks: List<Pair<AppService, String>>
+        picks: List<Pair<AppService, String>>,
+        scopeChoice: SecondaryScope = SecondaryScope.AllReports
     ) {
         if (picks.isEmpty()) return
         secondaryJob?.cancel()
@@ -554,8 +555,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 return@launch
             }
             val template = resolveTemplate(aiSettings, generalSettings, kind)
-            val resultsBlock = buildResultsBlock(report)
-            val successfulCount = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+            // Resolve scope: AllReports → no filter; TopRanked → parse
+            // the chosen rerank, take the top-N original ids. If parsing
+            // fails (legacy / malformed rerank output) fall back to
+            // AllReports rather than blocking the user.
+            val includeIds: Set<Int>? = when (scopeChoice) {
+                SecondaryScope.AllReports -> null
+                is SecondaryScope.TopRanked -> {
+                    val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
+                    val ids = extractTopRankedIds(rerank?.content, scopeChoice.count)
+                    if (ids.isNullOrEmpty()) null else ids.toSet()
+                }
+            }
+            val resultsBlock = buildResultsBlock(report, includeIds)
+            val successfulCount = if (includeIds != null) includeIds.size
+                else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
             val resolvedPrompt = resolveSecondaryPrompt(
                 template, question = report.prompt, results = resultsBlock,
                 count = successfulCount, title = report.title

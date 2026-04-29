@@ -230,16 +230,61 @@ fun resolveSecondaryPrompt(
 /** Build the @RESULTS@ block: per-agent text, prefixed with `[N]
  *  provider=<id> model=<id>`. The bracketed N is the stable id rerank
  *  models echo back — and the anchor target HTML export wires up
- *  links to. */
-fun buildResultsBlock(report: Report): String {
+ *  links to.
+ *
+ *  [includeIds] (1-based) restricts the block to a subset of the success-
+ *  ordered agent list while *preserving the original numbering*. The
+ *  rest of the system (HTML anchors, secondary-result link rewriting)
+ *  keys on the original ids, so passing [4, 1, 7] correctly emits
+ *  blocks `[1] [4] [7]` in their original-success order. */
+fun buildResultsBlock(report: Report, includeIds: Set<Int>? = null): String {
     val sb = StringBuilder()
     val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+    var emitted = 0
+    val total = if (includeIds != null) successful.indices.count { (it + 1) in includeIds } else successful.size
     successful.forEachIndexed { idx, agent ->
+        val originalId = idx + 1
+        if (includeIds != null && originalId !in includeIds) return@forEachIndexed
         val provider = AppService.findById(agent.provider)?.id ?: agent.provider
-        sb.append("[").append(idx + 1).append("] provider=").append(provider)
+        sb.append("[").append(originalId).append("] provider=").append(provider)
             .append(" model=").append(agent.model).append('\n')
         sb.append(agent.responseBody?.trim() ?: "")
-        if (idx != successful.lastIndex) sb.append("\n\n")
+        emitted++
+        if (emitted != total) sb.append("\n\n")
     }
     return sb.toString()
+}
+
+/** Restriction on which of the parent report's per-agent results are
+ *  fed into a Summarize / Compare run. Rerank itself always uses
+ *  [AllReports] — it ranks the full set by definition. */
+sealed class SecondaryScope {
+    object AllReports : SecondaryScope()
+    data class TopRanked(val count: Int, val rerankResultId: String) : SecondaryScope()
+}
+
+/** Parse the structured JSON output of a rerank result and return the
+ *  original [N] ids of the top [count] entries (sorted by `rank`). The
+ *  prompt asks for `[{"id":N,"rank":R, ...}, ...]`; ``` fences are
+ *  tolerated. Returns null if the payload doesn't deserialize cleanly. */
+fun extractTopRankedIds(rerankContent: String?, count: Int): List<Int>? {
+    if (rerankContent.isNullOrBlank() || count <= 0) return null
+    val cleaned = rerankContent.trim()
+        .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    val arr = try {
+        @Suppress("DEPRECATION")
+        com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
+    } catch (_: Exception) { return null } ?: return null
+    if (arr.size() == 0) return null
+
+    data class Entry(val id: Int, val rank: Int)
+    val entries = arr.mapNotNull { el ->
+        if (!el.isJsonObject) return@mapNotNull null
+        val obj = el.asJsonObject
+        val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
+        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt ?: Int.MAX_VALUE
+        Entry(id, rank)
+    }
+    if (entries.isEmpty()) return null
+    return entries.sortedBy { it.rank }.take(count).map { it.id }
 }
