@@ -86,7 +86,12 @@ data class ConfigExport(
     val providerDefinitions: List<ProviderDefinition>? = null,
     val providerStates: Map<String, String>? = null,
     val modelTypeOverrides: List<ModelTypeOverride>? = null,
-    val defaultTypePaths: Map<String, String>? = null
+    val defaultTypePaths: Map<String, String>? = null,
+    /** Custom rerank / summarize prompt overrides. Null when the user
+     *  hasn't customised them (the runtime falls back to the hardcoded
+     *  default in SecondaryPrompts). */
+    val rerankPrompt: String? = null,
+    val summarizePrompt: String? = null
 )
 
 data class ApiKeyEntry(val service: String, val apiKey: String)
@@ -104,5 +109,7 @@ data class ConfigImportResult(
     val huggingFaceApiKey: String? = null,
     val openRouterApiKey: String? = null,
     val artificialAnalysisApiKey: String? = null,
-    val defaultTypePaths: Map<String, String>? = null
+    val defaultTypePaths: Map<String, String>? = null,
+    val rerankPrompt: String? = null,
+    val summarizePrompt: String? = null
 )

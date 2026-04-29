@@ -210,14 +210,23 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
  *  search, provider filter, checkbox per row, selected models float to
  *  the top, Add commits the whole batch in one go. Replaces an earlier
  *  single-select Dialog that forced the user to re-open the picker for
- *  every model they wanted to add. */
+ *  every model they wanted to add.
+ *
+ *  Reused by the Rerank / Summarize flows: the [confirmLabel] is shown on
+ *  the action button, [titleText] on the bar; [showRerankOnlyToggle] adds
+ *  a checkbox that narrows the catalog to ModelType.RERANK so the user
+ *  can verify rerank-typed models exist for their providers. */
 @Composable
 internal fun ReportSelectModelsScreen(
     aiSettings: Settings,
     alreadySelected: Set<Pair<AppService, String>>,
     onConfirm: (List<Pair<AppService, String>>) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    titleText: String = "Add Models",
+    confirmLabel: String = "Add",
+    initialChecked: Set<Pair<AppService, String>> = emptySet(),
+    showRerankOnlyToggle: Boolean = false
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -225,13 +234,17 @@ internal fun ReportSelectModelsScreen(
     val activeServices = aiSettings.getActiveServices()
     var providerFilter by remember { mutableStateOf<AppService?>(null) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
-    var checked by remember { mutableStateOf<Set<Pair<AppService, String>>>(emptySet()) }
+    var checked by remember { mutableStateOf(initialChecked) }
+    var rerankOnly by remember { mutableStateOf(false) }
 
     val all = remember(aiSettings) {
         activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
     }
     val providerFiltered = if (providerFilter != null) all.filter { it.first == providerFilter } else all
-    val searched = if (search.isBlank()) providerFiltered else providerFiltered.filter { (prov, model) ->
+    val typeFiltered = if (rerankOnly) {
+        providerFiltered.filter { (prov, model) -> aiSettings.getModelType(prov, model) == com.ai.data.ModelType.RERANK }
+    } else providerFiltered
+    val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
         prov.displayName.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
     }
     val sorted = remember(searched, checked, alreadySelected) {
@@ -243,7 +256,7 @@ internal fun ReportSelectModelsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Add Models", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = titleText, onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -268,7 +281,14 @@ internal fun ReportSelectModelsScreen(
                 onClick = { onConfirm(checked.toList()) },
                 enabled = checked.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Add (${checked.size})", maxLines = 1, softWrap = false) }
+            ) { Text("$confirmLabel (${checked.size})", maxLines = 1, softWrap = false) }
+        }
+
+        if (showRerankOnlyToggle) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Checkbox(checked = rerankOnly, onCheckedChange = { rerankOnly = it })
+                Text("Rerank models only", fontSize = 12.sp, color = AppColors.TextTertiary)
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))

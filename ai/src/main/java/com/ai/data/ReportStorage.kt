@@ -176,8 +176,23 @@ object ReportStorage {
 
     fun getReport(context: Context, reportId: String): Report? { init(context); return lock.withLock { loadReport(reportId) } }
     fun getAllReports(context: Context): List<Report> { init(context); return lock.withLock { loadAllReports().sortedByDescending { it.timestamp } } }
-    fun deleteReport(context: Context, reportId: String) { init(context); lock.withLock { File(reportsDir, "$reportId.json").delete() } }
-    fun deleteAllReports(context: Context) { init(context); lock.withLock { reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { it.delete() } } }
+    fun deleteReport(context: Context, reportId: String) {
+        init(context)
+        lock.withLock { File(reportsDir, "$reportId.json").delete() }
+        // Cascade: drop any rerank/summary meta-results associated with the
+        // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
+        SecondaryResultStorage.deleteAllForReport(context, reportId)
+    }
+    fun deleteAllReports(context: Context) {
+        init(context)
+        lock.withLock {
+            reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { f ->
+                val reportId = f.nameWithoutExtension
+                f.delete()
+                SecondaryResultStorage.deleteAllForReport(context, reportId)
+            }
+        }
+    }
 
     private fun loadReport(reportId: String): Report? {
         val file = File(reportsDir ?: return null, "$reportId.json")

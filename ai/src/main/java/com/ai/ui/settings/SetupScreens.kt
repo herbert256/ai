@@ -27,6 +27,8 @@ fun SetupScreen(
     huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
     aaApiKey: String = "",
+    rerankPrompt: String = "",
+    summarizePrompt: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
@@ -78,6 +80,11 @@ fun SetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) })
             SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
                 onClick = onNavigateToCostConfig)
+            run {
+                val secondaryCount = (if (rerankPrompt.isNotBlank()) 1 else 0) + (if (summarizePrompt.isNotBlank()) 1 else 0)
+                SetupNavCard("\uD83D\uDD04", "Rerank & Summarize", "Templates for the report meta-result flows", "$secondaryCount",
+                    onClick = { onNavigate(SettingsSubScreen.AI_SECONDARY_PROMPTS) })
+            }
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
         }

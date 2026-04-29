@@ -495,4 +495,128 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportGenerationJob = null
         ApiTracer.currentReportId = null
     }
+
+    // ===== Secondary results: rerank + summarize =====
+
+    private var secondaryJob: Job? = null
+
+    /** Resolve the prompt template for [kind]: prefer a user-supplied
+     *  Internal Prompt named "rerank" or "summarize", fall back to the
+     *  GeneralSettings dedicated field, finally fall back to the hardcoded
+     *  default in [SecondaryPrompts]. */
+    private fun resolveTemplate(aiSettings: Settings, generalSettings: GeneralSettings, kind: SecondaryKind): String {
+        val targetName = if (kind == SecondaryKind.RERANK) "rerank" else "summarize"
+        val internal = aiSettings.prompts.firstOrNull { it.name.equals(targetName, ignoreCase = true) }
+        if (internal != null && internal.promptText.isNotBlank()) return internal.promptText
+        val fromGs = if (kind == SecondaryKind.RERANK) generalSettings.rerankPrompt else generalSettings.summarizePrompt
+        if (fromGs.isNotBlank()) return fromGs
+        return if (kind == SecondaryKind.RERANK) SecondaryPrompts.DEFAULT_RERANK else SecondaryPrompts.DEFAULT_SUMMARIZE
+    }
+
+    /** Kick off a Rerank or Summarize run for [reportId] across [picks]
+     *  (provider/model pairs). One [SecondaryResult] per pick is persisted
+     *  independently — multi-model picks produce N separate viewable
+     *  results. The Report screen blocks the buttons while a run is in
+     *  flight (via [SecondaryRunState] on UiState). */
+    fun runSecondary(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        kind: SecondaryKind,
+        picks: List<Pair<AppService, String>>
+    ) {
+        if (picks.isEmpty()) return
+        secondaryJob?.cancel()
+        // Persist last selection so the next click on Rerank/Summarize for
+        // this report pre-checks the same models.
+        appViewModel.saveSecondaryLastSelection(reportId, kind,
+            picks.map { (p, m) -> "${p.id}:$m" }.toHashSet())
+        appViewModel.updateUiState { it.copy(secondaryRun = SecondaryRunState(reportId, kind, picks.size)) }
+
+        secondaryJob = scope.launch(Dispatchers.IO) {
+            val state = appViewModel.uiState.value
+            val aiSettings = state.aiSettings
+            val generalSettings = state.generalSettings
+            val report = ReportStorage.getReport(context, reportId) ?: run {
+                appViewModel.updateUiState { it.copy(secondaryRun = null) }
+                return@launch
+            }
+            val template = resolveTemplate(aiSettings, generalSettings, kind)
+            val resultsBlock = buildResultsBlock(report)
+            val successfulCount = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+            val resolvedPrompt = resolveSecondaryPrompt(
+                template, question = report.prompt, results = resultsBlock,
+                count = successfulCount, title = report.title
+            )
+
+            val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
+            coroutineScope {
+                picks.map { (provider, model) ->
+                    async {
+                        sem.withPermit {
+                            executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings)
+                            appViewModel.updateUiState { s ->
+                                val cur = s.secondaryRun
+                                if (cur != null && cur.reportId == reportId && cur.kind == kind) {
+                                    s.copy(secondaryRun = cur.copy(completed = cur.completed + 1))
+                                } else s
+                            }
+                        }
+                    }
+                }.awaitAll()
+            }
+            // Clear the in-progress state when the whole batch lands.
+            appViewModel.updateUiState { s ->
+                if (s.secondaryRun?.reportId == reportId && s.secondaryRun.kind == kind) s.copy(secondaryRun = null) else s
+            }
+        }
+    }
+
+    private suspend fun executeSecondaryTask(
+        context: Context, reportId: String, kind: SecondaryKind,
+        provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings
+    ) {
+        val apiKey = aiSettings.getApiKey(provider)
+        val agentName = "${provider.displayName} / $model"
+        val placeholder = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
+
+        val agent = Agent(
+            id = "secondary:${kind.name}:${provider.id}:$model",
+            name = agentName, provider = provider, model = model, apiKey = apiKey
+        )
+        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+        val start = System.currentTimeMillis()
+        val response = try {
+            appViewModel.repository.analyzeWithAgent(
+                agent, "", resolvedPrompt, AgentParameters(), null, context, baseUrl
+            )
+        } catch (e: Exception) {
+            AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agentName)
+        }
+        val duration = System.currentTimeMillis() - start
+        val pricing = PricingCache.getPricing(context, provider, model)
+        val tu = response.tokenUsage
+        val inCost = tu?.let { it.inputTokens * pricing.promptPrice }
+        val outCost = tu?.let { it.outputTokens * pricing.completionPrice }
+
+        SecondaryResultStorage.save(context, placeholder.copy(
+            content = response.analysis,
+            errorMessage = response.error,
+            tokenUsage = tu,
+            inputCost = inCost,
+            outputCost = outCost,
+            durationMs = duration
+        ))
+
+        if (response.error == null && tu != null) {
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
+                kind = when (kind) { SecondaryKind.RERANK -> "rerank"; SecondaryKind.SUMMARIZE -> "summarize" }
+            )
+        }
+    }
+
+    fun deleteSecondaryResult(context: Context, reportId: String, resultId: String) {
+        SecondaryResultStorage.delete(context, reportId, resultId)
+    }
 }

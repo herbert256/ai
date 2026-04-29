@@ -28,6 +28,7 @@ enum class SettingsSubScreen {
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
+    AI_SECONDARY_PROMPTS,
     AI_IMPORT_EXPORT,
     AI_REFRESH
 }
@@ -97,6 +98,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PROMPTS, SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
+            SettingsSubScreen.AI_SECONDARY_PROMPTS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
@@ -121,6 +123,8 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
                 aaApiKey = generalSettings.artificialAnalysisApiKey,
+                rerankPrompt = generalSettings.rerankPrompt,
+                summarizePrompt = generalSettings.summarizePrompt,
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
@@ -356,6 +360,13 @@ fun SettingsScreen(
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_SECONDARY_PROMPTS -> {
+            SecondaryPromptsScreen(
+                generalSettings = generalSettings,
+                onSave = onSaveGeneral,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }

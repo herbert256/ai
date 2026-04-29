@@ -33,7 +33,12 @@ data class GeneralSettings(
     /** Default API path per model type. Used when a provider doesn't declare a
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS
      *  when this map is empty for a given type. */
-    val defaultTypePaths: Map<String, String> = emptyMap()
+    val defaultTypePaths: Map<String, String> = emptyMap(),
+    /** Templates for the rerank / summarize secondary-result flows. Empty
+     *  means "use the hardcoded default in SecondaryPrompts." Both round-trip
+     *  through the eval_prefs backup zip and the JSON config export. */
+    val rerankPrompt: String = "",
+    val summarizePrompt: String = ""
 )
 
 // Prompt history entry
@@ -86,6 +91,11 @@ data class UiState(
     val hasPendingPromptChange: Boolean = false,
     val hasPendingParametersChange: Boolean = false,
     val externalIntent: ExternalIntent = ExternalIntent(),
+    // Active rerank / summarize generation, if any. Drives the in-progress
+    // banner on the Report screen and disables the Rerank/Summarize buttons
+    // while a run is going. Cleared as soon as the last per-model task
+    // finishes (success or error).
+    val secondaryRun: SecondaryRunState? = null,
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),
     val dualChatConfig: DualChatConfig? = null
@@ -107,6 +117,16 @@ data class UiState(
     val externalSwarmNames: List<String> get() = externalIntent.swarmNames
     val externalModelSpecs: List<String> get() = externalIntent.modelSpecs
 }
+
+/** In-progress state for a Rerank or Summarize run. Multi-model picks
+ *  produce N independently-saved SecondaryResults; [completed] tracks how
+ *  many have landed so the UI can render N/Total as they finish. */
+data class SecondaryRunState(
+    val reportId: String,
+    val kind: SecondaryKind,
+    val total: Int,
+    val completed: Int = 0
+)
 
 data class ExternalIntent(
     val systemPrompt: String? = null,
@@ -154,6 +174,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ApiTracer.init(application)
         ChatHistoryManager.init(application)
         ReportStorage.init(application)
+        SecondaryResultStorage.init(application)
         ProviderRegistry.init(application)
         PromptCache.init(application)
 
@@ -204,7 +225,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         huggingFaceApiKey = result.huggingFaceApiKey ?: gs.huggingFaceApiKey,
                         openRouterApiKey = result.openRouterApiKey ?: gs.openRouterApiKey,
                         artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: gs.artificialAnalysisApiKey,
-                        defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths
+                        defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths,
+                        rerankPrompt = result.rerankPrompt ?: gs.rerankPrompt,
+                        summarizePrompt = result.summarizePrompt ?: gs.summarizePrompt
                     )
                     if (updatedGs != gs) { gs = updatedGs; settingsPrefs.saveGeneralSettings(gs) }
                 }
@@ -254,6 +277,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveReportAgents(agentIds: Set<String>) { prefs.edit { putStringSet(AI_REPORT_AGENTS_KEY, agentIds.toHashSet()) } }
     fun loadReportModels(): Set<String> = prefs.getStringSet(AI_REPORT_MODELS_KEY, emptySet())?.toHashSet() ?: emptySet()
     fun saveReportModels(modelIds: Set<String>) { prefs.edit { putStringSet(AI_REPORT_MODELS_KEY, modelIds.toHashSet()) } }
+
+    // Per-(reportId, kind) last-selected models for the Rerank / Summarize
+    // pickers. Stored as "<provider>:<model>" strings so the next click
+    // pre-checks the same models the user used last run on this report.
+    fun loadSecondaryLastSelection(reportId: String, kind: SecondaryKind): Set<String> =
+        prefs.getStringSet(secondarySelectionKey(reportId, kind), emptySet())?.toHashSet() ?: emptySet()
+    fun saveSecondaryLastSelection(reportId: String, kind: SecondaryKind, picks: Set<String>) {
+        prefs.edit { putStringSet(secondarySelectionKey(reportId, kind), picks.toHashSet()) }
+    }
+    private fun secondarySelectionKey(reportId: String, kind: SecondaryKind) =
+        "secondary_last_${kind.name.lowercase()}_$reportId"
 
     // ===== Model Fetching =====
 

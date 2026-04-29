@@ -194,7 +194,11 @@ fun ImportExportScreen(
                     result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
                     result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
                     result.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
-                    result.defaultTypePaths?.let { onSaveGeneral(generalSettings.copy(defaultTypePaths = it)) }
+                    var gs = generalSettings
+                    result.defaultTypePaths?.let { gs = gs.copy(defaultTypePaths = it) }
+                    result.rerankPrompt?.let { gs = gs.copy(rerankPrompt = it) }
+                    result.summarizePrompt?.let { gs = gs.copy(summarizePrompt = it) }
+                    if (gs != generalSettings) onSaveGeneral(gs)
                 }
             }
             "keys" -> {

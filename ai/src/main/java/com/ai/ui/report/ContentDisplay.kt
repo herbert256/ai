@@ -63,8 +63,9 @@ fun ReportsViewerScreen(
                         Text(report.prompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
                     }
                 } else {
-                    val hasCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
-                    if (!hasCosts) {
+                    val hasAgentCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
+                    val hasSecondaryCosts = SecondaryResultStorage.listForReport(context, report.id).any { it.tokenUsage != null }
+                    if (!hasAgentCosts && !hasSecondaryCosts) {
                         Text("(no usage recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
                     } else {
                         ReportCostTable(report = report)
@@ -186,18 +187,31 @@ fun ReportCostTable(report: Report) {
     val agentsWithCosts = remember(report) {
         report.agents.filter { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
     }
-    if (agentsWithCosts.isEmpty()) return
+    val secondary = remember(report.id) { SecondaryResultStorage.listForReport(context, report.id) }
+    if (agentsWithCosts.isEmpty() && secondary.isEmpty()) return
 
-    data class CostRow(val providerDisplay: String, val model: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)
+    data class CostRow(val type: String, val providerDisplay: String, val model: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)
 
-    val rows = agentsWithCosts.map { agent ->
+    val agentRows = agentsWithCosts.map { agent ->
         val providerEnum = AppService.findById(agent.provider)
         val tu = agent.tokenUsage!!
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, agent.model) }
         val inCents = (pricing?.let { tu.inputTokens * it.promptPrice } ?: 0.0) * 100
         val outCents = (pricing?.let { tu.outputTokens * it.completionPrice } ?: 0.0) * 100
-        CostRow(providerEnum?.displayName ?: agent.provider, agent.model, agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
-    }.sortedByDescending { it.inputCents + it.outputCents }
+        CostRow("report", providerEnum?.displayName ?: agent.provider, agent.model, agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
+    }
+    // Rerank / summarize call costs end up alongside the report rows so the
+    // user sees one consolidated breakdown \u2014 distinguished by the new Type
+    // column.
+    val secondaryRows = secondary.mapNotNull { s ->
+        val tu = s.tokenUsage ?: return@mapNotNull null
+        val providerDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
+        val inCents = (s.inputCost ?: 0.0) * 100
+        val outCents = (s.outputCost ?: 0.0) * 100
+        val type = if (s.kind == SecondaryKind.RERANK) "rerank" else "summarize"
+        CostRow(type, providerDisplay, s.model, s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
+    }
+    val rows = (agentRows + secondaryRows).sortedByDescending { it.inputCents + it.outputCents }
 
     var totalIn = 0; var totalOut = 0; var totalInC = 0.0; var totalOutC = 0.0
     rows.forEach { totalIn += it.inputTokens; totalOut += it.outputTokens; totalInC += it.inputCents; totalOutC += it.outputCents }
@@ -215,7 +229,8 @@ fun ReportCostTable(report: Report) {
             Column(modifier = Modifier.padding(horizontal = 4.dp)) {
                 Row {
                     Text("Total \u00A2", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("Provider", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(90.dp).padding(start = 8.dp))
+                    Text("Type", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(70.dp).padding(start = 8.dp))
+                    Text("Provider", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(90.dp))
                     Text("Model", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(120.dp))
                     Text("Sec", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     Text("In tok", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
@@ -223,11 +238,13 @@ fun ReportCostTable(report: Report) {
                     Text("In \u00A2", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     Text("Out \u00A2", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
-                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(554.dp))
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(624.dp))
                 rows.forEach { r ->
+                    val typeColor = when (r.type) { "rerank" -> AppColors.Orange; "summarize" -> AppColors.Indigo; else -> vColor }
                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
                         Text(fmtC(r.inputCents + r.outputCents), fontSize = vSize, color = vColor, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
-                        Text(r.providerDisplay, fontSize = vSize, color = vColor, modifier = Modifier.width(90.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(r.type, fontSize = vSize, color = typeColor, modifier = Modifier.width(70.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(r.providerDisplay, fontSize = vSize, color = vColor, modifier = Modifier.width(90.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(r.model, fontSize = vSize, color = vColor, modifier = Modifier.width(120.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
                         Text(fmtS(r.durationMs), fontSize = vSize, color = vColor, modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(fmtT(r.inputTokens), fontSize = vSize, color = vColor, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
@@ -236,10 +253,10 @@ fun ReportCostTable(report: Report) {
                         Text(fmtC(r.outputCents), fontSize = vSize, color = vColor, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                     }
                 }
-                HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(554.dp))
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(624.dp))
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
                     Text(fmtC(totalInC + totalOutC), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
-                    Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(210.dp).padding(start = 8.dp))
+                    Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(280.dp).padding(start = 8.dp))
                     Text("", fontSize = vSize, modifier = Modifier.width(48.dp))
                     Text(fmtT(totalIn), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                     Text(fmtT(totalOut), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)

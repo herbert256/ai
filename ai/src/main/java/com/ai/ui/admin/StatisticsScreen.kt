@@ -153,7 +153,26 @@ private fun UsageProviderCard(
 private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(swc.stat.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(swc.stat.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                // Type pill — only shown for non-default kinds (rerank,
+                // summarize). The default "report" kind matches the
+                // implicit assumption and would just be visual noise.
+                val kind = swc.stat.kind
+                if (kind != "report") {
+                    val kindColor = when (kind) {
+                        "rerank" -> AppColors.Orange
+                        "summarize" -> AppColors.Indigo
+                        else -> AppColors.TextDim
+                    }
+                    Text(
+                        text = kind,
+                        fontSize = 9.sp,
+                        color = kindColor,
+                        modifier = Modifier.padding(start = 6.dp).background(AppColors.SurfaceDark, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
             Text("${swc.stat.callCount} calls, ${formatCompactNumber(swc.stat.inputTokens)}/${formatCompactNumber(swc.stat.outputTokens)} tokens",
                 fontSize = 11.sp, color = AppColors.TextTertiary)
         }

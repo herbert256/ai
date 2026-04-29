@@ -15,7 +15,8 @@ import java.util.Locale
 internal data class HtmlReportData(
     val title: String, val prompt: String, val timestamp: String,
     val rapportText: String?, val closeText: String?,
-    val agents: List<HtmlAgentData>, val reportType: ReportType = ReportType.CLASSIC
+    val agents: List<HtmlAgentData>, val reportType: ReportType = ReportType.CLASSIC,
+    val secondary: List<HtmlSecondaryData> = emptyList()
 )
 
 internal data class HtmlAgentData(
@@ -24,6 +25,18 @@ internal data class HtmlAgentData(
     val responseText: String?, val errorMessage: String?,
     val citations: List<String>?, val searchResults: List<SearchResult>?,
     val relatedQuestions: List<String>?, val rawUsageJson: String?, val responseHeaders: String?,
+    val inputTokens: Int? = null, val outputTokens: Int? = null,
+    val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null,
+    /** Stable anchor used by the Reranks block to link back to this agent's
+     *  card. Matches the bracketed [N] tag the rerank prompt asked for. */
+    val anchorIndex: Int? = null
+)
+
+internal data class HtmlSecondaryData(
+    val id: String, val kind: SecondaryKind,
+    val providerDisplay: String, val model: String,
+    val timestamp: String,
+    val content: String?, val errorMessage: String?,
     val inputTokens: Int? = null, val outputTokens: Int? = null,
     val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null
 )
@@ -88,6 +101,14 @@ internal fun openReportInChrome(context: android.content.Context, reportId: Stri
 // ===== HTML Conversion =====
 
 internal fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
+    // The bracketed [N] in the rerank prompt is built from the
+    // SUCCESS-only ordered subset (see buildResultsBlock). Reuse the same
+    // ordering here so the anchorIndex on each card matches the rank ids
+    // a rerank model produced.
+    val anchorByKey = mutableMapOf<String, Int>()
+    report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+        .forEachIndexed { idx, a -> anchorByKey["${a.provider}::${a.model}"] = idx + 1 }
+
     val agents = report.agents
         .filter { it.reportStatus != ReportStatus.STOPPED && it.reportStatus != ReportStatus.PENDING }
         .sortedBy { it.agentName.lowercase() }
@@ -103,15 +124,28 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
                 responseText = agent.responseBody, errorMessage = agent.errorMessage?.takeIf { agent.reportStatus == ReportStatus.ERROR },
                 citations = agent.citations, searchResults = agent.searchResults, relatedQuestions = agent.relatedQuestions,
                 rawUsageJson = agent.rawUsageJson, responseHeaders = agent.responseHeaders,
-                inputTokens = tu?.inputTokens, outputTokens = tu?.outputTokens, inputCost = inCost, outputCost = outCost, durationMs = agent.durationMs
+                inputTokens = tu?.inputTokens, outputTokens = tu?.outputTokens, inputCost = inCost, outputCost = outCost, durationMs = agent.durationMs,
+                anchorIndex = anchorByKey["${agent.provider}::${agent.model}"]
             )
         }
+
+    val secondary = SecondaryResultStorage.listForReport(context, report.id).map { s ->
+        HtmlSecondaryData(
+            id = s.id, kind = s.kind,
+            providerDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId,
+            model = s.model,
+            timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(s.timestamp)),
+            content = s.content, errorMessage = s.errorMessage,
+            inputTokens = s.tokenUsage?.inputTokens, outputTokens = s.tokenUsage?.outputTokens,
+            inputCost = s.inputCost, outputCost = s.outputCost, durationMs = s.durationMs
+        )
+    }
 
     val data = HtmlReportData(
         title = report.title, prompt = report.prompt,
         timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
         rapportText = report.rapportText, closeText = report.closeText,
-        agents = agents, reportType = report.reportType
+        agents = agents, reportType = report.reportType, secondary = secondary
     )
 
     return renderHtmlReport(data, appVersion)
@@ -143,7 +177,12 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     sb.append("</div>")
 
     data.agents.forEachIndexed { i, a ->
-        sb.append("<div id='agent-${escId(a.agentId)}' class='agent-result${if (i == 0) " active" else ""}'>")
+        // Two anchors per card: the original agent-id slot for the
+        // one-by-one tab show/hide JS, and a stable result-N anchor that
+        // the Reranks block links into.
+        val anchorAttrs = a.anchorIndex?.let { " data-result='$it'" } ?: ""
+        sb.append("<div id='agent-${escId(a.agentId)}' class='agent-result${if (i == 0) " active" else ""}'$anchorAttrs>")
+        a.anchorIndex?.let { sb.append("<a id='result-$it'></a>") }
         sb.append("<div class='agent-header'>${esc(a.providerDisplay)} - ${esc(a.model)}</div>")
         sb.append("<div class='report-content'>")
         if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
@@ -171,7 +210,9 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     sb.append("<div id='layout-allTogether' class='layout'${if (!defaultAllTogether) " style='display:none'" else ""}>")
     sb.append("<div class='table-grid'>")
     data.agents.forEach { a ->
-        sb.append("<div class='table-card'>")
+        val anchorAttr = a.anchorIndex?.let { " id='card-result-$it'" } ?: ""
+        sb.append("<div class='table-card'$anchorAttr>")
+        a.anchorIndex?.let { sb.append("<a id='all-result-$it'></a>") }
         sb.append("<div class='card-header'>${esc(a.providerDisplay)}</div>")
         sb.append("<div class='card-model'>${esc(a.model)}</div>")
         if (a.errorMessage != null) {
@@ -190,6 +231,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
 
     // Shared footer (prompt, costs, close text) is outside the layouts so it's always visible.
     appendPromptAndCosts(sb, data)
+    appendSecondarySections(sb, data)
     data.closeText?.let { sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(it)}</div>") }
     sb.append("<div class='footer'>Generated by AI v$appVersion on ${data.timestamp}</div>")
     sb.append("</div>")
@@ -202,7 +244,9 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
 
 private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
     val hasPrompt = data.prompt.isNotBlank()
-    val hasCosts = data.agents.any { it.inputTokens != null }
+    val hasAgentCosts = data.agents.any { it.inputTokens != null }
+    val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
+    val hasCosts = hasAgentCosts || hasSecondaryCosts
     if (!hasPrompt && !hasCosts) return
 
     sb.append("<div class='section-buttons'>")
@@ -214,18 +258,113 @@ private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
 
     if (hasCosts) {
         sb.append("<div id='section-costs' class='section-content' style='display:none'><div class='prompt-section'><div class='prompt-label'>Costs</div>")
-        sb.append("<table class='cost-table'><tr><th>Provider</th><th>Model</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
-        val sorted = data.agents.filter { it.inputCost != null }.sortedByDescending { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
-        var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
-        sorted.forEach { a ->
-            val ic = (a.inputCost ?: 0.0) * 100; val oc = (a.outputCost ?: 0.0) * 100
-            tIn += a.inputTokens ?: 0; tOut += a.outputTokens ?: 0; tInC += ic; tOutC += oc
-            val secs = a.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-            sb.append("<tr><td>${esc(a.providerDisplay)}</td><td>${esc(a.model)}</td><td class='num'>$secs</td><td class='num'>${a.inputTokens ?: 0}</td><td class='num'>${a.outputTokens ?: 0}</td><td class='num'>${"%.2f".format(ic)}</td><td class='num'>${"%.2f".format(oc)}</td><td class='num'>${"%.2f".format(ic + oc)}</td></tr>")
+        sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        data class Row(val type: String, val providerDisplay: String, val model: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
+        val agentRows = data.agents.filter { it.inputCost != null }.map {
+            Row("report", it.providerDisplay, it.model, it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+                (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
         }
-        sb.append("<tr class='total-row'><td colspan='3'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
+        val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
+            val type = if (it.kind == SecondaryKind.RERANK) "rerank" else "summarize"
+            Row(type, it.providerDisplay, it.model, it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+                (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
+        }
+        val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
+        var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
+        sorted.forEach { r ->
+            tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
+            val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td colspan='4'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
         sb.append("</table></div></div>")
     }
+}
+
+/** Render the Reranks and Summaries blocks at the end of the report.
+ *  Rerank entries are post-processed to convert any reference to a result
+ *  bracket (`[N]` / `id: N`) into an anchor link back to the corresponding
+ *  agent card. */
+private fun appendSecondarySections(sb: StringBuilder, data: HtmlReportData) {
+    val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
+    val summaries = data.secondary.filter { it.kind == SecondaryKind.SUMMARIZE }
+    if (reranks.isEmpty() && summaries.isEmpty()) return
+
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+
+    if (reranks.isNotEmpty()) {
+        sb.append("<div class='secondary-section'><h2 class='secondary-heading'>Reranks</h2>")
+        reranks.forEach { r ->
+            sb.append("<div class='secondary-card'>")
+            sb.append("<div class='secondary-card-header'>${esc(r.providerDisplay)} · ${esc(r.model)} <span class='secondary-ts'>${esc(r.timestamp)}</span></div>")
+            if (r.errorMessage != null) {
+                sb.append("<div class='error'>Error: ${esc(r.errorMessage)}</div>")
+            } else if (!r.content.isNullOrBlank()) {
+                sb.append("<div class='secondary-body'>${renderRerankContent(r.content, maxAnchor)}</div>")
+            }
+            sb.append("</div>")
+        }
+        sb.append("</div>")
+    }
+
+    if (summaries.isNotEmpty()) {
+        sb.append("<div class='secondary-section'><h2 class='secondary-heading'>Summaries</h2>")
+        summaries.forEach { s ->
+            sb.append("<div class='secondary-card'>")
+            sb.append("<div class='secondary-card-header'>${esc(s.providerDisplay)} · ${esc(s.model)} <span class='secondary-ts'>${esc(s.timestamp)}</span></div>")
+            if (s.errorMessage != null) {
+                sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
+            } else if (!s.content.isNullOrBlank()) {
+                sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(s.content)}</div>")
+            }
+            sb.append("</div>")
+        }
+        sb.append("</div>")
+    }
+}
+
+/** If the rerank model returned the requested JSON array, render it as a
+ *  table with anchor links to the corresponding result cards. Otherwise
+ *  fall back to running it through the markdown renderer with a simple
+ *  pass to linkify any [N] references that point at a known result. */
+private fun renderRerankContent(content: String, maxAnchor: Int): String {
+    // Try strict JSON first — strip ``` fences just in case.
+    val cleaned = content.trim()
+        .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    val asArray = try {
+        @Suppress("DEPRECATION")
+        com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
+    } catch (_: Exception) { null }
+
+    if (asArray != null && asArray.size() > 0 && asArray.all { it.isJsonObject }) {
+        val rows = asArray.mapNotNull { el ->
+            val obj = el.asJsonObject
+            val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
+            val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
+            val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val reason = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString
+            Triple(id, rank to score, reason)
+        }.sortedBy { it.second.first ?: Int.MAX_VALUE }
+        if (rows.isNotEmpty()) {
+            val sb = StringBuilder()
+            sb.append("<table class='rerank-table'><tr><th>Rank</th><th>Result</th><th>Score</th><th>Reason</th></tr>")
+            rows.forEach { (id, rs, reason) ->
+                val link = if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else "[$id]"
+                val rank = rs.first?.toString() ?: ""
+                val score = rs.second?.let { "%.0f".format(it) } ?: ""
+                sb.append("<tr><td class='num'>$rank</td><td>$link</td><td class='num'>$score</td><td>${esc(reason ?: "")}</td></tr>")
+            }
+            sb.append("</table>")
+            return sb.toString()
+        }
+    }
+
+    // Fallback: linkify [N] references inline so the user still gets clickable jumps.
+    val linkified = Regex("""\[(\d+)\]""").replace(content) { m ->
+        val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
+        if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
+    }
+    return convertMarkdownToHtmlForExport(linkified)
 }
 
 private fun processThinkSections(text: String, agentId: String): String {
@@ -324,6 +463,17 @@ ul{padding-left:20px}li{margin:4px 0}
 .rapport{background:#1a2a1a;border-left:3px solid #4CAF50;padding:12px;margin-bottom:16px;font-size:14px}
 .close-text{margin-top:16px;padding:12px;background:#252525;border-radius:8px}
 .usage-label{color:#999;font-size:12px;margin-top:12px}.usage-json,.headers-text{font-size:11px;color:#888;background:#1a1a1a;padding:8px;border-radius:4px;overflow-x:auto}
+.secondary-section{margin-top:24px}
+.secondary-heading{color:#FF9800;font-size:18px;margin-bottom:8px}
+.secondary-card{background:#252525;border-radius:8px;padding:14px;margin-bottom:12px;border-left:3px solid #FF9800}
+.secondary-card-header{color:#FF9800;font-weight:600;font-size:13px;margin-bottom:8px}
+.secondary-ts{color:#888;font-weight:normal;font-size:11px;margin-left:8px}
+.secondary-body{font-size:14px;line-height:1.5}
+.rerank-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.rerank-table th{color:#FF9800;text-align:left;padding:4px 8px;border-bottom:1px solid #444}
+.rerank-table td{padding:4px 8px;border-bottom:1px solid #333}
+.rerank-table .num{text-align:right;font-family:monospace}
+.rerank-table a{color:#64B5F6;text-decoration:none;font-family:monospace}
 </style></head>
 """
 

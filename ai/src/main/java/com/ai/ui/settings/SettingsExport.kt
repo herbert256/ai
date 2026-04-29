@@ -118,7 +118,9 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         providerDefinitions = ProviderRegistry.getCustomProviders().ifEmpty { null },
         providerStates = settings.providerStates.ifEmpty { null },
         modelTypeOverrides = settings.modelTypeOverrides.ifEmpty { null },
-        defaultTypePaths = generalSettings.defaultTypePaths.ifEmpty { null }
+        defaultTypePaths = generalSettings.defaultTypePaths.ifEmpty { null },
+        rerankPrompt = generalSettings.rerankPrompt.ifBlank { null },
+        summarizePrompt = generalSettings.summarizePrompt.ifBlank { null }
     )
 
     return createAppGson(prettyPrint = true).toJson(export)
@@ -202,7 +204,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 
-    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths)
+    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths, export.rerankPrompt, export.summarizePrompt)
 }
 
 /**

@@ -53,6 +53,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
+            rerankPrompt = prefs.getString(KEY_RERANK_PROMPT, "") ?: "",
+            summarizePrompt = prefs.getString(KEY_SUMMARIZE_PROMPT, "") ?: ""
         )
     }
 
@@ -64,6 +66,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AA_API_KEY, settings.artificialAnalysisApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
+            putString(KEY_RERANK_PROMPT, settings.rerankPrompt)
+            putString(KEY_SUMMARIZE_PROMPT, settings.summarizePrompt)
         }
     }
 
@@ -289,11 +293,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
      * allocated a new Map-of-all-stats per token-usage event. Now we keep stats in an in-memory
      * ConcurrentHashMap and debounce disk writes to once per USAGE_STATS_FLUSH_MS window.
      */
-    fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens) {
+    fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report") {
         val stats = ensureUsageStatsCache()
-        val key = "${provider.id}::$model"
+        val key = "${provider.id}::$model::$kind"
         stats.compute(key) { _, existing ->
-            val base = existing ?: UsageStats(provider, model)
+            val base = existing ?: UsageStats(provider, model, kind = kind)
             base.copy(
                 callCount = base.callCount + 1,
                 inputTokens = base.inputTokens + inputTokens,
@@ -323,8 +327,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    suspend fun updateUsageStatsAsync(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens) =
-        withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens) }
+    suspend fun updateUsageStatsAsync(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report") =
+        withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens, kind) }
 
     fun clearUsageStats() {
         usageStatsCache?.clear()
@@ -385,6 +389,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AA_API_KEY = "artificial_analysis_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
+        private const val KEY_RERANK_PROMPT = "rerank_prompt"
+        private const val KEY_SUMMARIZE_PROMPT = "summarize_prompt"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"
