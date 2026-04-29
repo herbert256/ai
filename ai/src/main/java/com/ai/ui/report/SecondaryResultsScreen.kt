@@ -17,6 +17,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
+import com.ai.data.ReportStatus
+import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
@@ -145,6 +147,7 @@ internal fun SecondaryResultDetailScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     val provider = AppService.findById(result.providerId)?.displayName ?: result.providerId
     val title = when (result.kind) {
         SecondaryKind.RERANK -> "Rerank"
@@ -152,6 +155,19 @@ internal fun SecondaryResultDetailScreen(
         SecondaryKind.COMPARE -> "Compare"
     }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    // Build the same id → "provider / model" map the @RESULTS@ block
+    // used (success-ordered, 1-based) so the viewer can show real model
+    // names instead of the bracketed [N] ids.
+    val agentLabels = remember(result.reportId) {
+        val report = ReportStorage.getReport(context, result.reportId) ?: return@remember emptyMap<Int, String>()
+        report.agents
+            .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+            .mapIndexed { idx, agent ->
+                val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                (idx + 1) to "$provDisplay / ${agent.model}"
+            }.toMap()
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "$title — $provider", onBackClick = onBack, onAiClick = onNavigateHome)
@@ -171,7 +187,27 @@ internal fun SecondaryResultDetailScreen(
                 result.content.isNullOrBlank() -> {
                     Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
                 }
-                else -> ContentWithThinkSections(analysis = result.content)
+                result.kind == SecondaryKind.RERANK -> {
+                    // Try to parse the structured JSON the rerank flow
+                    // produces (chat-prompt path or callRerankApi path).
+                    // Fall back to raw markdown rendering if the model's
+                    // output deviated from the requested schema.
+                    val rows = remember(result.content) { parseRerankRows(result.content) }
+                    if (rows == null) {
+                        ContentWithThinkSections(analysis = result.content)
+                    } else {
+                        RerankTable(rows = rows, agentLabels = agentLabels)
+                    }
+                }
+                else -> {
+                    // Summarize / Compare: replace bracketed [N] tags
+                    // inline with "[N: provider/model]" so the user sees
+                    // who said what without flipping back to the report.
+                    val annotated = remember(result.content, agentLabels) {
+                        annotateBracketRefs(result.content, agentLabels)
+                    }
+                    ContentWithThinkSections(analysis = annotated)
+                }
             }
         }
 
@@ -195,5 +231,84 @@ internal fun SecondaryResultDetailScreen(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
+    }
+}
+
+internal data class RerankRow(val id: Int, val rank: Int?, val score: Int?, val reason: String?)
+
+/** Parse the rerank flow's structured JSON output. Both the chat-prompt
+ *  path and the dedicated rerank-API path emit the same
+ *  `[{id, rank, score, reason}, ...]` shape. ``` fences are tolerated;
+ *  any other shape returns null so the caller can fall back to raw
+ *  rendering. */
+internal fun parseRerankRows(content: String): List<RerankRow>? {
+    val cleaned = content.trim()
+        .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    val arr = try {
+        @Suppress("DEPRECATION")
+        com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
+    } catch (_: Exception) { null } ?: return null
+    if (arr.size() == 0) return null
+    val rows = arr.mapNotNull { el ->
+        if (!el.isJsonObject) return@mapNotNull null
+        val obj = el.asJsonObject
+        val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
+        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
+        val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.asNumber?.toInt()
+        val reason = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString
+        RerankRow(id, rank, score, reason)
+    }
+    if (rows.isEmpty()) return null
+    return rows.sortedBy { it.rank ?: Int.MAX_VALUE }
+}
+
+@Composable
+internal fun RerankTable(rows: List<RerankRow>, agentLabels: Map<Int, String>) {
+    val hColor = AppColors.Blue
+    val hSize = 12.sp
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+            Row(modifier = Modifier.padding(vertical = 4.dp)) {
+                Text("Rank", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                Text("Model", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(220.dp).padding(start = 8.dp))
+                Text("Score", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                Text("Reason", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp))
+            }
+            HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+            rows.forEach { r ->
+                val label = agentLabels[r.id] ?: "[${r.id}] (unknown)"
+                Row(modifier = Modifier.padding(vertical = 6.dp)) {
+                    Text(r.rank?.toString() ?: "—", fontSize = 12.sp, color = AppColors.TextSecondary,
+                        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    Text(label, fontSize = 12.sp, color = Color.White,
+                        modifier = Modifier.width(220.dp).padding(start = 8.dp),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(r.score?.toString() ?: "", fontSize = 12.sp, color = AppColors.Green,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    Text(r.reason.orEmpty(), fontSize = 12.sp, color = AppColors.TextTertiary,
+                        modifier = Modifier.widthIn(min = 200.dp, max = 360.dp).padding(start = 8.dp))
+                }
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+            }
+        }
+    }
+}
+
+/** Replace bracketed `[N]` tags inline with `[N: provider/model]` when
+ *  the id is in the agent map. Used by the Summarize / Compare viewers
+ *  so a reader can see who's being cited without bouncing back to the
+ *  report. Unmatched ids are left as-is. */
+internal fun annotateBracketRefs(content: String?, agentLabels: Map<Int, String>): String {
+    if (content.isNullOrBlank() || agentLabels.isEmpty()) return content.orEmpty()
+    return Regex("""\[(\d+)\]""").replace(content) { m ->
+        val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
+        val label = agentLabels[id] ?: return@replace m.value
+        "[$id: $label]"
     }
 }
