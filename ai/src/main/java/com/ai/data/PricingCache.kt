@@ -116,7 +116,13 @@ object PricingCache {
         val promptPriceAbove200k: Double? = null,
         val completionPriceAbove200k: Double? = null,
         val cachedReadPriceAbove200k: Double? = null,
-        val cachedWritePriceAbove200k: Double? = null
+        val cachedWritePriceAbove200k: Double? = null,
+        // Per-query pricing for rerank-mode models (Cohere rerank-v3.5 /
+        // rerank-v4.0-fast etc.). Cohere bills $2/1000 searches → 0.002
+        // per search-unit. Token-based pricing fields are 0 for these
+        // models because they don't bill per token at all. Read from
+        // LiteLLM's `input_cost_per_query` field.
+        val perQueryPrice: Double = 0.0
     )
 
     fun needsOpenRouterRefresh(context: Context): Boolean {
@@ -1358,18 +1364,25 @@ object PricingCache {
         return pricing to meta
     }
 
-    /** Map a single litellm JSON entry to a ModelPricing, or null if it lacks
-     *  the base input/output token costs. Reads the cache and 200k-tier keys
-     *  alongside; missing keys leave nulls (call site falls back to plain
-     *  prompt/completion rates). */
+    /** Map a single litellm JSON entry to a ModelPricing, or null when it
+     *  has no usable cost field at all. Token-based fields drive
+     *  prompt/completion price for chat/embedding/etc.; rerank-mode
+     *  models bill per query and are accepted even when both per-token
+     *  fields are absent or zero. */
     private fun liteLLMEntry(modelId: String, info: Map<String, Any>): Pair<String, ModelPricing>? {
-        val ic = (info["input_cost_per_token"] as? Number)?.toDouble() ?: return null
-        val oc = (info["output_cost_per_token"] as? Number)?.toDouble() ?: return null
         fun n(key: String) = (info[key] as? Number)?.toDouble()
+        val ic = n("input_cost_per_token")
+        val oc = n("output_cost_per_token")
+        val perQuery = n("input_cost_per_query") ?: 0.0
+        // Drop entries that have no cost signal whatsoever — keeps the
+        // cache from filling up with rows that would render as $0/$0
+        // and crowd out the layered lookup. Rerank entries with a real
+        // per-query price still pass even when per-token is missing.
+        if (ic == null && oc == null && perQuery == 0.0) return null
         return modelId to ModelPricing(
             modelId = modelId,
-            promptPrice = ic,
-            completionPrice = oc,
+            promptPrice = ic ?: 0.0,
+            completionPrice = oc ?: 0.0,
             source = "LITELLM",
             cachedReadPrice = n("cache_read_input_token_cost"),
             cachedWritePrice = n("cache_creation_input_token_cost"),
@@ -1380,7 +1393,8 @@ object PricingCache {
             cachedReadPriceAbove200k = n("cache_read_input_token_cost_above_200k_tokens")
                 ?: n("cache_read_input_token_cost_above_128k_tokens"),
             cachedWritePriceAbove200k = n("cache_creation_input_token_cost_above_200k_tokens")
-                ?: n("cache_creation_input_token_cost_above_128k_tokens")
+                ?: n("cache_creation_input_token_cost_above_128k_tokens"),
+            perQueryPrice = perQuery
         )
     }
 

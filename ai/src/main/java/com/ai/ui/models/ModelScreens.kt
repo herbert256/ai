@@ -540,6 +540,23 @@ fun ModelInfoScreen(
                                                 fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
                                             )
                                         }
+                                        // Rerank-mode models bill per
+                                        // search-unit, not per token —
+                                        // surface that as an extra row
+                                        // when LiteLLM provided one so
+                                        // the user knows where the cost
+                                        // is going to come from.
+                                        if (p.perQueryPrice > 0.0) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("$label · per 1k searches",
+                                                    fontSize = 11.sp, color = AppColors.TextTertiary,
+                                                    modifier = Modifier.weight(1f).padding(start = 12.dp))
+                                                Text(
+                                                    "${"%.2f".format(Locale.US, p.perQueryPrice * 1000)}",
+                                                    fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))

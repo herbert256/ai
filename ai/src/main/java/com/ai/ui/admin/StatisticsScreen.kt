@@ -69,8 +69,16 @@ fun UsageScreen(
             stats.values.groupBy { it.provider }.map { (provider, providerStats) ->
                 val models = providerStats.map { stat ->
                     val pricing = PricingCache.getPricing(context, stat.provider, stat.model)
-                    val ic = stat.inputTokens * pricing.promptPrice
-                    val oc = stat.outputTokens * pricing.completionPrice
+                    // Rerank-kind rows bill per search-unit, not per
+                    // token — input/output token counters are zero by
+                    // design. Stuff the per-query cost into the input
+                    // column so the existing two-column row layout
+                    // surfaces it without a special case.
+                    val isRerank = stat.kind == "rerank"
+                    val ic = if (isRerank) stat.searchUnits * pricing.perQueryPrice
+                             else stat.inputTokens * pricing.promptPrice
+                    val oc = if (isRerank) 0.0
+                             else stat.outputTokens * pricing.completionPrice
                     StatWithCost(stat, ic, oc, ic + oc, pricing.source)
                 }.sortedByDescending { it.totalCost }
                 ProviderCostGroup(provider, models, models.sumOf { it.totalCost }, models.sumOf { it.stat.callCount })
@@ -173,8 +181,12 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
                     )
                 }
             }
-            Text("${swc.stat.callCount} calls, ${formatCompactNumber(swc.stat.inputTokens)}/${formatCompactNumber(swc.stat.outputTokens)} tokens",
-                fontSize = 11.sp, color = AppColors.TextTertiary)
+            val secondaryLine = if (swc.stat.kind == "rerank") {
+                "${swc.stat.callCount} calls, ${formatCompactNumber(swc.stat.searchUnits)} search units"
+            } else {
+                "${swc.stat.callCount} calls, ${formatCompactNumber(swc.stat.inputTokens)}/${formatCompactNumber(swc.stat.outputTokens)} tokens"
+            }
+            Text(secondaryLine, fontSize = 11.sp, color = AppColors.TextTertiary)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(formatCurrency(swc.totalCost), fontSize = 13.sp, color = AppColors.Green)

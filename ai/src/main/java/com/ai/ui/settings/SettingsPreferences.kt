@@ -295,7 +295,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
      * allocated a new Map-of-all-stats per token-usage event. Now we keep stats in an in-memory
      * ConcurrentHashMap and debounce disk writes to once per USAGE_STATS_FLUSH_MS window.
      */
-    fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report") {
+    fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0) {
         val stats = ensureUsageStatsCache()
         val key = "${provider.id}::$model::$kind"
         stats.compute(key) { _, existing ->
@@ -303,7 +303,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             base.copy(
                 callCount = base.callCount + 1,
                 inputTokens = base.inputTokens + inputTokens,
-                outputTokens = base.outputTokens + outputTokens
+                outputTokens = base.outputTokens + outputTokens,
+                searchUnits = base.searchUnits + searchUnits
             )
         }
         scheduleUsageStatsFlush()
@@ -329,8 +330,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    suspend fun updateUsageStatsAsync(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report") =
-        withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens, kind) }
+    suspend fun updateUsageStatsAsync(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0) =
+        withContext(Dispatchers.IO) { updateUsageStats(provider, model, inputTokens, outputTokens, totalTokens, kind, searchUnits) }
 
     fun clearUsageStats() {
         usageStatsCache?.clear()

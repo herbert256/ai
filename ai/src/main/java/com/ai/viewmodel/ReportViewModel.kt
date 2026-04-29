@@ -619,18 +619,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .map { it.responseBody!! }
             val r = com.ai.data.callRerankApi(provider, apiKey, model, report.prompt, docs)
+            // Per-query pricing: cost = billedSearchUnits × perQueryPrice.
+            // Stored on inputCost so the report cost table renders
+            // alongside chat/summarize rows. The provider may omit the
+            // billed-units block on an error response — fall back to 1
+            // unit per call so cost is at least roughly tracked.
+            val pricing = PricingCache.getPricing(context, provider, model)
+            val units = r.billedSearchUnits ?: if (r.errorMessage == null) 1 else 0
+            val rerankCost = if (units > 0) units * pricing.perQueryPrice else null
             SecondaryResultStorage.save(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
+                inputCost = rerankCost,
                 durationMs = r.durationMs
             ))
-            // Cohere bills per "search unit" (1 search ≈ 1 query + ~100
-            // docs). Track it as a single rerank call so AI Usage's
-            // callCount stays meaningful even though token counts don't
-            // apply.
             if (r.errorMessage == null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, 0, 0, 0, kind = "rerank"
+                    provider, model, 0, 0, 0, kind = "rerank", searchUnits = units
                 )
             }
             return

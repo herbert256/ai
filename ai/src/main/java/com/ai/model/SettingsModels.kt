@@ -535,11 +535,18 @@ fun deduplicateModels(models: List<ReportModel>): List<ReportModel> {
 data class UsageStats(
     val provider: AppService, val model: String, val callCount: Int = 0,
     val inputTokens: Long = 0, val outputTokens: Long = 0,
-    /** Call type — "report" (default), "rerank", or "summarize". Stored
-     *  per-row so the AI Usage table and CSV export can split rerank /
-     *  summarize spend out from the primary report cost. Existing rows
-     *  written before this field landed deserialise to "report". */
-    val kind: String = "report"
+    /** Call type — "report" (default), "rerank", "summarize", or
+     *  "compare". Stored per-row so the AI Usage table and CSV export
+     *  can split rerank / summarize / compare spend out from the
+     *  primary report cost. Existing rows written before this field
+     *  landed deserialise to "report". */
+    val kind: String = "report",
+    /** Number of search units billed by the provider for "rerank"-kind
+     *  rows. Cohere bills per search-unit (1 search ≈ 1 query + up to
+     *  100 documents), not per token, so the input/output token columns
+     *  are zero for these and AI Usage uses searchUnits × perQueryPrice
+     *  to surface the actual cost. Always 0 for non-rerank rows. */
+    val searchUnits: Long = 0
 ) {
     val totalTokens: Long get() = inputTokens + outputTokens
     val key: String get() = "${provider.id}::$model::$kind"
