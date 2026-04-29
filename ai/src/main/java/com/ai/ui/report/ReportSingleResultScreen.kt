@@ -40,7 +40,8 @@ fun ReportSingleResultScreen(
     onNavigateHome: () -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
-    onRemoveAgent: (String, String) -> Unit
+    onRemoveAgent: (String, String) -> Unit,
+    onRegenerateAgent: (String, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -124,30 +125,41 @@ fun ReportSingleResultScreen(
             }
         }
 
-        // Bottom action row: Remove / Model Info / Trace.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        // Bottom action row: Remove / Model Info / Trace / Re-run.
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { confirmRemove = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) { Text("Remove", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { onNavigateToModelInfo(provider, agent.model) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) { Text("Model Info", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { traceFilename?.let(onNavigateToTraceFile) },
+                    enabled = traceFilename != null,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+            // 4th button on its own row so the longer label fits without
+            // squashing the three short buttons above. Kicks off a single-
+            // agent re-run and pops back to the report; the row's status
+            // icon flips to ⏳ until the new response lands.
             Button(
-                onClick = { confirmRemove = true },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Remove", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { onNavigateToModelInfo(provider, agent.model) },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Model Info", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { traceFilename?.let(onNavigateToTraceFile) },
-                enabled = traceFilename != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                onClick = {
+                    onRegenerateAgent(reportId, agentId)
+                    onBack()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Call model API again", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }
 

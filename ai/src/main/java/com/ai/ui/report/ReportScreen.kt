@@ -111,6 +111,7 @@ fun ReportsScreenNav(
         onNavigateToTraceFile = onNavigateToTraceFile,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onRemoveAgent = { rid, aid -> reportViewModel.removeAgentFromReport(context, rid, aid) },
+        onRegenerateAgent = { rid, aid -> reportViewModel.regenerateAgent(scope, context, rid, aid) },
         onClearExternalInstructions = viewModel::clearExternalInstructions,
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onUpdateModelList = { rid, edited ->
@@ -206,6 +207,7 @@ fun ReportsScreen(
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
+    onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportSections, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     val context = LocalContext.current
@@ -351,7 +353,8 @@ fun ReportsScreen(
             onNavigateHome = onNavigateHome,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onNavigateToTraceFile = onNavigateToTraceFile,
-            onRemoveAgent = onRemoveAgent
+            onRemoveAgent = onRemoveAgent,
+            onRegenerateAgent = onRegenerateAgent
         )
         return
     }

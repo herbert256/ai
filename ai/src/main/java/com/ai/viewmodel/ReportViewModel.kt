@@ -201,7 +201,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private suspend fun executeReportTask(
         context: Context, reportId: String, aiPrompt: String, overrideParams: AgentParameters?, task: ReportTask,
-        imageBase64: String? = null, imageMime: String? = null
+        imageBase64: String? = null, imageMime: String? = null,
+        // Skip the genericReportsProgress increment when re-running a
+        // single agent on a finished report — the agent was already
+        // counted as complete the first time around, so bumping the
+        // counter again would push past total and break the progress
+        // bar / completion-equality check.
+        isRegeneration: Boolean = false
     ) {
         ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, aiPrompt)
 
@@ -242,8 +248,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
 
         _agentResults.update { it + (task.resultId to response) }
-        appViewModel.updateUiState { state ->
-            state.copy(genericReportsProgress = state.genericReportsProgress + 1)
+        if (!isRegeneration) {
+            appViewModel.updateUiState { state ->
+                state.copy(genericReportsProgress = state.genericReportsProgress + 1)
+            }
         }
     }
 
@@ -683,6 +691,58 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     fun deleteSecondaryResult(context: Context, reportId: String, resultId: String) {
         SecondaryResultStorage.delete(context, reportId, resultId)
+    }
+
+    /** Re-run the API call for a single agent on a finished report,
+     *  replacing its persisted result. Mirrors the flow [generateGenericReports]
+     *  uses for a fresh run (rebuild ReportTask → executeReportTask) but
+     *  scoped to one agent so the rest of the report's results stay
+     *  intact. The in-memory _agentResults entry is cleared first so the
+     *  Report row reverts to ⏳ while the call is in flight, then
+     *  populated again when the new response lands.
+     *
+     *  Handles both row types: real-Agent ids (UUID, looked up in
+     *  aiSettings.agents) and "swarm:provider:model" ids (rebuilt
+     *  on-the-fly from the parsed parts). When a real-agent row points
+     *  at an agent that's since been deleted, falls back to the direct
+     *  shape so the regenerate still goes through. */
+    fun regenerateAgent(scope: kotlinx.coroutines.CoroutineScope, context: Context, reportId: String, agentId: String) {
+        scope.launch(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val ra = report.agents.find { it.agentId == agentId } ?: return@launch
+            val provider = AppService.findById(ra.provider) ?: return@launch
+            val state = appViewModel.uiState.value
+            val aiSettings = state.aiSettings
+
+            val task = if (agentId.startsWith("swarm:")) {
+                val runtimeAgent = Agent(agentId, ra.agentName, provider, ra.model, aiSettings.getApiKey(provider))
+                ReportTask(agentId, ra, runtimeAgent, AgentParameters())
+            } else {
+                val savedAgent = aiSettings.getAgentById(agentId)
+                if (savedAgent != null) {
+                    val ea = savedAgent.copy(
+                        apiKey = aiSettings.getEffectiveApiKeyForAgent(savedAgent),
+                        model = aiSettings.getEffectiveModelForAgent(savedAgent)
+                    )
+                    val params = aiSettings.resolveAgentParameters(savedAgent)
+                    ReportTask(agentId, ra, ea, params)
+                } else {
+                    val runtimeAgent = Agent(agentId, ra.agentName, provider, ra.model, aiSettings.getApiKey(provider))
+                    ReportTask(agentId, ra, runtimeAgent, AgentParameters())
+                }
+            }
+
+            // Drop the old result so the report row reverts to ⏳ until
+            // executeReportTask publishes the new one.
+            _agentResults.update { it - agentId }
+            // Override params: re-use the report's web-search-tool flag
+            // so a regen doesn't lose 🌐 if the original report had it on.
+            val overrideParams = if (report.webSearchTool) AgentParameters(webSearchTool = true) else null
+            executeReportTask(
+                context, reportId, report.prompt, overrideParams, task,
+                report.imageBase64, report.imageMime, isRegeneration = true
+            )
+        }
     }
 
     /** Remove a single agent from a report (storage + in-memory results
