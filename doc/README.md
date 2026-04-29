@@ -5,9 +5,10 @@ multi-provider Android client for running prompts against many AI
 models in parallel and analysing the results.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~13k LOC, MVVM with three view models, 38 default providers across
-three API formats, and seven external metadata repositories layered
-into one resolved view per `(provider, model)` pair.
+~22k LOC across 76 Kotlin files, MVVM with three view models, 38
+default providers across three API formats, and seven external
+metadata repositories layered into one resolved view per
+`(provider, model)` pair.
 
 ## Index
 

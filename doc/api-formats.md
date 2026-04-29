@@ -12,7 +12,7 @@ enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE }
 Dispatch lives in `com.ai.data.ApiDispatch`; streaming in
 `com.ai.data.ApiStreaming`.
 
-## OPENAI_COMPATIBLE (default — 28 of 38 providers)
+## OPENAI_COMPATIBLE (default — 36 of 38 providers)
 
 The familiar OpenAI Chat Completions wire format. Bearer-token auth.
 Same request/response shape as `OpenAiRequest` / `OpenAiResponse` in

@@ -61,7 +61,7 @@ chat history, usage stats).
 
 Every provider is an `AppService` with an `apiFormat` field — one of
 `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. Dispatch always keys off
-the format, never off provider identity, so 28 of 31 default providers
+the format, never off provider identity, so 36 of 38 default providers
 share unified code paths. Adding an OpenAI-compatible provider is a
 one-line entry in `setup.json` (see [development.md](development.md)).
 

@@ -56,7 +56,7 @@ ai/src/main/java/com/ai/
     └── theme/                         # Material3 dark theme
 ```
 
-Roughly 60 Kotlin files, ~13k LOC.
+Roughly 76 Kotlin files, ~22k LOC.
 
 ## Adding things
 

@@ -42,7 +42,7 @@ adb logcat | grep -E "(AiAnalysis|AiHistory|ApiTracer|PricingCache|AiReport)"
 
 ## Project Summary
 
-Android AI-powered reports and chat using 31 AI services. Kotlin 2.2.10, Jetpack Compose (BOM 2026.01.01), Material 3 dark theme. MVVM with StateFlow and three ViewModels. Retrofit + OkHttp for networking. SSE streaming via Kotlin Flow. SharedPreferences + file storage for persistence. Namespace: `com.ai`, minSdk 26, targetSdk 36. Build: AGP 9.0.1, Gradle 9.1.0, Java 17. ~12,100 lines across 56 Kotlin files.
+Android AI-powered reports and chat using 38 AI services. Kotlin 2.2.10, Jetpack Compose (BOM 2026.01.01), Material 3 dark theme. MVVM with StateFlow and three ViewModels. Retrofit + OkHttp for networking. SSE streaming via Kotlin Flow. SharedPreferences + file storage for persistence. Namespace: `com.ai`, minSdk 26, targetSdk 36. Build: AGP 9.0.1, Gradle 9.1.0, Java 17. ~22,200 lines across 76 Kotlin files.
 
 ## Package Structure
 
@@ -126,7 +126,7 @@ com.ai/
 
 - **AppService** represents a provider. `AppService.entries` returns all providers. `AppService.findById(id)` for lookup.
 - **ApiFormat** enum: `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. All dispatch uses `service.apiFormat`, never provider identity.
-- **28 of 31 providers** are OpenAI-compatible sharing unified code paths. Only Anthropic and Google have unique implementations.
+- **36 of 38 providers** are OpenAI-compatible sharing unified code paths. Only Anthropic and Google have unique implementations.
 - **Three ViewModels**: `AppViewModel` (settings, state), `ChatViewModel` (chat), `ReportViewModel` (report generation).
 - **Generic CrudListScreen<T>**: Reusable composable for all CRUD screens (agents, flocks, swarms, parameters, prompts).
 - **Two-tier navigation**: Main screens use Jetpack Navigation. Settings sub-screens use `SettingsSubScreen` enum with `when` inside `SettingsScreen`.
