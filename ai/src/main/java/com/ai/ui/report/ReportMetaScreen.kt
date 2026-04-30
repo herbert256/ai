@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -27,6 +28,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.formatCents
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -192,6 +194,16 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(ts, fontSize = 11.sp, color = AppColors.TextTertiary)
+        }
+        // Cost field: sum of input + output cost on this meta call.
+        // Hidden when the call hasn't billed anything (placeholder still
+        // running, or zero-cost local model). Same compact monospace
+        // styling as the per-agent cost on the report screen.
+        val totalCost = (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
+        if (totalCost > 0.0) {
+            Text("${formatCents(totalCost)} ¢", fontSize = 10.sp,
+                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(end = 4.dp))
         }
         IconButton(onClick = { confirmDelete = true }) {
             Text("🗑", fontSize = 16.sp, color = AppColors.Red)
