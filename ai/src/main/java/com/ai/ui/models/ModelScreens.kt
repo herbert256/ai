@@ -69,31 +69,40 @@ fun ModelSearchScreen(
 ) {
     BackHandler { onBackToAiSetup() }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    // Optional ModelType filter — null means "All types". When set, the
-    // catalog narrows to entries whose effective type matches. Saveable
-    // so the choice survives back-stack visits.
+    // Optional filters — null/false = unrestricted. All saveable so the
+    // choices survive back-stack visits.
     var typeFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
+    var providerFilterId by rememberSaveable { mutableStateOf<String?>(null) }
+    var providerMenuExpanded by remember { mutableStateOf(false) }
+    var visionOnly by rememberSaveable { mutableStateOf(false) }
+    var webSearchOnly by rememberSaveable { mutableStateOf(false) }
+
+    val activeServices = remember(aiSettings) { aiSettings.getActiveServices().sortedBy { it.displayName.lowercase() } }
+    val providerFilter = providerFilterId?.let { id -> activeServices.firstOrNull { it.id == id } }
 
     // Build aggregated model list from all active providers. Settings.withModels
     // dedupes per-provider before persisting, so cross-provider uniqueness on
     // (provider.id, modelName) is guaranteed by construction.
     val allModels = remember(aiSettings) {
-        aiSettings.getActiveServices().flatMap { service ->
+        activeServices.flatMap { service ->
             val models = aiSettings.getModels(service)
             if (models.isNotEmpty()) models.map { ModelSearchItem(service, service.displayName, it) }
             else listOf(ModelSearchItem(service, service.displayName, aiSettings.getModel(service)))
         }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
-    val filteredModels = remember(searchQuery, typeFilter, allModels) {
-        val byType = if (typeFilter == null) allModels
-            else allModels.filter { aiSettings.getModelType(it.provider, it.modelName) == typeFilter }
-        if (searchQuery.isBlank()) byType
-        else {
+    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, allModels) {
+        var list = allModels
+        if (typeFilter != null) list = list.filter { aiSettings.getModelType(it.provider, it.modelName) == typeFilter }
+        if (providerFilterId != null) list = list.filter { it.provider.id == providerFilterId }
+        if (visionOnly) list = list.filter { aiSettings.isVisionCapable(it.provider, it.modelName) }
+        if (webSearchOnly) list = list.filter { aiSettings.isWebSearchCapable(it.provider, it.modelName) }
+        if (searchQuery.isNotBlank()) {
             val q = searchQuery.lowercase()
-            byType.filter { it.providerName.lowercase().contains(q) || it.modelName.lowercase().contains(q) }
+            list = list.filter { it.providerName.lowercase().contains(q) || it.modelName.lowercase().contains(q) }
         }
+        list
     }
 
     val isLoading = loadingModelsFor.isNotEmpty()
@@ -101,46 +110,113 @@ fun ModelSearchScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "Models", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
 
-        // Type dropdown — sits above the search field. Tapping opens a
-        // menu with "All types" plus every entry from ModelType.ALL.
-        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-            OutlinedButton(
-                onClick = { typeMenuExpanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                border = BorderStroke(1.dp, AppColors.BorderUnfocused)
-            ) {
-                Text(
-                    text = typeFilter?.replaceFirstChar { it.uppercase() } ?: "All types",
-                    fontSize = 13.sp,
-                    color = if (typeFilter != null) Color.White else AppColors.TextTertiary,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-                Text("▾", color = AppColors.TextTertiary)
-            }
-            DropdownMenu(
-                expanded = typeMenuExpanded,
-                onDismissRequest = { typeMenuExpanded = false },
-                modifier = Modifier.background(Color(0xFF2D2D2D))
-            ) {
-                DropdownMenuItem(
-                    text = {
-                        Text("All types", fontSize = 13.sp,
-                            color = if (typeFilter == null) AppColors.Blue else Color.White)
-                    },
-                    onClick = { typeFilter = null; typeMenuExpanded = false }
-                )
-                com.ai.data.ModelType.ALL.forEach { type ->
+        // Type + Provider dropdowns share a row; capability checkboxes
+        // sit on a row below. Each dropdown is anchored in its own Box
+        // so the menu drops from the button it belongs to.
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { typeMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = BorderStroke(1.dp, AppColors.BorderUnfocused)
+                ) {
+                    Text(
+                        text = typeFilter?.replaceFirstChar { it.uppercase() } ?: "All types",
+                        fontSize = 13.sp,
+                        color = if (typeFilter != null) Color.White else AppColors.TextTertiary,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text("▾", color = AppColors.TextTertiary)
+                }
+                DropdownMenu(
+                    expanded = typeMenuExpanded,
+                    onDismissRequest = { typeMenuExpanded = false },
+                    modifier = Modifier.background(Color(0xFF2D2D2D))
+                ) {
                     DropdownMenuItem(
                         text = {
-                            Text(type.replaceFirstChar { it.uppercase() }, fontSize = 13.sp,
-                                color = if (typeFilter == type) AppColors.Blue else Color.White)
+                            Text("All types", fontSize = 13.sp,
+                                color = if (typeFilter == null) AppColors.Blue else Color.White)
                         },
-                        onClick = { typeFilter = type; typeMenuExpanded = false }
+                        onClick = { typeFilter = null; typeMenuExpanded = false }
                     )
+                    com.ai.data.ModelType.ALL.forEach { type ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(type.replaceFirstChar { it.uppercase() }, fontSize = 13.sp,
+                                    color = if (typeFilter == type) AppColors.Blue else Color.White)
+                            },
+                            onClick = { typeFilter = type; typeMenuExpanded = false }
+                        )
+                    }
                 }
             }
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { providerMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border = BorderStroke(1.dp, AppColors.BorderUnfocused)
+                ) {
+                    Text(
+                        text = providerFilter?.displayName ?: "All providers",
+                        fontSize = 13.sp,
+                        color = if (providerFilter != null) Color.White else AppColors.TextTertiary,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text("▾", color = AppColors.TextTertiary)
+                }
+                DropdownMenu(
+                    expanded = providerMenuExpanded,
+                    onDismissRequest = { providerMenuExpanded = false },
+                    modifier = Modifier.background(Color(0xFF2D2D2D))
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text("All providers", fontSize = 13.sp,
+                                color = if (providerFilterId == null) AppColors.Blue else Color.White)
+                        },
+                        onClick = { providerFilterId = null; providerMenuExpanded = false }
+                    )
+                    activeServices.forEach { service ->
+                        val mc = aiSettings.getModels(service).size
+                        DropdownMenuItem(
+                            text = {
+                                Text("${service.displayName} ($mc)", fontSize = 13.sp,
+                                    color = if (providerFilterId == service.id) AppColors.Blue else Color.White)
+                            },
+                            onClick = { providerFilterId = service.id; providerMenuExpanded = false }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Capability checkboxes — both default off; ticking narrows the
+        // list to entries Settings.is*Capable returns true for.
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(
+                selected = visionOnly,
+                onClick = { visionOnly = !visionOnly },
+                label = { Text("👁 Vision only", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Blue
+                )
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            FilterChip(
+                selected = webSearchOnly,
+                onClick = { webSearchOnly = !webSearchOnly },
+                label = { Text("🌐 Web-search only", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Blue
+                )
+            )
         }
 
         OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it },
