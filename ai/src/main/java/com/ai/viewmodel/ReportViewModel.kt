@@ -562,6 +562,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(secondaryRun = null) }
                 return@launch
             }
+            // Bump the parent report's timestamp so it sorts to the top
+            // of the History list — adding a meta result is a real
+            // update to the report, not a passive read.
+            ReportStorage.bumpReportTimestamp(context, reportId)
             val template = resolveTemplate(aiSettings, generalSettings, kind)
             // Resolve scope: AllReports → no filter; TopRanked → parse
             // the chosen rerank, take the top-N original ids. If parsing

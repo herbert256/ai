@@ -231,6 +231,20 @@ object ReportStorage {
         File(reportsDir ?: return, "${report.id}.json").writeTextAtomic(gson.toJson(report))
     }
 
+    /** Set a report's [Report.timestamp] to the current wall-clock time
+     *  and persist. Used when a Rerank/Summarize/Compare batch is
+     *  launched so the parent report sorts to the top of the History
+     *  list — adding a meta result is a meaningful update to the
+     *  report, not a passive read. No-op if the report can't be
+     *  loaded. */
+    fun bumpReportTimestamp(context: Context, reportId: String) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
+        }
+    }
+
     fun updateReportPromptAndTitle(context: Context, reportId: String, newTitle: String, newPrompt: String): Boolean {
         init(context)
         return lock.withLock {
