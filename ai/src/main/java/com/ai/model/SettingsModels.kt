@@ -201,9 +201,9 @@ data class Settings(
     fun getModelSource(service: AppService) = getProvider(service).modelSource
     fun getModels(service: AppService) = getProvider(service).models
     fun withModels(service: AppService, models: List<String>) =
-        withProvider(service, getProvider(service).copy(models = models)).recomputeCapabilities(service)
+        withProvider(service, getProvider(service).copy(models = models.distinct())).recomputeCapabilities(service)
     fun withModels(service: AppService, models: List<String>, types: Map<String, String>) =
-        withProvider(service, getProvider(service).copy(models = models, modelTypes = types)).recomputeCapabilities(service)
+        withProvider(service, getProvider(service).copy(models = models.distinct(), modelTypes = types)).recomputeCapabilities(service)
     /** Same as [withModels] but also unions [autoVisionModels] (auto-detected
      *  by the fetcher, e.g. OpenRouter input_modalities) into the per-provider
      *  visionModels set. The set is union-only — refetching never removes a
@@ -211,13 +211,20 @@ data class Settings(
     fun withModels(service: AppService, models: List<String>, types: Map<String, String>, autoVisionModels: Set<String>): Settings {
         val cfg = getProvider(service)
         val merged = cfg.visionModels + autoVisionModels
-        return withProvider(service, cfg.copy(models = models, modelTypes = types, visionModels = merged))
+        return withProvider(service, cfg.copy(models = models.distinct(), modelTypes = types, visionModels = merged))
             .recomputeCapabilities(service)
     }
     /** Same as the 4-arg overload, plus a per-model capability bundle from
      *  the provider's own /models endpoint (Mistral, Gemini, Cohere, etc.).
      *  Replaces — not merges — the existing capabilities map: a refetch
-     *  always reflects the provider's current view. */
+     *  always reflects the provider's current view.
+     *
+     *  Every overload of [withModels] funnels its [models] through
+     *  [List.distinct] so duplicates can't sneak into ProviderConfig.models
+     *  regardless of where they came from (fetch dupe, hardcoded list with
+     *  a typo, manual paste). LazyColumns key on the model id and crash
+     *  on dupes; centralising the dedup here means callers don't have to
+     *  remember it. */
     fun withModels(
         service: AppService, models: List<String>, types: Map<String, String>,
         autoVisionModels: Set<String>, capabilities: Map<String, com.ai.data.ModelCapabilities>,
@@ -226,7 +233,7 @@ data class Settings(
         val cfg = getProvider(service)
         val merged = cfg.visionModels + autoVisionModels
         return withProvider(service, cfg.copy(
-            models = models, modelTypes = types,
+            models = models.distinct(), modelTypes = types,
             visionModels = merged, modelCapabilities = capabilities,
             modelListRawJson = rawResponse ?: cfg.modelListRawJson
         )).recomputeCapabilities(service)

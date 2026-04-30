@@ -447,11 +447,7 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     }
     val modelIds = rawModels.mapNotNull { it.id }
     val filtered = service.modelFilterRegex?.let { regex -> modelIds.filter { regex.containsMatchIn(it) } } ?: modelIds
-    // Some providers (e.g. Mistral) ship the same id under both a dated
-    // snapshot entry and an alias pointing back to it, which would
-    // otherwise persist a duplicate into ProviderConfig.models and
-    // crash any LazyColumn that keys on the model id.
-    val ids = filtered.distinct().sorted()
+    val ids = filtered.sorted()
 
     // Cohere's compatibility endpoint strips the `endpoints` field. Hit the native
     // api.cohere.com/v1/models to recover per-model types AND capability info
@@ -506,7 +502,7 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         val api = ApiFactory.createClaudeApi(service.baseUrl)
         val response = api.listModels(apiKey)
         val ids = if (response.isSuccessful)
-            response.body()?.data?.mapNotNull { it.id }?.filter { it.startsWith("claude") }?.distinct()?.sorted().orEmpty()
+            response.body()?.data?.mapNotNull { it.id }?.filter { it.startsWith("claude") }?.sorted().orEmpty()
         else emptyList()
         val rawJson = ApiFactory.fetchUrlAsString(
             normalizeUrl(service.baseUrl) + "v1/models",

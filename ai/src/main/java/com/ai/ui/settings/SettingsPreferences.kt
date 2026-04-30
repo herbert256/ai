@@ -97,10 +97,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val modelSource = prefs.getString("${key}_model_source", null)?.let {
                 try { ModelSource.valueOf(it) } catch (_: Exception) { null }
             } ?: defaults.modelSource
-            val models = if (defaults.models.isNotEmpty())
-                loadJsonList("${key}_manual_models") ?: defaults.models
-            else
-                loadJsonList("${key}_manual_models") ?: emptyList()
+            // Migration shim: dedupe on read so any prefs written before
+            // Settings.withModels learned to .distinct() come up clean
+            // without a manual refresh. Cheap (small lists).
+            val models = (
+                if (defaults.models.isNotEmpty())
+                    loadJsonList("${key}_manual_models") ?: defaults.models
+                else
+                    loadJsonList("${key}_manual_models") ?: emptyList()
+            ).distinct()
             val storedTypes: Map<String, String> = prefs.getString("${key}_model_types", null)?.let {
                 try {
                     @Suppress("UNCHECKED_CAST")

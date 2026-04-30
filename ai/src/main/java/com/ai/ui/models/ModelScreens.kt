@@ -75,19 +75,15 @@ fun ModelSearchScreen(
     var typeFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
 
-    // Build aggregated model list from all active providers. Dedupe on
-    // (provider.id, modelName) — a model can land in the list twice
-    // (e.g. hardcoded + fetched, or a stale fetch merged with a fresh
-    // one), and LazyColumn crashes on duplicate keys. distinctBy
-    // preserves insertion order so the first occurrence wins.
+    // Build aggregated model list from all active providers. Settings.withModels
+    // dedupes per-provider before persisting, so cross-provider uniqueness on
+    // (provider.id, modelName) is guaranteed by construction.
     val allModels = remember(aiSettings) {
         aiSettings.getActiveServices().flatMap { service ->
             val models = aiSettings.getModels(service)
             if (models.isNotEmpty()) models.map { ModelSearchItem(service, service.displayName, it) }
             else listOf(ModelSearchItem(service, service.displayName, aiSettings.getModel(service)))
-        }
-            .distinctBy { "${it.provider.id}:${it.modelName}" }
-            .sortedWith(compareBy({ it.providerName }, { it.modelName }))
+        }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
     val filteredModels = remember(searchQuery, typeFilter, allModels) {
