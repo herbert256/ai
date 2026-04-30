@@ -93,11 +93,12 @@ data class UiState(
     val hasPendingPromptChange: Boolean = false,
     val hasPendingParametersChange: Boolean = false,
     val externalIntent: ExternalIntent = ExternalIntent(),
-    // Active rerank / summarize generation, if any. Drives the in-progress
-    // banner on the Report screen and disables the Rerank/Summarize buttons
-    // while a run is going. Cleared as soon as the last per-model task
-    // finishes (success or error).
-    val secondaryRun: SecondaryRunState? = null,
+    // Number of Rerank/Summarize/Compare batches currently running.
+    // Each runSecondary() launch increments this on entry and decrements
+    // on completion; multiple batches can be in flight at once. The
+    // Meta button's hourglass and the Meta screen's poll loop key off
+    // this being > 0.
+    val activeSecondaryBatches: Int = 0,
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),
     val dualChatConfig: DualChatConfig? = null
@@ -119,16 +120,6 @@ data class UiState(
     val externalSwarmNames: List<String> get() = externalIntent.swarmNames
     val externalModelSpecs: List<String> get() = externalIntent.modelSpecs
 }
-
-/** In-progress state for a Rerank or Summarize run. Multi-model picks
- *  produce N independently-saved SecondaryResults; [completed] tracks how
- *  many have landed so the UI can render N/Total as they finish. */
-data class SecondaryRunState(
-    val reportId: String,
-    val kind: SecondaryKind,
-    val total: Int,
-    val completed: Int = 0
-)
 
 data class ExternalIntent(
     val systemPrompt: String? = null,

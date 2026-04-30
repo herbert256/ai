@@ -466,7 +466,7 @@ fun ReportsScreen(
         val rid = currentReportId
         ReportMetaScreen(
             reportId = rid,
-            secondaryRun = uiState.secondaryRun?.takeIf { it.reportId == rid },
+            isRunning = uiState.activeSecondaryBatches > 0,
             onRerank = {
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 secondaryPickerKind = SecondaryKind.RERANK
@@ -867,8 +867,7 @@ private fun ColumnScope.GenerationPhase(
             OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Background", maxLines = 1, softWrap = false) }
         }
     } else {
-        val secondaryRun = uiState.secondaryRun?.takeIf { it.reportId == currentReportId }
-        val secondaryRunning = secondaryRun != null
+        val secondaryRunning = uiState.activeSecondaryBatches > 0
 
         // Section: View
         Text("View", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))

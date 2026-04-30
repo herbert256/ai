@@ -27,7 +27,6 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.ai.viewmodel.SecondaryRunState
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -40,14 +39,15 @@ import java.util.Locale
  *
  * The bottom "Add" card carries the three launchers that used to live on
  * the Report result screen's Actions card. They stay enabled even while
- * a batch is in flight; the running entry's row shows a spinning
- * hourglass until each result lands. (Note: kicking off a second batch
- * cancels the previous one — see [com.ai.viewmodel.ReportViewModel.runSecondary].)
+ * a batch is in flight, and a fresh click does NOT cancel any batches
+ * already running — every launch gets its own coroutine, so multiple
+ * Rerank/Summarize/Compare batches can be in flight at once. The running
+ * rows show a spinning hourglass until each result lands.
  */
 @Composable
 internal fun ReportMetaScreen(
     reportId: String,
-    secondaryRun: SecondaryRunState?,
+    isRunning: Boolean,
     onRerank: () -> Unit,
     onSummarize: () -> Unit,
     onCompare: () -> Unit,
@@ -59,25 +59,20 @@ internal fun ReportMetaScreen(
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
     var openId by remember { mutableStateOf<String?>(null) }
-    // Re-read storage whenever a batch ticks (new placeholder, completion,
-    // batch end) so running rows pick up their final ✅ / ❌ glyph
-    // without the user having to leave & re-enter the screen.
-    val runKey = secondaryRun?.let { "${it.reportId}:${it.kind}:${it.completed}/${it.total}" } ?: "idle"
-    val results = remember(reportId, refreshTick, runKey) {
+    // Re-read storage on each refreshTick bump (the poll loop below
+    // drives ticks while any batch is running; the final post-batch
+    // state is captured by the [isRunning] transition recomposition).
+    val results = remember(reportId, refreshTick, isRunning) {
         SecondaryResultStorage.listForReport(context, reportId)
             .sortedByDescending { it.timestamp }
     }
 
-    // Placeholders for a freshly-started batch are written from a
-    // background coroutine in runSecondary — by the time we land back
-    // on this screen from the picker they may not be on disk yet, and
-    // [runKey] alone won't change again until the first task finishes
-    // (which can be many seconds). Poll every 500 ms while a run is in
-    // flight so the new ⏳ rows surface promptly. The loop is cancelled
-    // automatically when [isRunning] flips false (LaunchedEffect key
-    // change), and the final state is captured by the runKey → "idle"
-    // transition triggering a re-read of [results].
-    val isRunning = secondaryRun != null
+    // Placeholders are written from runSecondary's IO coroutine, so by
+    // the time the picker pops back to this screen they may not yet be
+    // on disk. Poll every 500 ms while any batch is running so new ⏳
+    // rows surface promptly and completed rows flip from ⏳ to ✅/❌
+    // without the user bouncing in/out of the screen. The loop self-
+    // cancels when [isRunning] flips false.
     LaunchedEffect(isRunning) {
         if (isRunning) {
             while (true) {

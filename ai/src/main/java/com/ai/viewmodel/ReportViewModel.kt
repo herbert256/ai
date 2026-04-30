@@ -506,8 +506,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     // ===== Secondary results: rerank + summarize =====
 
-    private var secondaryJob: Job? = null
-
     /** Resolve the prompt template for [kind]: prefer a user-supplied
      *  Internal Prompt named "rerank", "summarize", or "compare", fall back
      *  to the GeneralSettings dedicated field, finally fall back to the
@@ -536,8 +534,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
      *  (provider/model pairs). One [SecondaryResult] per pick is persisted
      *  independently — multi-model picks produce N separate viewable
-     *  results. The Report screen blocks the buttons while a run is in
-     *  flight (via [SecondaryRunState] on UiState). */
+     *  results. Each call launches its own coroutine; multiple batches
+     *  can run concurrently, so a second click while a first is still
+     *  in flight does NOT cancel the earlier one. UiState's
+     *  [com.ai.viewmodel.UiState.activeSecondaryBatches] counter is
+     *  bumped on entry and decremented in a finally block so the Meta
+     *  screen's hourglass / poll loop reflects "anything running" no
+     *  matter how many overlap. */
     fun runSecondary(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
@@ -547,65 +550,59 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         scopeChoice: SecondaryScope = SecondaryScope.AllReports
     ) {
         if (picks.isEmpty()) return
-        secondaryJob?.cancel()
         // Persist last selection so the next click on Rerank/Summarize for
         // this report pre-checks the same models.
         appViewModel.saveSecondaryLastSelection(reportId, kind,
             picks.map { (p, m) -> "${p.id}:$m" }.toHashSet())
-        appViewModel.updateUiState { it.copy(secondaryRun = SecondaryRunState(reportId, kind, picks.size)) }
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
-        secondaryJob = scope.launch(Dispatchers.IO) {
-            val state = appViewModel.uiState.value
-            val aiSettings = state.aiSettings
-            val generalSettings = state.generalSettings
-            val report = ReportStorage.getReport(context, reportId) ?: run {
-                appViewModel.updateUiState { it.copy(secondaryRun = null) }
-                return@launch
-            }
-            // Bump the parent report's timestamp so it sorts to the top
-            // of the History list — adding a meta result is a real
-            // update to the report, not a passive read.
-            ReportStorage.bumpReportTimestamp(context, reportId)
-            val template = resolveTemplate(aiSettings, generalSettings, kind)
-            // Resolve scope: AllReports → no filter; TopRanked → parse
-            // the chosen rerank, take the top-N original ids. If parsing
-            // fails (legacy / malformed rerank output) fall back to
-            // AllReports rather than blocking the user.
-            val includeIds: Set<Int>? = when (scopeChoice) {
-                SecondaryScope.AllReports -> null
-                is SecondaryScope.TopRanked -> {
-                    val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
-                    val ids = extractTopRankedIds(rerank?.content, scopeChoice.count)
-                    if (ids.isNullOrEmpty()) null else ids.toSet()
+        scope.launch(Dispatchers.IO) {
+            try {
+                val state = appViewModel.uiState.value
+                val aiSettings = state.aiSettings
+                val generalSettings = state.generalSettings
+                val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                // Bump the parent report's timestamp so it sorts to the top
+                // of the History list — adding a meta result is a real
+                // update to the report, not a passive read.
+                ReportStorage.bumpReportTimestamp(context, reportId)
+                val template = resolveTemplate(aiSettings, generalSettings, kind)
+                // Resolve scope: AllReports → no filter; TopRanked → parse
+                // the chosen rerank, take the top-N original ids. If parsing
+                // fails (legacy / malformed rerank output) fall back to
+                // AllReports rather than blocking the user.
+                val includeIds: Set<Int>? = when (scopeChoice) {
+                    SecondaryScope.AllReports -> null
+                    is SecondaryScope.TopRanked -> {
+                        val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
+                        val ids = extractTopRankedIds(rerank?.content, scopeChoice.count)
+                        if (ids.isNullOrEmpty()) null else ids.toSet()
+                    }
                 }
-            }
-            val resultsBlock = buildResultsBlock(report, includeIds)
-            val successfulCount = if (includeIds != null) includeIds.size
-                else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-            val resolvedPrompt = resolveSecondaryPrompt(
-                template, question = report.prompt, results = resultsBlock,
-                count = successfulCount, title = report.title
-            )
+                val resultsBlock = buildResultsBlock(report, includeIds)
+                val successfulCount = if (includeIds != null) includeIds.size
+                    else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                val resolvedPrompt = resolveSecondaryPrompt(
+                    template, question = report.prompt, results = resultsBlock,
+                    count = successfulCount, title = report.title
+                )
 
-            val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
-            coroutineScope {
-                picks.map { (provider, model) ->
-                    async {
-                        sem.withPermit {
-                            executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report)
-                            appViewModel.updateUiState { s ->
-                                val cur = s.secondaryRun
-                                if (cur != null && cur.reportId == reportId && cur.kind == kind) {
-                                    s.copy(secondaryRun = cur.copy(completed = cur.completed + 1))
-                                } else s
+                // Per-batch semaphore: bounds the in-batch fan-out. Each
+                // batch has its own — overlapping batches are not capped
+                // against each other (intentional; that's the whole point
+                // of allowing concurrent runs).
+                val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
+                coroutineScope {
+                    picks.map { (provider, model) ->
+                        async {
+                            sem.withPermit {
+                                executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report)
                             }
                         }
-                    }
-                }.awaitAll()
-            }
-            // Clear the in-progress state when the whole batch lands.
-            appViewModel.updateUiState { s ->
-                if (s.secondaryRun?.reportId == reportId && s.secondaryRun.kind == kind) s.copy(secondaryRun = null) else s
+                    }.awaitAll()
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
     }
@@ -663,6 +660,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             appViewModel.repository.analyzeWithAgent(
                 agent, "", resolvedPrompt, AgentParameters(), null, context, baseUrl
             )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Don't translate cancellation into a fake error stored on
+            // the placeholder — re-throw so structured concurrency
+            // works. (Used to surface as "StandaloneCoroutine was
+            // canceled" on the Meta detail screen because the generic
+            // catch below swallowed it.)
+            throw e
         } catch (e: Exception) {
             AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agentName)
         }
