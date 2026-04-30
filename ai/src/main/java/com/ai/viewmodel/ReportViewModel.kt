@@ -550,10 +550,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         scopeChoice: SecondaryScope = SecondaryScope.AllReports
     ) {
         if (picks.isEmpty()) return
-        // Persist last selection so the next click on Rerank/Summarize for
-        // this report pre-checks the same models.
-        appViewModel.saveSecondaryLastSelection(reportId, kind,
-            picks.map { (p, m) -> "${p.id}:$m" }.toHashSet())
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
         scope.launch(Dispatchers.IO) {

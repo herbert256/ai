@@ -272,17 +272,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun loadReportModels(): Set<String> = prefs.getStringSet(AI_REPORT_MODELS_KEY, emptySet())?.toHashSet() ?: emptySet()
     fun saveReportModels(modelIds: Set<String>) { prefs.edit { putStringSet(AI_REPORT_MODELS_KEY, modelIds.toHashSet()) } }
 
-    // Per-(reportId, kind) last-selected models for the Rerank / Summarize
-    // pickers. Stored as "<provider>:<model>" strings so the next click
-    // pre-checks the same models the user used last run on this report.
-    fun loadSecondaryLastSelection(reportId: String, kind: SecondaryKind): Set<String> =
-        prefs.getStringSet(secondarySelectionKey(reportId, kind), emptySet())?.toHashSet() ?: emptySet()
-    fun saveSecondaryLastSelection(reportId: String, kind: SecondaryKind, picks: Set<String>) {
-        prefs.edit { putStringSet(secondarySelectionKey(reportId, kind), picks.toHashSet()) }
-    }
-    private fun secondarySelectionKey(reportId: String, kind: SecondaryKind) =
-        "secondary_last_${kind.name.lowercase()}_$reportId"
-
     // ===== Model Fetching =====
 
     fun fetchModels(service: AppService, apiKey: String) {

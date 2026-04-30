@@ -83,9 +83,6 @@ fun ReportsScreenNav(
         onRunSecondary = { reportId, kind, picks, scopeChoice ->
             reportViewModel.runSecondary(scope, context, reportId, kind, picks, scopeChoice)
         },
-        onLoadSecondaryLastSelection = { reportId, kind ->
-            viewModel.loadSecondaryLastSelection(reportId, kind)
-        },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
         },
@@ -202,7 +199,6 @@ fun ReportsScreen(
     onDeleteReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, SecondaryKind, List<Pair<AppService, String>>, com.ai.data.SecondaryScope) -> Unit = { _, _, _, _ -> },
-    onLoadSecondaryLastSelection: (String, SecondaryKind) -> Set<String> = { _, _ -> emptySet() },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
@@ -430,15 +426,6 @@ fun ReportsScreen(
     val pickerKind = secondaryPickerKind
     if (pickerKind != null && currentReportId != null) {
         val rid = currentReportId
-        val initialKeys = remember(rid, pickerKind) { onLoadSecondaryLastSelection(rid, pickerKind) }
-        val initialChecked = remember(initialKeys) {
-            initialKeys.mapNotNull { key ->
-                val parts = key.split(":", limit = 2)
-                val prov = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
-                val mod = parts.getOrNull(1) ?: return@mapNotNull null
-                prov to mod
-            }.toSet()
-        }
         val pickerLabel = when (pickerKind) {
             SecondaryKind.RERANK -> "Rerank"
             SecondaryKind.SUMMARIZE -> "Summarize"
@@ -447,7 +434,10 @@ fun ReportsScreen(
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
             alreadySelected = emptySet(),
-            initialChecked = initialChecked,
+            // Picker opens with nothing pre-checked — each meta action is
+            // an independent ad-hoc pick, no carry-over from the previous
+            // run on this report.
+            initialChecked = emptySet(),
             titleText = "$pickerLabel — pick models",
             confirmLabel = pickerLabel,
             showRerankOnlyToggle = pickerKind == SecondaryKind.RERANK,
