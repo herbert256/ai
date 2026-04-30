@@ -23,6 +23,9 @@ import androidx.core.content.FileProvider
 import com.ai.data.*
 import com.ai.ui.report.*
 import com.ai.ui.shared.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -35,7 +38,14 @@ fun HistoryScreenNav(
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
-    var allReports by remember { mutableStateOf(ReportStorage.getAllReports(context)) }
+    val scope = rememberCoroutineScope()
+    var allReports by remember { mutableStateOf(emptyList<Report>()) }
+    LaunchedEffect(Unit) {
+        // getAllReports re-reads + parses every report JSON, including
+        // any image-attached reports which can be MB-sized. Off the UI
+        // thread so the History screen opens without jank.
+        allReports = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
+    }
     var searchTitle by remember { mutableStateOf("") }
     var searchPrompt by remember { mutableStateOf("") }
     var searchReport by remember { mutableStateOf("") }
@@ -115,8 +125,10 @@ fun HistoryScreenNav(
                     HistoryReportRow(report = report,
                         onOpen = { onOpenReportResult(report.id) },
                         onDeleteReport = {
-                            ReportStorage.deleteReport(context, report.id)
-                            allReports = ReportStorage.getAllReports(context)
+                            scope.launch {
+                                withContext(Dispatchers.IO) { ReportStorage.deleteReport(context, report.id) }
+                                allReports = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
+                            }
                         }
                     )
                 }

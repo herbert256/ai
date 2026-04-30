@@ -22,6 +22,8 @@ import androidx.core.net.toUri
 import com.ai.data.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val conclusionTagRegex = Regex("<conclusion>.*?</conclusion>", RegexOption.DOT_MATCHES_ALL)
 private val motivationTagRegex = Regex("<motivation>.*?</motivation>", RegexOption.DOT_MATCHES_ALL)
@@ -37,17 +39,54 @@ fun ReportsViewerScreen(
 ) {
     BackHandler { onDismiss() }
     val context = LocalContext.current
-    val report = remember(reportId) { ReportStorage.getReport(context, reportId) }
-
-    if (report == null) {
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(title = "View Reports", onBackClick = onDismiss, onAiClick = onNavigateHome)
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Report not found", color = AppColors.TextSecondary, fontSize = 16.sp)
-            }
-        }
-        return
+    // IO load → keeps the UI thread free while reading JSON. The
+    // initial Loading sentinel distinguishes "still reading from disk"
+    // from "read finished, file genuinely missing" so the empty-state
+    // text only appears after the load completes.
+    val reportState = produceState<ReportLoadState>(initialValue = ReportLoadState.Loading, reportId) {
+        val r = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+        value = if (r != null) ReportLoadState.Loaded(r) else ReportLoadState.NotFound
     }
+
+    when (val s = reportState.value) {
+        ReportLoadState.Loading -> {
+            Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                TitleBar(title = "View Reports", onBackClick = onDismiss, onAiClick = onNavigateHome)
+            }
+            return
+        }
+        ReportLoadState.NotFound -> {
+            Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                TitleBar(title = "View Reports", onBackClick = onDismiss, onAiClick = onNavigateHome)
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Report not found", color = AppColors.TextSecondary, fontSize = 16.sp)
+                }
+            }
+            return
+        }
+        is ReportLoadState.Loaded -> {
+            ReportsViewerScreenLoaded(s.report, initialSelectedAgentId, initialSection,
+                onDismiss, onNavigateHome, onNavigateToTraceFile)
+        }
+    }
+}
+
+private sealed interface ReportLoadState {
+    data object Loading : ReportLoadState
+    data object NotFound : ReportLoadState
+    data class Loaded(val report: Report) : ReportLoadState
+}
+
+@Composable
+private fun ReportsViewerScreenLoaded(
+    report: Report,
+    initialSelectedAgentId: String?,
+    initialSection: String?,
+    onDismiss: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit
+) {
+    val context = LocalContext.current
 
     // Single-section variants: just the prompt, or just the cost table — no agent picker,
     // no per-agent body. These come from the View row's Prompt / Costs buttons.
@@ -64,8 +103,12 @@ fun ReportsViewerScreen(
                     }
                 } else {
                     val hasAgentCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
-                    val hasSecondaryCosts = SecondaryResultStorage.listForReport(context, report.id).any { it.tokenUsage != null }
-                    if (!hasAgentCosts && !hasSecondaryCosts) {
+                    val hasSecondaryCostsState = produceState(initialValue = false, report.id) {
+                        value = withContext(Dispatchers.IO) {
+                            SecondaryResultStorage.listForReport(context, report.id).any { it.tokenUsage != null }
+                        }
+                    }
+                    if (!hasAgentCosts && !hasSecondaryCostsState.value) {
                         Text("(no usage recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
                     } else {
                         ReportCostTable(report = report)
@@ -155,11 +198,14 @@ fun ReportsViewerScreen(
                     // for (reportId, agent.model) and opens its detail view.
                     // Hidden when there's no matching trace (purged, never
                     // captured, or another agent's call is selected).
-                    val traceFilename = remember(reportId, selectedReportAgent.model, selectedReportAgent.agentId) {
-                        ApiTracer.getTraceFiles()
-                            .filter { it.reportId == reportId && it.model == selectedReportAgent.model }
-                            .maxByOrNull { it.timestamp }?.filename
+                    val traceFilenameState = produceState<String?>(initialValue = null, report.id, selectedReportAgent.model, selectedReportAgent.agentId) {
+                        value = withContext(Dispatchers.IO) {
+                            ApiTracer.getTraceFiles()
+                                .filter { it.reportId == report.id && it.model == selectedReportAgent.model }
+                                .maxByOrNull { it.timestamp }?.filename
+                        }
                     }
+                    val traceFilename = traceFilenameState.value
                     if (traceFilename != null) {
                         Spacer(modifier = Modifier.height(20.dp))
                         Button(
@@ -187,7 +233,10 @@ fun ReportCostTable(report: Report) {
     val agentsWithCosts = remember(report) {
         report.agents.filter { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
     }
-    val secondary = remember(report.id) { SecondaryResultStorage.listForReport(context, report.id) }
+    val secondaryState = produceState(initialValue = emptyList<SecondaryResult>(), report.id) {
+        value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, report.id) }
+    }
+    val secondary = secondaryState.value
     if (agentsWithCosts.isEmpty() && secondary.isEmpty()) return
 
     data class CostRow(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)

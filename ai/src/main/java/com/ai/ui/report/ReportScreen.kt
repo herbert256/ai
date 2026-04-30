@@ -29,8 +29,10 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.UiState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ===== Navigation Wrapper =====
 
@@ -389,25 +391,36 @@ fun ReportsScreen(
     val scopeKind = secondaryScopeKind
     if (scopeKind != null && currentReportId != null) {
         val rid = currentReportId
-        val reranks = remember(rid) {
-            com.ai.data.SecondaryResultStorage.listForReport(context, rid, com.ai.data.SecondaryKind.RERANK)
+        // IO load — scope screen reads the rerank list and the parent
+        // report off disk; without produceState both would parse JSON
+        // on the UI thread. Loading sentinel keeps the screen blank
+        // until the read finishes (typically <50 ms).
+        data class ScopeData(val reranks: List<com.ai.data.SecondaryResult>, val totalReports: Int)
+        val scopeDataState = produceState<ScopeData?>(initialValue = null, rid) {
+            value = withContext(Dispatchers.IO) {
+                val rr = com.ai.data.SecondaryResultStorage.listForReport(context, rid, com.ai.data.SecondaryKind.RERANK)
+                val report = com.ai.data.ReportStorage.getReport(context, rid)
+                val total = report?.agents?.count { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() } ?: 0
+                ScopeData(rr, total)
+            }
+        }
+        val sd = scopeDataState.value
+        if (sd == null) {
+            // Still loading — render nothing for a frame or two.
+            return
         }
         // Defensive: scope screen should never have been entered without
         // reranks present, but if reranks were deleted between click and
         // render, fall through to the picker with AllReports.
-        if (reranks.isEmpty()) {
+        if (sd.reranks.isEmpty()) {
             secondaryScopeKind = null
             secondaryPickerKind = scopeKind
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
         } else {
-            val totalReports = remember(rid) {
-                val report = com.ai.data.ReportStorage.getReport(context, rid)
-                report?.agents?.count { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() } ?: 0
-            }
             SecondaryScopeScreen(
                 kind = scopeKind,
-                reranks = reranks,
-                totalReports = totalReports,
+                reranks = sd.reranks,
+                totalReports = sd.totalReports,
                 onContinue = { chosen ->
                     pendingSecondaryScope = chosen
                     secondaryScopeKind = null

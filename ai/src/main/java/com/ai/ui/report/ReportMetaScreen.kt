@@ -29,7 +29,9 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -66,9 +68,13 @@ internal fun ReportMetaScreen(
     // Re-read storage on each refreshTick bump (the poll loop below
     // drives ticks while any batch is running; the final post-batch
     // state is captured by the [isRunning] transition recomposition).
-    val results = remember(reportId, refreshTick, isRunning) {
-        SecondaryResultStorage.listForReport(context, reportId)
-            .sortedByDescending { it.timestamp }
+    // Disk I/O on Dispatchers.IO so the read doesn't stall the UI
+    // thread — listForReport parses every JSON under the secondary dir.
+    val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick, isRunning) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, reportId)
+                .sortedByDescending { it.timestamp }
+        }
     }
 
     // Placeholders are written from runSecondary's IO coroutine, so by

@@ -25,6 +25,8 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -47,8 +49,10 @@ internal fun SecondaryResultsScreen(
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
     var openId by remember { mutableStateOf<String?>(null) }
-    val results = remember(reportId, kind, refreshTick) {
-        SecondaryResultStorage.listForReport(context, reportId, kind)
+    val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, kind, refreshTick) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, reportId, kind)
+        }
     }
 
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
@@ -165,24 +169,30 @@ internal fun SecondaryResultDetailScreen(
     // same model on the same report would otherwise alias — the
     // closest-timestamp tiebreak picks the right one. May be null when
     // tracing was off at the time of the call.
-    val traceFilename = remember(result.id) {
-        ApiTracer.getTraceFiles()
-            .filter { it.reportId == result.reportId && it.model == result.model }
-            .minByOrNull { kotlin.math.abs(it.timestamp - result.timestamp) }?.filename
+    val traceFilenameState = produceState<String?>(initialValue = null, result.id) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == result.reportId && it.model == result.model }
+                .minByOrNull { kotlin.math.abs(it.timestamp - result.timestamp) }?.filename
+        }
     }
+    val traceFilename = traceFilenameState.value
 
     // Build the same id → "provider / model" map the @RESULTS@ block
     // used (success-ordered, 1-based) so the viewer can show real model
     // names instead of the bracketed [N] ids.
-    val agentLabels = remember(result.reportId) {
-        val report = ReportStorage.getReport(context, result.reportId) ?: return@remember emptyMap<Int, String>()
-        report.agents
-            .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-            .mapIndexed { idx, agent ->
-                val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
-                (idx + 1) to "$provDisplay / ${agent.model}"
-            }.toMap()
+    val agentLabelsState = produceState(initialValue = emptyMap<Int, String>(), result.reportId) {
+        value = withContext(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext emptyMap<Int, String>()
+            report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .mapIndexed { idx, agent ->
+                    val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                    (idx + 1) to "$provDisplay / ${agent.model}"
+                }.toMap()
+        }
     }
+    val agentLabels = agentLabelsState.value
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "$title — $provider", onBackClick = onBack, onAiClick = onNavigateHome)

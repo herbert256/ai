@@ -18,6 +18,8 @@ import com.ai.data.AppService
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val singleConclusionTagRegex = Regex("<conclusion>.*?</conclusion>", RegexOption.DOT_MATCHES_ALL)
 private val singleMotivationTagRegex = Regex("<motivation>.*?</motivation>", RegexOption.DOT_MATCHES_ALL)
@@ -45,11 +47,23 @@ fun ReportSingleResultScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val report = remember(reportId) { ReportStorage.getReport(context, reportId) }
+    // Loaded asynchronously: getReport reads + parses the report JSON
+    // (which can be MB-sized for image-attached reports). The Loading
+    // → Loaded transition keeps the UI thread free while reading.
+    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+    }
+    val report = reportState.value
     val agent = report?.agents?.find { it.agentId == agentId }
     val provider = agent?.let { AppService.findById(it.provider) }
 
-    if (report == null || agent == null || provider == null) {
+    if (report == null) {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            TitleBar(title = "View result", onBackClick = onBack, onAiClick = onNavigateHome)
+        }
+        return
+    }
+    if (agent == null || provider == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             TitleBar(title = "View result", onBackClick = onBack, onAiClick = onNavigateHome)
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -59,11 +73,14 @@ fun ReportSingleResultScreen(
         return
     }
 
-    val traceFilename = remember(reportId, agent.model, agent.agentId) {
-        ApiTracer.getTraceFiles()
-            .filter { it.reportId == reportId && it.model == agent.model }
-            .maxByOrNull { it.timestamp }?.filename
+    val traceFilenameState = produceState<String?>(initialValue = null, reportId, agent.model, agent.agentId) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == reportId && it.model == agent.model }
+                .maxByOrNull { it.timestamp }?.filename
+        }
     }
+    val traceFilename = traceFilenameState.value
 
     var confirmRemove by remember { mutableStateOf(false) }
 

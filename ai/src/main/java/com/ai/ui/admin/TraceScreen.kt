@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.ai.data.*
 import com.ai.ui.shared.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -51,13 +53,19 @@ fun TraceListScreen(
     modelFilter: String? = null
 ) {
     BackHandler { onBack() }
-    var traceFiles by remember { mutableStateOf(
-        when {
-            reportId != null -> ApiTracer.getTraceFilesForReport(reportId)
-            modelFilter != null -> ApiTracer.getTraceFiles().filter { it.model == modelFilter }
-            else -> ApiTracer.getTraceFiles()
+    // getTraceFiles parses every trace JSON to extract 4 summary fields;
+    // with hundreds of traces this is tens of ms. Off the UI thread so
+    // opening the trace list doesn't stall.
+    var traceFiles by remember { mutableStateOf(emptyList<TraceFileInfo>()) }
+    LaunchedEffect(reportId, modelFilter) {
+        traceFiles = withContext(Dispatchers.IO) {
+            when {
+                reportId != null -> ApiTracer.getTraceFilesForReport(reportId)
+                modelFilter != null -> ApiTracer.getTraceFiles().filter { it.model == modelFilter }
+                else -> ApiTracer.getTraceFiles()
+            }
         }
-    ) }
+    }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -158,7 +166,11 @@ fun TraceDetailScreen(
     var rawJson by remember { mutableStateOf("") }
     var currentView by remember { mutableStateOf(TraceContentView.ALL) }
 
-    val traceFiles = remember { ApiTracer.getTraceFiles().map { it.filename } }
+    var traceFiles by remember { mutableStateOf(emptyList<String>()) }
+    LaunchedEffect(Unit) {
+        // Off the UI thread — same parse-every-JSON cost as the list screen.
+        traceFiles = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().map { it.filename } }
+    }
     val currentIndex = traceFiles.indexOf(currentFilename)
     val hasPrev = currentIndex > 0
     val hasNext = currentIndex < traceFiles.size - 1 && currentIndex >= 0
