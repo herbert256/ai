@@ -69,6 +69,11 @@ fun ModelSearchScreen(
 ) {
     BackHandler { onBackToAiSetup() }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    // Optional ModelType filter — null means "All types". When set, the
+    // catalog narrows to entries whose effective type matches. Saveable
+    // so the choice survives back-stack visits.
+    var typeFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var typeMenuExpanded by remember { mutableStateOf(false) }
 
     // Build aggregated model list from all active providers
     val allModels = remember(aiSettings) {
@@ -79,11 +84,13 @@ fun ModelSearchScreen(
         }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
-    val filteredModels = remember(searchQuery, allModels) {
-        if (searchQuery.isBlank()) allModels
+    val filteredModels = remember(searchQuery, typeFilter, allModels) {
+        val byType = if (typeFilter == null) allModels
+            else allModels.filter { aiSettings.getModelType(it.provider, it.modelName) == typeFilter }
+        if (searchQuery.isBlank()) byType
         else {
             val q = searchQuery.lowercase()
-            allModels.filter { it.providerName.lowercase().contains(q) || it.modelName.lowercase().contains(q) }
+            byType.filter { it.providerName.lowercase().contains(q) || it.modelName.lowercase().contains(q) }
         }
     }
 
@@ -91,6 +98,48 @@ fun ModelSearchScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "Models", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
+
+        // Type dropdown — sits above the search field. Tapping opens a
+        // menu with "All types" plus every entry from ModelType.ALL.
+        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            OutlinedButton(
+                onClick = { typeMenuExpanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = BorderStroke(1.dp, AppColors.BorderUnfocused)
+            ) {
+                Text(
+                    text = typeFilter?.replaceFirstChar { it.uppercase() } ?: "All types",
+                    fontSize = 13.sp,
+                    color = if (typeFilter != null) Color.White else AppColors.TextTertiary,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                Text("▾", color = AppColors.TextTertiary)
+            }
+            DropdownMenu(
+                expanded = typeMenuExpanded,
+                onDismissRequest = { typeMenuExpanded = false },
+                modifier = Modifier.background(Color(0xFF2D2D2D))
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text("All types", fontSize = 13.sp,
+                            color = if (typeFilter == null) AppColors.Blue else Color.White)
+                    },
+                    onClick = { typeFilter = null; typeMenuExpanded = false }
+                )
+                com.ai.data.ModelType.ALL.forEach { type ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(type.replaceFirstChar { it.uppercase() }, fontSize = 13.sp,
+                                color = if (typeFilter == type) AppColors.Blue else Color.White)
+                        },
+                        onClick = { typeFilter = type; typeMenuExpanded = false }
+                    )
+                }
+            }
+        }
 
         OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it },
             placeholder = { Text("Search models...") }, modifier = Modifier.fillMaxWidth(),
