@@ -59,6 +59,15 @@ private object ModelInfoCache {
     }
 }
 
+/** Compact token-count label — 1024 → "1k", 128000 → "128k", 1_000_000
+ *  → "1M". Used in the Min-context dropdown so the option labels stay
+ *  short enough not to wrap. */
+private fun formatTokenCount(n: Int): String = when {
+    n >= 1_000_000 -> "${n / 1_000_000}M"
+    n >= 1_000 -> "${n / 1_000}k"
+    else -> n.toString()
+}
+
 @Composable
 fun ModelSearchScreen(
     aiSettings: Settings,
@@ -68,6 +77,7 @@ fun ModelSearchScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit
 ) {
     BackHandler { onBackToAiSetup() }
+    val context = LocalContext.current
     var searchQuery by rememberSaveable { mutableStateOf("") }
     // Optional filters — null/false = unrestricted. All saveable so the
     // choices survive back-stack visits.
@@ -77,6 +87,14 @@ fun ModelSearchScreen(
     var providerMenuExpanded by remember { mutableStateOf(false) }
     var visionOnly by rememberSaveable { mutableStateOf(false) }
     var webSearchOnly by rememberSaveable { mutableStateOf(false) }
+    // Minimum context length tier (tokens). null = no filter. Tiers picked
+    // to span the common ranges — 8k for legacy, 32k for early Claude /
+    // GPT-3.5-turbo-16k, 128k for GPT-4o, 200k for Claude 3+, 1M for
+    // Gemini 1.5/2.x and frontier Anthropic.
+    var minContextFilter by rememberSaveable { mutableStateOf<Int?>(null) }
+    var contextMenuExpanded by remember { mutableStateOf(false) }
+    var hasPricingOnly by rememberSaveable { mutableStateOf(false) }
+    var freeOnly by rememberSaveable { mutableStateOf(false) }
 
     val activeServices = remember(aiSettings) { aiSettings.getActiveServices().sortedBy { it.displayName.lowercase() } }
     val providerFilter = providerFilterId?.let { id -> activeServices.firstOrNull { it.id == id } }
@@ -92,12 +110,31 @@ fun ModelSearchScreen(
         }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
-    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, allModels) {
+    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, minContextFilter, hasPricingOnly, freeOnly, allModels) {
         var list = allModels
         if (typeFilter != null) list = list.filter { aiSettings.getModelType(it.provider, it.modelName) == typeFilter }
         if (providerFilterId != null) list = list.filter { it.provider.id == providerFilterId }
         if (visionOnly) list = list.filter { aiSettings.isVisionCapable(it.provider, it.modelName) }
         if (webSearchOnly) list = list.filter { aiSettings.isWebSearchCapable(it.provider, it.modelName) }
+        if (minContextFilter != null) {
+            val min = minContextFilter!!
+            list = list.filter { item ->
+                // Provider's own /models endpoint first, then models.dev
+                // fallback. Models with no context length data anywhere
+                // are excluded — there's no way to know if they qualify.
+                val ctx = aiSettings.getProvider(item.provider).modelCapabilities[item.modelName]?.contextLength
+                    ?: com.ai.data.PricingCache.modelsDevMaxInputTokens(item.provider, item.modelName)
+                ctx != null && ctx >= min
+            }
+        }
+        if (hasPricingOnly || freeOnly) {
+            list = list.filter { item ->
+                val pricing = com.ai.data.PricingCache.getPricing(context, item.provider, item.modelName)
+                val real = pricing.source != "DEFAULT"
+                val free = real && pricing.promptPrice == 0.0 && pricing.completionPrice == 0.0
+                (!hasPricingOnly || real) && (!freeOnly || free)
+            }
+        }
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.lowercase()
             list = list.filter { it.providerName.lowercase().contains(q) || it.modelName.lowercase().contains(q) }
@@ -195,26 +232,91 @@ fun ModelSearchScreen(
             }
         }
 
-        // Capability checkboxes — both default off; ticking narrows the
-        // list to entries Settings.is*Capable returns true for.
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Min-context dropdown — sits on its own row because the label
+        // is wider than the chip-style filters below.
+        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+            OutlinedButton(
+                onClick = { contextMenuExpanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = BorderStroke(1.dp, AppColors.BorderUnfocused)
+            ) {
+                val label = minContextFilter?.let { "Min context ≥ ${formatTokenCount(it)}" } ?: "Any context length"
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    color = if (minContextFilter != null) Color.White else AppColors.TextTertiary,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                Text("▾", color = AppColors.TextTertiary)
+            }
+            DropdownMenu(
+                expanded = contextMenuExpanded,
+                onDismissRequest = { contextMenuExpanded = false },
+                modifier = Modifier.background(Color(0xFF2D2D2D))
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text("Any context length", fontSize = 13.sp,
+                            color = if (minContextFilter == null) AppColors.Blue else Color.White)
+                    },
+                    onClick = { minContextFilter = null; contextMenuExpanded = false }
+                )
+                listOf(8_192, 32_768, 128_000, 200_000, 1_000_000).forEach { tier ->
+                    DropdownMenuItem(
+                        text = {
+                            Text("≥ ${formatTokenCount(tier)}", fontSize = 13.sp,
+                                color = if (minContextFilter == tier) AppColors.Blue else Color.White)
+                        },
+                        onClick = { minContextFilter = tier; contextMenuExpanded = false }
+                    )
+                }
+            }
+        }
+
+        // Capability + pricing chips. FlowRow so they wrap onto a second
+        // line on narrower screens instead of clipping.
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             FilterChip(
                 selected = visionOnly,
                 onClick = { visionOnly = !visionOnly },
-                label = { Text("👁 Vision only", fontSize = 12.sp) },
+                label = { Text("👁 Vision", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
                     selectedLabelColor = AppColors.Blue
                 )
             )
-            Spacer(modifier = Modifier.width(6.dp))
             FilterChip(
                 selected = webSearchOnly,
                 onClick = { webSearchOnly = !webSearchOnly },
-                label = { Text("🌐 Web-search only", fontSize = 12.sp) },
+                label = { Text("🌐 Web search", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
                     selectedLabelColor = AppColors.Blue
+                )
+            )
+            FilterChip(
+                selected = hasPricingOnly,
+                onClick = { hasPricingOnly = !hasPricingOnly },
+                label = { Text("💲 Has pricing", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Green.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Green
+                )
+            )
+            FilterChip(
+                selected = freeOnly,
+                onClick = { freeOnly = !freeOnly },
+                label = { Text("🎁 Free only", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Green.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Green
                 )
             )
         }

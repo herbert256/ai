@@ -769,6 +769,9 @@ object PricingCache {
     fun modelsDevSupportsReasoning(provider: AppService, model: String): Boolean? =
         findModelsDevMeta(provider, model)?.supportsReasoning
 
+    fun modelsDevMaxInputTokens(provider: AppService, model: String): Int? =
+        findModelsDevMeta(provider, model)?.maxInputTokens
+
     /** Pretty-printed models.dev JSON entry for the (provider, model)
      *  pair, or null when unknown — drives the Models.dev raw-data
      *  button on Model Info, mirroring [getLiteLLMRawEntry]. */
