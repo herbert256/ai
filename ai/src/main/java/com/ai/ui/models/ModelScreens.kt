@@ -95,6 +95,10 @@ fun ModelSearchScreen(
     var contextMenuExpanded by remember { mutableStateOf(false) }
     var hasPricingOnly by rememberSaveable { mutableStateOf(false) }
     var freeOnly by rememberSaveable { mutableStateOf(false) }
+    // Inverse of [hasPricingOnly] — only models running on the
+    // ModelPricing("default", 25/75 ¢/M-token) fallback. Useful for
+    // hunting down which entries still need a real pricing source.
+    var defaultPricingOnly by rememberSaveable { mutableStateOf(false) }
 
     val activeServices = remember(aiSettings) { aiSettings.getActiveServices().sortedBy { it.displayName.lowercase() } }
     val providerFilter = providerFilterId?.let { id -> activeServices.firstOrNull { it.id == id } }
@@ -110,7 +114,7 @@ fun ModelSearchScreen(
         }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
-    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, minContextFilter, hasPricingOnly, freeOnly, allModels) {
+    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, minContextFilter, hasPricingOnly, freeOnly, defaultPricingOnly, allModels) {
         var list = allModels
         if (typeFilter != null) list = list.filter { aiSettings.getModelType(it.provider, it.modelName) == typeFilter }
         if (providerFilterId != null) list = list.filter { it.provider.id == providerFilterId }
@@ -127,12 +131,12 @@ fun ModelSearchScreen(
                 ctx != null && ctx >= min
             }
         }
-        if (hasPricingOnly || freeOnly) {
+        if (hasPricingOnly || freeOnly || defaultPricingOnly) {
             list = list.filter { item ->
                 val pricing = com.ai.data.PricingCache.getPricing(context, item.provider, item.modelName)
                 val real = pricing.source != "DEFAULT"
                 val free = real && pricing.promptPrice == 0.0 && pricing.completionPrice == 0.0
-                (!hasPricingOnly || real) && (!freeOnly || free)
+                (!hasPricingOnly || real) && (!freeOnly || free) && (!defaultPricingOnly || !real)
             }
         }
         if (searchQuery.isNotBlank()) {
@@ -317,6 +321,15 @@ fun ModelSearchScreen(
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = AppColors.Green.copy(alpha = 0.2f),
                     selectedLabelColor = AppColors.Green
+                )
+            )
+            FilterChip(
+                selected = defaultPricingOnly,
+                onClick = { defaultPricingOnly = !defaultPricingOnly },
+                label = { Text("⚠ Default 25/75", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Orange.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Orange
                 )
             )
         }
