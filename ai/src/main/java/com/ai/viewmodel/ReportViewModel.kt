@@ -623,6 +623,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val agentName = "${provider.displayName} / $model"
         val placeholder = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
 
+        // Moderation runs through the dedicated /v1/moderations
+        // endpoint — one batch call classifying every report response.
+        // No chat prompt, no per-response loop here (the API takes the
+        // input array and returns one result per input). The structured
+        // JSON content is rendered as a flagged-categories table by the
+        // detail screen.
+        if (kind == SecondaryKind.MODERATION) {
+            val responses = report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .map { it.responseBody!! }
+            val (_, r) = com.ai.data.callModerationApi(provider, apiKey, model, responses)
+            SecondaryResultStorage.save(context, placeholder.copy(
+                content = r.content,
+                errorMessage = r.errorMessage,
+                durationMs = r.durationMs
+            ))
+            if (r.errorMessage == null) {
+                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                    provider, model, 0, 0, 0, kind = "moderation"
+                )
+            }
+            return
+        }
+
         // Rerank-typed models (Cohere rerank-v3.5 etc.) don't have a chat
         // endpoint — they take query + documents and return relevance
         // scores. Detect that and route to the dedicated rerank API,

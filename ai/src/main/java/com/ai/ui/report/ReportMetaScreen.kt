@@ -55,6 +55,7 @@ internal fun ReportMetaScreen(
     onRerank: () -> Unit,
     onSummarize: () -> Unit,
     onCompare: () -> Unit,
+    onModerate: () -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
@@ -157,6 +158,12 @@ internal fun ReportMetaScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
                         contentPadding = PaddingValues(horizontal = 2.dp)
                     ) { Text("Compare", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                    Button(
+                        onClick = onModerate,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) { Text("Moderation", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                 }
             }
         }

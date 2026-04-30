@@ -489,6 +489,11 @@ fun ReportsScreen(
                 if (hasRerank) secondaryScopeKind = SecondaryKind.COMPARE
                 else { pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports; secondaryPickerKind = SecondaryKind.COMPARE }
             },
+            onModerate = {
+                // Moderation operates on every response, no scope step.
+                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                secondaryPickerKind = SecondaryKind.MODERATION
+            },
             onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
             onBack = { showMetaScreen = false },
             onNavigateHome = onNavigateHome,

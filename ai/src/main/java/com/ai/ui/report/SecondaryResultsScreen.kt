@@ -227,6 +227,14 @@ internal fun SecondaryResultDetailScreen(
                         RerankTable(rows = rows, agentLabels = agentLabels)
                     }
                 }
+                result.kind == SecondaryKind.MODERATION -> {
+                    val rows = remember(result.content) { parseModerationRows(result.content) }
+                    if (rows == null) {
+                        ContentWithThinkSections(analysis = result.content)
+                    } else {
+                        ModerationTable(rows = rows, agentLabels = agentLabels)
+                    }
+                }
                 else -> {
                     // Summarize / Compare: replace bracketed [N] tags
                     // inline with "[N: provider/model]" so the user sees
@@ -355,5 +363,84 @@ internal fun annotateBracketRefs(content: String?, agentLabels: Map<Int, String>
         val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
         val label = agentLabels[id] ?: return@replace m.value
         "[$id: $label]"
+    }
+}
+
+internal data class ModerationRow(
+    val id: Int,
+    val flagged: Boolean,
+    val firedCategories: List<String>,
+    /** All non-zero scores, sorted high → low so the table can show the
+     *  top contributors even when nothing crossed the boolean threshold. */
+    val topScores: List<Pair<String, Double>>
+)
+
+/** Parse the JSON [callModerationApi] writes into the SecondaryResult.
+ *  Same `[{id, flagged, categories, scores}, …]` shape callRerankApi
+ *  uses; tolerates ``` fences. Returns null on bad input. */
+internal fun parseModerationRows(content: String): List<ModerationRow>? {
+    val cleaned = content.trim()
+        .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    val arr = try {
+        @Suppress("DEPRECATION")
+        com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
+    } catch (_: Exception) { null } ?: return null
+    if (arr.size() == 0) return null
+    val rows = arr.mapNotNull { el ->
+        if (!el.isJsonObject) return@mapNotNull null
+        val obj = el.asJsonObject
+        val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
+        val flagged = obj.get("flagged")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: false
+        val cats = obj.getAsJsonObject("categories")
+        val scores = obj.getAsJsonObject("scores")
+        val fired = cats?.entrySet()?.filter { it.value.asBoolean }?.map { it.key } ?: emptyList()
+        val scoreList = scores?.entrySet()?.mapNotNull {
+            val v = try { it.value.asDouble } catch (_: Exception) { return@mapNotNull null }
+            it.key to v
+        }?.sortedByDescending { it.second }?.take(3) ?: emptyList()
+        ModerationRow(id, flagged, fired, scoreList)
+    }
+    if (rows.isEmpty()) return null
+    return rows
+}
+
+@Composable
+internal fun ModerationTable(rows: List<ModerationRow>, agentLabels: Map<Int, String>) {
+    val hColor = AppColors.Blue
+    val hSize = 12.sp
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+            Row(modifier = Modifier.padding(vertical = 4.dp)) {
+                Text("Flag", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(40.dp))
+                Text("Model", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(220.dp).padding(start = 8.dp))
+                Text("Categories fired", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(220.dp).padding(start = 8.dp))
+                Text("Top scores", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp))
+            }
+            HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+            rows.forEach { r ->
+                val label = agentLabels[r.id] ?: "[${r.id}] (unknown)"
+                val firedText = if (r.firedCategories.isEmpty()) "—" else r.firedCategories.joinToString(", ")
+                val scoresText = r.topScores.joinToString(", ") { (k, v) -> "$k=${"%.3f".format(v)}" }
+                Row(modifier = Modifier.padding(vertical = 6.dp)) {
+                    Text(if (r.flagged) "🚩" else "✓", fontSize = 13.sp,
+                        color = if (r.flagged) AppColors.Red else AppColors.Green,
+                        modifier = Modifier.width(40.dp))
+                    Text(label, fontSize = 12.sp, color = Color.White,
+                        modifier = Modifier.width(220.dp).padding(start = 8.dp),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(firedText, fontSize = 12.sp,
+                        color = if (r.flagged) AppColors.Red else AppColors.TextTertiary,
+                        modifier = Modifier.width(220.dp).padding(start = 8.dp))
+                    Text(scoresText, fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.widthIn(min = 200.dp).padding(start = 8.dp))
+                }
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+            }
+        }
     }
 }
