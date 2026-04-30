@@ -171,6 +171,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
         SecondaryKind.RERANK -> "Rerank"
         SecondaryKind.SUMMARIZE -> "Summary"
         SecondaryKind.COMPARE -> "Compare"
+        SecondaryKind.MODERATION -> "Moderation"
     }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -221,6 +222,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
             SecondaryKind.RERANK -> "rerank"
             SecondaryKind.SUMMARIZE -> "summary"
             SecondaryKind.COMPARE -> "compare"
+            SecondaryKind.MODERATION -> "moderation"
         }
         AlertDialog(
             onDismissRequest = { confirmDelete = false },

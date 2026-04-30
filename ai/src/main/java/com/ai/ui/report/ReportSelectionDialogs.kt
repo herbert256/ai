@@ -226,7 +226,11 @@ internal fun ReportSelectModelsScreen(
     titleText: String = "Add Models",
     confirmLabel: String = "Add",
     initialChecked: Set<Pair<AppService, String>> = emptySet(),
-    showRerankOnlyToggle: Boolean = false
+    /** When non-null, surfaces a "<Type> models only" toggle that filters the
+     *  catalog to that ModelType. Defaults to ON when shown — Rerank/Moderation
+     *  flows almost always want the typed catalog; the user can untick to
+     *  widen. Pass one of the ModelType.* string constants. */
+    modelTypeFilter: String? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -235,18 +239,14 @@ internal fun ReportSelectModelsScreen(
     var providerFilter by remember { mutableStateOf<AppService?>(null) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
     var checked by remember { mutableStateOf(initialChecked) }
-    // Default the "Rerank models only" filter to ON whenever the toggle
-    // is visible — i.e. when we're opening the picker for a Rerank meta
-    // action. Rerank flows almost always want the rerank-typed catalog;
-    // the user can untick to widen if needed.
-    var rerankOnly by remember { mutableStateOf(showRerankOnlyToggle) }
+    var typeOnly by remember { mutableStateOf(modelTypeFilter != null) }
 
     val all = remember(aiSettings) {
         activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
     }
     val providerFiltered = if (providerFilter != null) all.filter { it.first == providerFilter } else all
-    val typeFiltered = if (rerankOnly) {
-        providerFiltered.filter { (prov, model) -> aiSettings.getModelType(prov, model) == com.ai.data.ModelType.RERANK }
+    val typeFiltered = if (typeOnly && modelTypeFilter != null) {
+        providerFiltered.filter { (prov, model) -> aiSettings.getModelType(prov, model) == modelTypeFilter }
     } else providerFiltered
     val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
         prov.displayName.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
@@ -288,10 +288,16 @@ internal fun ReportSelectModelsScreen(
             ) { Text("$confirmLabel (${checked.size})", maxLines = 1, softWrap = false) }
         }
 
-        if (showRerankOnlyToggle) {
+        if (modelTypeFilter != null) {
+            val label = when (modelTypeFilter) {
+                com.ai.data.ModelType.RERANK -> "Rerank models only"
+                com.ai.data.ModelType.MODERATION -> "Moderation models only"
+                com.ai.data.ModelType.EMBEDDING -> "Embedding models only"
+                else -> "$modelTypeFilter models only"
+            }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                Checkbox(checked = rerankOnly, onCheckedChange = { rerankOnly = it })
-                Text("Rerank models only", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Checkbox(checked = typeOnly, onCheckedChange = { typeOnly = it })
+                Text(label, fontSize = 12.sp, color = AppColors.TextTertiary)
             }
         }
 

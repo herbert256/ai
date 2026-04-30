@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-enum class SecondaryKind { RERANK, SUMMARIZE, COMPARE }
+enum class SecondaryKind { RERANK, SUMMARIZE, COMPARE, MODERATION }
 
 /**
  * A meta-result that operates on a parent Report's per-agent outputs:
@@ -124,13 +124,13 @@ object SecondaryResultStorage {
      *  result screen to decide whether to surface the View Reranks /
      *  Summaries / Compares buttons without paying for the full file parse
      *  on every recomposition. */
-    data class Counts(val rerank: Int, val summarize: Int, val compare: Int)
+    data class Counts(val rerank: Int, val summarize: Int, val compare: Int, val moderation: Int)
     fun countForReport(context: Context, reportId: String): Counts {
         init(context)
         return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0)
-            if (!dir.exists()) return@withLock Counts(0, 0, 0)
-            var rerank = 0; var summarize = 0; var compare = 0
+            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0, 0)
+            if (!dir.exists()) return@withLock Counts(0, 0, 0, 0)
+            var rerank = 0; var summarize = 0; var compare = 0; var moderation = 0
             dir.listFiles { f -> f.extension == "json" }?.forEach { file ->
                 try {
                     val r = gson.fromJson(file.readText(), SecondaryResult::class.java)
@@ -138,10 +138,11 @@ object SecondaryResultStorage {
                         SecondaryKind.RERANK -> rerank++
                         SecondaryKind.SUMMARIZE -> summarize++
                         SecondaryKind.COMPARE -> compare++
+                        SecondaryKind.MODERATION -> moderation++
                     }
                 } catch (_: Exception) {}
             }
-            Counts(rerank, summarize, compare)
+            Counts(rerank, summarize, compare, moderation)
         }
     }
 }
@@ -299,6 +300,125 @@ suspend fun callRerankApi(
             durationMs = System.currentTimeMillis() - start
         )
     }
+}
+
+/** Outcome of a single moderation call. [content] is structured JSON of
+ *  the form `[{id: N, flagged: bool, categories: {…}, scores: {…}}, …]`
+ *  — one object per input. The renderer parses this in the detail
+ *  screen and tabulates flags. */
+data class ModerationApiResult(
+    val content: String?,
+    val errorMessage: String?,
+    val httpStatusCode: Int? = null,
+    val durationMs: Long
+)
+
+/** Per-input moderation classification. Used by both the chat-input
+ *  validator and the Meta moderation flow; the latter aggregates many
+ *  of these into a [ModerationApiResult.content] JSON array. */
+data class ModerationInputResult(
+    val flagged: Boolean,
+    val categories: Map<String, Boolean>,
+    val scores: Map<String, Double>
+) {
+    /** Categories that fired (`true` in `categories`). Convenience for
+     *  the dialog / row label so callers don't repeat the filter. */
+    val firedCategories: List<String> get() = categories.filterValues { it }.keys.toList()
+}
+
+/** Call the provider's moderation endpoint on each entry in [inputs].
+ *  Currently routes Mistral only; other providers fall through with an
+ *  explanatory error so the user learns to pick a Mistral moderation
+ *  model. The result list is index-aligned with [inputs]. */
+suspend fun callModerationApi(
+    provider: AppService, apiKey: String, model: String,
+    inputs: List<String>
+): Pair<List<ModerationInputResult>?, ModerationApiResult> {
+    val start = System.currentTimeMillis()
+    return when (provider.id) {
+        "MISTRAL" -> callMistralModeration(apiKey, model, inputs, start)
+        else -> {
+            val err = ModerationApiResult(
+                content = null,
+                errorMessage = "Moderation API not wired for provider ${provider.displayName}. Pick a Mistral moderation model instead, or open an issue to add ${provider.id} moderation support.",
+                durationMs = System.currentTimeMillis() - start
+            )
+            null to err
+        }
+    }
+}
+
+private suspend fun callMistralModeration(
+    apiKey: String, model: String, inputs: List<String>, start: Long
+): Pair<List<ModerationInputResult>?, ModerationApiResult> {
+    return try {
+        val api = ApiFactory.createMistralModerationApi()
+        val response = api.moderate("Bearer $apiKey", MistralModerationRequest(model, inputs))
+        val duration = System.currentTimeMillis() - start
+        if (!response.isSuccessful) {
+            val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+            return null to ModerationApiResult(
+                content = null,
+                errorMessage = "${response.code()} ${response.message()}: ${errBody ?: ""}",
+                httpStatusCode = response.code(),
+                durationMs = duration
+            )
+        }
+        val body = response.body() ?: return null to ModerationApiResult(
+            content = null, errorMessage = "Empty moderation response", httpStatusCode = response.code(), durationMs = duration
+        )
+        if (body.results.isNullOrEmpty()) {
+            return null to ModerationApiResult(
+                content = null,
+                errorMessage = body.message ?: "Moderation returned no results",
+                httpStatusCode = response.code(), durationMs = duration
+            )
+        }
+        val results = body.results.map { r ->
+            val cats = r.categories.orEmpty()
+            ModerationInputResult(
+                flagged = cats.any { it.value },
+                categories = cats,
+                scores = r.category_scores.orEmpty()
+            )
+        }
+        val json = moderationResultsToJson(results)
+        results to ModerationApiResult(
+            content = json,
+            errorMessage = null,
+            httpStatusCode = response.code(),
+            durationMs = duration
+        )
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null to ModerationApiResult(
+            content = null,
+            errorMessage = "Moderation call failed: ${e.message ?: e.javaClass.simpleName}",
+            durationMs = System.currentTimeMillis() - start
+        )
+    }
+}
+
+/** Encode the moderation outcomes as JSON the detail screen parses
+ *  back. id = 1-based index of the input (so the bracketed [N] tags
+ *  the rest of the pipeline already uses align). */
+private fun moderationResultsToJson(results: List<ModerationInputResult>): String {
+    val arr = com.google.gson.JsonArray()
+    results.forEachIndexed { idx, r ->
+        val obj = com.google.gson.JsonObject().apply {
+            addProperty("id", idx + 1)
+            addProperty("flagged", r.flagged)
+            val catsObj = com.google.gson.JsonObject()
+            r.categories.forEach { (k, v) -> catsObj.addProperty(k, v) }
+            add("categories", catsObj)
+            val scoresObj = com.google.gson.JsonObject()
+            r.scores.forEach { (k, v) -> scoresObj.addProperty(k, v) }
+            add("scores", scoresObj)
+        }
+        arr.add(obj)
+    }
+    return createAppGson(prettyPrint = true).toJson(arr)
 }
 
 private suspend fun callCohereRerank(

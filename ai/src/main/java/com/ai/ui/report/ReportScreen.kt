@@ -443,6 +443,7 @@ fun ReportsScreen(
             SecondaryKind.RERANK -> "Rerank"
             SecondaryKind.SUMMARIZE -> "Summarize"
             SecondaryKind.COMPARE -> "Compare"
+            SecondaryKind.MODERATION -> "Moderation"
         }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
@@ -453,7 +454,11 @@ fun ReportsScreen(
             initialChecked = emptySet(),
             titleText = "$pickerLabel — pick models",
             confirmLabel = pickerLabel,
-            showRerankOnlyToggle = pickerKind == SecondaryKind.RERANK,
+            modelTypeFilter = when (pickerKind) {
+                SecondaryKind.RERANK -> com.ai.data.ModelType.RERANK
+                SecondaryKind.MODERATION -> com.ai.data.ModelType.MODERATION
+                else -> null
+            },
             onConfirm = { picks ->
                 onRunSecondary(rid, pickerKind, picks, pendingSecondaryScope)
                 secondaryPickerKind = null

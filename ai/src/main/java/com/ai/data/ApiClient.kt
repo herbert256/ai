@@ -164,6 +164,16 @@ interface CohereRerankApi {
     ): Response<CohereRerankResponse>
 }
 
+/** Mistral moderation API. Returns per-input category booleans + scores
+ *  against ~9 harmful-content categories. Plain HTTP — no streaming. */
+interface MistralModerationApi {
+    @POST("v1/moderations")
+    suspend fun moderate(
+        @Header("Authorization") authorization: String,
+        @Body request: MistralModerationRequest
+    ): Response<MistralModerationResponse>
+}
+
 /** Hugging Face model info. */
 interface HuggingFaceApi {
     @GET("models/{modelId}")
@@ -223,5 +233,6 @@ object ApiFactory {
     fun createOpenRouterModelsApi(baseUrl: String): OpenRouterModelsApi = getRetrofit(baseUrl).create(OpenRouterModelsApi::class.java)
     fun createCohereNativeApi(): CohereNativeApi = getRetrofit("https://api.cohere.com/").create(CohereNativeApi::class.java)
     fun createCohereRerankApi(): CohereRerankApi = getRetrofit("https://api.cohere.com/").create(CohereRerankApi::class.java)
+    fun createMistralModerationApi(): MistralModerationApi = getRetrofit("https://api.mistral.ai/").create(MistralModerationApi::class.java)
     fun createHuggingFaceApi(): HuggingFaceApi = getRetrofit("https://huggingface.co/api/").create(HuggingFaceApi::class.java)
 }

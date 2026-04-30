@@ -278,6 +278,7 @@ private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
                 SecondaryKind.RERANK -> "rerank"
                 SecondaryKind.SUMMARIZE -> "summarize"
                 SecondaryKind.COMPARE -> "compare"
+                SecondaryKind.MODERATION -> "moderation"
             }
             Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
                 (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)

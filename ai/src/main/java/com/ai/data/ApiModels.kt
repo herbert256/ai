@@ -396,6 +396,32 @@ data class CohereRerankResponse(
     val message: String? = null
 )
 
+/** Mistral /v1/moderations request. Accepts an array of text inputs;
+ *  one [MistralModerationResult] is returned per input. */
+data class MistralModerationRequest(
+    val model: String,
+    val input: List<String>
+)
+
+/** Per-input result from /v1/moderations. `categories` is a map of
+ *  category name → boolean (true means the category fired);
+ *  `category_scores` is the same keys with 0.0–1.0 floats. We keep the
+ *  shape generic (Map<String, *>) so the renderer doesn't need to be
+ *  updated when Mistral adds a new category. */
+data class MistralModerationResult(
+    val categories: Map<String, Boolean>? = null,
+    val category_scores: Map<String, Double>? = null
+)
+
+data class MistralModerationResponse(
+    val id: String? = null,
+    val model: String? = null,
+    val results: List<MistralModerationResult>? = null,
+    /** Populated only on error envelopes — Mistral returns `message` on
+     *  4xx/5xx, just like the rerank shape. */
+    val message: String? = null
+)
+
 data class ClaudeModelsResponse(val data: List<ClaudeModelInfo>?)
 data class ClaudeModelInfo(val id: String?, val display_name: String?, val type: String?)
 

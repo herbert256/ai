@@ -513,12 +513,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** Resolve the prompt template for [kind]: prefer a user-supplied
      *  Internal Prompt named "rerank", "summarize", or "compare", fall back
      *  to the GeneralSettings dedicated field, finally fall back to the
-     *  hardcoded default in [SecondaryPrompts]. */
+     *  hardcoded default in [SecondaryPrompts]. Moderation doesn't use a
+     *  chat prompt — it goes through the dedicated /v1/moderations
+     *  endpoint — so this returns "" for MODERATION; callers must check
+     *  the kind before using the result. */
     private fun resolveTemplate(aiSettings: Settings, generalSettings: GeneralSettings, kind: SecondaryKind): String {
+        if (kind == SecondaryKind.MODERATION) return ""
         val targetName = when (kind) {
             SecondaryKind.RERANK -> "rerank"
             SecondaryKind.SUMMARIZE -> "summarize"
             SecondaryKind.COMPARE -> "compare"
+            SecondaryKind.MODERATION -> "moderation" // unreachable
         }
         val internal = aiSettings.prompts.firstOrNull { it.name.equals(targetName, ignoreCase = true) }
         if (internal != null && internal.promptText.isNotBlank()) return internal.promptText
@@ -526,12 +531,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             SecondaryKind.RERANK -> generalSettings.rerankPrompt
             SecondaryKind.SUMMARIZE -> generalSettings.summarizePrompt
             SecondaryKind.COMPARE -> generalSettings.comparePrompt
+            SecondaryKind.MODERATION -> "" // unreachable
         }
         if (fromGs.isNotBlank()) return fromGs
         return when (kind) {
             SecondaryKind.RERANK -> SecondaryPrompts.DEFAULT_RERANK
             SecondaryKind.SUMMARIZE -> SecondaryPrompts.DEFAULT_SUMMARIZE
             SecondaryKind.COMPARE -> SecondaryPrompts.DEFAULT_COMPARE
+            SecondaryKind.MODERATION -> "" // unreachable
         }
     }
 
@@ -692,6 +699,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     SecondaryKind.RERANK -> "rerank"
                     SecondaryKind.SUMMARIZE -> "summarize"
                     SecondaryKind.COMPARE -> "compare"
+                    SecondaryKind.MODERATION -> "moderation"
                 }
             )
         }

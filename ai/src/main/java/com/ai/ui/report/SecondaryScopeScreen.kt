@@ -48,6 +48,7 @@ internal fun SecondaryScopeScreen(
         SecondaryKind.SUMMARIZE -> "Summarize"
         SecondaryKind.COMPARE -> "Compare"
         SecondaryKind.RERANK -> "Rerank" // never reached but exhaustive
+        SecondaryKind.MODERATION -> "Moderation" // also never reached — moderation never enters the scope screen
     }
     var topOnly by remember { mutableStateOf(false) }
     var countText by remember {
