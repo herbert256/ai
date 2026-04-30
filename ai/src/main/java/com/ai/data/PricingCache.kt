@@ -567,6 +567,29 @@ object PricingCache {
         return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, override, openrouter, DEFAULT_PRICING)
     }
 
+    /** True when two or more catalog tiers have pricing for this
+     *  (provider, model) and they disagree on either the prompt or
+     *  completion rate beyond a 1% relative tolerance. The user override
+     *  and the static DEFAULT fallback are intentionally excluded —
+     *  override is user-curated and "winning" the lookup, default is
+     *  the fallback no real source disagrees with. Used by the AI
+     *  Models filter to surface entries where the catalog ecosystem
+     *  hasn't settled on a single number. */
+    fun pricesConflict(context: Context, provider: AppService, model: String): Boolean {
+        val br = getTierBreakdown(context, provider, model)
+        val tiers = listOfNotNull(br.litellm, br.modelsDev, br.helicone, br.llmPrices, br.artificialAnalysis, br.openrouter)
+        if (tiers.size < 2) return false
+        fun close(a: Double, b: Double): Boolean {
+            if (a == b) return true
+            val mag = maxOf(kotlin.math.abs(a), kotlin.math.abs(b))
+            if (mag == 0.0) return false
+            return kotlin.math.abs(a - b) / mag <= 0.01
+        }
+        val prompt = tiers.first().promptPrice
+        val completion = tiers.first().completionPrice
+        return tiers.any { !close(it.promptPrice, prompt) || !close(it.completionPrice, completion) }
+    }
+
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
     fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return litellmPricing?.toMap() ?: emptyMap() }
 

@@ -99,6 +99,10 @@ fun ModelSearchScreen(
     // ModelPricing("default", 25/75 ¢/M-token) fallback. Useful for
     // hunting down which entries still need a real pricing source.
     var defaultPricingOnly by rememberSaveable { mutableStateOf(false) }
+    // Surface entries where 2+ catalog tiers disagree on the prompt /
+    // completion rate beyond 1% — driver of "which model has the
+    // sources fighting?"
+    var conflictingPricingOnly by rememberSaveable { mutableStateOf(false) }
 
     val activeServices = remember(aiSettings) { aiSettings.getActiveServices().sortedBy { it.displayName.lowercase() } }
     val providerFilter = providerFilterId?.let { id -> activeServices.firstOrNull { it.id == id } }
@@ -114,7 +118,7 @@ fun ModelSearchScreen(
         }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
-    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, minContextFilter, hasPricingOnly, freeOnly, defaultPricingOnly, allModels) {
+    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, minContextFilter, hasPricingOnly, freeOnly, defaultPricingOnly, conflictingPricingOnly, allModels) {
         var list = allModels
         if (typeFilter != null) list = list.filter { aiSettings.getModelType(it.provider, it.modelName) == typeFilter }
         if (providerFilterId != null) list = list.filter { it.provider.id == providerFilterId }
@@ -137,6 +141,11 @@ fun ModelSearchScreen(
                 val real = pricing.source != "DEFAULT"
                 val free = real && pricing.promptPrice == 0.0 && pricing.completionPrice == 0.0
                 (!hasPricingOnly || real) && (!freeOnly || free) && (!defaultPricingOnly || !real)
+            }
+        }
+        if (conflictingPricingOnly) {
+            list = list.filter { item ->
+                com.ai.data.PricingCache.pricesConflict(context, item.provider, item.modelName)
             }
         }
         if (searchQuery.isNotBlank()) {
@@ -330,6 +339,15 @@ fun ModelSearchScreen(
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = AppColors.Orange.copy(alpha = 0.2f),
                     selectedLabelColor = AppColors.Orange
+                )
+            )
+            FilterChip(
+                selected = conflictingPricingOnly,
+                onClick = { conflictingPricingOnly = !conflictingPricingOnly },
+                label = { Text("⚡ Conflicting pricing", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Red.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Red
                 )
             )
         }
