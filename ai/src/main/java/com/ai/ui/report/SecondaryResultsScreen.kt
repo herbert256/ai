@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
@@ -144,17 +145,31 @@ internal fun SecondaryResultDetailScreen(
     result: SecondaryResult,
     onDelete: () -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val provider = AppService.findById(result.providerId)?.displayName ?: result.providerId
+    val providerService = AppService.findById(result.providerId)
+    val provider = providerService?.displayName ?: result.providerId
     val title = when (result.kind) {
         SecondaryKind.RERANK -> "Rerank"
         SecondaryKind.SUMMARIZE -> "Summary"
         SecondaryKind.COMPARE -> "Compare"
     }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    // Find the trace file for this meta call: same report, same model,
+    // and timestamp closest to the result. Multiple meta runs of the
+    // same model on the same report would otherwise alias — the
+    // closest-timestamp tiebreak picks the right one. May be null when
+    // tracing was off at the time of the call.
+    val traceFilename = remember(result.id) {
+        ApiTracer.getTraceFiles()
+            .filter { it.reportId == result.reportId && it.model == result.model }
+            .minByOrNull { kotlin.math.abs(it.timestamp - result.timestamp) }?.filename
+    }
 
     // Build the same id → "provider / model" map the @RESULTS@ block
     // used (success-ordered, 1-based) so the viewer can show real model
@@ -212,11 +227,28 @@ internal fun SecondaryResultDetailScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = { confirmDelete = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-        ) { Text("Delete this ${title.lowercase()}", maxLines = 1, softWrap = false) }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { confirmDelete = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { providerService?.let { onNavigateToModelInfo(it, result.model) } },
+                enabled = providerService != null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { Text("Model", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { traceFilename?.let(onNavigateToTraceFile) },
+                enabled = traceFilename != null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        }
     }
 
     if (confirmDelete) {

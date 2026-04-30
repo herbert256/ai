@@ -473,7 +473,9 @@ fun ReportsScreen(
             },
             onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
             onBack = { showMetaScreen = false },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo
         )
         return
     }

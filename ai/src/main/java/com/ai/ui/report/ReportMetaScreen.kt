@@ -53,7 +53,9 @@ internal fun ReportMetaScreen(
     onCompare: () -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -92,7 +94,9 @@ internal fun ReportMetaScreen(
                 refreshTick++
             },
             onBack = { openId = null },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo
         )
         return
     }
