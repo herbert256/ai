@@ -743,9 +743,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // Drop the old result so the report row reverts to ⏳ until
             // executeReportTask publishes the new one.
             _agentResults.update { it - agentId }
-            // Override params: re-use the report's web-search-tool flag
-            // so a regen doesn't lose 🌐 if the original report had it on.
-            val overrideParams = if (report.webSearchTool) AgentParameters(webSearchTool = true) else null
+            // Mirror the override-params recipe used by regenerateReport so
+            // the per-row "Call model API again" path also picks up any
+            // pending Edit Parameters changes the user staged via the
+            // banner — without this the banner was a lie for this flow.
+            // The report's web-search-tool flag is OR'd on top so a regen
+            // doesn't lose 🌐 if the original report had it on.
+            val baseOverride = state.reportAdvancedParameters
+            val overrideParams = if (report.webSearchTool) {
+                (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
+            } else baseOverride
             executeReportTask(
                 context, reportId, report.prompt, overrideParams, task,
                 report.imageBase64, report.imageMime, isRegeneration = true
