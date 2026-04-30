@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiFormat
 import com.ai.data.AppService
-import com.ai.data.EndpointRule
 import com.ai.data.ProviderRegistry
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
@@ -413,15 +412,12 @@ fun ProviderSettingsScreen(
     var defHardcodedModelsText by remember(service.id) {
         mutableStateOf(service.hardcodedModels?.joinToString(", ") ?: "")
     }
-    var defEndpointRules by remember(service.id) { mutableStateOf(service.endpointRules) }
-    var newRulePrefix by remember(service.id) { mutableStateOf("") }
-    var newRuleType by remember(service.id) { mutableStateOf("responses") }
 
     LaunchedEffect(
         defDisplayName, defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
         defTypePaths, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
         defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
-        defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText, defEndpointRules
+        defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText
     ) {
         // Don't push back garbage during the very first composition. Only update if the user
         // actually changed something — i.e. a field differs from its catalog source value.
@@ -442,8 +438,7 @@ fun ProviderSettingsScreen(
             defExtractApiCost == service.extractApiCost &&
             defSupportsCitations == service.supportsCitations &&
             defSupportsSearchRecency == service.supportsSearchRecency &&
-            defHardcodedModelsText == (service.hardcodedModels?.joinToString(", ") ?: "") &&
-            defEndpointRules == service.endpointRules
+            defHardcodedModelsText == (service.hardcodedModels?.joinToString(", ") ?: "")
         if (same) return@LaunchedEffect
         if (defDisplayName.isBlank() || defBaseUrl.isBlank() || defDefaultModel.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -467,8 +462,7 @@ fun ProviderSettingsScreen(
             modelFilter = defModelFilter.trim().ifBlank { null },
             litellmPrefix = defLitellmPrefix.trim().ifBlank { null },
             hardcodedModels = hardcoded.ifEmpty { null },
-            defaultModelSource = defDefaultModelSource,
-            endpointRules = defEndpointRules
+            defaultModelSource = defDefaultModelSource
         ))
     }
 
@@ -797,37 +791,6 @@ fun ProviderSettingsScreen(
                     Text("Supports search recency", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = defSupportsSearchRecency, onCheckedChange = { defSupportsSearchRecency = it })
                 }
-            }
-
-            CollapsibleCard(title = "Definition · Endpoint rules", summary = "${defEndpointRules.size}") {
-                defEndpointRules.forEachIndexed { idx, rule ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${rule.modelPrefix} → ${rule.endpointType}", color = Color.White, modifier = Modifier.weight(1f))
-                        TextButton(onClick = {
-                            defEndpointRules = defEndpointRules.toMutableList().apply { removeAt(idx) }
-                        }) { Text("✕", color = AppColors.TextTertiary) }
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedTextField(value = newRulePrefix, onValueChange = { newRulePrefix = it },
-                        label = { Text("Prefix") }, singleLine = true,
-                        modifier = Modifier.weight(1f), colors = AppColors.outlinedFieldColors())
-                    listOf("responses", "chat").forEach {
-                        FilterChip(selected = newRuleType == it, onClick = { newRuleType = it },
-                            label = { Text(it, fontSize = 11.sp) })
-                    }
-                }
-                Button(
-                    onClick = {
-                        val p = newRulePrefix.trim()
-                        if (p.isNotBlank()) {
-                            defEndpointRules = defEndpointRules + EndpointRule(p, newRuleType)
-                            newRulePrefix = ""
-                        }
-                    },
-                    enabled = newRulePrefix.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                ) { Text("Add rule", maxLines = 1, softWrap = false) }
             }
 
             CollapsibleCard(title = "Definition · Storage", summary = "id=${service.id}") {

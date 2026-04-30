@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiFormat
 import com.ai.data.AppService
-import com.ai.data.EndpointRule
 import com.ai.data.ProviderRegistry
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
@@ -55,9 +54,6 @@ fun ProviderAddScreen(
     var supportsSearchRecency by remember { mutableStateOf(false) }
     var costTicksDivisor by remember { mutableStateOf("") }
     var hardcodedModelsText by remember { mutableStateOf("") }
-    var endpointRules by remember { mutableStateOf<List<EndpointRule>>(emptyList()) }
-    var newRulePrefix by remember { mutableStateOf("") }
-    var newRuleType by remember { mutableStateOf("responses") }
 
     val normalizedId = id.trim().uppercase()
     val idTaken = normalizedId.isNotBlank() && AppService.findById(normalizedId) != null
@@ -158,36 +154,6 @@ fun ProviderAddScreen(
                 }
             }
 
-            CollapsibleCard(title = "Endpoint rules", summary = "${endpointRules.size}") {
-                endpointRules.forEachIndexed { idx, rule ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${rule.modelPrefix} → ${rule.endpointType}", color = Color.White, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { endpointRules = endpointRules.toMutableList().apply { removeAt(idx) } }) {
-                            Text("✕", color = AppColors.TextTertiary)
-                        }
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedTextField(value = newRulePrefix, onValueChange = { newRulePrefix = it },
-                        label = { Text("Prefix") }, singleLine = true,
-                        modifier = Modifier.weight(1f), colors = AppColors.outlinedFieldColors())
-                    listOf("responses", "chat").forEach {
-                        FilterChip(selected = newRuleType == it, onClick = { newRuleType = it }, label = { Text(it, fontSize = 11.sp) })
-                    }
-                }
-                Button(
-                    onClick = {
-                        val p = newRulePrefix.trim()
-                        if (p.isNotBlank()) {
-                            endpointRules = endpointRules + EndpointRule(p, newRuleType)
-                            newRulePrefix = ""
-                        }
-                    },
-                    enabled = newRulePrefix.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                ) { Text("Add rule", maxLines = 1, softWrap = false) }
-            }
-
             CollapsibleCard(title = "Storage", summary = prefsKey.ifBlank { "auto" }) {
                 OutlinedTextField(value = prefsKey, onValueChange = { prefsKey = it },
                     label = { Text("Prefs key (blank = id.lowercase())") }, singleLine = true,
@@ -219,8 +185,7 @@ fun ProviderAddScreen(
                     modelFilter = modelFilter.trim().ifBlank { null },
                     litellmPrefix = litellmPrefix.trim().ifBlank { null },
                     hardcodedModels = hardcoded.ifEmpty { null },
-                    defaultModelSource = defaultModelSource,
-                    endpointRules = endpointRules
+                    defaultModelSource = defaultModelSource
                 )
                 ProviderRegistry.add(service)
                 Toast.makeText(context, "Provider added", Toast.LENGTH_SHORT).show()

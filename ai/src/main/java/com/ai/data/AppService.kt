@@ -10,15 +10,6 @@ import com.google.gson.JsonSerializer
 import java.lang.reflect.Type
 
 /**
- * Rule mapping model prefixes to endpoint types.
- * Used to route models to different API endpoints (e.g., OpenAI Responses API for gpt-5.x).
- */
-data class EndpointRule(
-    val modelPrefix: String,
-    val endpointType: String  // "responses" or "chat" (default)
-)
-
-/**
  * Data class representing a supported AI service provider.
  * Identity is based on `id` only — equality, hashing, and serialization all use `id`.
  */
@@ -45,8 +36,7 @@ class AppService(
     val modelFilter: String? = null,
     val litellmPrefix: String? = null,
     val hardcodedModels: List<String>? = null,
-    val defaultModelSource: String? = null,
-    val endpointRules: List<EndpointRule> = emptyList()
+    val defaultModelSource: String? = null
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
 

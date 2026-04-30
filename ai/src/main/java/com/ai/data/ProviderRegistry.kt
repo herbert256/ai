@@ -128,7 +128,12 @@ data class ProviderDefinition(
     val litellmPrefix: String? = null,
     val hardcodedModels: List<String>? = null,
     val defaultModelSource: String? = null,
-    val endpointRules: List<EndpointRule>? = null
+    /** Deprecated — kept on the deserialization shape so old prefs / setup.json
+     *  files with the field still parse, but ignored at dispatch time
+     *  (ModelType.infer drives Responses-vs-Chat routing now). Will be
+     *  removed in a future export-version bump. */
+    @Suppress("unused")
+    val endpointRules: List<Map<String, String>>? = null
 ) {
     fun toAppService(): AppService {
         // Migrate legacy chatPath/responsesPath into the typePaths map. Explicit
@@ -148,7 +153,7 @@ data class ProviderDefinition(
             extractApiCost = extractApiCost ?: false, costTicksDivisor = costTicksDivisor,
             modelListFormat = modelListFormat ?: "object", modelFilter = modelFilter,
             litellmPrefix = litellmPrefix, hardcodedModels = hardcodedModels,
-            defaultModelSource = defaultModelSource, endpointRules = endpointRules ?: emptyList()
+            defaultModelSource = defaultModelSource
         )
     }
 
@@ -166,7 +171,7 @@ data class ProviderDefinition(
             extractApiCost = s.extractApiCost, costTicksDivisor = s.costTicksDivisor,
             modelListFormat = s.modelListFormat, modelFilter = s.modelFilter,
             litellmPrefix = s.litellmPrefix, hardcodedModels = s.hardcodedModels,
-            defaultModelSource = s.defaultModelSource, endpointRules = s.endpointRules.ifEmpty { null }
+            defaultModelSource = s.defaultModelSource
         )
     }
 }

@@ -1,6 +1,5 @@
 package com.ai.model
 
-import com.ai.data.EndpointRule
 import com.ai.data.ProviderDefinition
 
 /**
@@ -25,7 +24,11 @@ data class ProviderConfigExport(
     val typePaths: Map<String, String>? = null,
     val modelsPath: String? = null,
     val openRouterName: String? = null,
-    val endpointRules: List<EndpointRule>? = null
+    /** Deprecated — kept on the import shape so old export bundles still
+     *  parse, but ignored at dispatch time. ModelType.infer drives
+     *  Responses-vs-Chat routing now. */
+    @Suppress("unused")
+    val endpointRules: List<Map<String, String>>? = null
 )
 
 data class AgentExport(

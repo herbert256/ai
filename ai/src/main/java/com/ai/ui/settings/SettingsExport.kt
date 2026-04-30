@@ -96,8 +96,7 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
             displayName = service.displayName, baseUrl = service.baseUrl,
             apiFormat = service.apiFormat.name,
             typePaths = service.typePaths.takeIf { it.isNotEmpty() },
-            modelsPath = service.modelsPath, openRouterName = service.openRouterName,
-            endpointRules = service.endpointRules?.ifEmpty { null }
+            modelsPath = service.modelsPath, openRouterName = service.openRouterName
         )
     }
 
@@ -137,15 +136,15 @@ fun exportAiConfigToClipboard(context: Context, settings: Settings, generalSetti
 // ===== Internal =====
 
 internal fun processImportedConfig(context: Context, export: ConfigExport, currentSettings: Settings, silent: Boolean = false): ConfigImportResult {
-    // Register provider definitions
+    // Register provider definitions. Updating an existing definition from
+    // an import bundle is intentionally NOT done — the only field that
+    // ever drove an update was endpointRules, which is now ignored.
+    // New providers (no existing match by id) are still added.
     export.providerDefinitions?.let { defs ->
         val newProviders = mutableListOf<AppService>()
         for (def in defs) {
-            val existing = ProviderRegistry.findById(def.id)
-            if (existing == null) {
+            if (ProviderRegistry.findById(def.id) == null) {
                 try { newProviders.add(def.toAppService()) } catch (e: Exception) { android.util.Log.w("SettingsExport", "Skipped provider ${def.id}: ${e.message}") }
-            } else if (!def.endpointRules.isNullOrEmpty() && existing.endpointRules != def.endpointRules) {
-                try { ProviderRegistry.update(def.toAppService()) } catch (e: Exception) { android.util.Log.w("SettingsExport", "Failed to update provider ${def.id}: ${e.message}") }
             }
         }
         if (newProviders.isNotEmpty()) ProviderRegistry.ensureProviders(newProviders)
