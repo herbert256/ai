@@ -552,6 +552,8 @@ suspend fun AnalysisRepository.testModel(service: AppService, apiKey: String, mo
     try {
         val response = analyze(service, apiKey, AnalysisRepository.TEST_PROMPT, model)
         if (response.isSuccess) null else response.error ?: "Unknown error"
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) { e.message ?: "Connection error" }
 }
 
@@ -561,6 +563,8 @@ suspend fun AnalysisRepository.testModelWithPrompt(
     try {
         val response = analyze(service, apiKey, prompt, model)
         if (response.isSuccess) Pair(response.analysis, null) else Pair(null, response.error ?: "Unknown error")
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) { Pair(null, e.message ?: "Connection error") }
 }
 
@@ -607,6 +611,8 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
                 AnalysisResponse(service, null, "API error: $statusCode - ${response.body?.string()}", httpHeaders = headers, httpStatusCode = statusCode)
             }
         }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) { AnalysisResponse(service, null, "Error: ${e.message}") }
 }
 

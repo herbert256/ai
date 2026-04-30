@@ -325,6 +325,12 @@ fun ChatSessionScreen(
                 val outputTokens = AppViewModel.estimateTokens(streamingContentState.value)
                 totalCost += inputTokens * pricing.promptPrice * 100 + outputTokens * pricing.completionPrice * 100
                 onRecordStatistics(inputTokens, outputTokens)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // User left the screen / closed the app. Don't persist a
+                // "[Stream interrupted]" line into the saved session — the
+                // partial chunks weren't really an error from the user's
+                // perspective. Re-throw so structured cancellation works.
+                throw e
             } catch (e: Exception) {
                 error = e.message ?: "Streaming error"
                 if (sb.isNotEmpty()) {

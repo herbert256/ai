@@ -226,10 +226,27 @@ class AnalysisRepository {
             if (isSuccess(result)) return result
             android.util.Log.w("AiAnalysis", "$label first attempt failed, retrying...")
             delay(RETRY_DELAY_MS)
-            return try { makeCall() } catch (e: Exception) { errorResult(e) }
+            return try {
+                makeCall()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                errorResult(e)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Cancellation must propagate — without this re-throw, stopping a
+            // report or navigating away from a chat would convert structured
+            // cancellation into a fake "Network error after retry" entry.
+            throw e
         } catch (e: Exception) {
             android.util.Log.w("AiAnalysis", "$label first attempt exception: ${e.message}, retrying...")
-            try { delay(RETRY_DELAY_MS); return makeCall() } catch (e2: Exception) { e2.addSuppressed(e); return errorResult(e2) }
+            return try {
+                delay(RETRY_DELAY_MS); makeCall()
+            } catch (e2: kotlinx.coroutines.CancellationException) {
+                throw e2
+            } catch (e2: Exception) {
+                e2.addSuppressed(e); errorResult(e2)
+            }
         }
     }
 

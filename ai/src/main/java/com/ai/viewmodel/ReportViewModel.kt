@@ -225,6 +225,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 imageBase64,
                 imageMime
             )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Honor structured cancellation (Stop / nav-away) instead of
+            // persisting a fake error onto the agent row.
+            throw e
         } catch (e: Exception) {
             AnalysisResponse(service = task.runtimeAgent.provider, analysis = null, error = e.message ?: "Unknown error")
         }
