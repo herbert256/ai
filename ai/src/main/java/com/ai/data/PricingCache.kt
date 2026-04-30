@@ -96,6 +96,11 @@ object PricingCache {
     // entry would re-scan on every call.
     private val litellmMetaLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
     private val modelsDevMetaLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
+    // Same memoization for the per-row pricing lookup. The catalog
+    // contains ~1k entries and getPricing is called from every row of
+    // every cost table / model picker; without this, scrolling a long
+    // list runs findBestPrefixedMatch O(rows × catalogSize) times.
+    private val litellmPricingLookupCache = java.util.concurrent.ConcurrentHashMap<String, Any>()
     private val MISSING_META: Any = Any()
 
     data class ModelPricing(
@@ -472,11 +477,18 @@ object PricingCache {
 
     private fun findLiteLLMPricing(provider: AppService, model: String): ModelPricing? {
         val pricing = litellmPricing ?: return null
-        // Exact-key fast path.
-        pricing[model]?.let { return it }
-        provider.litellmPrefix?.let { prefix -> pricing["$prefix/$model"]?.let { return it } }
-        return findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
+        val cacheKey = "${provider.id}|$model"
+        val cached = litellmPricingLookupCache[cacheKey]
+        if (cached != null) {
+            return if (cached === MISSING_META) null else cached as ModelPricing
+        }
+        // Exact-key fast path, then prefix variants, then prefix-aware scan.
+        val resolved = pricing[model]
+            ?: provider.litellmPrefix?.let { prefix -> pricing["$prefix/$model"] }
+            ?: findBestPrefixedMatch(pricing, provider, model, useLitellmPrefix = true)
             ?: findLatestAliasKey(pricing.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { pricing[it] }
+        litellmPricingLookupCache[cacheKey] = resolved ?: MISSING_META
+        return resolved
     }
 
     /** Bucket-rank a [target]-matching scan over [map] and return the
@@ -609,6 +621,7 @@ object PricingCache {
                 litellmPricing = pricing
                 litellmMeta = meta
                 litellmMetaLookupCache.clear()
+                litellmPricingLookupCache.clear()
                 litellmTimestamp = System.currentTimeMillis()
                 getPrefs(context).edit {
                     putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
@@ -1174,6 +1187,7 @@ object PricingCache {
                 catch (_: Exception) {}
             }
             if (litellmPricing == null) litellmPricing = emptyMap()
+            litellmPricingLookupCache.clear()
         }
         if (litellmMeta == null) {
             val prefs = getPrefs(context)
