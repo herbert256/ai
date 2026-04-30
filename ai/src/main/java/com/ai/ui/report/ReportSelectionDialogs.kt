@@ -235,7 +235,11 @@ internal fun ReportSelectModelsScreen(
     var providerFilter by remember { mutableStateOf<AppService?>(null) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
     var checked by remember { mutableStateOf(initialChecked) }
-    var rerankOnly by remember { mutableStateOf(false) }
+    // Default the "Rerank models only" filter to ON whenever the toggle
+    // is visible — i.e. when we're opening the picker for a Rerank meta
+    // action. Rerank flows almost always want the rerank-typed catalog;
+    // the user can untick to widen if needed.
+    var rerankOnly by remember { mutableStateOf(showRerankOnlyToggle) }
 
     val all = remember(aiSettings) {
         activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
