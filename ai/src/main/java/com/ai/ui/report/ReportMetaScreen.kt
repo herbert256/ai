@@ -28,6 +28,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.SecondaryRunState
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,6 +66,25 @@ internal fun ReportMetaScreen(
     val results = remember(reportId, refreshTick, runKey) {
         SecondaryResultStorage.listForReport(context, reportId)
             .sortedByDescending { it.timestamp }
+    }
+
+    // Placeholders for a freshly-started batch are written from a
+    // background coroutine in runSecondary — by the time we land back
+    // on this screen from the picker they may not be on disk yet, and
+    // [runKey] alone won't change again until the first task finishes
+    // (which can be many seconds). Poll every 500 ms while a run is in
+    // flight so the new ⏳ rows surface promptly. The loop is cancelled
+    // automatically when [isRunning] flips false (LaunchedEffect key
+    // change), and the final state is captured by the runKey → "idle"
+    // transition triggering a re-read of [results].
+    val isRunning = secondaryRun != null
+    LaunchedEffect(isRunning) {
+        if (isRunning) {
+            while (true) {
+                delay(500)
+                refreshTick++
+            }
+        }
     }
 
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
