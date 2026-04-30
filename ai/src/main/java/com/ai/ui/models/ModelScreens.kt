@@ -620,44 +620,59 @@ fun ModelInfoScreen(
 
                     // Capability summary — read-only. The user pins overrides
                     // through the Manual model overrides CRUD (Add manual
-                    // override button below). Source line tells the user
-                    // where each effective flag came from.
+                    // override button below). Source line walks the same
+                    // layered lookup Settings.isVisionCapable /
+                    // isWebSearchCapable use, so the displayed yes/no
+                    // matches the value the rest of the app sees, and
+                    // "Auto-detected from name" is genuinely the last
+                    // tier (only fires when every catalog source is
+                    // silent).
                     item {
-                        val cfgVision = aiSettings.getProvider(provider).visionModels
-                        val cfgWeb = aiSettings.getProvider(provider).webSearchModels
-                        val visionOverride = aiSettings.modelTypeOverrides.firstOrNull {
-                            it.providerId == provider.id && it.modelId == modelName && it.supportsVision
-                        } != null
-                        val webOverride = aiSettings.modelTypeOverrides.firstOrNull {
-                            it.providerId == provider.id && it.modelId == modelName && it.supportsWebSearch
-                        } != null
-                        val visionExplicit = modelName in cfgVision || visionOverride
-                        val webExplicit = modelName in cfgWeb || webOverride
-                        val visionHeuristic = !visionExplicit && com.ai.data.ModelType.inferVision(modelName)
-                        val webHeuristic = !webExplicit && com.ai.data.ModelType.inferWebSearch(provider, modelName)
-                        val visionEffective = visionExplicit || visionHeuristic
-                        val webEffective = webExplicit || webHeuristic
-                        fun rowText(label: String, on: Boolean, explicit: Boolean, heuristic: Boolean): Pair<String, String> {
-                            val state = if (on) "yes" else "no"
-                            val src = when {
-                                explicit -> "Pinned."
-                                heuristic -> "Auto-detected from name."
-                                else -> "—"
+                        val cfg = aiSettings.getProvider(provider)
+                        val visionPinned = modelName in cfg.visionModels ||
+                            aiSettings.modelTypeOverrides.any {
+                                it.providerId == provider.id && it.modelId == modelName && it.supportsVision
                             }
-                            return "$label: $state" to src
+                        val webPinned = modelName in cfg.webSearchModels ||
+                            aiSettings.modelTypeOverrides.any {
+                                it.providerId == provider.id && it.modelId == modelName && it.supportsWebSearch
+                            }
+                        val providerVision = cfg.modelCapabilities[modelName]?.supportsVision
+                        val providerWeb = cfg.modelCapabilities[modelName]?.supportsFunctionCalling
+                        val litellmVision = com.ai.data.PricingCache.liteLLMSupportsVision(provider, modelName)
+                        val litellmWeb = com.ai.data.PricingCache.liteLLMSupportsWebSearch(provider, modelName)
+                        val modelsDevVision = com.ai.data.PricingCache.modelsDevSupportsVision(provider, modelName)
+                        val modelsDevWeb = com.ai.data.PricingCache.modelsDevSupportsToolCall(provider, modelName)
+                        val visionEffective = aiSettings.isVisionCapable(provider, modelName)
+                        val webEffective = aiSettings.isWebSearchCapable(provider, modelName)
+                        // Walk the chain and label the first tier that
+                        // produced the answer. Order mirrors the slow
+                        // lookup in Settings exactly. Auto-detect lands
+                        // last and only when every authoritative source
+                        // is silent.
+                        fun source(pinned: Boolean, prov: Boolean?, ll: Boolean?, md: Boolean?): String = when {
+                            pinned -> "Pinned"
+                            prov != null -> "Provider /models"
+                            ll != null -> "LiteLLM"
+                            md != null -> "models.dev"
+                            else -> "Auto-detected from name"
                         }
-                        val (visionLabel, visionSrc) = rowText("Vision 👁", visionEffective, visionExplicit, visionHeuristic)
-                        val (webLabel, webSrc) = rowText("Web search 🌐", webEffective, webExplicit, webHeuristic)
+                        val visionSrc = "Vision 👁: ${if (visionEffective) "yes" else "no"}" to
+                            source(visionPinned, providerVision, litellmVision, modelsDevVision)
+                        val webSrc = "Web search 🌐: ${if (webEffective) "yes" else "no"}" to
+                            source(webPinned, providerWeb, litellmWeb, modelsDevWeb)
+                        val (visionLabel, visionSrcText) = visionSrc
+                        val (webLabel, webSrcText) = webSrc
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Capabilities", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
                                 Row {
                                     Text(visionLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-                                    Text(visionSrc, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    Text(visionSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
                                 }
                                 Row {
                                     Text(webLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-                                    Text(webSrc, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    Text(webSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 // Add / edit manual override — opens the same form the
