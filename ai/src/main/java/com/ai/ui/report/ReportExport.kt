@@ -27,6 +27,10 @@ internal data class HtmlAgentData(
     val relatedQuestions: List<String>?, val rawUsageJson: String?, val responseHeaders: String?,
     val inputTokens: Int? = null, val outputTokens: Int? = null,
     val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null,
+    /** Pricing tier (PricingCache source) used for the cost estimate —
+     *  surfaced in the Costs table so the reader knows where the number
+     *  came from (LITELLM, OPENROUTER, OVERRIDE, …). */
+    val pricingTier: String? = null,
     /** Stable anchor used by the Reranks block to link back to this agent's
      *  card. Matches the bracketed [N] tag the rerank prompt asked for. */
     val anchorIndex: Int? = null
@@ -38,7 +42,8 @@ internal data class HtmlSecondaryData(
     val timestamp: String,
     val content: String?, val errorMessage: String?,
     val inputTokens: Int? = null, val outputTokens: Int? = null,
-    val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null
+    val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null,
+    val pricingTier: String? = null
 )
 
 // ===== Public Functions =====
@@ -125,19 +130,23 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
                 citations = agent.citations, searchResults = agent.searchResults, relatedQuestions = agent.relatedQuestions,
                 rawUsageJson = agent.rawUsageJson, responseHeaders = agent.responseHeaders,
                 inputTokens = tu?.inputTokens, outputTokens = tu?.outputTokens, inputCost = inCost, outputCost = outCost, durationMs = agent.durationMs,
+                pricingTier = pricing?.source,
                 anchorIndex = anchorByKey["${agent.provider}::${agent.model}"]
             )
         }
 
     val secondary = SecondaryResultStorage.listForReport(context, report.id).map { s ->
+        val secProvider = AppService.findById(s.providerId)
+        val secPricing = secProvider?.let { PricingCache.getPricing(context, it, s.model) }
         HtmlSecondaryData(
             id = s.id, kind = s.kind,
-            providerDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId,
+            providerDisplay = secProvider?.displayName ?: s.providerId,
             model = s.model,
             timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(s.timestamp)),
             content = s.content, errorMessage = s.errorMessage,
             inputTokens = s.tokenUsage?.inputTokens, outputTokens = s.tokenUsage?.outputTokens,
-            inputCost = s.inputCost, outputCost = s.outputCost, durationMs = s.durationMs
+            inputCost = s.inputCost, outputCost = s.outputCost, durationMs = s.durationMs,
+            pricingTier = secPricing?.source
         )
     }
 
@@ -258,10 +267,10 @@ private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
 
     if (hasCosts) {
         sb.append("<div id='section-costs' class='section-content' style='display:none'><div class='prompt-section'><div class='prompt-label'>Costs</div>")
-        sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
-        data class Row(val type: String, val providerDisplay: String, val model: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
+        sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
         val agentRows = data.agents.filter { it.inputCost != null }.map {
-            Row("report", it.providerDisplay, it.model, it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+            Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
                 (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
         }
         val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
@@ -270,7 +279,7 @@ private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
                 SecondaryKind.SUMMARIZE -> "summarize"
                 SecondaryKind.COMPARE -> "compare"
             }
-            Row(type, it.providerDisplay, it.model, it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+            Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
                 (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
         }
         val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
@@ -278,9 +287,9 @@ private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
         sorted.forEach { r ->
             tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
             val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
         }
-        sb.append("<tr class='total-row'><td colspan='4'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
+        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
         sb.append("</table></div></div>")
     }
 }

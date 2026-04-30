@@ -42,7 +42,8 @@ private data class IntroCostRow(
     val runModel: String,
     val inputTokens: Long,
     val outputTokens: Long,
-    val cost: Double
+    val cost: Double,
+    val pricingTier: String
 )
 
 enum class ReportExportFormat { HTML, PDF, JSON }
@@ -239,7 +240,8 @@ private suspend fun buildComprehensiveHtml(
                             runModel = model,
                             inputTokens = tu.inputTokens.toLong(),
                             outputTokens = tu.outputTokens.toLong(),
-                            cost = cost
+                            cost = cost,
+                            pricingTier = pricing.source
                         )
                     }
                     intros[key] = resp.analysis?.also { PromptCache.put(cacheKey, it) }
@@ -502,7 +504,7 @@ private fun buildPdfHtml(
     sb.append("<div class='page' id='costs'>")
     sb.append("<h2>2. Cost summary</h2>")
     sb.append("<table>")
-    sb.append("<tr><th>Agent</th><th>Provider</th><th>Model</th><th class='num'>In</th><th class='num'>Out</th><th class='num'>Cost (¢)</th></tr>")
+    sb.append("<tr><th>Agent</th><th>Provider</th><th>Model</th><th>Tier</th><th class='num'>In</th><th class='num'>Out</th><th class='num'>Cost (¢)</th></tr>")
     var totalIn = 0L; var totalOut = 0L; var totalCost = 0.0
     for (a in agents) {
         val provider = AppService.findById(a.provider)
@@ -514,25 +516,27 @@ private fun buildPdfHtml(
         totalIn += inT; totalOut += outT; totalCost += cost
         sb.append("<tr><td>").append(esc(a.agentName)).append("</td><td>")
             .append(esc(provider?.displayName ?: a.provider)).append("</td><td>")
-            .append(esc(a.model)).append("</td><td class='num'>")
+            .append(esc(a.model)).append("</td><td>")
+            .append(esc(pricing?.source ?: "")).append("</td><td class='num'>")
             .append(inT).append("</td><td class='num'>")
             .append(outT).append("</td><td class='num'>")
             .append("%.2f".format(cost * 100)).append("</td></tr>")
     }
     if (introCosts.isNotEmpty()) {
-        sb.append("<tr><td colspan='6' style='background:#fafafa; font-style:italic; color:#444;'>")
+        sb.append("<tr><td colspan='7' style='background:#fafafa; font-style:italic; color:#444;'>")
             .append("Introductions (live calls — cached intros cost nothing)</td></tr>")
         for (ic in introCosts) {
             totalIn += ic.inputTokens; totalOut += ic.outputTokens; totalCost += ic.cost
             sb.append("<tr><td>Intro: ").append(esc(ic.introducedFor)).append("</td><td>")
                 .append(esc(ic.runProvider)).append("</td><td>")
-                .append(esc(ic.runModel)).append("</td><td class='num'>")
+                .append(esc(ic.runModel)).append("</td><td>")
+                .append(esc(ic.pricingTier)).append("</td><td class='num'>")
                 .append(ic.inputTokens).append("</td><td class='num'>")
                 .append(ic.outputTokens).append("</td><td class='num'>")
                 .append("%.2f".format(ic.cost * 100)).append("</td></tr>")
         }
     }
-    sb.append("<tr class='total'><td colspan='3'>Total</td><td class='num'>")
+    sb.append("<tr class='total'><td colspan='4'>Total</td><td class='num'>")
         .append(totalIn).append("</td><td class='num'>")
         .append(totalOut).append("</td><td class='num'>")
         .append("%.2f".format(totalCost * 100)).append("</td></tr></table>")
