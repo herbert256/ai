@@ -222,6 +222,7 @@ fun ChatSessionScreen(
     onNavigateHome: () -> Unit,
     onSendMessageStream: (List<ChatMessage>, Boolean) -> Flow<String>,
     onRecordStatistics: suspend (Int, Int) -> Unit,
+    aiSettings: Settings,
     initialMessages: List<ChatMessage> = emptyList(),
     sessionId: String? = null,
     isVisionCapable: Boolean = false
@@ -243,6 +244,17 @@ fun ChatSessionScreen(
     // (mime, base64) of an image attached to the next user message.
     var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
     var useWebSearch by remember { mutableStateOf(parameters.webSearchTool) }
+    // Per-session moderation: when set, every user input is run through
+    // the chosen moderation model before being sent to the chat model.
+    // null = disabled. Picker overlay below sets it.
+    var moderationModel by remember { mutableStateOf<Pair<AppService, String>?>(null) }
+    var showModerationPicker by remember { mutableStateOf(false) }
+    // Result of the pre-send moderation call: when non-null and flagged,
+    // the proceed/cancel dialog renders. The pending input + image are
+    // captured so Proceed can fire the actual send without re-typing.
+    var pendingFlagged by remember { mutableStateOf<Triple<String, com.ai.data.ModerationInputResult, Pair<String, String>?>?>(null) }
+    var moderationError by remember { mutableStateOf<String?>(null) }
+    var isModerating by remember { mutableStateOf(false) }
 
     val pickImageLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -294,8 +306,11 @@ fun ChatSessionScreen(
         }
     }
 
-    fun sendMessage(input: String) {
-        val img = attachedImage
+    // Actual chat send — extracted so the moderation flow can call it
+    // after a clean classification or after the user clicks Proceed on a
+    // flagged-input dialog. [img] is captured at validation time so the
+    // attached image isn't lost while moderation runs.
+    fun actuallySend(input: String, img: Pair<String, String>?) {
         val userMessage = ChatMessage(
             role = "user",
             content = input,
@@ -339,6 +354,38 @@ fun ChatSessionScreen(
                 }
             } finally {
                 isStreaming = false; streamingContentState.value = ""
+            }
+        }
+    }
+
+    // Pre-send moderation. If no moderation model is selected, falls
+    // straight through to actuallySend. Otherwise runs the input
+    // through callModerationApi; on a clean classification the message
+    // proceeds, on flagged we pop a dialog with categories and let the
+    // user choose Proceed or Cancel. API errors surface in [moderationError]
+    // and the message is sent anyway (fail-open) so a temporary network
+    // blip doesn't block conversation.
+    fun trySend(input: String) {
+        val mod = moderationModel
+        val img = attachedImage
+        if (mod == null) { actuallySend(input, img); return }
+        scope.launch {
+            isModerating = true
+            try {
+                val (modProvider, modModelId) = mod
+                val apiKey = aiSettings.getApiKey(modProvider)
+                val (results, apiResult) = com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(input))
+                val r = results?.firstOrNull()
+                if (apiResult.errorMessage != null || r == null) {
+                    moderationError = apiResult.errorMessage ?: "No moderation result"
+                    actuallySend(input, img)
+                } else if (r.flagged) {
+                    pendingFlagged = Triple(input, r, img)
+                } else {
+                    actuallySend(input, img)
+                }
+            } finally {
+                isModerating = false
             }
         }
     }
@@ -396,7 +443,7 @@ fun ChatSessionScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(
                 selected = useWebSearch,
                 onClick = { useWebSearch = !useWebSearch },
@@ -405,6 +452,34 @@ fun ChatSessionScreen(
                     selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
                     selectedLabelColor = AppColors.Blue
                 )
+            )
+            // Toggle: clicking when off opens the moderation model picker;
+            // when on, taps clear the selection (off again). The chip
+            // shows a 🛡 icon and either the model name or "Validate input".
+            FilterChip(
+                selected = moderationModel != null,
+                onClick = {
+                    if (moderationModel == null) showModerationPicker = true
+                    else moderationModel = null
+                },
+                label = {
+                    val label = moderationModel?.let { (p, m) -> "🛡 $m" } ?: "🛡 Validate input"
+                    Text(label, fontSize = 12.sp, maxLines = 1)
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Orange.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Orange
+                )
+            )
+            if (isModerating) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.Orange, strokeWidth = 2.dp)
+            }
+        }
+        if (moderationError != null) {
+            Text(
+                "Moderation: ${moderationError}",
+                fontSize = 11.sp, color = AppColors.Orange,
+                modifier = Modifier.padding(bottom = 4.dp)
             )
         }
 
@@ -445,11 +520,67 @@ fun ChatSessionScreen(
                 maxLines = 4, colors = AppColors.outlinedFieldColors()
             )
             Button(
-                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming) sendMessage(userInput.trim()) },
-                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming,
+                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating) trySend(userInput.trim()) },
+                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating,
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }
+    }
+
+    // Moderation model picker — single-pick (we use the first selection
+    // if the user multi-picks). Filtered to ModelType.MODERATION by
+    // default; toggle-able to widen if Mistral's model isn't in the
+    // user's catalog under that type.
+    if (showModerationPicker) {
+        com.ai.ui.report.ReportSelectModelsScreen(
+            aiSettings = aiSettings,
+            alreadySelected = emptySet(),
+            initialChecked = emptySet(),
+            titleText = "Pick moderation model",
+            confirmLabel = "Use",
+            modelTypeFilter = com.ai.data.ModelType.MODERATION,
+            onConfirm = { picks ->
+                moderationModel = picks.firstOrNull()
+                showModerationPicker = false
+            },
+            onBack = { showModerationPicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    val flagged = pendingFlagged
+    if (flagged != null) {
+        val (input, result, img) = flagged
+        AlertDialog(
+            onDismissRequest = { pendingFlagged = null },
+            title = { Text("Input flagged by moderation") },
+            text = {
+                Column {
+                    Text(
+                        "The chosen moderation model flagged this input under: " +
+                            result.firedCategories.joinToString(", "),
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Sending it to the chat model anyway may produce unsafe output or violate the chat provider's policy.",
+                        fontSize = 12.sp, color = AppColors.TextTertiary
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingFlagged = null
+                    actuallySend(input, img)
+                }) { Text("Proceed anyway", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingFlagged = null }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 }
 

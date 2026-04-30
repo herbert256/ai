@@ -312,6 +312,7 @@ fun AppNavHost(
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
+                    aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel)
                 )
             } else {
@@ -357,6 +358,7 @@ fun AppNavHost(
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) },
+                    aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(provider, model)
                 )
             }
@@ -377,6 +379,7 @@ fun AppNavHost(
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages, webSearchTool = webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) },
+                    aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(session.provider, session.model)
                 )
             } else {
