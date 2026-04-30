@@ -289,14 +289,17 @@ object PricingCache {
         val isOpenRouter = provider.id == "OPENROUTER"
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         // Curated bulk sources first, then user OVERRIDE, then OPENROUTER fallback.
-        // Order within the curated group: LITELLM → MODELSDEV → HELICONE →
-        // LLMPRICES → AA. LiteLLM is the most exhaustive; the others slot in
-        // as fallbacks for entries LiteLLM hasn't picked up.
+        // Order within the curated group: LITELLM → MODELSDEV → LLMPRICES → AA →
+        // HELICONE. LiteLLM is the most exhaustive; the others slot in as
+        // fallbacks for entries LiteLLM hasn't picked up. Helicone is last
+        // because the catalog has known data-quality issues (e.g. wrong
+        // claude-opus-4-5 rate, dated-snapshot drift) — only consulted
+        // when nothing more authoritative has the model.
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
         findLLMPricesPricing(provider, model)?.let { return it }
         findArtificialAnalysisPricing(provider, model)?.let { return it }
+        findHeliconePricing(provider, model)?.let { return it }
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
@@ -310,9 +313,9 @@ object PricingCache {
         findOpenRouterPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
         findLLMPricesPricing(provider, model)?.let { return it }
         findArtificialAnalysisPricing(provider, model)?.let { return it }
+        findHeliconePricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
     }
 
@@ -327,9 +330,9 @@ object PricingCache {
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
         findLLMPricesPricing(provider, model)?.let { return it }
         findArtificialAnalysisPricing(provider, model)?.let { return it }
+        findHeliconePricing(provider, model)?.let { return it }
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
