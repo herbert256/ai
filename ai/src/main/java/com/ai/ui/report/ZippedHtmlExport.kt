@@ -380,9 +380,23 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData) {
     sb.append(htmlHead("Costs - ${data.title}", depth = 1))
     sb.append(breadcrumb(1, listOf("Costs" to null), data))
     sb.append("<main><h1>Costs</h1>")
-    sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th>")
-    sb.append("<th class='num'>Seconds</th><th class='num'>Input tokens</th><th class='num'>Output tokens</th>")
-    sb.append("<th class='num'>Input cents</th><th class='num'>Output cents</th><th class='num'>Total cents</th></tr>")
+    // Scroll container so the wide nowrap table can overflow horizontally
+    // on narrow viewports without forcing the whole page to scroll.
+    sb.append("<div class='cost-table-wrap'>")
+    sb.append("<table class='cost-table sortable'>")
+    sb.append("<thead><tr>")
+    sb.append("<th data-sort='str'>Type</th>")
+    sb.append("<th data-sort='str'>Provider</th>")
+    sb.append("<th data-sort='str'>Model</th>")
+    sb.append("<th data-sort='str'>Tier</th>")
+    sb.append("<th class='num' data-sort='num'>Seconds</th>")
+    sb.append("<th class='num' data-sort='num'>Input tokens</th>")
+    sb.append("<th class='num' data-sort='num'>Output tokens</th>")
+    sb.append("<th class='num' data-sort='num'>Input cents</th>")
+    sb.append("<th class='num' data-sort='num'>Output cents</th>")
+    sb.append("<th class='num' data-sort='num'>Total cents</th>")
+    sb.append("</tr></thead>")
+    sb.append("<tbody>")
     data class Row(val type: String, val provider: String, val model: String, val tier: String, val durationMs: Long?, val inT: Int, val outT: Int, val inC: Double, val outC: Double)
     val agentRows = data.agents.filter { it.inputCost != null }.map {
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
@@ -408,14 +422,58 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData) {
             .append("</td><td class='num'>").append("%.2f".format(r.outC))
             .append("</td><td class='num'>").append("%.2f".format(r.inC + r.outC)).append("</td></tr>")
     }
-    sb.append("<tr class='total'><td colspan='5'>Total</td>")
+    sb.append("</tbody>")
+    sb.append("<tfoot><tr class='total'><td colspan='5'>Total</td>")
     sb.append("<td class='num'>").append(tIn).append("</td><td class='num'>").append(tOut).append("</td>")
     sb.append("<td class='num'>").append("%.2f".format(tInC)).append("</td>")
     sb.append("<td class='num'>").append("%.2f".format(tOutC)).append("</td>")
-    sb.append("<td class='num'>").append("%.2f".format(tInC + tOutC)).append("</td></tr>")
-    sb.append("</table></main></body></html>")
+    sb.append("<td class='num'>").append("%.2f".format(tInC + tOutC)).append("</td></tr></tfoot>")
+    sb.append("</table>")
+    sb.append("</div>")
+    // Inline sort script — only this page uses it, so no point dragging
+    // it into the shared style.css. Click a header to sort by that
+    // column; click again to reverse. Total row stays parked in
+    // <tfoot> regardless of sort direction.
+    sb.append(costSortScript())
+    sb.append("</main></body></html>")
     emit(zos, "Costs/index.html", sb.toString())
 }
+
+private fun costSortScript(): String = """
+<script>
+(function(){
+  var table = document.querySelector('table.sortable');
+  if (!table) return;
+  var headers = table.querySelectorAll('thead th');
+  var tbody = table.querySelector('tbody');
+  var current = -1, asc = true;
+  headers.forEach(function(h, idx){
+    var label = h.textContent;
+    h.dataset.label = label;
+    h.style.cursor = 'pointer';
+    h.style.userSelect = 'none';
+    h.addEventListener('click', function(){
+      if (current === idx) asc = !asc; else { current = idx; asc = true; }
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+      var kind = h.dataset.sort || 'str';
+      rows.sort(function(a, b){
+        var av = (a.children[idx].textContent || '').trim();
+        var bv = (b.children[idx].textContent || '').trim();
+        if (kind === 'num') {
+          var an = parseFloat(av); if (isNaN(an)) an = -Infinity;
+          var bn = parseFloat(bv); if (isNaN(bn)) bn = -Infinity;
+          return asc ? an - bn : bn - an;
+        }
+        return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+      });
+      rows.forEach(function(r){ tbody.appendChild(r); });
+      headers.forEach(function(h2){ h2.textContent = h2.dataset.label; });
+      h.textContent = h.dataset.label + (asc ? ' ▲' : ' ▼');
+    });
+  });
+})();
+</script>
+""".trimIndent()
 
 // ===== Traces =====
 
@@ -614,6 +672,10 @@ th,td{padding:6px 10px;border-bottom:1px solid #333;vertical-align:top;text-alig
 th{background:#252525;color:#9FCFFF}
 .num{text-align:right;font-family:monospace}
 .cost-table .total td{color:#6B9BFF;font-weight:bold;border-top:2px solid #444}
+.cost-table-wrap{overflow-x:auto;margin-top:8px}
+.cost-table{width:auto;white-space:nowrap}
+.cost-table th, .cost-table td{white-space:nowrap}
+.cost-table th[data-sort]:hover{background:#2c2c2c}
 .kv th{width:160px;background:#252525}
 pre{background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:10px;color:#ccc;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;overflow-x:auto;line-height:1.4}
 pre.prompt{font-size:13px;color:#e0e0e0}
