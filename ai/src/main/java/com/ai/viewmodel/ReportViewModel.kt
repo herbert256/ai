@@ -950,23 +950,36 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
             val pricing = PricingCache.getPricing(context, provider, model)
 
-            // Concurrency 3: translation calls are typically the slowest
-            // I/O in the app; cap so a 30-item report doesn't blow past
-            // provider rate limits.
-            val sem = Semaphore(3)
-            coroutineScope {
-                items.map { item ->
-                    async {
-                        sem.withPermit { runOneTranslation(context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing) }
-                    }
-                }.awaitAll()
-            }
+            // Reserve the new translated report's id up front so every
+            // translation API call can tag its ApiTracer entry with it.
+            // Without this the translation traces have reportId = null
+            // and don't show on the new report's trace screen. The id
+            // is consumed by createTranslatedReport at the end via the
+            // explicitId parameter on ReportStorage.createReport.
+            val newId = java.util.UUID.randomUUID().toString()
+            val previousTraceReportId = ApiTracer.currentReportId
+            ApiTracer.currentReportId = newId
+            try {
+                // Concurrency 3: translation calls are typically the slowest
+                // I/O in the app; cap so a 30-item report doesn't blow past
+                // provider rate limits.
+                val sem = Semaphore(3)
+                coroutineScope {
+                    items.map { item ->
+                        async {
+                            sem.withPermit { runOneTranslation(context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing) }
+                        }
+                    }.awaitAll()
+                }
 
-            // All done — assemble the translated report.
-            val finalState = _translationRun.value ?: return@launch
-            if (finalState.cancelled) return@launch
-            val newId = createTranslatedReport(context, sourceReport, secondaries, finalState, targetLanguageName, provider, model, pricing)
-            _translationRun.update { it?.copy(newReportId = newId) }
+                // All done — assemble the translated report.
+                val finalState = _translationRun.value ?: return@launch
+                if (finalState.cancelled) return@launch
+                createTranslatedReport(context, sourceReport, secondaries, finalState, targetLanguageName, provider, model, pricing, newId)
+                _translationRun.update { it?.copy(newReportId = newId) }
+            } finally {
+                ApiTracer.currentReportId = previousTraceReportId
+            }
         }
     }
 
@@ -1043,7 +1056,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         targetLanguageName: String,
         translateProvider: AppService,
         translateModel: String,
-        translatePricing: PricingCache.ModelPricing
+        translatePricing: PricingCache.ModelPricing,
+        explicitId: String
     ): String {
         val itemById = run.items.associateBy { it.id }
         val translatedPrompt = itemById["prompt"]?.translatedText ?: source.prompt
@@ -1068,7 +1082,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             imageBase64 = source.imageBase64,
             imageMime = source.imageMime,
             webSearchTool = source.webSearchTool,
-            reasoningEffort = source.reasoningEffort
+            reasoningEffort = source.reasoningEffort,
+            explicitId = explicitId
         )
 
         // Recreate summary/compare/rerank/moderation meta results on

@@ -84,10 +84,16 @@ object ReportStorage {
         rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
-        reasoningEffort: String? = null
+        reasoningEffort: String? = null,
+        // Optional explicit id — used by the translation flow so the new
+        // report's UUID can be reserved up front and threaded into
+        // ApiTracer.currentReportId before any translation API calls run.
+        // Without this the translation traces end up tagged with no
+        // report id and don't surface on either report's trace screen.
+        explicitId: String? = null
     ): Report {
         init(context)
-        val report = Report(UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
+        val report = Report(explicitId ?: UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
             agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
             reasoningEffort = reasoningEffort)
@@ -172,8 +178,9 @@ object ReportStorage {
         rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
-        reasoningEffort: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort) }
+        reasoningEffort: String? = null,
+        explicitId: String? = null
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }
