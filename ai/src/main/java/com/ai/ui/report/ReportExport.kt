@@ -320,6 +320,11 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     val hasCosts = hasAgentCosts || hasSecondaryCosts
     val hasReports = data.agents.isNotEmpty()
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+    // Lookup so the rerank table can show "<provider> · <model>" next to
+    // each ranked [N] reference.
+    val agentsByAnchor: Map<Int, String> = data.agents.mapNotNull { a ->
+        a.anchorIndex?.let { it to "${a.providerDisplay} · ${a.model}" }
+    }.toMap()
 
     // Build the view list. Order: Reports, then meta kinds in a stable
     // order, then Prompt + Costs at the end.
@@ -374,7 +379,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     if (reranks.isNotEmpty()) {
         val display = if (firstViewId == "reranks") "block" else "none"
         sb.append("<div id='view-reranks' class='view-block' style='display:$display'>")
-        renderMetaItemsView(sb, "reranks", reranks, maxAnchor)
+        renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor)
         sb.append("</div>")
     }
     if (moderations.isNotEmpty()) {
@@ -486,12 +491,12 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
  *  Translations). Single-item views render the lone item directly with no
  *  sub-toggle. Multi-item views get their own One-by-one / All-together
  *  toggle scoped by [viewId]. */
-private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<HtmlSecondaryData>, maxAnchor: Int) {
+private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<HtmlSecondaryData>, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
     if (items.isEmpty()) return
 
     if (items.size == 1) {
         sb.append("<div class='secondary-section'>")
-        renderMetaCard(sb, items[0], maxAnchor)
+        renderMetaCard(sb, items[0], maxAnchor, agentsByAnchor)
         sb.append("</div>")
         return
     }
@@ -511,7 +516,7 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
     items.forEachIndexed { i, it ->
         sb.append("<div id='item-${viewId}-${escId(it.id)}' class='item-content${if (i == 0) " active" else ""}' data-view='${viewId}'>")
         sb.append("<div class='secondary-section'>")
-        renderMetaCard(sb, it, maxAnchor)
+        renderMetaCard(sb, it, maxAnchor, agentsByAnchor)
         sb.append("</div>")
         sb.append("</div>")
     }
@@ -519,12 +524,12 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
 
     sb.append("<div id='layout-${viewId}-allTogether' class='layout' style='display:none'>")
     sb.append("<div class='secondary-section'>")
-    items.forEach { renderMetaCard(sb, it, maxAnchor) }
+    items.forEach { renderMetaCard(sb, it, maxAnchor, agentsByAnchor) }
     sb.append("</div>")
     sb.append("</div>")
 }
 
-private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int) {
+private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
     val isCompare = item.kind == SecondaryKind.COMPARE
     val cardClass = if (isCompare) "secondary-card secondary-card-compare" else "secondary-card"
     val headerClass = if (isCompare) "secondary-card-header secondary-card-header-compare" else "secondary-card-header"
@@ -557,7 +562,7 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
         sb.append("</div>")
     } else if (!item.content.isNullOrBlank()) {
         when (item.kind) {
-            SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor)}</div>")
+            SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor, agentsByAnchor)}</div>")
             SecondaryKind.COMPARE -> {
                 // Linkify [N] references the same way as rerank's fallback
                 // path so users can jump to any cited result card.
@@ -691,7 +696,7 @@ private fun renderJsonView(sb: StringBuilder, traces: List<HtmlTraceData>) {
  *  table with anchor links to the corresponding result cards. Otherwise
  *  fall back to running it through the markdown renderer with a simple
  *  pass to linkify any [N] references that point at a known result. */
-private fun renderRerankContent(content: String, maxAnchor: Int): String {
+private fun renderRerankContent(content: String, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()): String {
     // Try strict JSON first — strip ``` fences just in case.
     val cleaned = content.trim()
         .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
@@ -711,12 +716,13 @@ private fun renderRerankContent(content: String, maxAnchor: Int): String {
         }.sortedBy { it.second.first ?: Int.MAX_VALUE }
         if (rows.isNotEmpty()) {
             val sb = StringBuilder()
-            sb.append("<table class='rerank-table'><tr><th>Rank</th><th>Result</th><th>Score</th><th>Reason</th></tr>")
+            sb.append("<table class='rerank-table'><tr><th>Rank</th><th>Result</th><th>Model</th><th>Score</th><th>Reason</th></tr>")
             rows.forEach { (id, rs, reason) ->
                 val link = if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else "[$id]"
                 val rank = rs.first?.toString() ?: ""
                 val score = rs.second?.let { "%.0f".format(it) } ?: ""
-                sb.append("<tr><td class='num'>$rank</td><td>$link</td><td class='num'>$score</td><td>${esc(reason ?: "")}</td></tr>")
+                val modelLabel = agentsByAnchor[id]?.let { esc(it) } ?: ""
+                sb.append("<tr><td class='num'>$rank</td><td>$link</td><td>$modelLabel</td><td class='num'>$score</td><td>${esc(reason ?: "")}</td></tr>")
             }
             sb.append("</table>")
             return sb.toString()

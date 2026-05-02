@@ -401,7 +401,12 @@ private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryDa
         sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
     } else if (!s.content.isNullOrBlank()) {
         when (s.kind) {
-            SecondaryKind.RERANK -> sb.append("<div class='response'>${renderRerankContentLocal(s.content, maxAnchor)}</div>")
+            SecondaryKind.RERANK -> {
+                val agentsByAnchor = data.agents.mapNotNull { a ->
+                    a.anchorIndex?.let { it to "${a.providerDisplay} · ${a.model}" }
+                }.toMap()
+                sb.append("<div class='response'>${renderRerankContentLocal(s.content, maxAnchor, agentsByAnchor)}</div>")
+            }
             SecondaryKind.COMPARE -> {
                 val linkified = Regex("""\[(\d+)\]""").replace(s.content) { m ->
                     val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
@@ -956,7 +961,7 @@ private fun esc(s: String): String =
  *  rerank JSON array, render as a table; otherwise fall back to
  *  markdown with [N] tags preserved (no anchor links since this page
  *  doesn't host the agent cards). */
-private fun renderRerankContentLocal(content: String, maxAnchor: Int): String {
+private fun renderRerankContentLocal(content: String, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()): String {
     @Suppress("UNUSED_PARAMETER") val unused = maxAnchor
     val cleaned = content.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
     val asArray = try {
@@ -974,12 +979,14 @@ private fun renderRerankContentLocal(content: String, maxAnchor: Int): String {
         }.sortedBy { it.second.first ?: Int.MAX_VALUE }
         if (rows.isNotEmpty()) {
             val sb = StringBuilder()
-            sb.append("<table><tr><th>Rank</th><th>Result</th><th>Score</th><th>Reason</th></tr>")
+            sb.append("<table><tr><th>Rank</th><th>Result</th><th>Model</th><th>Score</th><th>Reason</th></tr>")
             rows.forEach { (id, rs, reason) ->
                 val rank = rs.first?.toString() ?: ""
                 val score = rs.second?.let { "%.0f".format(it) } ?: ""
+                val modelLabel = agentsByAnchor[id]?.let { esc(it) } ?: ""
                 sb.append("<tr><td class='num'>").append(rank)
-                    .append("</td><td>[").append(id).append("]</td><td class='num'>").append(score)
+                    .append("</td><td>[").append(id).append("]</td><td>").append(modelLabel)
+                    .append("</td><td class='num'>").append(score)
                     .append("</td><td>").append(esc(reason ?: "")).append("</td></tr>")
             }
             sb.append("</table>")
