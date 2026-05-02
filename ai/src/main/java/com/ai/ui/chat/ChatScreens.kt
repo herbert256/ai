@@ -114,7 +114,6 @@ fun ChatParametersScreen(
     var topK by remember { mutableStateOf("") }
     var frequencyPenalty by remember { mutableStateOf("") }
     var presencePenalty by remember { mutableStateOf("") }
-    var searchEnabled by remember { mutableStateOf(false) }
     var returnCitations by remember { mutableStateOf(true) }
     var searchRecency by remember { mutableStateOf("") }
     var showParamsDialog by remember { mutableStateOf(false) }
@@ -175,10 +174,11 @@ fun ChatParametersScreen(
             OutlinedTextField(value = frequencyPenalty, onValueChange = { frequencyPenalty = it }, label = { Text("Frequency penalty (-2.0 - 2.0)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = presencePenalty, onValueChange = { presencePenalty = it }, label = { Text("Presence penalty (-2.0 - 2.0)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
 
-            Row(modifier = Modifier.fillMaxWidth().clickable { searchEnabled = !searchEnabled }, verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = searchEnabled, onCheckedChange = { searchEnabled = it })
-                Spacer(modifier = Modifier.width(8.dp)); Text("Enable web search")
-            }
+            // Web search lives on the chat session screen as a per-turn 🌐
+            // chip — removed from this setup screen so the user only has
+            // one place to toggle it. Parameter presets can still flip
+            // searchEnabled on; the runtime chip is OR'd with it at send
+            // time.
             Row(modifier = Modifier.fillMaxWidth().clickable { returnCitations = !returnCitations }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = returnCitations, onCheckedChange = { returnCitations = it })
                 Spacer(modifier = Modifier.width(8.dp)); Text("Return citations")
@@ -201,7 +201,7 @@ fun ChatParametersScreen(
                         topK = topK.toIntOrNull() ?: presetParams?.topK,
                         frequencyPenalty = frequencyPenalty.toFloatOrNull() ?: presetParams?.frequencyPenalty,
                         presencePenalty = presencePenalty.toFloatOrNull() ?: presetParams?.presencePenalty,
-                        searchEnabled = searchEnabled || (presetParams?.searchEnabled == true),
+                        searchEnabled = presetParams?.searchEnabled == true,
                         returnCitations = returnCitations && (presetParams?.returnCitations != false),
                         searchRecency = searchRecency.takeIf { it.isNotBlank() } ?: presetParams?.searchRecency
                     )
