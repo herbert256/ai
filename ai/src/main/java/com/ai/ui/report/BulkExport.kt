@@ -34,12 +34,23 @@ internal suspend fun bulkExportAndShare(
     context: Context,
     reportId: String,
     onProgress: (Int, Int) -> Unit
-): Boolean {
-    val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return false
+): Boolean = withContext(Dispatchers.IO) {
+    // Whole flow runs on IO so the file writes (DOCX/ODT can be MBs
+    // when the report has many captured traces) and the gson parse
+    // passes inside convertReportToHtml don't block the Main thread.
+    // If Main is starved while we set up the bundle, the WebView render
+    // that follows can't service its frame callbacks and the
+    // CompletableDeferred inside renderHtmlToPdfFile times out.
+    val report = ReportStorage.getReport(context, reportId) ?: return@withContext false
     val total = 9
     var done = 0
-    fun bump() { done++; onProgress(done, total) }
-    onProgress(done, total)
+    suspend fun bump() {
+        done++
+        // Hop to Main so the AlertDialog's slot recomposes immediately;
+        // posting from IO works but races with frame timing.
+        withContext(Dispatchers.Main) { onProgress(done, total) }
+    }
+    withContext(Dispatchers.Main) { onProgress(done, total) }
 
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
@@ -57,30 +68,22 @@ internal suspend fun bulkExportAndShare(
         // Pre-render the HTML for both detail levels — used by the HTML
         // entries directly, and by the PDF render below (after the
         // makeStaticForPdf override).
-        val shortHtml = withContext(Dispatchers.IO) { buildShortHtml(context, report) }
-        val completeHtml = withContext(Dispatchers.IO) { convertReportToHtml(context, report, appVersion) }
+        val shortHtml = buildShortHtml(context, report)
+        val completeHtml = convertReportToHtml(context, report, appVersion)
 
         // 1. HTML Short
         File(workDir, "${safeTitle}_short.html").writeText(shortHtml); bump()
         // 2. HTML Complete
         File(workDir, "${safeTitle}_complete.html").writeText(completeHtml); bump()
         // 3. DOCX Short
-        File(workDir, "${safeTitle}_short.docx").writeBytes(
-            withContext(Dispatchers.IO) { buildDocxBytes(context, report, short = true) }
-        ); bump()
+        File(workDir, "${safeTitle}_short.docx").writeBytes(buildDocxBytes(context, report, short = true)); bump()
         // 4. DOCX Complete
-        File(workDir, "${safeTitle}_complete.docx").writeBytes(
-            withContext(Dispatchers.IO) { buildDocxBytes(context, report, short = false) }
-        ); bump()
+        File(workDir, "${safeTitle}_complete.docx").writeBytes(buildDocxBytes(context, report, short = false)); bump()
         // 5. ODT Short
-        File(workDir, "${safeTitle}_short.odt").writeBytes(
-            withContext(Dispatchers.IO) { buildOdtBytes(context, report, short = true) }
-        ); bump()
+        File(workDir, "${safeTitle}_short.odt").writeBytes(buildOdtBytes(context, report, short = true)); bump()
         // 6. ODT Complete
-        File(workDir, "${safeTitle}_complete.odt").writeBytes(
-            withContext(Dispatchers.IO) { buildOdtBytes(context, report, short = false) }
-        ); bump()
-        // 7. PDF Short — no TOC page
+        File(workDir, "${safeTitle}_complete.odt").writeBytes(buildOdtBytes(context, report, short = false)); bump()
+        // 7. PDF Short — no TOC page. WebView lives on Main, so hop.
         val pdfShort = File(workDir, "${safeTitle}_short.pdf")
         withContext(Dispatchers.Main) {
             renderHtmlToPdfFile(context, makeStaticForPdf(shortHtml), pdfShort, withTocPage = false)
@@ -104,14 +107,12 @@ internal suspend fun bulkExportAndShare(
         // intermediate directory), so the user just unzips and reads.
         val outDir = File(context.cacheDir, "exports").also { it.mkdirs() }
         val masterZip = File(outDir, "ai_report_${safeTitle}_all_$ts.zip")
-        withContext(Dispatchers.IO) {
-            ZipOutputStream(masterZip.outputStream().buffered()).use { zos ->
-                workDir.listFiles()?.sortedBy { it.name }?.forEach { f ->
-                    val entry = ZipEntry(f.name).apply { time = f.lastModified() }
-                    zos.putNextEntry(entry)
-                    f.inputStream().use { it.copyTo(zos) }
-                    zos.closeEntry()
-                }
+        ZipOutputStream(masterZip.outputStream().buffered()).use { zos ->
+            workDir.listFiles()?.sortedBy { it.name }?.forEach { f ->
+                val entry = ZipEntry(f.name).apply { time = f.lastModified() }
+                zos.putNextEntry(entry)
+                f.inputStream().use { it.copyTo(zos) }
+                zos.closeEntry()
             }
         }
 
@@ -122,8 +123,11 @@ internal suspend fun bulkExportAndShare(
             putExtra(Intent.EXTRA_SUBJECT, "AI Report (all formats) - ${report.title}")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Share AI Report (all formats)"))
-        return true
+        // startActivity from IO works, but Activity transition wants Main.
+        withContext(Dispatchers.Main) {
+            context.startActivity(Intent.createChooser(intent, "Share AI Report (all formats)"))
+        }
+        true
     } finally {
         // Per-format files have been zipped; the staging dir is dead
         // weight. Master zip lives in the exports cache and is what the
