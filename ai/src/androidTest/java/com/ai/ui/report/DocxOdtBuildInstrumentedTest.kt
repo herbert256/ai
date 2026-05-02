@@ -5,8 +5,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.util.PersistentStateGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayInputStream
@@ -19,6 +21,10 @@ class DocxOdtBuildInstrumentedTest {
     @Before fun reset() {
         ReportStorage.init(context)
         ReportStorage.deleteAllReports(context)
+    }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
     }
 
     private fun zipEntryNames(bytes: ByteArray): List<String> {

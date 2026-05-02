@@ -2,9 +2,11 @@ package com.ai.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ai.util.PersistentStateGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -23,6 +25,10 @@ class ReportStorageInstrumentedTest {
         ReportStorage.deleteAllReports(context)
     }
     @After fun cleanup() { ReportStorage.deleteAllReports(context) }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
+    }
 
     private fun agent(id: String, status: ReportStatus = ReportStatus.PENDING) = ReportAgent(
         agentId = id,

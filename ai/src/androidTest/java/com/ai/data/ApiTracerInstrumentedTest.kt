@@ -2,9 +2,11 @@ package com.ai.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ai.util.PersistentStateGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -34,6 +36,10 @@ class ApiTracerInstrumentedTest {
         ApiTracer.currentReportId = null
         ApiTracer.currentCategory = null
         // Leave isTracingEnabled in whatever state the rest of the app expects.
+    }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
     }
 
     private fun trace(

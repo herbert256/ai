@@ -2,8 +2,10 @@ package com.ai.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ai.util.PersistentStateGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -26,6 +28,10 @@ class PricingCacheInstrumentedTest {
         // Best effort — manual pricing entries persist across runs.
         PricingCache.setAllManualPricing(context, emptyMap())
         PricingCache.saveOpenRouterPricing(context, emptyMap())
+    }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
     }
 
     @Test fun setManualPricing_then_getPricing_returns_OVERRIDE_tier() {

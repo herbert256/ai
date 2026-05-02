@@ -2,8 +2,10 @@ package com.ai.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ai.util.PersistentStateGuard
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -12,6 +14,10 @@ class ProviderRegistryInstrumentedTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Before fun reset() { ProviderRegistry.resetToDefaults(context) }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
+    }
 
     @Test fun init_loads_providers_from_setup_json_assets() {
         val all = ProviderRegistry.getAll()

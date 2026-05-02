@@ -9,11 +9,13 @@ import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.TraceRequest
 import com.ai.data.TraceResponse
+import com.ai.util.PersistentStateGuard
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -37,6 +39,10 @@ class BulkExportInstrumentedTest {
         ReportStorage.deleteAllReports(context)
         ApiTracer.clearTraces()
         ApiTracer.isTracingEnabled = true
+    }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
     }
 
     @Test fun buildersProduce_8_doc_artifacts_plus_zipped_html_and_optional_traces() {

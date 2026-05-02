@@ -12,10 +12,12 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.data.TokenUsage
 import com.ai.data.TraceRequest
 import com.ai.data.TraceResponse
+import com.ai.util.PersistentStateGuard
 import com.ai.util.TestProvider
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayInputStream
@@ -33,6 +35,10 @@ class ZippedHtmlBuildInstrumentedTest {
         ApiTracer.isTracingEnabled = true
     }
     @After fun cleanup() { TestProvider.unregister() }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
+    }
 
     private fun zipEntries(bytes: ByteArray): Set<String> {
         val out = mutableSetOf<String>()

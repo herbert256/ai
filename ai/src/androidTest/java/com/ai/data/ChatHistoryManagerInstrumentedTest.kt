@@ -2,10 +2,12 @@ package com.ai.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.ai.util.PersistentStateGuard
 import com.ai.util.TestProvider
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
 import org.junit.Before
+import org.junit.ClassRule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -24,6 +26,10 @@ class ChatHistoryManagerInstrumentedTest {
     @After fun cleanup() {
         ChatHistoryManager.deleteAllSessions()
         TestProvider.unregister()
+    }
+
+    companion object {
+        @ClassRule @JvmField val stateGuard = PersistentStateGuard()
     }
 
     private fun session(id: String, messages: Int = 2, updatedAt: Long = System.currentTimeMillis()) =
