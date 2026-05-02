@@ -109,7 +109,7 @@ suspend fun AnalysisRepository.embed(
     try {
         val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
         val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
-        val url = buildChatUrl(service.baseUrl, embedPath)
+        val url = buildChatUrl(service.baseUrl, embedPath, service.knownEndpointPaths())
         val response = api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts))
         if (!response.isSuccessful) return@withContext null
         val data = response.body()?.data ?: return@withContext null
@@ -132,7 +132,7 @@ private suspend fun AnalysisRepository.analyzeOpenAi(
     if (usesResponsesApi(service, model)) return analyzeResponsesApi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-    val chatUrl = buildChatUrl(baseUrl, service.chatPath)
+    val chatUrl = buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
     val messages = buildMessages(params?.systemPrompt, prompt, imageBase64, imageMime)
     val request = buildOpenAiRequest(service, model, messages, params)
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
@@ -295,7 +295,7 @@ private suspend fun AnalysisRepository.chatOpenAi(
     if (usesResponsesApi(service, model)) return chatResponsesApi(service, apiKey, model, messages, params, baseUrl)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-    val chatUrl = buildChatUrl(baseUrl, service.chatPath)
+    val chatUrl = buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
     val openAiMessages = messages.map { it.toOpenAiMessage() }
     val request = OpenAiRequest(
         model = model, messages = openAiMessages,
@@ -341,7 +341,7 @@ private suspend fun AnalysisRepository.chatResponsesApi(
 }
 
 internal fun responsesUrlFor(service: AppService, baseUrl: String): String =
-    buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
+    buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses", service.knownEndpointPaths())
 
 private suspend fun AnalysisRepository.chatAnthropic(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
@@ -721,20 +721,42 @@ internal fun normalizeUrl(url: String): String = if (url.endsWith("/")) url else
  *  - a bare base URL ("https://api.example.com/"), in which case we append chatPath, or
  *  - a full endpoint URL ("https://api.example.com/v1/chat/completions"), e.g. from
  *    Settings.getEffectiveEndpointUrlForAgent(), in which case we must NOT append chatPath
- *    (that was the "/v1/chat/completions/v1/chat/completions" 404 bug in reports).
- *
- * We detect the second case by checking whether the URL already ends with chatPath.
+ *    (that was the "/v1/chat/completions/v1/chat/completions" 404 bug in reports), or
+ *  - a full endpoint URL pointing at a *different* known path on the same service
+ *    ("https://api.openai.com/v1/chat/completions" while we want "v1/responses"),
+ *    in which case [alternatePaths] should list the other known paths so we can
+ *    strip the wrong tail before appending the right one. Without this we'd build
+ *    "/v1/chat/completions/v1/responses" → 404 "Invalid URL".
  */
-internal fun buildChatUrl(baseUrl: String, chatPath: String): String {
+internal fun buildChatUrl(
+    baseUrl: String,
+    chatPath: String,
+    alternatePaths: List<String> = emptyList()
+): String {
     val cleanedChatPath = chatPath.trim('/')
     if (cleanedChatPath.isEmpty()) return baseUrl
-    val trimmedUrl = baseUrl.trimEnd('/')
-    return if (trimmedUrl.endsWith("/$cleanedChatPath") || trimmedUrl.endsWith(cleanedChatPath)) {
-        trimmedUrl
-    } else {
-        "$trimmedUrl/$cleanedChatPath"
+    var trimmedUrl = baseUrl.trimEnd('/')
+    if (trimmedUrl.endsWith("/$cleanedChatPath") || trimmedUrl.endsWith(cleanedChatPath)) {
+        return trimmedUrl
     }
+    for (alt in alternatePaths) {
+        val cleanedAlt = alt.trim('/')
+        if (cleanedAlt.isNotEmpty() && cleanedAlt != cleanedChatPath && trimmedUrl.endsWith("/$cleanedAlt")) {
+            trimmedUrl = trimmedUrl.removeSuffix("/$cleanedAlt").trimEnd('/')
+            break
+        }
+    }
+    return "$trimmedUrl/$cleanedChatPath"
 }
+
+/** All endpoint paths this service knows about (chat / responses / embedding).
+ *  Used by [buildChatUrl] to strip a wrong tail before appending the right one
+ *  when the user has configured a full endpoint URL as their base. */
+internal fun AppService.knownEndpointPaths(): List<String> = listOfNotNull(
+    chatPath,
+    responsesPath,
+    pathFor(ModelType.EMBEDDING)
+)
 
 /** Read [OpenAiMessage.content] as a String regardless of whether it was a
  *  raw String or (after a future round-trip) a serialized list. Response

@@ -42,4 +42,74 @@ class BuildChatUrlTest {
     @Test fun returns_url_unchanged_when_chat_path_empty() {
         assertThat(buildChatUrl("https://api.example.com/foo", "")).isEqualTo("https://api.example.com/foo")
     }
+
+    // ---- alternate-path stripping (the cross-endpoint 404 bug) ----
+
+    @Test fun strips_chat_completions_tail_when_caller_wants_responses() {
+        // Production trace: /v1/chat/completions/v1/responses → 404 "Invalid URL".
+        // The user configured the OpenAI provider with the chat endpoint as base
+        // URL; gpt-5-* models route to v1/responses, which must replace, not append.
+        assertThat(
+            buildChatUrl(
+                "https://api.openai.com/v1/chat/completions",
+                "v1/responses",
+                listOf("v1/chat/completions", "v1/responses", "v1/embeddings")
+            )
+        ).isEqualTo("https://api.openai.com/v1/responses")
+    }
+
+    @Test fun strips_responses_tail_when_caller_wants_chat_completions() {
+        assertThat(
+            buildChatUrl(
+                "https://api.openai.com/v1/responses",
+                "v1/chat/completions",
+                listOf("v1/chat/completions", "v1/responses", "v1/embeddings")
+            )
+        ).isEqualTo("https://api.openai.com/v1/chat/completions")
+    }
+
+    @Test fun strips_chat_completions_tail_when_caller_wants_embeddings() {
+        assertThat(
+            buildChatUrl(
+                "https://api.openai.com/v1/chat/completions",
+                "v1/embeddings",
+                listOf("v1/chat/completions", "v1/responses", "v1/embeddings")
+            )
+        ).isEqualTo("https://api.openai.com/v1/embeddings")
+    }
+
+    @Test fun does_not_strip_when_target_is_alternate_set() {
+        // alternatePaths includes the target path; the existing "already ends with"
+        // branch should fire first and leave the URL untouched.
+        assertThat(
+            buildChatUrl(
+                "https://api.openai.com/v1/responses",
+                "v1/responses",
+                listOf("v1/chat/completions", "v1/responses")
+            )
+        ).isEqualTo("https://api.openai.com/v1/responses")
+    }
+
+    @Test fun preserves_proxy_prefix_when_stripping_endpoint_tail() {
+        // User's base URL has a custom proxy prefix; we should preserve it and
+        // only strip the recognised endpoint suffix.
+        assertThat(
+            buildChatUrl(
+                "https://my-proxy.example/openai/v1/chat/completions",
+                "v1/responses",
+                listOf("v1/chat/completions", "v1/responses")
+            )
+        ).isEqualTo("https://my-proxy.example/openai/v1/responses")
+    }
+
+    @Test fun ignores_alternates_for_bare_base_url() {
+        // No tail to strip — alternatePaths must not change behavior.
+        assertThat(
+            buildChatUrl(
+                "https://api.example.com/",
+                "v1/chat/completions",
+                listOf("v1/responses", "v1/embeddings")
+            )
+        ).isEqualTo("https://api.example.com/v1/chat/completions")
+    }
 }

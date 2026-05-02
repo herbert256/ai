@@ -140,7 +140,7 @@ private fun AnalysisRepository.streamOpenAi(
 ): Flow<String> = flow {
     if (usesResponsesApi(service, model)) {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-        val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
+        val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses", service.knownEndpointPaths())
         val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
         val systemPrompt = messages.find { it.role == "system" }?.content
         val request = OpenAiResponsesRequest(
@@ -156,7 +156,7 @@ private fun AnalysisRepository.streamOpenAi(
         } else throw Exception("API error: ${response.code()} ${response.message()}")
     } else {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-        val chatUrl = buildChatUrl(baseUrl, service.chatPath)
+        val chatUrl = buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
         val openAiMessages = messages.map { it.toOpenAiMessage() }
         val request = OpenAiRequest(
             model = model, messages = openAiMessages, stream = true,
