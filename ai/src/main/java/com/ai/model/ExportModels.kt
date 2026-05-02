@@ -101,7 +101,11 @@ data class ConfigExport(
     val introPrompt: String? = null,
     /** Model-info template (was an Internal Prompt named "model_info";
      *  Internal Prompts have been removed). Null when unset. */
-    val modelInfoPrompt: String? = null
+    val modelInfoPrompt: String? = null,
+    /** Translation prompt — used by the Translate button on the
+     *  Report result screen. Null when unset (runtime falls back to
+     *  SecondaryPrompts.DEFAULT_TRANSLATE). */
+    val translatePrompt: String? = null
 )
 
 data class ApiKeyEntry(val service: String, val apiKey: String)
@@ -124,5 +128,9 @@ data class ConfigImportResult(
     val summarizePrompt: String? = null,
     val comparePrompt: String? = null,
     val introPrompt: String? = null,
-    val modelInfoPrompt: String? = null
+    val modelInfoPrompt: String? = null,
+    /** Translation template — used by the Report result screen's
+     *  Translate button. Null when unset (runtime falls back to
+     *  SecondaryPrompts.DEFAULT_TRANSLATE). */
+    val translatePrompt: String? = null
 )

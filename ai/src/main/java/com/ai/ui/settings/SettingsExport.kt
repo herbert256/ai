@@ -124,7 +124,8 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         summarizePrompt = generalSettings.summarizePrompt.ifBlank { null },
         comparePrompt = generalSettings.comparePrompt.ifBlank { null },
         introPrompt = generalSettings.introPrompt.ifBlank { null },
-        modelInfoPrompt = generalSettings.modelInfoPrompt.ifBlank { null }
+        modelInfoPrompt = generalSettings.modelInfoPrompt.ifBlank { null },
+        translatePrompt = generalSettings.translatePrompt.ifBlank { null }
     )
 
     return createAppGson(prettyPrint = true).toJson(export)
@@ -210,7 +211,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 
-    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths, export.rerankPrompt, export.summarizePrompt, export.comparePrompt, export.introPrompt, export.modelInfoPrompt)
+    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths, export.rerankPrompt, export.summarizePrompt, export.comparePrompt, export.introPrompt, export.modelInfoPrompt, export.translatePrompt)
 }
 
 /**

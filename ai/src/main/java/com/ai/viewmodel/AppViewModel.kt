@@ -241,7 +241,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         summarizePrompt = result.summarizePrompt ?: gs.summarizePrompt,
                         comparePrompt = result.comparePrompt ?: gs.comparePrompt,
                         introPrompt = result.introPrompt ?: gs.introPrompt,
-                        modelInfoPrompt = result.modelInfoPrompt ?: gs.modelInfoPrompt
+                        modelInfoPrompt = result.modelInfoPrompt ?: gs.modelInfoPrompt,
+                        translatePrompt = result.translatePrompt ?: gs.translatePrompt
                     )
                     if (updatedGs != gs) { gs = updatedGs; settingsPrefs.saveGeneralSettings(gs) }
                 }
