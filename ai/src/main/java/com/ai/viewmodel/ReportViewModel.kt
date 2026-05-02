@@ -1156,6 +1156,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         translateModel: String,
         translatePricing: PricingCache.ModelPricing
     ) {
+        // One UUID for every row this invocation writes — lets the
+        // result page collapse them into a single aggregate
+        // "translation run" row even when the same language has been
+        // translated more than once.
+        val runId = java.util.UUID.randomUUID().toString()
         for (item in run.items) {
             val tu = item.tokenUsage
             val inCost = tu?.let { it.inputTokens * translatePricing.promptPrice }
@@ -1184,7 +1189,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 translateSourceKind = srcKind,
                 translateSourceTargetId = srcTargetId,
                 targetLanguage = run.targetLanguageName,
-                targetLanguageNative = run.targetLanguageNative
+                targetLanguageNative = run.targetLanguageNative,
+                translationRunId = runId
             ))
         }
     }

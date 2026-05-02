@@ -44,6 +44,13 @@ data class SecondaryResult(
     /** Companion to [targetLanguage] — native rendering for the picker
      *  ("Nederlands", "Deutsch"). Null on non-translate rows. */
     val targetLanguageNative: String? = null,
+    /** UUID shared by every TRANSLATE row produced by a single Translate
+     *  invocation, so the result page can render one aggregate "run"
+     *  row per click and let the user drill into the individual API
+     *  calls. Null on non-translate rows and on legacy rows saved
+     *  before this field existed (those fall back to grouping-by-
+     *  language for the same effect). */
+    val translationRunId: String? = null,
     /** Legacy field — set by the old "translation creates a copy" flow
      *  on Summary / Compare secondaries that were duplicated onto a
      *  translated report. New translations don't fork the report so

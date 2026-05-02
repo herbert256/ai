@@ -239,11 +239,13 @@ fun ReportsScreen(
     // promptly without the user bouncing in/out of the screen.
     var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0, 0)) }
     var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
+    var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches) {
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, translationRun?.finished) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0)
             secondaryRuns = emptyList()
+            translationRunSummaries = emptyList()
             secondaryTotals = SecondaryTotals.ZERO
             return@LaunchedEffect
         }
@@ -253,6 +255,9 @@ fun ReportsScreen(
                 secondaryRuns = all
                     .filter { it.kind != SecondaryKind.TRANSLATE }
                     .sortedByDescending { it.timestamp }
+                translationRunSummaries = buildTranslationRunSummaries(
+                    all.filter { it.kind == SecondaryKind.TRANSLATE }
+                )
                 secondaryCounts = SecondaryResultStorage.countForReport(context, rid)
                 // Totals span every persisted secondary including
                 // TRANSLATE rows — those translation calls show up
@@ -279,6 +284,7 @@ fun ReportsScreen(
         }
     }
     var openMetaResultId by remember { mutableStateOf<String?>(null) }
+    var openTranslationRunId by remember { mutableStateOf<String?>(null) }
 
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
@@ -620,6 +626,21 @@ fun ReportsScreen(
         return
     }
 
+    val openRunId = openTranslationRunId
+    if (openRunId != null && currentReportId != null) {
+        val rid = currentReportId
+        TranslationRunDetailScreen(
+            reportId = rid,
+            runId = openRunId,
+            onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
+            onBack = { openTranslationRunId = null },
+            onNavigateHome = onNavigateHome,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo
+        )
+        return
+    }
+
     val openListKind = listKind
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
@@ -781,8 +802,10 @@ fun ReportsScreen(
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
+                translationRunSummaries = translationRunSummaries,
                 onViewSecondaryKind = { kind -> listKind = kind },
                 onOpenSecondaryRun = { id -> openMetaResultId = id },
+                onOpenTranslationRun = { runId -> openTranslationRunId = runId },
                 onOpenMeta = { showMetaScreen = true },
                 onRerank = {
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
@@ -945,8 +968,10 @@ private fun ColumnScope.GenerationPhase(
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
+    translationRunSummaries: List<TranslationRunSummary> = emptyList(),
     onViewSecondaryKind: (SecondaryKind) -> Unit = {},
     onOpenSecondaryRun: (String) -> Unit = {},
+    onOpenTranslationRun: (String) -> Unit = {},
     onOpenMeta: () -> Unit = {},
     onRerank: () -> Unit = {},
     onSummarize: () -> Unit = {},
@@ -1148,6 +1173,38 @@ private fun ColumnScope.GenerationPhase(
             }
         }
 
+        // Translation runs — one row per Translate invocation. Each
+        // run produces several TRANSLATE secondaries (prompt + each
+        // agent + each summary + each compare); they're collapsed
+        // here so the user sees a single line per click. Tapping
+        // opens TranslationRunDetailScreen with the call list.
+        if (isComplete && translationRunSummaries.isNotEmpty()) {
+            translationRunSummaries.forEach { run ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenTranslationRun(run.runId) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val statusEmoji = if (run.errorCount > 0) "❌" else "✅"
+                    Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    val langLabel = run.targetLanguage ?: "Translate"
+                    val callsLabel = "${run.callCount} call${if (run.callCount == 1) "" else "s"}"
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Translate · $langLabel",
+                            fontSize = 13.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Text(callsLabel, fontSize = 11.sp, color = AppColors.TextTertiary)
+                    }
+                    if (run.totalCost > 0.0) {
+                        Text(formatCents(run.totalCost), fontSize = 10.sp,
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    }
+                }
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+            }
+        }
+
     }
 
     Spacer(modifier = Modifier.height(4.dp))
@@ -1235,6 +1292,45 @@ private data class SecondaryTotals(
     val outputCost: Double
 ) {
     companion object { val ZERO = SecondaryTotals(0, 0, 0.0, 0.0) }
+}
+
+/** One synthetic row for the agent list per Translate invocation. The
+ *  translate flow writes N TRANSLATE secondaries (prompt + each agent
+ *  + each summary + each compare); collapsing them here keeps the
+ *  result list at one row per user-initiated run with a single status
+ *  / cost. */
+private data class TranslationRunSummary(
+    /** Either [SecondaryResult.translationRunId] when present, or a
+     *  synthetic "lang:<targetLanguage>" key for legacy rows. The
+     *  detail screen rebuilds the same key to find its rows. */
+    val runId: String,
+    val targetLanguage: String?,
+    val targetLanguageNative: String?,
+    val callCount: Int,
+    val errorCount: Int,
+    val totalCost: Double,
+    /** Timestamp of the latest call in the run — used to sort
+     *  translation rows newest-first alongside the other meta
+     *  rows. */
+    val timestamp: Long
+)
+
+private fun buildTranslationRunSummaries(rows: List<com.ai.data.SecondaryResult>): List<TranslationRunSummary> {
+    if (rows.isEmpty()) return emptyList()
+    return rows.groupBy { translationRunGroupingId(it) }
+        .map { (runId, items) ->
+            val first = items.first()
+            TranslationRunSummary(
+                runId = runId,
+                targetLanguage = first.targetLanguage,
+                targetLanguageNative = first.targetLanguageNative,
+                callCount = items.size,
+                errorCount = items.count { it.errorMessage != null },
+                totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
+                timestamp = items.maxOf { it.timestamp }
+            )
+        }
+        .sortedByDescending { it.timestamp }
 }
 
 /** Compact action button shared across the Reports result page's
