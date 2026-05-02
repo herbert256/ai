@@ -105,20 +105,31 @@ object BackupManager {
      * restart the app afterwards.
      */
     fun restore(context: Context, input: InputStream): RestoreSummary {
+        val tempZip = File.createTempFile("ai-restore-", ".zip", context.cacheDir)
+        return try {
+            tempZip.outputStream().use { out -> input.copyTo(out) }
+            val version = readManifestVersion(tempZip)
+            if (version > MANIFEST_VERSION) {
+                throw IllegalStateException("Backup is from a newer app version ($version). Please update the app.")
+            }
+            clearFilesDir(context.filesDir)
+            restoreFromZip(context, tempZip, version)
+        } finally {
+            tempZip.delete()
+        }
+    }
+
+    private fun restoreFromZip(context: Context, zipFile: File, version: Int): RestoreSummary {
         var prefsRestored = 0
         var filesRestored = 0
-        var manifestRead: Map<String, Any?>? = null
 
-        ZipInputStream(input).use { zip ->
+        ZipInputStream(zipFile.inputStream()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
                 if (entry.isDirectory) { zip.closeEntry(); continue }
                 val bytes = zip.readBytes()
                 when {
-                    entry.name == "manifest.json" -> {
-                        @Suppress("UNCHECKED_CAST")
-                        manifestRead = gson.fromJson(bytes.toString(Charsets.UTF_8), Map::class.java) as Map<String, Any?>
-                    }
+                    entry.name == "manifest.json" -> Unit
                     // Generic: any prefs/<name>.json restores into the SharedPreferences
                     // file called <name>. Old backups (pre-pricing_cache addition) and
                     // future additions both round-trip without further code changes.
@@ -141,10 +152,6 @@ object BackupManager {
                 zip.closeEntry()
             }
         }
-        val version = (manifestRead?.get("version") as? Number)?.toInt() ?: -1
-        if (version > MANIFEST_VERSION) {
-            throw IllegalStateException("Backup is from a newer app version ($version). Please update the app.")
-        }
         // After restoring the provider_registry prefs, fold in any providers that
         // exist in the bundled assets/setup.json but not in the backup. Catches
         // the case where the user took a backup before we added new providers
@@ -157,6 +164,31 @@ object BackupManager {
             dataFiles = filesRestored,
             newProviders = providersAdded
         )
+    }
+
+    private fun readManifestVersion(zipFile: File): Int {
+        ZipInputStream(zipFile.inputStream()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (!entry.isDirectory && entry.name == "manifest.json") {
+                    val bytes = zip.readBytes()
+                    @Suppress("UNCHECKED_CAST")
+                    val manifest = gson.fromJson(bytes.toString(Charsets.UTF_8), Map::class.java) as Map<String, Any?>
+                    zip.closeEntry()
+                    return (manifest["version"] as? Number)?.toInt() ?: -1
+                }
+                zip.closeEntry()
+            }
+        }
+        return -1
+    }
+
+    private fun clearFilesDir(filesDir: File) {
+        if (!filesDir.exists()) {
+            filesDir.mkdirs()
+            return
+        }
+        filesDir.listFiles()?.forEach { it.deleteRecursively() }
     }
 
     data class RestoreSummary(
