@@ -39,6 +39,7 @@ internal data class HtmlAgentData(
 internal data class HtmlSecondaryData(
     val id: String, val kind: SecondaryKind,
     val providerDisplay: String, val model: String,
+    val agentName: String,
     val timestamp: String,
     val content: String?, val errorMessage: String?,
     val inputTokens: Int? = null, val outputTokens: Int? = null,
@@ -142,6 +143,7 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
             id = s.id, kind = s.kind,
             providerDisplay = secProvider?.displayName ?: s.providerId,
             model = s.model,
+            agentName = s.agentName,
             timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(s.timestamp)),
             content = s.content, errorMessage = s.errorMessage,
             inputTokens = s.tokenUsage?.inputTokens, outputTokens = s.tokenUsage?.outputTokens,
@@ -385,6 +387,29 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
     sb.append("<div class='$headerClass'>${esc(item.providerDisplay)} · ${esc(item.model)} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
     if (item.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(item.errorMessage)}</div>")
+    } else if (item.kind == SecondaryKind.TRANSLATE) {
+        // Translation cards are meta-only — the translated content lives on
+        // the new translated Report's agents/secondaries. Show what was
+        // translated, how long the API call took, and the tokens / cents.
+        sb.append("<div class='secondary-body'>")
+        sb.append("<table class='translate-meta'>")
+        // The agentName is "Translate: <label>" — strip the prefix so the
+        // label reads as a plain "what was translated" value.
+        val what = item.agentName.removePrefix("Translate:").trim().ifBlank { item.agentName }
+        sb.append("<tr><td class='k'>What</td><td>${esc(what)}</td></tr>")
+        item.durationMs?.let {
+            sb.append("<tr><td class='k'>Seconds</td><td class='num'>${"%.1f".format(it / 1000.0)}</td></tr>")
+        }
+        item.inputTokens?.let { sb.append("<tr><td class='k'>Input tokens</td><td class='num'>$it</td></tr>") }
+        item.outputTokens?.let { sb.append("<tr><td class='k'>Output tokens</td><td class='num'>$it</td></tr>") }
+        item.inputCost?.let { sb.append("<tr><td class='k'>Input cents</td><td class='num'>${"%.2f".format(it * 100)}</td></tr>") }
+        item.outputCost?.let { sb.append("<tr><td class='k'>Output cents</td><td class='num'>${"%.2f".format(it * 100)}</td></tr>") }
+        if (item.inputCost != null || item.outputCost != null) {
+            val total = (item.inputCost ?: 0.0) + (item.outputCost ?: 0.0)
+            sb.append("<tr><td class='k'>Total cents</td><td class='num'>${"%.2f".format(total * 100)}</td></tr>")
+        }
+        sb.append("</table>")
+        sb.append("</div>")
     } else if (!item.content.isNullOrBlank()) {
         when (item.kind) {
             SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor)}</div>")
@@ -590,6 +615,10 @@ ul{padding-left:20px}li{margin:4px 0}
 .secondary-card-header{color:#FF9800;font-weight:600;font-size:13px;margin-bottom:8px}
 .secondary-ts{color:#888;font-weight:normal;font-size:11px;margin-left:8px}
 .secondary-body{font-size:14px;line-height:1.5}
+.translate-meta{font-size:13px;margin-top:4px;border-collapse:collapse}
+.translate-meta td{padding:3px 12px 3px 0}
+.translate-meta td.k{color:#FF9800;font-weight:600;white-space:nowrap}
+.translate-meta td.num{text-align:right;font-family:monospace}
 .rerank-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
 .rerank-table th{color:#FF9800;text-align:left;padding:4px 8px;border-bottom:1px solid #444}
 .rerank-table td{padding:4px 8px;border-bottom:1px solid #333}
