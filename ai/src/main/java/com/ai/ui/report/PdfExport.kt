@@ -124,7 +124,14 @@ suspend fun shareReportAsExport(
     val baseName = "ai_report_${safeTitle}_${detailTag}_${pdfTimestamp()}"
     return when (format) {
         ReportExportFormat.HTML -> { dispatchHtml(context, html, "$baseName.html", report.title, action); true }
-        ReportExportFormat.PDF -> { dispatchPdf(context, makeStaticForPdf(html), "$baseName.pdf", report.title, action); true }
+        // Medium PDF gets a JS-injected TOC page at the top with real
+        // page numbers; SHORT/COMPREHENSIVE skip it (Comprehensive
+        // already renders its own static index page).
+        ReportExportFormat.PDF -> {
+            dispatchPdf(context, makeStaticForPdf(html), "$baseName.pdf", report.title, action,
+                withTocPage = detail == ReportExportDetail.MEDIUM)
+            true
+        }
         ReportExportFormat.JSON, ReportExportFormat.DOCX, ReportExportFormat.ODT -> true // handled above
     }
 }
@@ -142,16 +149,52 @@ suspend fun shareReportAsExport(
  * we hand to the PDF renderer.
  */
 private fun makeStaticForPdf(html: String): String {
+    // Reveal every JS-hidden region of the new Medium HTML so a static
+    // bitmap snapshot shows the whole report top-to-bottom: the
+    // view-picker / sub-toggles / per-item button rows are tab UI in a
+    // browser, dead weight in a PDF. Each .view-block, .layout, item,
+    // trace pane, etc. is forced visible. We also drop the picker
+    // buttons themselves so they don't waste a row at the top of every
+    // section. Heading anchors stay so the TOC page can link back.
     val override = """
         <style>
-            /* Hide JS-controlled toggles + the duplicate "all together" layout. */
-            .layout-toggle, .agent-buttons, .think-btn, .section-btn { display: none !important; }
-            #layout-allTogether { display: none !important; }
-            /* Force every JS-hidden region visible. */
-            #layout-oneByOne { display: block !important; }
+            /* Hide every interactive widget and selector row. */
+            .view-picker, .layout-toggle, .agent-buttons,
+            .think-btn, .section-btn,
+            .cat-list, .trace-list, .trace-part-tabs,
+            .view-btn, .layout-btn, .item-btn, .cat-btn, .trace-btn, .trace-part-btn { display: none !important; }
+            /* Force every view-block (Reports/Summaries/Compares/Reranks/
+               Moderations/Translations/Prompt/Costs/JSON) visible at once. */
+            .view-block { display: block !important; }
+            /* Reveal both layouts (one-by-one + all-together) and every
+               per-item slot they contain so neither is hidden behind a
+               JS toggle. */
+            .layout, #layout-oneByOne, #layout-allTogether { display: block !important; }
             .agent-result, .agent-result.active { display: block !important; }
+            .item-content, .item-content.active { display: block !important; }
             .think-content { display: block !important; }
             .section-content, #section-prompt, #section-costs { display: block !important; }
+            /* JSON view: every category block, every per-trace pane,
+               and every per-trace part body must be on the page so the
+               PDF carries the full request/response history. */
+            .cat-block { display: block !important; }
+            .trace-pane { display: block !important; }
+            .trace-part { display: block !important; }
+            /* Print niceties. */
+            body { background: #fff !important; color: #000 !important; }
+            .container { max-width: none !important; }
+            h1, h2, h3, h4 { page-break-after: avoid; }
+            .toc-page { page-break-after: always; }
+            .toc-list { font-family: -apple-system, sans-serif; font-size: 13px; line-height: 1.7; }
+            .toc-entry { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; }
+            .toc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .toc-page-num { font-family: monospace; font-weight: bold; }
+            .toc-l1 { font-size: 16px; font-weight: bold; margin-top: 8px; }
+            .toc-l2 { font-size: 14px; font-weight: bold; margin-top: 6px; }
+            .toc-l3 { padding-left: 16px; }
+            .toc-l4 { padding-left: 32px; color: #444; }
+            .toc-l5 { padding-left: 48px; color: #555; font-size: 12px; }
+            .toc-l6 { padding-left: 64px; color: #666; font-size: 12px; }
         </style>
     """.trimIndent()
     val idx = html.indexOf("</head>", ignoreCase = true)
@@ -348,9 +391,9 @@ private fun dispatchHtml(context: Context, html: String, fileName: String, repor
     }
 }
 
-private suspend fun dispatchPdf(context: Context, html: String, fileName: String, reportTitle: String, action: ReportExportAction) {
+private suspend fun dispatchPdf(context: Context, html: String, fileName: String, reportTitle: String, action: ReportExportAction, withTocPage: Boolean = false) {
     val output = File(exportsDir(context), fileName)
-    withContext(Dispatchers.Main) { renderHtmlToPdfFile(context, html, output) }
+    withContext(Dispatchers.Main) { renderHtmlToPdfFile(context, html, output, withTocPage = withTocPage) }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", output)
     when (action) {
         ReportExportAction.SHARE -> {
@@ -731,14 +774,18 @@ private fun getAppVersion(context: Context): String = try {
  *
  * Must be called from Main since WebView's measure / layout / draw require the UI thread.
  */
-private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File) {
+private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File, withTocPage: Boolean = false) {
     val pageWidth = 1240
     val pageHeight = 1754
     val tag = "PdfExport"
-    android.util.Log.i(tag, "renderHtmlToPdfFile: starting, html=${html.length} chars, out=${output.absolutePath}")
+    android.util.Log.i(tag, "renderHtmlToPdfFile: starting, html=${html.length} chars, out=${output.absolutePath}, withToc=$withTocPage")
     val done = kotlinx.coroutines.CompletableDeferred<Unit>()
     val webView = WebView(context)
-    webView.settings.javaScriptEnabled = false
+    // JS is required when we ask the WebView to inject the TOC at the top
+    // and pad it to a whole number of device-pixel pages so heading page
+    // numbers come out correct. Otherwise stay JS-off — safer and the
+    // existing slicing path doesn't need it.
+    webView.settings.javaScriptEnabled = withTocPage
     webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
     // Pre-measure + pre-layout so chromium has a real viewport when loading;
     // an unmeasured WebView produces zero-height content after load.
@@ -794,6 +841,82 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
             done.completeExceptionally(e)
         }
     }
+    /** Inject a TOC page at the top of the document, pad it to a whole
+     *  number of device-px pages, then write the correct page number
+     *  into each TOC entry. After this completes the WebView's content
+     *  is taller (by N×pageHeight px) and the slicing path produces a
+     *  PDF whose first N pages are TOC and remaining pages match the
+     *  original content. Sets `window.__tocReady=true` when done so the
+     *  Kotlin side can stop polling and snapshot. */
+    fun runTocAndRender(view: WebView) {
+        val tocScript = """
+            (function() {
+                try {
+                  var dpr = window.devicePixelRatio || 1;
+                  var pageHeight = $pageHeight;
+                  var headings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,h6'));
+                  if (headings.length === 0) { window.__tocReady = true; return; }
+                  var html = '<div class="toc-page"><h1 style="margin-top:0">Index</h1><div class="toc-list">';
+                  for (var i = 0; i < headings.length; i++) {
+                    var h = headings[i];
+                    var lvl = parseInt(h.tagName.substring(1));
+                    var text = (h.innerText || '').trim();
+                    if (text.length > 140) text = text.substring(0, 140) + '…';
+                    var safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    html += '<div class="toc-entry toc-l' + lvl + '">' +
+                            '<span class="toc-text">' + safe + '</span>' +
+                            '<span class="toc-page-num" data-toc-idx="' + i + '">…</span>' +
+                            '</div>';
+                  }
+                  html += '</div></div>';
+                  var mount = document.querySelector('.container') || document.body;
+                  var wrap = document.createElement('div');
+                  wrap.innerHTML = html;
+                  var tocEl = wrap.firstChild;
+                  mount.insertBefore(tocEl, mount.firstChild);
+                  // Pad TOC to a whole number of device-px pages so all
+                  // headings shift by exactly N pages and getBoundingClientRect
+                  // values divide cleanly by pageHeight.
+                  var actualPx = tocEl.getBoundingClientRect().height * dpr;
+                  var paddedPx = Math.ceil(actualPx / pageHeight) * pageHeight;
+                  tocEl.style.minHeight = (paddedPx / dpr) + 'px';
+                  tocEl.style.boxSizing = 'border-box';
+                  // Wait one frame for the min-height to apply, then write
+                  // page numbers using post-padding heading positions.
+                  requestAnimationFrame(function() {
+                    var liveHeadings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,h6'))
+                      .filter(function(h){ return !h.closest || !h.closest('.toc-page'); });
+                    var pageEntries = document.querySelectorAll('.toc-page-num');
+                    for (var i = 0; i < liveHeadings.length; i++) {
+                      var rect = liveHeadings[i].getBoundingClientRect();
+                      var yDevice = (rect.top + window.scrollY) * dpr;
+                      var pageNum = Math.floor(yDevice / pageHeight) + 1;
+                      if (pageEntries[i]) pageEntries[i].textContent = pageNum.toString();
+                    }
+                    window.__tocReady = true;
+                  });
+                } catch (e) {
+                  // Don't block the export if TOC injection fails — proceed
+                  // without page numbers rather than hanging the renderer.
+                  window.__tocReady = true;
+                }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(tocScript) {
+            var attempts = 0
+            fun checkReady() {
+                view.evaluateJavascript("(function(){return window.__tocReady===true ? 'true':'false'})()") { result ->
+                    if (result?.contains("true") == true || attempts >= 30) {
+                        renderNow(view)
+                    } else {
+                        attempts++
+                        mainHandler.postDelayed({ checkReady() }, 100)
+                    }
+                }
+            }
+            checkReady()
+        }
+    }
     webView.webViewClient = object : WebViewClient() {
         override fun onPageFinished(view: WebView, url: String?) {
             android.util.Log.i(tag, "onPageFinished url=$url, contentHeight=${view.contentHeight}")
@@ -805,7 +928,7 @@ private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: 
             var attempts = 0
             fun maybeRender() {
                 if (view.contentHeight > 0 || attempts >= 20) {
-                    renderNow(view)
+                    if (withTocPage) runTocAndRender(view) else renderNow(view)
                 } else {
                     attempts++
                     mainHandler.postDelayed({ maybeRender() }, 100)

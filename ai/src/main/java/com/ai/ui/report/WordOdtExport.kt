@@ -3,13 +3,7 @@ package com.ai.ui.report
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
-import com.ai.data.AppService
-import com.ai.data.Report
-import com.ai.data.ReportStatus
-import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
-import com.ai.data.SecondaryResult
-import com.ai.data.SecondaryResultStorage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.SimpleDateFormat
@@ -23,56 +17,271 @@ import java.util.zip.ZipOutputStream
 // Both .docx and .odt are zipped XML packages with very different schemas
 // but a similar paragraph-based logical model. We build a flat list of
 // blocks once and emit it in each format. Lossy by design — markdown
-// inline formatting (`**bold**`, `_italic_`, ``code``) is stripped to
-// plain text, since spinning up real run-property handling for each
-// schema would dwarf the value of this export path. Headings, bullets,
-// and code-fence paragraphs survive.
+// inline formatting is stripped to plain text — but headings, bullets,
+// fenced code, and simple tables survive. Headings drive the TOC field
+// each format embeds at the front of the document so Word/LibreOffice
+// can populate page numbers when the file is opened.
 
-internal enum class DocBlockKind { HEADING, PARAGRAPH, BULLET, CODE }
-internal data class DocBlock(val kind: DocBlockKind, val text: String, val level: Int = 0)
+internal enum class DocBlockKind { HEADING, PARAGRAPH, BULLET, CODE, TABLE, TOC }
+internal data class DocBlock(
+    val kind: DocBlockKind,
+    val text: String = "",
+    val level: Int = 0,
+    val tableHeader: List<String> = emptyList(),
+    val tableRows: List<List<String>> = emptyList()
+)
 
-private fun reportToBlocks(context: Context, report: Report): List<DocBlock> {
+/** Build the flat block list from the same data the Medium HTML export
+ *  uses. The export shows the full set of report content: title +
+ *  rapport, every per-agent response (with citations / search results /
+ *  related questions), every meta result (rerank / summarize / compare /
+ *  moderation / translation), the prompt, the per-call cost table, and
+ *  every captured API trace with redacted bodies. The lone DOCX/ODT
+ *  affordance is the leading TOC block — Word and LibreOffice fill the
+ *  page numbers in when the document is opened. */
+private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData): List<DocBlock> {
     val out = mutableListOf<DocBlock>()
-    out += DocBlock(DocBlockKind.HEADING, report.title.ifBlank { "Untitled" }, 1)
-    if (report.prompt.isNotBlank()) {
+    out += DocBlock(DocBlockKind.HEADING, data.title.ifBlank { "Untitled" }, 1)
+    out += DocBlock(DocBlockKind.HEADING, "Index", 2)
+    out += DocBlock(DocBlockKind.TOC)
+
+    if (!data.rapportText.isNullOrBlank()) {
+        out += mdToBlocks(data.rapportText, headingBase = 2)
+    }
+
+    if (data.agents.isNotEmpty()) {
+        out += DocBlock(DocBlockKind.HEADING, "Reports", 2)
+        for (a in data.agents) {
+            val anchor = a.anchorIndex?.let { "[$it] " } ?: ""
+            out += DocBlock(DocBlockKind.HEADING, "$anchor${a.providerDisplay} / ${a.model}", 3)
+            if (a.errorMessage != null) {
+                out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${a.errorMessage}")
+            }
+            if (!a.responseText.isNullOrBlank()) {
+                out += mdToBlocks(a.responseText, headingBase = 4)
+            }
+            a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
+                out += DocBlock(DocBlockKind.HEADING, "Sources", 4)
+                cites.forEachIndexed { i, url -> out += DocBlock(DocBlockKind.BULLET, "${i + 1}. $url") }
+            }
+            a.searchResults?.takeIf { it.isNotEmpty() }?.let { results ->
+                out += DocBlock(DocBlockKind.HEADING, "Search results", 4)
+                results.forEachIndexed { i, r ->
+                    val url = r.url ?: ""
+                    val name = r.name ?: url
+                    val snippet = if (!r.snippet.isNullOrBlank()) " — ${r.snippet}" else ""
+                    out += DocBlock(DocBlockKind.BULLET, "${i + 1}. $name ($url)$snippet")
+                }
+            }
+            a.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { qs ->
+                out += DocBlock(DocBlockKind.HEADING, "Related questions", 4)
+                qs.forEachIndexed { i, q -> out += DocBlock(DocBlockKind.BULLET, "${i + 1}. $q") }
+            }
+        }
+    }
+
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+    appendSecondary(out, data.secondary, SecondaryKind.SUMMARIZE, "Summaries", maxAnchor)
+    appendSecondary(out, data.secondary, SecondaryKind.COMPARE, "Compares", maxAnchor)
+    appendSecondary(out, data.secondary, SecondaryKind.RERANK, "Reranks", maxAnchor)
+    appendSecondary(out, data.secondary, SecondaryKind.MODERATION, "Moderations", maxAnchor)
+    appendTranslations(out, data.secondary)
+
+    if (data.prompt.isNotBlank()) {
         out += DocBlock(DocBlockKind.HEADING, "Prompt", 2)
-        report.prompt.split(Regex("\n\\s*\n")).forEach { para ->
+        data.prompt.split(Regex("\n\\s*\n")).forEach { para ->
             val t = para.trim()
             if (t.isNotEmpty()) out += DocBlock(DocBlockKind.PARAGRAPH, t)
         }
     }
-    val agents = report.agents.filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
-    if (agents.isNotEmpty()) {
-        out += DocBlock(DocBlockKind.HEADING, "Results", 2)
-        for (a in agents) {
-            val provider = AppService.findById(a.provider)
-            val label = "${provider?.displayName ?: a.provider} / ${a.model}"
-            out += DocBlock(DocBlockKind.HEADING, label, 3)
-            if (a.reportStatus == ReportStatus.ERROR && !a.errorMessage.isNullOrBlank()) {
-                out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${a.errorMessage}")
-            }
-            if (!a.responseBody.isNullOrBlank()) {
-                out += mdToBlocks(a.responseBody!!, headingBase = 4)
-            }
-        }
+
+    appendCosts(out, data)
+    appendTraces(out, data.traces)
+
+    if (!data.closeText.isNullOrBlank()) {
+        out += mdToBlocks(data.closeText, headingBase = 2)
     }
-    val secondaries = SecondaryResultStorage.listForReport(context, report.id)
-    appendSecondarySection(out, secondaries.filter { it.kind == SecondaryKind.SUMMARIZE }, "Summaries")
-    appendSecondarySection(out, secondaries.filter { it.kind == SecondaryKind.COMPARE }, "Compares")
-    appendSecondarySection(out, secondaries.filter { it.kind == SecondaryKind.RERANK }, "Reranks")
-    appendSecondarySection(out, secondaries.filter { it.kind == SecondaryKind.MODERATION }, "Moderations")
     return out
 }
 
-private fun appendSecondarySection(out: MutableList<DocBlock>, items: List<SecondaryResult>, heading: String) {
+private fun appendSecondary(
+    out: MutableList<DocBlock>, secondary: List<com.ai.ui.report.HtmlSecondaryData>,
+    kind: SecondaryKind, heading: String, maxAnchor: Int
+) {
+    val items = secondary.filter { it.kind == kind }
     if (items.isEmpty()) return
     out += DocBlock(DocBlockKind.HEADING, heading, 2)
     for (s in items) {
-        val provider = AppService.findById(s.providerId)?.displayName ?: s.providerId
-        out += DocBlock(DocBlockKind.HEADING, "$provider / ${s.model}", 3)
-        if (s.errorMessage != null) out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${s.errorMessage}")
-        if (!s.content.isNullOrBlank()) out += mdToBlocks(s.content, headingBase = 4)
+        out += DocBlock(DocBlockKind.HEADING, "${s.providerDisplay} / ${s.model}  (${s.timestamp})", 3)
+        if (s.errorMessage != null) {
+            out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${s.errorMessage}")
+            continue
+        }
+        if (s.content.isNullOrBlank()) continue
+        when (kind) {
+            SecondaryKind.RERANK -> {
+                val table = parseRerankTable(s.content, maxAnchor)
+                if (table != null) {
+                    out += table
+                } else {
+                    out += mdToBlocks(s.content, headingBase = 4)
+                }
+            }
+            SecondaryKind.COMPARE -> {
+                // Strip [N] anchor markup — keep the bracketed numbers as-is
+                // for readability since DOCX/ODT can't link back to specific
+                // cards without a lot of bookmark machinery.
+                out += mdToBlocks(s.content, headingBase = 4)
+            }
+            else -> out += mdToBlocks(s.content, headingBase = 4)
+        }
     }
+}
+
+private fun appendTranslations(
+    out: MutableList<DocBlock>, secondary: List<com.ai.ui.report.HtmlSecondaryData>
+) {
+    val items = secondary.filter { it.kind == SecondaryKind.TRANSLATE }
+    if (items.isEmpty()) return
+    out += DocBlock(DocBlockKind.HEADING, "Translations", 2)
+    val rows = items.map { s ->
+        val what = s.agentName.removePrefix("Translate:").trim().ifBlank { s.agentName }
+        val secs = s.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+        val totalCents = ((s.inputCost ?: 0.0) + (s.outputCost ?: 0.0)) * 100
+        listOf(
+            what,
+            "${s.providerDisplay} / ${s.model}",
+            secs,
+            (s.inputTokens ?: 0).toString(),
+            (s.outputTokens ?: 0).toString(),
+            "%.2f".format(totalCents)
+        )
+    }
+    out += DocBlock(
+        kind = DocBlockKind.TABLE,
+        tableHeader = listOf("What", "Provider / Model", "Seconds", "Input tokens", "Output tokens", "Total cents"),
+        tableRows = rows
+    )
+}
+
+private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.report.HtmlReportData) {
+    val agentRows = data.agents.filter { it.inputCost != null }
+    val secondaryRows = data.secondary.filter { it.inputTokens != null }
+    if (agentRows.isEmpty() && secondaryRows.isEmpty()) return
+    out += DocBlock(DocBlockKind.HEADING, "Costs", 2)
+
+    data class Row(val type: String, val provider: String, val model: String, val tier: String,
+                   val secs: String, val inT: Int, val outT: Int, val inC: Double, val outC: Double)
+    val rows = mutableListOf<Row>()
+    for (a in agentRows) {
+        rows += Row(
+            "report", a.providerDisplay, a.model, a.pricingTier ?: "",
+            a.durationMs?.let { "%.1f".format(it / 1000.0) } ?: "",
+            a.inputTokens ?: 0, a.outputTokens ?: 0,
+            (a.inputCost ?: 0.0) * 100, (a.outputCost ?: 0.0) * 100
+        )
+    }
+    for (s in secondaryRows) {
+        val type = when (s.kind) {
+            SecondaryKind.RERANK -> "rerank"
+            SecondaryKind.SUMMARIZE -> "summarize"
+            SecondaryKind.COMPARE -> "compare"
+            SecondaryKind.MODERATION -> "moderation"
+            SecondaryKind.TRANSLATE -> "translate"
+        }
+        rows += Row(
+            type, s.providerDisplay, s.model, s.pricingTier ?: "",
+            s.durationMs?.let { "%.1f".format(it / 1000.0) } ?: "",
+            s.inputTokens ?: 0, s.outputTokens ?: 0,
+            (s.inputCost ?: 0.0) * 100, (s.outputCost ?: 0.0) * 100
+        )
+    }
+    rows.sortByDescending { it.inC + it.outC }
+    val tIn = rows.sumOf { it.inT }
+    val tOut = rows.sumOf { it.outT }
+    val tInC = rows.sumOf { it.inC }
+    val tOutC = rows.sumOf { it.outC }
+
+    val tableRows = mutableListOf<List<String>>()
+    rows.forEach { r ->
+        tableRows += listOf(
+            r.type, r.provider, r.model, r.tier, r.secs,
+            r.inT.toString(), r.outT.toString(),
+            "%.2f".format(r.inC), "%.2f".format(r.outC),
+            "%.2f".format(r.inC + r.outC)
+        )
+    }
+    tableRows += listOf(
+        "Total", "", "", "", "",
+        tIn.toString(), tOut.toString(),
+        "%.2f".format(tInC), "%.2f".format(tOutC),
+        "%.2f".format(tInC + tOutC)
+    )
+    out += DocBlock(
+        kind = DocBlockKind.TABLE,
+        tableHeader = listOf(
+            "Type", "Provider", "Model", "Tier", "Seconds",
+            "Input tokens", "Output tokens", "Input cents", "Output cents", "Total cents"
+        ),
+        tableRows = tableRows
+    )
+}
+
+private fun appendTraces(out: MutableList<DocBlock>, traces: List<com.ai.ui.report.HtmlTraceData>) {
+    if (traces.isEmpty()) return
+    out += DocBlock(DocBlockKind.HEADING, "API traces (JSON)", 2)
+    val groups = traces.groupBy { it.category ?: "Other" }
+    val orderedKeys = groups.keys.sortedWith(compareBy({ it == "Other" }, { it.lowercase() }))
+    for (cat in orderedKeys) {
+        val list = groups[cat]!!
+        out += DocBlock(DocBlockKind.HEADING, "$cat (${list.size})", 3)
+        for (t in list) {
+            val origin = if (t.origin == "source") "[source] " else ""
+            val title = "$origin${t.timestamp} · ${t.method} · ${t.hostname}" +
+                (if (!t.model.isNullOrBlank()) " / ${t.model}" else "") + " · ${t.statusCode}"
+            out += DocBlock(DocBlockKind.HEADING, title, 4)
+            out += DocBlock(DocBlockKind.PARAGRAPH, "${t.method} ${t.url}")
+            out += DocBlock(DocBlockKind.HEADING, "Request headers", 5)
+            out += DocBlock(DocBlockKind.CODE, t.requestHeaders.ifBlank { "(none)" })
+            out += DocBlock(DocBlockKind.HEADING, "Request body", 5)
+            out += DocBlock(DocBlockKind.CODE, t.requestBody.ifBlank { "(empty)" })
+            out += DocBlock(DocBlockKind.HEADING, "Response headers", 5)
+            out += DocBlock(DocBlockKind.CODE, t.responseHeaders.ifBlank { "(none)" })
+            out += DocBlock(DocBlockKind.HEADING, "Response body", 5)
+            out += DocBlock(DocBlockKind.CODE, t.responseBody.ifBlank { "(empty)" })
+        }
+    }
+}
+
+/** Try to parse a rerank result as the JSON array the rerank prompt
+ *  asks for. On success return a TABLE block with rank/result/score/
+ *  reason columns; on failure return null and let the caller fall
+ *  back to plain markdown rendering. */
+private fun parseRerankTable(content: String, maxAnchor: Int): DocBlock? {
+    val cleaned = content.trim()
+        .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    return try {
+        @Suppress("DEPRECATION")
+        val arr = com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray ?: return null
+        if (arr.size() == 0 || !arr.all { it.isJsonObject }) return null
+        val rows = arr.mapNotNull { el ->
+            val obj = el.asJsonObject
+            val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
+            val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
+            val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val reason = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString
+            Triple(id, rank to score, reason)
+        }.sortedBy { it.second.first ?: Int.MAX_VALUE }
+        if (rows.isEmpty()) return null
+        DocBlock(
+            kind = DocBlockKind.TABLE,
+            tableHeader = listOf("Rank", "Result", "Score", "Reason"),
+            tableRows = rows.map { (id, rs, reason) ->
+                val resultLabel = if (id in 1..maxAnchor) "[$id]" else "[$id]"
+                listOf(rs.first?.toString() ?: "", resultLabel, rs.second?.let { "%.0f".format(it) } ?: "", reason ?: "")
+            }
+        )
+    } catch (_: Exception) { null }
 }
 
 /** Tiny markdown subset → blocks. Splits on blank lines. Recognises
@@ -135,8 +344,9 @@ private fun escXml(s: String): String {
 
 // ===== DOCX (Office Open XML) =====
 
-internal fun buildDocxBytes(context: Context, report: Report): ByteArray {
-    val blocks = reportToBlocks(context, report)
+internal fun buildDocxBytes(context: Context, report: com.ai.data.Report): ByteArray {
+    val data = com.ai.ui.report.buildHtmlReportData(context, report)
+    val blocks = buildMediumBlocks(data)
     val docXml = buildString {
         append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
         append("""<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>""")
@@ -167,6 +377,41 @@ internal fun buildDocxBytes(context: Context, report: Report): ByteArray {
                         if (i > 0) append("<w:r><w:br/></w:r>")
                         append("""<w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/></w:rPr><w:t xml:space="preserve">${escXml(line)}</w:t></w:r>""")
                     }
+                    append("</w:p>")
+                }
+                DocBlockKind.TABLE -> {
+                    append("<w:tbl>")
+                    append("""<w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:tblBorders></w:tblPr>""")
+                    if (b.tableHeader.isNotEmpty()) {
+                        append("<w:tr>")
+                        b.tableHeader.forEach { cell ->
+                            append("""<w:tc><w:tcPr></w:tcPr><w:p><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escXml(cell)}</w:t></w:r></w:p></w:tc>""")
+                        }
+                        append("</w:tr>")
+                    }
+                    b.tableRows.forEach { row ->
+                        append("<w:tr>")
+                        row.forEach { cell ->
+                            append("""<w:tc><w:tcPr></w:tcPr><w:p><w:r><w:t xml:space="preserve">${escXml(cell)}</w:t></w:r></w:p></w:tc>""")
+                        }
+                        append("</w:tr>")
+                    }
+                    append("</w:tbl>")
+                    // Word requires a paragraph after every table.
+                    append("<w:p/>")
+                }
+                DocBlockKind.TOC -> {
+                    // SDT-wrapped TOC field. Word renders the placeholder
+                    // text on first open; right-clicking and choosing
+                    // "Update Field" populates the actual entries with
+                    // page numbers. Kept simple — no fancy formatting,
+                    // no page breaks before/after.
+                    append("<w:p>")
+                    append("""<w:r><w:fldChar w:fldCharType="begin"/></w:r>""")
+                    append("""<w:r><w:instrText xml:space="preserve"> TOC \o "1-6" \h \z \u </w:instrText></w:r>""")
+                    append("""<w:r><w:fldChar w:fldCharType="separate"/></w:r>""")
+                    append("""<w:r><w:t xml:space="preserve">Right-click and choose "Update Field" to populate the index with page numbers.</w:t></w:r>""")
+                    append("""<w:r><w:fldChar w:fldCharType="end"/></w:r>""")
                     append("</w:p>")
                 }
             }
@@ -224,18 +469,17 @@ internal fun buildDocxBytes(context: Context, report: Report): ByteArray {
 
 // ===== ODT (OpenDocument Text) =====
 
-internal fun buildOdtBytes(context: Context, report: Report): ByteArray {
-    val blocks = reportToBlocks(context, report)
+internal fun buildOdtBytes(context: Context, report: com.ai.data.Report): ByteArray {
+    val data = com.ai.ui.report.buildHtmlReportData(context, report)
+    val blocks = buildMediumBlocks(data)
     val contentXml = buildString {
         append("""<?xml version="1.0" encoding="UTF-8"?>""")
-        append("""<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">""")
+        append("""<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">""")
         append("""<office:automatic-styles>""")
         append("""<style:style style:name="CodeP" style:family="paragraph" style:parent-style-name="Standard"><style:text-properties style:font-name="Courier New"/></style:style>""")
+        append("""<style:style style:name="ToCBody" style:family="paragraph" style:parent-style-name="Standard"/>""")
         append("""</office:automatic-styles>""")
         append("<office:body><office:text>")
-        // ODT lists need explicit <text:list> wrapping. Group consecutive
-        // BULLET blocks into a single list element so LibreOffice doesn't
-        // start a new list per item.
         var i = 0
         while (i < blocks.size) {
             val b = blocks[i]
@@ -255,12 +499,57 @@ internal fun buildOdtBytes(context: Context, report: Report): ByteArray {
                     i++
                 }
                 DocBlockKind.BULLET -> {
+                    // ODT lists need explicit <text:list> wrapping. Group
+                    // consecutive BULLET blocks into a single list element
+                    // so LibreOffice doesn't start a new list per item.
                     append("<text:list>")
                     while (i < blocks.size && blocks[i].kind == DocBlockKind.BULLET) {
                         append("<text:list-item><text:p>${escXml(blocks[i].text)}</text:p></text:list-item>")
                         i++
                     }
                     append("</text:list>")
+                }
+                DocBlockKind.TABLE -> {
+                    val colCount = maxOf(b.tableHeader.size, b.tableRows.firstOrNull()?.size ?: 0)
+                    append("""<table:table table:name="Table${i}">""")
+                    repeat(colCount) { append("<table:table-column/>") }
+                    if (b.tableHeader.isNotEmpty()) {
+                        append("<table:table-header-rows><table:table-row>")
+                        b.tableHeader.forEach { cell ->
+                            append("<table:table-cell><text:p>${escXml(cell)}</text:p></table:table-cell>")
+                        }
+                        append("</table:table-row></table:table-header-rows>")
+                    }
+                    b.tableRows.forEach { row ->
+                        append("<table:table-row>")
+                        row.forEach { cell ->
+                            append("<table:table-cell><text:p>${escXml(cell)}</text:p></table:table-cell>")
+                        }
+                        append("</table:table-row>")
+                    }
+                    append("</table:table>")
+                    i++
+                }
+                DocBlockKind.TOC -> {
+                    // text:table-of-content with text:protected and an
+                    // index-body whose entries LibreOffice will refresh on
+                    // open. The placeholder text gets replaced when the
+                    // user updates the TOC (Tools → Update → Indexes).
+                    append("""<text:table-of-content text:name="ToC1" text:protected="true">""")
+                    append("""<text:table-of-content-source text:outline-level="6">""")
+                    append("""<text:index-title-template/>""")
+                    repeat(6) { lvl ->
+                        append("""<text:table-of-content-entry-template text:outline-level="${lvl + 1}" text:style-name="Standard">""")
+                        append("""<text:index-entry-chapter/><text:index-entry-text/>""")
+                        append("""<text:index-entry-tab-stop style:type="right" style:leader-char="."/>""")
+                        append("""<text:index-entry-page-number/></text:table-of-content-entry-template>""")
+                    }
+                    append("""</text:table-of-content-source>""")
+                    append("""<text:index-body>""")
+                    append("""<text:p text:style-name="ToCBody">Use Tools → Update → Indexes to populate the index with page numbers.</text:p>""")
+                    append("""</text:index-body>""")
+                    append("""</text:table-of-content>""")
+                    i++
                 }
             }
         }
@@ -307,7 +596,7 @@ internal fun shareReportAsDocxOrOdt(
     context: Context, reportId: String,
     format: ReportExportFormat, action: ReportExportAction
 ): Boolean {
-    val report = ReportStorage.getReport(context, reportId) ?: return false
+    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return false
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
     val dir = File(context.cacheDir, "exports").also { it.mkdirs() }

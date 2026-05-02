@@ -127,6 +127,15 @@ internal fun openReportInChrome(context: android.content.Context, reportId: Stri
 // ===== HTML Conversion =====
 
 internal fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
+    return renderHtmlReport(buildHtmlReportData(context, report), appVersion)
+}
+
+/** Build the unified data shape every Medium-equivalent export consumes:
+ *  the agent list with cost/anchor data, the secondary results, and the
+ *  redacted captured-trace bundle. Shared between the Medium HTML
+ *  renderer and the DOCX / ODT / PDF Medium renderers so they all show
+ *  the same content. */
+internal fun buildHtmlReportData(context: android.content.Context, report: Report): HtmlReportData {
     // The bracketed [N] in the rerank prompt is built from the
     // SUCCESS-only ordered subset (see buildResultsBlock). Reuse the same
     // ordering here so the anchorIndex on each card matches the rank ids
@@ -208,15 +217,13 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
             )
         }
 
-    val data = HtmlReportData(
+    return HtmlReportData(
         title = report.title, prompt = report.prompt,
         timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
         rapportText = report.rapportText, closeText = report.closeText,
         agents = agents, reportType = report.reportType, secondary = secondary,
         traces = traces
     )
-
-    return renderHtmlReport(data, appVersion)
 }
 
 // ===== Unified HTML Report =====
