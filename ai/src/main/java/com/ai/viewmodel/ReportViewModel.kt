@@ -134,10 +134,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             )
             val reportId = report.id
 
-            try {
+            withTracerTags(reportId = reportId, category = "Report") {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
-                ApiTracer.currentReportId = reportId
-                ApiTracer.currentCategory = "Report"
 
                 val semaphore = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 coroutineScope {
@@ -155,9 +153,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         android.widget.Toast.makeText(context, "Report \"$title\" is ready", android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
-            } finally {
-                ApiTracer.currentReportId = null
-                ApiTracer.currentCategory = null
             }
         }
     }
@@ -480,7 +475,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
         }
 
-        ApiTracer.currentReportId = null
+        // No need to touch ApiTracer.currentReportId here — the report
+        // job's own withTracerTags block restores the previous value
+        // when its scope ends (via the agent fan-out completing).
 
         if (reportId != null) {
             scope.launch(Dispatchers.IO) {
@@ -495,7 +492,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun dismissGenericReportsDialog() {
-        ApiTracer.currentReportId = null
+        // The report job's withTracerTags block restores tags on its
+        // own when the job ends or is cancelled — no manual clear here.
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
             showGenericReportsDialog = false, genericPromptTitle = "", genericPromptText = "",
@@ -516,7 +514,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun cancel() {
         reportGenerationJob?.cancel()
         reportGenerationJob = null
-        ApiTracer.currentReportId = null
+        // Cancellation triggers the report job's finally inside
+        // withTracerTags, which restores the previous (reportId,
+        // category) — no manual clear here.
     }
 
     // ===== Secondary results: rerank + summarize =====
@@ -575,13 +575,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // reportId=null and the report's JSON export wouldn't
             // pull them in (same goes for a translated report's
             // source/ bucket — meta runs on the source report would
-            // be invisible). Restored (not blanket-cleared) so an
-            // enclosing flow's tags survive if runSecondary is ever
-            // called nested.
-            val previousReportId = ApiTracer.currentReportId
-            val previousCategory = ApiTracer.currentCategory
-            ApiTracer.currentReportId = reportId
-            ApiTracer.currentCategory = when (kind) {
+            // be invisible). withTracerTags saves and restores both
+            // values so this works correctly when nested.
+            val cat = when (kind) {
                 SecondaryKind.RERANK -> "Report rerank"
                 SecondaryKind.SUMMARIZE -> "Report summarize"
                 SecondaryKind.COMPARE -> "Report compare"
@@ -589,6 +585,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 SecondaryKind.TRANSLATE -> "Report translate"
             }
             try {
+              withTracerTags(reportId = reportId, category = cat) {
                 val state = appViewModel.uiState.value
                 val aiSettings = state.aiSettings
                 val generalSettings = state.generalSettings
@@ -632,9 +629,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         }
                     }.awaitAll()
                 }
+              }
             } finally {
-                ApiTracer.currentReportId = previousReportId
-                ApiTracer.currentCategory = previousCategory
+                // activeSecondaryBatches must drop even if the tag
+                // block throws or is cancelled mid-batch — otherwise
+                // the Meta screen's hourglass / poll loop would think
+                // a batch is still in flight forever.
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
@@ -775,15 +775,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  shape so the regenerate still goes through. */
     fun regenerateAgent(scope: kotlinx.coroutines.CoroutineScope, context: Context, reportId: String, agentId: String) {
         scope.launch(Dispatchers.IO) {
-            val previousReportId = ApiTracer.currentReportId
-            val previousCategory = ApiTracer.currentCategory
-            ApiTracer.currentReportId = reportId
-            ApiTracer.currentCategory = "Report regenerate agent"
-            val report = ReportStorage.getReport(context, reportId) ?: run {
-                ApiTracer.currentReportId = previousReportId
-                ApiTracer.currentCategory = previousCategory
-                return@launch
-            }
+            withTracerTags(reportId = reportId, category = "Report regenerate agent") {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ra = report.agents.find { it.agentId == agentId } ?: return@launch
             val provider = AppService.findById(ra.provider) ?: return@launch
             val state = appViewModel.uiState.value
@@ -826,14 +819,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val overrideParams = if (report.reasoningEffort != null) {
                 (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort)
             } else withWeb
-            try {
-                executeReportTask(
-                    context, reportId, report.prompt, overrideParams, task,
-                    report.imageBase64, report.imageMime, isRegeneration = true
-                )
-            } finally {
-                ApiTracer.currentReportId = previousReportId
-                ApiTracer.currentCategory = previousCategory
+            executeReportTask(
+                context, reportId, report.prompt, overrideParams, task,
+                report.imageBase64, report.imageMime, isRegeneration = true
+            )
             }
         }
     }
@@ -997,11 +986,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // is consumed by createTranslatedReport at the end via the
             // explicitId parameter on ReportStorage.createReport.
             val newId = java.util.UUID.randomUUID().toString()
-            val previousTraceReportId = ApiTracer.currentReportId
-            val previousTraceCategory = ApiTracer.currentCategory
-            ApiTracer.currentReportId = newId
-            ApiTracer.currentCategory = "Translation"
-            try {
+            withTracerTags(reportId = newId, category = "Translation") {
                 // Concurrency 3: translation calls are typically the slowest
                 // I/O in the app; cap so a 30-item report doesn't blow past
                 // provider rate limits.
@@ -1019,9 +1004,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 if (finalState.cancelled) return@launch
                 createTranslatedReport(context, sourceReport, secondaries, finalState, targetLanguageName, provider, model, pricing, newId)
                 _translationRun.update { it?.copy(newReportId = newId) }
-            } finally {
-                ApiTracer.currentReportId = previousTraceReportId
-                ApiTracer.currentCategory = previousTraceCategory
             }
         }
     }

@@ -178,7 +178,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         settingsPrefs.flushUsageStats()
-        ApiTracer.currentReportId = null
+        // viewModelScope cancellation runs every active flow's
+        // withTracerTags finally on the way out — that restores the
+        // previous (reportId, category). No manual clear needed.
         super.onCleared()
     }
 

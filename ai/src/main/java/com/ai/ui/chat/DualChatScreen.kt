@@ -332,8 +332,7 @@ fun DualChatSessionScreen(
     fun startChatLoop() {
         chatJob = scope.launch {
             isRunning = true; isStopped = false; errorMessage = null
-            ApiTracer.currentReportId = sessionId
-            ApiTracer.currentCategory = "Dual chat"
+            com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
             try {
                 while (currentInteraction < targetInteractions) {
                     // Model 1's turn
@@ -372,9 +371,8 @@ fun DualChatSessionScreen(
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Unknown error"
             } finally {
-                ApiTracer.currentReportId = null
-                ApiTracer.currentCategory = null
                 thinkingModel = null; isRunning = false; isStopped = true
+            }
             }
         }
     }
@@ -437,7 +435,13 @@ fun DualChatSessionScreen(
         // Controls
         if (isRunning) {
             Button(
-                onClick = { chatJob?.cancel(); ApiTracer.currentReportId = null; isRunning = false; isStopped = true; thinkingModel = null },
+                onClick = {
+                    // chatJob.cancel() triggers the launched coroutine's
+                    // withTracerTags finally, which restores the
+                    // previous tag pair. No manual clear needed.
+                    chatJob?.cancel()
+                    isRunning = false; isStopped = true; thinkingModel = null
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC4444))
             ) { Text("Stop", maxLines = 1, softWrap = false) }

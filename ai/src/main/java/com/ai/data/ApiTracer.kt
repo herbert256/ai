@@ -245,3 +245,30 @@ inline fun <R> withTraceCategory(category: String, block: () -> R): R {
     ApiTracer.currentCategory = category
     return try { block() } finally { ApiTracer.currentCategory = previous }
 }
+
+/** Push (reportId, category) onto [ApiTracer]'s tag pair for the
+ *  duration of [block], restoring both on exit. A null argument leaves
+ *  that side untouched (useful for flows that only set one of the two).
+ *
+ *  This is the safe replacement for the historical pattern of writing
+ *  `ApiTracer.currentReportId = X; try { ... } finally { ... = null }`
+ *  scattered across viewmodels and screens — the bare-null restore
+ *  clobbered any enclosing flow's tag instead of restoring it. By
+ *  always saving the previous values and restoring them on exit, this
+ *  helper makes the volatile tag pair safe to nest. */
+inline fun <R> withTracerTags(
+    reportId: String? = null,
+    category: String? = null,
+    block: () -> R
+): R {
+    val previousReportId = ApiTracer.currentReportId
+    val previousCategory = ApiTracer.currentCategory
+    if (reportId != null) ApiTracer.currentReportId = reportId
+    if (category != null) ApiTracer.currentCategory = category
+    return try {
+        block()
+    } finally {
+        ApiTracer.currentReportId = previousReportId
+        ApiTracer.currentCategory = previousCategory
+    }
+}
