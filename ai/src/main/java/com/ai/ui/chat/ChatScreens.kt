@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -225,6 +226,42 @@ private data class FlaggedState(
     val traceFilename: String?
 )
 
+/** Saver that lets the flagged-dialog state survive a navigation
+ *  round-trip (e.g. tapping the 🐞 trace icon and pressing back).
+ *  Encodes the fired-categories list directly — scores aren't shown
+ *  in the dialog so we drop them. */
+private val FlaggedStateSaver = androidx.compose.runtime.saveable.Saver<FlaggedState?, java.util.ArrayList<Any?>>(
+    save = { state ->
+        if (state == null) java.util.ArrayList()
+        else java.util.ArrayList<Any?>().apply {
+            add(state.input)
+            add(java.util.ArrayList(state.result.firedCategories))
+            add(state.img?.first)
+            add(state.img?.second)
+            add(state.traceFilename)
+        }
+    },
+    restore = { list ->
+        if (list.isEmpty()) null
+        else {
+            @Suppress("UNCHECKED_CAST")
+            val fired = (list[1] as java.util.ArrayList<String>).toList()
+            val mime = list[2] as? String
+            val b64 = list[3] as? String
+            FlaggedState(
+                input = list[0] as String,
+                result = com.ai.data.ModerationInputResult(
+                    flagged = true,
+                    categories = fired.associateWith { true },
+                    scores = emptyMap()
+                ),
+                img = if (mime != null && b64 != null) mime to b64 else null,
+                traceFilename = list[4] as? String
+            )
+        }
+    }
+)
+
 // ===== Chat Session =====
 
 @Composable
@@ -287,7 +324,13 @@ fun ChatSessionScreen(
     // Result of the pre-send moderation call: when non-null and flagged,
     // the proceed/cancel dialog renders. The pending input + image are
     // captured so Proceed can fire the actual send without re-typing.
-    var pendingFlagged by remember { mutableStateOf<FlaggedState?>(null) }
+    // rememberSaveable so the dialog survives a round-trip to the
+    // trace viewer — without this, `var by remember` reinitialises on
+    // pop-back and the warning disappears once the user has seen the
+    // trace, leaving them with no way to choose Proceed / Cancel.
+    var pendingFlagged by rememberSaveable(stateSaver = FlaggedStateSaver) {
+        mutableStateOf<FlaggedState?>(null)
+    }
     var moderationError by remember { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
 
@@ -652,9 +695,12 @@ fun ChatSessionScreen(
                             "🐞", fontSize = 18.sp,
                             modifier = Modifier
                                 .clickable {
-                                    val fn = flagged.traceFilename
-                                    pendingFlagged = null
-                                    onNavigateToTraceFile(fn)
+                                    // Don't clear pendingFlagged — the dialog is
+                                    // saved across the navigation round-trip via
+                                    // rememberSaveable, so it reappears on back
+                                    // and the user can still choose Proceed /
+                                    // Cancel after inspecting the trace.
+                                    onNavigateToTraceFile(flagged.traceFilename)
                                 }
                                 .padding(start = 8.dp, end = 4.dp)
                         )
