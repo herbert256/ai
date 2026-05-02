@@ -910,14 +910,16 @@ private fun ColumnScope.GenerationPhase(
     val staged = uiState.stagedReportModels
     val isStagedMode = isComplete && staged.isNotEmpty()
 
-    // Progress (hidden when a staged model edit is pending — the banner above already
-    // tells the user a Regenerate is needed; the green bar would just be misleading).
-    if (!isStagedMode) {
+    // Progress is in-flight UI: shown only while at least one agent is
+    // still pending. Drops out once every agent finishes (or in
+    // staged-edit mode where the X/Y count is meaningless until the
+    // user re-runs).
+    if (!isStagedMode && !isComplete) {
         Text("$reportsProgress / $reportsTotal complete", color = AppColors.TextSecondary, fontSize = 14.sp)
         LinearProgressIndicator(
             progress = { if (reportsTotal > 0) reportsProgress.toFloat() / reportsTotal else 0f },
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            color = if (isComplete) AppColors.Green else AppColors.Purple
+            color = AppColors.Purple
         )
     }
 
@@ -998,94 +1000,109 @@ private fun ColumnScope.GenerationPhase(
         }
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(4.dp))
 
-    // Action buttons
+    // Action buttons. Every action row uses [CompactButton] — text-
+    // sized, slim vertical padding, and a [FlowRow] so wide rows wrap
+    // gracefully on narrow viewports instead of squeezing each button
+    // into a tiny column.
     if (!isComplete) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onStop, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)) { Text("STOP", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = onContinueInBackground, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Background", maxLines = 1, softWrap = false) }
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            CompactButton(onClick = onStop, color = AppColors.Red, text = "STOP")
+            CompactButton(onClick = onContinueInBackground, color = AppColors.SurfaceDark, text = "Background")
         }
     } else {
         val secondaryRunning = uiState.activeSecondaryBatches > 0
 
-        // Section: View
-        Text("View", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = onViewResults, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Reports", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onViewPrompt, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Prompt", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onViewCosts, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Costs", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onTrace, enabled = currentReportId != null, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Trace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+        @OptIn(ExperimentalLayoutApi::class)
+        @Composable fun ActionRow(content: @Composable FlowRowScope.() -> Unit) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                content = content
+            )
         }
-        // Per-meta-kind viewers — one button per kind that has at
-        // least one row on this report. Tapping opens the kind's
-        // SecondaryResultsScreen so the user can browse / drill into
-        // existing entries directly without going through the unified
-        // Meta hub. Buttons are gated on the live count so they
-        // appear/disappear as batches finish.
-        val metaButtons = listOfNotNull(
-            if (secondaryCounts.summarize > 0) Triple("Summaries", AppColors.Orange, SecondaryKind.SUMMARIZE) else null,
-            if (secondaryCounts.compare > 0) Triple("Compares", AppColors.Purple, SecondaryKind.COMPARE) else null,
-            if (secondaryCounts.rerank > 0) Triple("Reranks", AppColors.Blue, SecondaryKind.RERANK) else null,
-            if (secondaryCounts.moderation > 0) Triple("Moderations", AppColors.Indigo, SecondaryKind.MODERATION) else null
-        )
-        if (metaButtons.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                metaButtons.forEach { (label, color, kind) ->
-                    Button(
-                        onClick = { onViewSecondaryKind(kind) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = color),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
-                    ) { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                }
-            }
+        @Composable fun SectionLabel(text: String) {
+            Text(text, fontSize = 10.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
         }
 
-        // Section: Edit
-        Text("Edit", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = onEditPrompt, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Prompt", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onEditModels, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Models", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onEditParameters, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Parameters", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+        SectionLabel("View")
+        ActionRow {
+            CompactButton(onClick = onViewResults, color = AppColors.Purple, text = "Reports")
+            CompactButton(onClick = onViewPrompt, color = AppColors.Blue, text = "Prompt")
+            CompactButton(onClick = onViewCosts, color = AppColors.Green, text = "Costs")
+            CompactButton(onClick = onTrace, color = AppColors.Indigo, text = "Trace", enabled = currentReportId != null)
+            // Per-meta-kind viewers — one button per kind that has at
+            // least one row on this report. Tapping opens the kind's
+            // SecondaryResultsScreen so the user can browse / drill
+            // into existing entries directly without going through the
+            // unified Meta hub. Buttons are gated on the live count so
+            // they appear/disappear as batches finish, and they live
+            // in the same FlowRow so the line wraps when needed.
+            if (secondaryCounts.summarize > 0) CompactButton(onClick = { onViewSecondaryKind(SecondaryKind.SUMMARIZE) }, color = AppColors.Orange, text = "Summaries")
+            if (secondaryCounts.compare > 0) CompactButton(onClick = { onViewSecondaryKind(SecondaryKind.COMPARE) }, color = AppColors.Purple, text = "Compares")
+            if (secondaryCounts.rerank > 0) CompactButton(onClick = { onViewSecondaryKind(SecondaryKind.RERANK) }, color = AppColors.Blue, text = "Reranks")
+            if (secondaryCounts.moderation > 0) CompactButton(onClick = { onViewSecondaryKind(SecondaryKind.MODERATION) }, color = AppColors.Indigo, text = "Moderations")
         }
 
-        // Section: Actions
-        Text("Actions", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = onRegenerate, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Regenerate", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Export", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-            Button(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Delete", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+        SectionLabel("Edit")
+        ActionRow {
+            CompactButton(onClick = onEditPrompt, color = AppColors.Indigo, text = "Prompt")
+            CompactButton(onClick = onEditModels, color = AppColors.Purple, text = "Models")
+            CompactButton(onClick = onEditParameters, color = AppColors.Blue, text = "Parameters")
         }
-        // Meta + Translate share a row below the standard Actions
-        // buttons. Meta opens the Rerank/Summarize/Compare/Moderation
-        // hub (with a small spinning ⏳ when a batch is in flight);
-        // Translate opens the language picker → model picker → progress
-        // screen pipeline.
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(
+
+        SectionLabel("Actions")
+        ActionRow {
+            CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
+            CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
+            CompactButton(onClick = onDelete, color = AppColors.Red, text = "Delete")
+            // Meta + Translate share the Actions row. Meta opens the
+            // Rerank/Summarize/Compare/Moderation hub (with a small
+            // spinning ⏳ when a batch is in flight); Translate opens
+            // the language picker → model picker → progress screen
+            // pipeline.
+            CompactButton(
                 onClick = onMeta,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
-                contentPadding = PaddingValues(horizontal = 2.dp)
-            ) {
-                if (secondaryRunning) {
-                    AnimatedHourglass()
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Text("Meta", fontSize = 13.sp, maxLines = 1, softWrap = false)
-            }
-            Button(
-                onClick = onTranslate,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
-                contentPadding = PaddingValues(horizontal = 2.dp)
-            ) {
-                Text("Translate", fontSize = 13.sp, maxLines = 1, softWrap = false)
-            }
+                color = AppColors.Orange,
+                text = "Meta",
+                leading = if (secondaryRunning) {
+                    { AnimatedHourglass(); Spacer(modifier = Modifier.width(4.dp)) }
+                } else null
+            )
+            CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
         }
+    }
+}
+
+/** Compact action button shared across the Reports result page's
+ *  View / Edit / Actions rows. Sized to its label (no width filling),
+ *  with thin vertical padding so a row of these takes a fraction of
+ *  the height a default Material Button would. [leading] runs before
+ *  the label and is used by the Meta button to host its spinning ⏳
+ *  while a batch is in flight. */
+@Composable
+private fun CompactButton(
+    onClick: () -> Unit,
+    color: Color,
+    text: String,
+    enabled: Boolean = true,
+    leading: (@Composable () -> Unit)? = null
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        colors = ButtonDefaults.buttonColors(containerColor = color),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+        modifier = Modifier
+            .heightIn(min = 28.dp)
+            .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
+    ) {
+        if (leading != null) leading()
+        Text(text, fontSize = 12.sp, maxLines = 1, softWrap = false)
     }
 }
 
