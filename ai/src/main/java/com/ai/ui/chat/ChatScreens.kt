@@ -215,7 +215,7 @@ fun ChatParametersScreen(
 }
 
 /** State carried into the "input flagged" dialog. The trace filename
- *  is captured at moderation-call time so the dialog can offer a 🐛
+ *  is captured at moderation-call time so the dialog can offer a 🐞
  *  button that opens the recorded request/response — useful for
  *  spotting why a particular input fired (which categories, scores). */
 private data class FlaggedState(
@@ -649,7 +649,7 @@ fun ChatSessionScreen(
                     Text("Input flagged by moderation", modifier = Modifier.weight(1f))
                     if (flagged.traceFilename != null) {
                         Text(
-                            "🐛", fontSize = 18.sp,
+                            "🐞", fontSize = 18.sp,
                             modifier = Modifier
                                 .clickable {
                                     val fn = flagged.traceFilename
@@ -730,14 +730,14 @@ private fun ChatMessageBubble(
                     color = if (isUser) AppColors.Purple else AppColors.Blue,
                     modifier = Modifier.weight(1f)
                 )
-                // 🐛 button — opens the trace for this assistant turn.
+                // 🐞 button — opens the trace for this assistant turn.
                 // Only rendered when a matching trace exists; the lookup
                 // result is null on user messages and on assistant
                 // responses where tracing was off at call time.
                 val traceFilename = traceFilenameState?.value
                 if (traceFilename != null) {
                     Text(
-                        "🐛", fontSize = 14.sp,
+                        "🐞", fontSize = 14.sp,
                         modifier = Modifier
                             .clickable { onNavigateToTraceFile(traceFilename) }
                             .padding(start = 6.dp, top = 2.dp, bottom = 2.dp, end = 2.dp)
