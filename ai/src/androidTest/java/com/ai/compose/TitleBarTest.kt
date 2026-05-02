@@ -9,7 +9,6 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.shared.TitleBar
 import com.google.common.truth.Truth.assertThat
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,13 +18,7 @@ import org.junit.runner.RunWith
  * title text is rendered and the back/AI buttons actually invoke
  * their callbacks. Most other screens build on this — a regression
  * here would silently break navigation.
- *
- * Currently @Ignored class-wide: Espresso 3.6.1 + Android API 36
- * trip on `InputManager.getInstance []` (the no-arg variant was
- * removed in API 36). Re-enable once the project's espresso version
- * is bumped past that gap (3.7.x).
  */
-@Ignore("Espresso 3.6.1 + API 36 InputManager.getInstance() incompatibility")
 @RunWith(AndroidJUnit4::class)
 class TitleBarTest {
     @get:Rule val rule = createComposeRule()

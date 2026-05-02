@@ -9,7 +9,6 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.report.TranslationCompareScreen
 import com.google.common.truth.Truth.assertThat
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,11 +17,7 @@ import org.junit.runner.RunWith
  * Smoke tests for the original/translation split overlay. Verifies
  * the title is rendered, both pane labels appear, both content
  * blocks are visible, and the back-button callback fires.
- *
- * Currently @Ignored — see TitleBarTest for the Espresso 3.6.1 +
- * API 36 InputManager incompatibility note.
  */
-@Ignore("Espresso 3.6.1 + API 36 InputManager.getInstance() incompatibility")
 @RunWith(AndroidJUnit4::class)
 class TranslationCompareScreenTest {
     @get:Rule val rule = createComposeRule()
