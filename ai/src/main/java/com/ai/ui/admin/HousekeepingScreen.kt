@@ -156,7 +156,7 @@ fun HousekeepingScreen(
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
             title = { Text("Clear all runtime data?") },
-            text = { Text("This permanently deletes all reports, chat history, API traces, and usage statistics. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is kept.") },
+            text = { Text("This permanently deletes all reports, chat history, and API traces. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) and usage statistics are kept.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -166,10 +166,8 @@ fun HousekeepingScreen(
                         val chats = ChatHistoryManager.deleteAllSessions()
                         ApiTracer.clearTraces()
                         PromptCache.clearAll()
-                        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-                        SettingsPreferences(prefs, context.filesDir).clearUsageStats()
                         showClearAllConfirm = false
-                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces, prompt cache & usage stats", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces & prompt cache", Toast.LENGTH_LONG).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }
