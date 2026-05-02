@@ -129,7 +129,7 @@ private suspend fun AnalysisRepository.analyzeOpenAi(
     params: AgentParameters?, baseUrl: String,
     imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
-    if (usesResponsesApi(service, model)) return analyzeResponsesApi(service, apiKey, prompt, model, params, imageBase64, imageMime)
+    if (usesResponsesApi(service, model)) return analyzeResponsesApi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
     val chatUrl = buildChatUrl(baseUrl, service.chatPath)
@@ -142,10 +142,11 @@ private suspend fun AnalysisRepository.analyzeOpenAi(
 
 private suspend fun AnalysisRepository.analyzeResponsesApi(
     service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?,
+    baseUrl: String,
     imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
-    val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
-    val responsesUrl = buildChatUrl(service.baseUrl, service.responsesPath ?: "v1/responses")
+    val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
+    val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
     val input: Any = if (imageBase64 != null) {
         // Responses API accepts an array of input messages whose content is a typed
         // parts array — input_text + input_image (image_url as a data: URL).
@@ -291,7 +292,7 @@ private suspend fun AnalysisRepository.chatOpenAi(
     params: ChatParameters,
     baseUrl: String
 ): String {
-    if (usesResponsesApi(service, model)) return chatResponsesApi(service, apiKey, model, messages, params)
+    if (usesResponsesApi(service, model)) return chatResponsesApi(service, apiKey, model, messages, params, baseUrl)
 
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
     val chatUrl = buildChatUrl(baseUrl, service.chatPath)
@@ -317,10 +318,10 @@ private suspend fun AnalysisRepository.chatOpenAi(
 }
 
 private suspend fun AnalysisRepository.chatResponsesApi(
-    service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
+    service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters, baseUrl: String
 ): String {
-    val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
-    val responsesUrl = buildChatUrl(service.baseUrl, service.responsesPath ?: "v1/responses")
+    val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
+    val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
     val systemPrompt = messages.find { it.role == "system" }?.content
     val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
     val tools = if (params.webSearchTool) responsesWebSearchTool() else null
