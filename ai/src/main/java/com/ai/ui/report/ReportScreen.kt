@@ -727,10 +727,34 @@ fun ReportsScreen(
                 onEditParameters = { showEditParameters = true },
                 onRegenerate = { currentReportId?.let(onRegenerate) },
                 onDelete = { showDeleteConfirm = true },
-                onMeta = { showMetaScreen = true },
                 onTranslate = { showTranslateLanguagePicker = true },
                 secondaryCounts = secondaryCounts,
-                onViewSecondaryKind = { kind -> listKind = kind }
+                onViewSecondaryKind = { kind -> listKind = kind },
+                onOpenMeta = { showMetaScreen = true },
+                onRerank = {
+                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                    secondaryPickerKind = SecondaryKind.RERANK
+                },
+                onSummarize = {
+                    val rid = currentReportId
+                    if (rid != null) {
+                        val hasRerank = com.ai.data.SecondaryResultStorage.countForReport(context, rid).rerank > 0
+                        if (hasRerank) secondaryScopeKind = SecondaryKind.SUMMARIZE
+                        else { pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports; secondaryPickerKind = SecondaryKind.SUMMARIZE }
+                    }
+                },
+                onCompare = {
+                    val rid = currentReportId
+                    if (rid != null) {
+                        val hasRerank = com.ai.data.SecondaryResultStorage.countForReport(context, rid).rerank > 0
+                        if (hasRerank) secondaryScopeKind = SecondaryKind.COMPARE
+                        else { pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports; secondaryPickerKind = SecondaryKind.COMPARE }
+                    }
+                },
+                onModerate = {
+                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                    secondaryPickerKind = SecondaryKind.MODERATION
+                }
             )
         }
     }
@@ -864,10 +888,14 @@ private fun ColumnScope.GenerationPhase(
     onEditParameters: () -> Unit,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
-    onMeta: () -> Unit = {},
     onTranslate: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
-    onViewSecondaryKind: (SecondaryKind) -> Unit = {}
+    onViewSecondaryKind: (SecondaryKind) -> Unit = {},
+    onOpenMeta: () -> Unit = {},
+    onRerank: () -> Unit = {},
+    onSummarize: () -> Unit = {},
+    onCompare: () -> Unit = {},
+    onModerate: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -989,6 +1017,43 @@ private fun ColumnScope.GenerationPhase(
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
 
+        // Meta row \u2014 sits at the bottom of the agent list with the
+        // same row layout. Status icon mirrors the agent rows: \u23F3
+        // animated when a batch is in flight, \u2705 once any meta result
+        // exists, \u2699 on a fresh report with no meta activity. Tapping
+        // opens the Meta hub (ReportMetaScreen) so the user can drill
+        // into individual entries.
+        if (isComplete && currentReportId != null) {
+            val metaRunning = uiState.activeSecondaryBatches > 0
+            val metaTotal = secondaryCounts.rerank + secondaryCounts.summarize +
+                secondaryCounts.compare + secondaryCounts.moderation
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenMeta() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (metaRunning) {
+                    val transition = rememberInfiniteTransition(label = "meta-row-hourglass")
+                    val angle by transition.animateFloat(
+                        initialValue = 0f, targetValue = 360f,
+                        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                        label = "meta-row-rotation"
+                    )
+                    Text("\u23F3", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+                } else if (metaTotal > 0) {
+                    Text("\u2705", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                } else {
+                    Text("\u2699", fontSize = 16.sp, color = AppColors.TextTertiary, modifier = Modifier.width(24.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Meta", fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (metaTotal > 0) {
+                    Text("$metaTotal", fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                }
+            }
+            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+        }
+
         if (reportsAgentResults.isNotEmpty()) {
             val totalIn = reportsAgentResults.values.sumOf { it.tokenUsage?.inputTokens ?: 0 }
             val totalOut = reportsAgentResults.values.sumOf { it.tokenUsage?.outputTokens ?: 0 }
@@ -1060,20 +1125,16 @@ private fun ColumnScope.GenerationPhase(
             CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
             CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
             CompactButton(onClick = onDelete, color = AppColors.Red, text = "Delete")
-            // Meta + Translate share the Actions row. Meta opens the
-            // Rerank/Summarize/Compare/Moderation hub (with a small
-            // spinning ⏳ when a batch is in flight); Translate opens
-            // the language picker → model picker → progress screen
-            // pipeline.
-            CompactButton(
-                onClick = onMeta,
-                color = AppColors.Orange,
-                text = "Meta",
-                leading = if (secondaryRunning) {
-                    { AnimatedHourglass(); Spacer(modifier = Modifier.width(4.dp)) }
-                } else null
-            )
             CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
+            // Meta launchers folded directly into the Actions row.
+            // Each opens the kind's model picker (Summarize / Compare
+            // pop the rerank-scope step first when the report has at
+            // least one rerank result). Existing entries are reachable
+            // via the "Meta" row in the report list.
+            CompactButton(onClick = onRerank, color = AppColors.Orange, text = "Rerank")
+            CompactButton(onClick = onSummarize, color = AppColors.Orange, text = "Summarize")
+            CompactButton(onClick = onCompare, color = AppColors.Orange, text = "Compare")
+            CompactButton(onClick = onModerate, color = AppColors.Orange, text = "Moderation")
         }
     }
 }
