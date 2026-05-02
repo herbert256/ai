@@ -1157,7 +1157,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     id = java.util.UUID.randomUUID().toString(),
                     reportId = newReport.id,
                     timestamp = System.currentTimeMillis(),
-                    content = newContent
+                    content = newContent,
+                    // Stamp the source's secondary.id on translated
+                    // Summary/Compare copies so the Zipped HTML export
+                    // can pair a translation entry with the resulting
+                    // secondary in the translated report.
+                    translatedFromSecondaryId = if (s.kind == SecondaryKind.SUMMARIZE || s.kind == SecondaryKind.COMPARE) s.id else null
                 )
             )
         }
@@ -1177,6 +1182,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 TranslationKind.SUMMARY -> "Translate: ${item.label}"
                 TranslationKind.COMPARE -> "Translate: ${item.label}"
             }
+            val (srcKind, srcTargetId) = when (item.kind) {
+                TranslationKind.PROMPT -> "PROMPT" to "prompt"
+                TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
+                TranslationKind.SUMMARY -> "SUMMARY" to (item.target ?: "")
+                TranslationKind.COMPARE -> "COMPARE" to (item.target ?: "")
+            }
             SecondaryResultStorage.save(context, SecondaryResult(
                 id = java.util.UUID.randomUUID().toString(),
                 reportId = newReport.id,
@@ -1190,7 +1201,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 tokenUsage = tu,
                 inputCost = inCost,
                 outputCost = outCost,
-                durationMs = item.durationMs
+                durationMs = item.durationMs,
+                translateSourceKind = srcKind,
+                translateSourceTargetId = srcTargetId
             ))
         }
 

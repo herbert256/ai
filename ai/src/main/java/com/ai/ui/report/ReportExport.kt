@@ -64,7 +64,10 @@ internal data class HtmlSecondaryData(
     val content: String?, val errorMessage: String?,
     val inputTokens: Int? = null, val outputTokens: Int? = null,
     val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null,
-    val pricingTier: String? = null
+    val pricingTier: String? = null,
+    val translateSourceKind: String? = null,
+    val translateSourceTargetId: String? = null,
+    val translatedFromSecondaryId: String? = null
 )
 
 // ===== Public Functions =====
@@ -228,7 +231,10 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             content = s.content, errorMessage = s.errorMessage,
             inputTokens = s.tokenUsage?.inputTokens, outputTokens = s.tokenUsage?.outputTokens,
             inputCost = s.inputCost, outputCost = s.outputCost, durationMs = s.durationMs,
-            pricingTier = secPricing?.source
+            pricingTier = secPricing?.source,
+            translateSourceKind = s.translateSourceKind,
+            translateSourceTargetId = s.translateSourceTargetId,
+            translatedFromSecondaryId = s.translatedFromSecondaryId
         )
     }
 

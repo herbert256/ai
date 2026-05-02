@@ -57,30 +57,54 @@ import java.util.zip.ZipOutputStream
  */
 internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
     val data = buildHtmlReportData(context, report)
-    // Pre-compute the zip-relative path to every trace's index page so
-    // the agent / secondary HTML files emitted below can drop a 🐞
-    // link to a matching trace. Same naming logic as emitTraces uses
-    // when it actually writes the trace files.
-    val traceIndex = buildTraceIndex(data)
+    val mainTraceIndex = buildTraceIndex(data, traceJsonRoot = "JSON/")
+    // If this is a translated report, also emit the original report's
+    // HTML tree under Source/ so each Translation page can link back
+    // to both the source page and the result page in the current
+    // report. The source uses its own trace-index pointing into the
+    // main report's JSON/source/ tree (no duplicate trace files).
+    val sourceData = report.sourceReportId?.let { sid ->
+        ReportStorage.getReport(context, sid)?.let { buildHtmlReportData(context, it) }
+    }
+    val sourceTraceIndex = sourceData?.let { buildTraceIndex(it, traceJsonRoot = "JSON/source/") }
     val baos = ByteArrayOutputStream()
     ZipOutputStream(baos.buffered()).use { zos ->
         emit(zos, "style.css", sharedCss())
-        emit(zos, "index.html", rootIndex(data))
-
-        if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex)
-        emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries", traceIndex)
-        emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares", traceIndex)
-        emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex)
-        emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex)
-        emitTranslations(zos, data)
-
-        if (data.prompt.isNotBlank()) emitPrompt(zos, data)
-        if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
-            emitCosts(zos, data)
+        emitReportSections(zos, data, mainTraceIndex, basePath = "", isMain = true, sourceData = sourceData)
+        if (sourceData != null && sourceTraceIndex != null) {
+            emitReportSections(zos, sourceData, sourceTraceIndex, basePath = "Source/", isMain = false, sourceData = null)
         }
-        if (data.traces.isNotEmpty()) emitTraces(zos, data)
     }
     return baos.toByteArray()
+}
+
+/** Emit every section file for a single report at the given [basePath]
+ *  prefix. [isMain] gates two things: only the main report owns the
+ *  Translations and JSON sections (source's traces are reachable
+ *  through the main JSON tree under JSON/source/). [sourceData] is
+ *  threaded into the Translations renderer so each translation entry
+ *  can link to its matching page under Source/. */
+private fun emitReportSections(
+    zos: ZipOutputStream,
+    data: HtmlReportData,
+    traceIndex: List<TraceLoc>,
+    basePath: String,
+    isMain: Boolean,
+    sourceData: HtmlReportData?
+) {
+    emit(zos, "${basePath}index.html", rootIndex(data, basePath, hasSource = isMain && sourceData != null))
+
+    if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex, basePath)
+    emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries", traceIndex, basePath)
+    emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares", traceIndex, basePath)
+    emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex, basePath)
+    emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex, basePath)
+    if (isMain) emitTranslations(zos, data, sourceData)
+    if (data.prompt.isNotBlank()) emitPrompt(zos, data, basePath)
+    if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
+        emitCosts(zos, data, basePath)
+    }
+    if (isMain && data.traces.isNotEmpty()) emitTraces(zos, data)
 }
 
 // ===== Trace index — looks up the zip path of a matching trace =====
@@ -96,9 +120,12 @@ private data class TraceLoc(
 )
 
 /** Build the same per-category, per-trace directory naming as
- *  emitTraces. Stored as a flat list since lookups are O(N) over the
- *  trace count which is small. */
-private fun buildTraceIndex(data: HtmlReportData): List<TraceLoc> {
+ *  emitTraces. [traceJsonRoot] is the zip-root-relative directory the
+ *  trace index lives under — "JSON/" for the main report (own traces
+ *  flat, source traces under JSON/source/) or "JSON/source/" when
+ *  building the source's index (only own traces, all under
+ *  JSON/source/). */
+private fun buildTraceIndex(data: HtmlReportData, traceJsonRoot: String): List<TraceLoc> {
     val out = mutableListOf<TraceLoc>()
     val ownTraces = data.traces.filter { it.origin == "this" }
     val sourceTraces = data.traces.filter { it.origin == "source" }
@@ -111,7 +138,7 @@ private fun buildTraceIndex(data: HtmlReportData): List<TraceLoc> {
                 providerLabel = providerLabelFor(t.hostname),
                 model = t.model,
                 category = t.category,
-                zipPath = "JSON/$catSafe/$dir/index.html"
+                zipPath = "$traceJsonRoot$catSafe/$dir/index.html"
             )
         }
     }
@@ -124,7 +151,7 @@ private fun buildTraceIndex(data: HtmlReportData): List<TraceLoc> {
                 providerLabel = providerLabelFor(t.hostname),
                 model = t.model,
                 category = t.category,
-                zipPath = "JSON/source/$catSafe/$dir/index.html"
+                zipPath = "${traceJsonRoot}source/$catSafe/$dir/index.html"
             )
         }
     }
@@ -150,10 +177,12 @@ private fun providerLabelFor(host: String): String =
     }?.displayName ?: host
 
 /** Render a "🐞 trace" link relative to a page at [pageDepth] inside
- *  the zip (Reports/X.html → depth 1). */
-private fun bugLink(loc: TraceLoc?, pageDepth: Int): String {
+ *  the report's tree, with [basePath] adding extra ../ levels for
+ *  source pages under "Source/". */
+private fun bugLink(loc: TraceLoc?, pageDepth: Int, basePath: String = ""): String {
     if (loc == null) return ""
-    val rel = "../".repeat(pageDepth) + loc.zipPath
+    val totalDepth = pageDepth + basePath.count { it == '/' }
+    val rel = "../".repeat(totalDepth) + loc.zipPath
     return "<a class='bug' href='${esc(rel)}' title='View API trace'>🐞</a>"
 }
 
@@ -178,9 +207,9 @@ private fun rootSections(data: HtmlReportData): List<Pair<String, String>> {
 
 // ===== Root index =====
 
-private fun rootIndex(data: HtmlReportData): String {
+private fun rootIndex(data: HtmlReportData, basePath: String, hasSource: Boolean): String {
     val sb = StringBuilder()
-    sb.append(htmlHead(title = data.title.ifBlank { "AI Report" }, depth = 0))
+    sb.append(htmlHead(title = data.title.ifBlank { "AI Report" }, depth = 0, basePath = basePath))
     sb.append("<nav>").append("<a href='index.html'>${esc(data.title.ifBlank { "AI Report" })}</a>").append("</nav>")
     sb.append("<main>")
     sb.append("<h1>").append(esc(data.title.ifBlank { "AI Report" })).append("</h1>")
@@ -190,6 +219,9 @@ private fun rootIndex(data: HtmlReportData): String {
     rootSections(data).forEach { (label, href) ->
         sb.append("<li><a href='${esc(href)}index.html'>").append(esc(label)).append("</a></li>")
     }
+    if (hasSource) {
+        sb.append("<li><a href='Source/index.html'>Source <span class='count'>(original report)</span></a></li>")
+    }
     sb.append("</ul>")
     if (!data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(data.closeText)}</div>")
     sb.append("</main></body></html>")
@@ -198,30 +230,30 @@ private fun rootIndex(data: HtmlReportData): String {
 
 // ===== Reports section =====
 
-private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: List<TraceLoc>) {
+private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: List<TraceLoc>, basePath: String = "") {
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
     val items = data.agents.mapIndexed { idx, a ->
         Triple(itemFilename(idx, "${a.providerDisplay}_${a.model}"), a.providerDisplay + " / " + a.model, a)
     }
     // Section index
     val sb = StringBuilder()
-    sb.append(htmlHead("Reports - ${data.title}", depth = 1))
+    sb.append(htmlHead("Reports - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf("Reports" to null), data))
     sb.append("<main><h1>Reports</h1><ul class='item-list'>")
     items.forEach { (filename, label, _) ->
         sb.append("<li><a href='${esc(filename)}'>").append(esc(label)).append("</a></li>")
     }
     sb.append("</ul></main></body></html>")
-    emit(zos, "Reports/index.html", sb.toString())
+    emit(zos, "${basePath}Reports/index.html", sb.toString())
     // Per-agent files
     items.forEach { (filename, label, a) ->
-        emit(zos, "Reports/$filename", reportPage(label, a, data, maxAnchor, traceIndex))
+        emit(zos, "${basePath}Reports/$filename", reportPage(label, a, data, maxAnchor, traceIndex, basePath))
     }
 }
 
-private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>): String {
+private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, basePath: String): String {
     val sb = StringBuilder()
-    sb.append(htmlHead("$label - ${data.title}", depth = 1))
+    sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf("Reports" to "index.html", label to null), data))
     sb.append("<main>")
     // Match by (provider displayName, model) and the "Report" category
@@ -231,7 +263,7 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
     // naturally lands on a source-side trace.
     val match = traceIndex.findMatch(a.providerDisplay, a.model, "Report")
     sb.append("<h1>").append(esc(a.providerDisplay)).append(" / ").append(esc(a.model))
-        .append(bugLink(match, pageDepth = 1)).append("</h1>")
+        .append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
     if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
     if (!a.responseText.isNullOrBlank()) sb.append("<div class='response'>${processThinkSections(a.responseText, a.agentId)}</div>")
     a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
@@ -262,7 +294,7 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
 
 // ===== Secondary (Summaries / Compares / Reranks / Moderations) =====
 
-private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String, traceIndex: List<TraceLoc>) {
+private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String, traceIndex: List<TraceLoc>, basePath: String = "") {
     val items = data.secondary.filter { it.kind == kind }
     if (items.isEmpty()) return
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
@@ -271,7 +303,7 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
     }
     // Section index
     val sb = StringBuilder()
-    sb.append(htmlHead("$label - ${data.title}", depth = 1))
+    sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf(label to null), data))
     sb.append("<main><h1>").append(esc(label)).append("</h1><ul class='item-list'>")
     withFiles.forEach { (filename, itemLabel, s) ->
@@ -279,7 +311,7 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
             .append(" <span class='ts'>").append(esc(s.timestamp)).append("</span></a></li>")
     }
     sb.append("</ul></main></body></html>")
-    emit(zos, "$label/index.html", sb.toString())
+    emit(zos, "${basePath}$label/index.html", sb.toString())
     // Per-item files
     val traceCategory = when (kind) {
         SecondaryKind.SUMMARIZE -> "Report summarize"
@@ -289,17 +321,17 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
         SecondaryKind.TRANSLATE -> "Report translate"
     }
     withFiles.forEach { (filename, itemLabel, s) ->
-        emit(zos, "$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory))
+        emit(zos, "${basePath}$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath))
     }
 }
 
-private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, traceCategory: String): String {
+private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, traceCategory: String, basePath: String): String {
     val sb = StringBuilder()
-    sb.append(htmlHead("$itemLabel - ${data.title}", depth = 1))
+    sb.append(htmlHead("$itemLabel - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf(section to "index.html", itemLabel to null), data))
     sb.append("<main>")
     val match = traceIndex.findMatch(s.providerDisplay, s.model, traceCategory)
-    sb.append("<h1>").append(esc(itemLabel)).append(bugLink(match, pageDepth = 1)).append("</h1>")
+    sb.append("<h1>").append(esc(itemLabel)).append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(s.timestamp)).append("</div>")
     if (s.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
@@ -322,7 +354,7 @@ private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryDa
 
 // ===== Translations (meta-only — no translated content) =====
 
-private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData) {
+private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData, sourceData: HtmlReportData?) {
     val items = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
     if (items.isEmpty()) return
     val withFiles = items.mapIndexed { idx, s ->
@@ -344,6 +376,23 @@ private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData) {
         pageSb.append(breadcrumb(1, listOf("Translations" to "index.html", what to null), data))
         pageSb.append("<main>")
         pageSb.append("<h1>Translation: ").append(esc(what)).append("</h1>")
+        // Two cross-tree links: "Original" → matching page under
+        // Source/, "Result" → matching page in the current report.
+        // Resolved via translateSourceKind / translateSourceTargetId
+        // (set when the translation flow created the SecondaryResult)
+        // and translatedFromSecondaryId (stamped on the translated
+        // copies of Summary/Compare secondaries).
+        val (sourceLink, resultLink) = resolveTranslationLinks(s, data, sourceData)
+        if (sourceLink != null || resultLink != null) {
+            pageSb.append("<div class='translate-links'>")
+            if (sourceLink != null) {
+                pageSb.append("<a class='cross-link' href='${esc(sourceLink)}'>📜 Original (Source)</a>")
+            }
+            if (resultLink != null) {
+                pageSb.append("<a class='cross-link' href='${esc(resultLink)}'>🌐 Result</a>")
+            }
+            pageSb.append("</div>")
+        }
         pageSb.append("<table class='kv'>")
         pageSb.append("<tr><th>What</th><td>").append(esc(what)).append("</td></tr>")
         pageSb.append("<tr><th>Provider / Model</th><td>").append(esc(s.providerDisplay)).append(" / ").append(esc(s.model)).append("</td></tr>")
@@ -363,21 +412,85 @@ private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData) {
     }
 }
 
+/** Resolve a translation entry to its (Original under Source/, Result
+ *  in the current report) link pair. Each is relative to the
+ *  Translations/ directory (so "../Source/Reports/01_X.html" reaches
+ *  Source/Reports/01_X.html). Either side returns null when the
+ *  matching page can't be found — typically because the translation
+ *  metadata is from before the link fields existed on SecondaryResult,
+ *  or because the source report could not be loaded. */
+private fun resolveTranslationLinks(
+    translate: HtmlSecondaryData,
+    currentData: HtmlReportData,
+    sourceData: HtmlReportData?
+): Pair<String?, String?> {
+    val kind = translate.translateSourceKind ?: return null to null
+    val targetId = translate.translateSourceTargetId ?: ""
+
+    // Helper: agent file name in a given report (matches itemFilename's
+    // index-based naming used by emitReports).
+    fun agentFileFor(d: HtmlReportData?, agentId: String): String? {
+        if (d == null) return null
+        val idx = d.agents.indexOfFirst { it.agentId == agentId }.takeIf { it >= 0 } ?: return null
+        val a = d.agents[idx]
+        return itemFilename(idx, "${a.providerDisplay}_${a.model}")
+    }
+    // Helper: secondary file name in a given report keyed by its id.
+    fun secondaryFileFor(d: HtmlReportData?, secId: String, kindFilter: SecondaryKind): String? {
+        if (d == null) return null
+        val list = d.secondary.filter { it.kind == kindFilter }
+        val idx = list.indexOfFirst { it.id == secId }.takeIf { it >= 0 } ?: return null
+        val s = list[idx]
+        return itemFilename(idx, "${s.providerDisplay}_${s.model}")
+    }
+
+    return when (kind) {
+        "PROMPT" -> {
+            val src = if (sourceData != null) "../Source/Prompt/index.html" else null
+            val res = "../Prompt/index.html"
+            src to res
+        }
+        "AGENT" -> {
+            val src = agentFileFor(sourceData, targetId)?.let { "../Source/Reports/$it" }
+            // The translated report keeps source's agentId, so look up
+            // by the same id on the current report.
+            val res = agentFileFor(currentData, targetId)?.let { "../Reports/$it" }
+            src to res
+        }
+        "SUMMARY", "COMPARE" -> {
+            val sectionDir = if (kind == "SUMMARY") "Summaries" else "Compares"
+            val secKind = if (kind == "SUMMARY") SecondaryKind.SUMMARIZE else SecondaryKind.COMPARE
+            val src = secondaryFileFor(sourceData, targetId, secKind)?.let { "../Source/$sectionDir/$it" }
+            // The translated copy preserves translatedFromSecondaryId,
+            // pointing at the source's id we just used as the lookup
+            // key. Find the translated entry by that back-reference.
+            val translatedList = currentData.secondary.filter { it.kind == secKind }
+            val translatedIdx = translatedList.indexOfFirst { it.translatedFromSecondaryId == targetId }
+            val res = if (translatedIdx >= 0) {
+                val t = translatedList[translatedIdx]
+                "../$sectionDir/" + itemFilename(translatedIdx, "${t.providerDisplay}_${t.model}")
+            } else null
+            src to res
+        }
+        else -> null to null
+    }
+}
+
 // ===== Prompt =====
 
-private fun emitPrompt(zos: ZipOutputStream, data: HtmlReportData) {
+private fun emitPrompt(zos: ZipOutputStream, data: HtmlReportData, basePath: String = "") {
     val sb = StringBuilder()
-    sb.append(htmlHead("Prompt - ${data.title}", depth = 1))
+    sb.append(htmlHead("Prompt - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf("Prompt" to null), data))
     sb.append("<main><h1>Prompt</h1><pre class='prompt'>").append(esc(data.prompt)).append("</pre></main></body></html>")
-    emit(zos, "Prompt/index.html", sb.toString())
+    emit(zos, "${basePath}Prompt/index.html", sb.toString())
 }
 
 // ===== Costs =====
 
-private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData) {
+private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: String = "") {
     val sb = StringBuilder()
-    sb.append(htmlHead("Costs - ${data.title}", depth = 1))
+    sb.append(htmlHead("Costs - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf("Costs" to null), data))
     sb.append("<main><h1>Costs</h1>")
     // Scroll container so the wide nowrap table can overflow horizontally
@@ -436,7 +549,7 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData) {
     // <tfoot> regardless of sort direction.
     sb.append(costSortScript())
     sb.append("</main></body></html>")
-    emit(zos, "Costs/index.html", sb.toString())
+    emit(zos, "${basePath}Costs/index.html", sb.toString())
 }
 
 private fun costSortScript(): String = """
@@ -634,11 +747,14 @@ private fun breadcrumb(depth: Int, crumbs: List<Pair<String, String?>>, data: Ht
     return sb.toString()
 }
 
-/** HTML head fragment. CSS lives at the root as style.css and is
- *  referenced via a "../" prefix scaled to [depth] (number of zip
- *  directory levels above the current file). */
-private fun htmlHead(title: String, depth: Int): String {
-    val css = "../".repeat(depth) + "style.css"
+/** HTML head fragment. style.css lives at the zip root and is
+ *  referenced via "../" repeated for the file's full zip-root depth.
+ *  [depth] is the depth within the report's tree (e.g. 1 for
+ *  Reports/X.html); [basePath] adds the prefix for source pages
+ *  ("Source/" → 1 extra level). */
+private fun htmlHead(title: String, depth: Int, basePath: String = ""): String {
+    val totalDepth = depth + basePath.count { it == '/' }
+    val css = "../".repeat(totalDepth) + "style.css"
     return "<!DOCTYPE html><html><head><meta charset='utf-8'>" +
         "<title>${esc(title)}</title>" +
         "<link rel='stylesheet' href='${esc(css)}'>" +
@@ -656,6 +772,9 @@ main{max-width:900px;margin:0 auto}
 h1{color:#6B9BFF;font-size:22px;margin-bottom:8px}
 .bug{font-size:16px;text-decoration:none;margin-left:8px;vertical-align:middle;opacity:0.8}
 .bug:hover{opacity:1}
+.translate-links{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.cross-link{background:#252525;color:#64B5F6;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px}
+.cross-link:hover{background:#2c2c2c}
 h2{color:#8BB8FF;font-size:18px;margin-top:24px}
 h3{color:#9FCFFF;font-size:15px;margin-top:16px}
 .meta{color:#888;font-size:12px;margin-bottom:16px}

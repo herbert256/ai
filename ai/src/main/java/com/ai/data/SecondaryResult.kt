@@ -27,7 +27,21 @@ data class SecondaryResult(
     val tokenUsage: TokenUsage? = null,
     val inputCost: Double? = null,
     val outputCost: Double? = null,
-    val durationMs: Long? = null
+    val durationMs: Long? = null,
+    /** When kind == TRANSLATE: identifier of the item in the SOURCE
+     *  report this translation operated on. "prompt" for the report
+     *  prompt, agent.agentId for an agent response, secondary.id for
+     *  a Summary or Compare. Null on non-translate rows. */
+    val translateSourceTargetId: String? = null,
+    /** Companion to [translateSourceTargetId]. One of "PROMPT", "AGENT",
+     *  "SUMMARY", "COMPARE". Null on non-translate rows. */
+    val translateSourceKind: String? = null,
+    /** For translated copies of Summary / Compare secondaries created
+     *  by the translation flow: the source report's secondary.id this
+     *  entry was translated from. Used by exports to pair a translation
+     *  entry with the resulting secondary in the translated report.
+     *  Null on originals and non-translatable kinds. */
+    val translatedFromSecondaryId: String? = null
 )
 
 /**
