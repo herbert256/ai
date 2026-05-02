@@ -594,7 +594,8 @@ fun TraceDetailScreen(
 
 private fun shareTrace(context: Context, content: String, filename: String) {
     try {
-        val file = File(context.cacheDir, filename)
+        val dir = File(context.cacheDir, "shared_traces").also { it.mkdirs() }
+        val file = File(dir, filename)
         file.writeText(content)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
