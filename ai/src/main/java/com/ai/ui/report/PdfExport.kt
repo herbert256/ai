@@ -423,38 +423,44 @@ internal suspend fun renderHtmlToPdfFile(
         try {
             val cssDensity = view.resources.displayMetrics.density
             val contentPx = (view.contentHeight * cssDensity).toInt()
-            view.measure(
-                View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
-            val totalHeight = maxOf(view.measuredHeight, contentPx, pageHeight)
+            val totalHeight = maxOf(contentPx, pageHeight)
             android.util.Log.i(
                 tag,
-                "measured=${view.measuredWidth}x${view.measuredHeight}, contentHeightCss=${view.contentHeight}, contentPx=$contentPx, totalHeight=$totalHeight"
+                "contentHeightCss=${view.contentHeight}, contentPx=$contentPx, totalHeight=$totalHeight"
             )
-            view.layout(0, 0, pageWidth, totalHeight)
 
-            // Render page-by-page into a single reusable page-sized
-            // bitmap (~8 MB at 1240×1754 ARGB_8888) instead of
-            // allocating one giant bitmap for the entire content. A
-            // long Complete report can easily be 50–100 pages tall;
-            // the all-at-once approach asked for 100s of MB which
-            // either OOM'd or churned the GC long enough for the
-            // render timeout to fire — observed as the bulk export
-            // hanging at step 7. With the page-sized bitmap we draw
-            // the WebView once per page using a canvas translation
-            // so each slice paints into the same buffer.
+            // Walk the WebView one page at a time using scrollTo. Two
+            // things this avoids vs. the prior approaches:
+            //   1. We never lay out the WebView at full content height
+            //      — that triggered a same-sized software layer
+            //      bitmap inside the View, which on long reports
+            //      either OOM'd (~487 MB for 60+ pages) or pushed the
+            //      heap into GC churn so deep that the WebView's load
+            //      callback timed out.
+            //   2. We don't ask View.draw to honour a canvas
+            //      translation. Chromium's compositor doesn't compose
+            //      with canvas.translate, so a translated-canvas
+            //      draw produces blank output for every page past
+            //      the first.
+            // The WebView stays measured at pageWidth × pageHeight
+            // throughout. We update its mScrollY each iteration so the
+            // visible portion shifts down by one page-height, then
+            // snapshot.
+            view.measure(
+                View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(pageHeight, View.MeasureSpec.EXACTLY)
+            )
+            view.layout(0, 0, pageWidth, pageHeight)
+
             val pageBitmap = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
             val pageCanvas = Canvas(pageBitmap)
             val pdf = PdfDocument()
             var rendered = 0
             var pageNum = 1
             while (rendered < totalHeight) {
+                view.scrollTo(0, rendered)
                 pageBitmap.eraseColor(AndroidColor.WHITE)
-                pageCanvas.save()
-                pageCanvas.translate(0f, -rendered.toFloat())
                 view.draw(pageCanvas)
-                pageCanvas.restore()
 
                 val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
                 val pdfPage = pdf.startPage(pageInfo)
