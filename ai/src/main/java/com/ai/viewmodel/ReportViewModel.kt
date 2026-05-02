@@ -882,13 +882,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val targetLanguageNative: String,
         val items: List<TranslationItem>,
         val totalCostCents: Double = 0.0,
-        val newReportId: String? = null,
+        val finished: Boolean = false,
         val cancelled: Boolean = false
     ) {
         val total: Int get() = items.size
         val completed: Int get() = items.count { it.status == TranslationStatus.DONE || it.status == TranslationStatus.ERROR }
-        val isRunning: Boolean get() = newReportId == null && !cancelled && completed < total
-        val isFinished: Boolean get() = newReportId != null
+        val isRunning: Boolean get() = !finished && !cancelled && completed < total
+        val isFinished: Boolean get() = finished
     }
 
     private val _translationRun = MutableStateFlow<TranslationRunState?>(null)
@@ -898,9 +898,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** Snapshot the report's translatable items, kick off the runner.
      *  Concurrency capped at 3 — translations are often the slowest
      *  operation in the app and respecting provider rate limits is
-     *  more important than maximum throughput. The new report is
-     *  created at the end with translated bodies; structured-JSON
-     *  meta results (rerank, moderation) are skipped. */
+     *  more important than maximum throughput. Each translated piece
+     *  is persisted as a TRANSLATE [SecondaryResult] on the SOURCE
+     *  report, tagged with the language. The viewer / HTML exports
+     *  group those rows by language to render Original | Dutch | …
+     *  views. Structured-JSON meta results (rerank, moderation) are
+     *  skipped. */
     fun startTranslation(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
@@ -979,14 +982,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
             val pricing = PricingCache.getPricing(context, provider, model)
 
-            // Reserve the new translated report's id up front so every
-            // translation API call can tag its ApiTracer entry with it.
-            // Without this the translation traces have reportId = null
-            // and don't show on the new report's trace screen. The id
-            // is consumed by createTranslatedReport at the end via the
-            // explicitId parameter on ReportStorage.createReport.
-            val newId = java.util.UUID.randomUUID().toString()
-            withTracerTags(reportId = newId, category = "Translation") {
+            // Tag every translation call's trace with the SOURCE report
+            // id — translations live on that report now, no separate
+            // translated copy to keep traces with.
+            withTracerTags(reportId = sourceReportId, category = "Translation") {
                 // Concurrency 3: translation calls are typically the slowest
                 // I/O in the app; cap so a 30-item report doesn't blow past
                 // provider rate limits.
@@ -999,11 +998,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }.awaitAll()
                 }
 
-                // All done — assemble the translated report.
+                // All done — write a TRANSLATE SecondaryResult per item
+                // onto the source report. No new report is created.
                 val finalState = _translationRun.value ?: return@launch
                 if (finalState.cancelled) return@launch
-                createTranslatedReport(context, sourceReport, secondaries, finalState, targetLanguageName, provider, model, pricing, newId)
-                _translationRun.update { it?.copy(newReportId = newId) }
+                saveTranslationSecondaries(context, finalState, provider, model, pricing)
+                ReportStorage.bumpReportTimestamp(context, sourceReportId)
+                _translationRun.update { it?.copy(finished = true) }
             }
         }
     }
@@ -1077,93 +1078,24 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    private fun createTranslatedReport(
+    /** Persist one TRANSLATE [SecondaryResult] per translated item onto
+     *  the source report. The viewer and HTML/Zipped HTML exporters
+     *  group these rows by [SecondaryResult.targetLanguage] to render
+     *  the Original | Dutch | German picker. Errored rows are saved
+     *  with [SecondaryResult.errorMessage] set so the user still sees
+     *  the failed call in the cost table / language view. */
+    private fun saveTranslationSecondaries(
         context: Context,
-        source: Report,
-        secondaries: List<SecondaryResult>,
         run: TranslationRunState,
-        targetLanguageName: String,
         translateProvider: AppService,
         translateModel: String,
-        translatePricing: PricingCache.ModelPricing,
-        explicitId: String
-    ): String {
-        val itemById = run.items.associateBy { it.id }
-        val translatedPrompt = itemById["prompt"]?.translatedText ?: source.prompt
-
-        // Agents on the translated report keep the source's tokenUsage
-        // and cost — those rows record what producing the SOURCE cost,
-        // and that history travels with the translated copy. Only the
-        // body text changes (to the translated string).
-        val newAgents = source.agents.map { agent ->
-            val tx = itemById["agent:${agent.agentId}"]?.translatedText
-            if (tx != null) agent.copy(responseBody = tx) else agent
-        }.toMutableList()
-
-        val newReport = ReportStorage.createReport(
-            context = context,
-            title = "[$targetLanguageName] ${source.title}",
-            prompt = translatedPrompt,
-            agents = newAgents,
-            rapportText = source.rapportText,
-            reportType = source.reportType,
-            closeText = source.closeText,
-            imageBase64 = source.imageBase64,
-            imageMime = source.imageMime,
-            webSearchTool = source.webSearchTool,
-            reasoningEffort = source.reasoningEffort,
-            explicitId = explicitId,
-            sourceReportId = source.id
-        )
-
-        // Recreate summary/compare/rerank/moderation meta results on
-        // the new report with translated content where applicable —
-        // and the SAME cost figures as the source so the original
-        // generation cost still shows up on the translated report's
-        // cost table as the "history" of where this artifact came
-        // from. Translation costs are added separately as new
-        // SecondaryKind.TRANSLATE rows below.
-        for (s in secondaries) {
-            val newContent = when (s.kind) {
-                SecondaryKind.SUMMARIZE -> itemById["summary:${s.id}"]?.translatedText ?: s.content
-                SecondaryKind.COMPARE -> itemById["compare:${s.id}"]?.translatedText ?: s.content
-                SecondaryKind.RERANK, SecondaryKind.MODERATION, SecondaryKind.TRANSLATE -> s.content
-            }
-            // TRANSLATE rows from the source aren't carried over — the
-            // user didn't translate the source's earlier translations,
-            // and copying them would visually duplicate cost data.
-            if (s.kind == SecondaryKind.TRANSLATE) continue
-            SecondaryResultStorage.save(
-                context,
-                s.copy(
-                    id = java.util.UUID.randomUUID().toString(),
-                    reportId = newReport.id,
-                    timestamp = System.currentTimeMillis(),
-                    content = newContent,
-                    // Stamp the source's secondary.id on translated
-                    // Summary/Compare copies so the Zipped HTML export
-                    // can pair a translation entry with the resulting
-                    // secondary in the translated report.
-                    translatedFromSecondaryId = if (s.kind == SecondaryKind.SUMMARIZE || s.kind == SecondaryKind.COMPARE) s.id else null
-                )
-            )
-        }
-
-        // Add the translation calls themselves as TRANSLATE rows so
-        // they appear as extra rows in the cost table — one row per
-        // translation API call (prompt + each agent + each summary +
-        // each compare). Existing rows on the translated report are
-        // unchanged; only new rows are added.
+        translatePricing: PricingCache.ModelPricing
+    ) {
         for (item in run.items) {
-            val tu = item.tokenUsage ?: continue
-            val inCost = tu.inputTokens * translatePricing.promptPrice
-            val outCost = tu.outputTokens * translatePricing.completionPrice
-            val labelPrefix = when (item.kind) {
-                TranslationKind.PROMPT -> "Translate: prompt"
-                TranslationKind.AGENT_RESPONSE -> "Translate: ${item.label}"
-                TranslationKind.SUMMARY -> "Translate: ${item.label}"
-                TranslationKind.COMPARE -> "Translate: ${item.label}"
-            }
+            val tu = item.tokenUsage
+            val inCost = tu?.let { it.inputTokens * translatePricing.promptPrice }
+            val outCost = tu?.let { it.outputTokens * translatePricing.completionPrice }
+            val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
             val (srcKind, srcTargetId) = when (item.kind) {
                 TranslationKind.PROMPT -> "PROMPT" to "prompt"
                 TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
@@ -1172,7 +1104,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             SecondaryResultStorage.save(context, SecondaryResult(
                 id = java.util.UUID.randomUUID().toString(),
-                reportId = newReport.id,
+                reportId = run.sourceReportId,
                 kind = SecondaryKind.TRANSLATE,
                 providerId = translateProvider.id,
                 model = translateModel,
@@ -1185,11 +1117,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 outputCost = outCost,
                 durationMs = item.durationMs,
                 translateSourceKind = srcKind,
-                translateSourceTargetId = srcTargetId
+                translateSourceTargetId = srcTargetId,
+                targetLanguage = run.targetLanguageName,
+                targetLanguageNative = run.targetLanguageNative
             ))
         }
-
-        return newReport.id
     }
 
     fun cancelTranslation() {

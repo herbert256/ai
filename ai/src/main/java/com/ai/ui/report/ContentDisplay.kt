@@ -77,6 +77,59 @@ private sealed interface ReportLoadState {
     data class Loaded(val report: Report) : ReportLoadState
 }
 
+/** A single tab in the in-app viewer's language picker. Built from the
+ *  TRANSLATE secondaries on the report — Original always present;
+ *  Dutch / German / … added per distinct [SecondaryResult.targetLanguage]. */
+private data class LangTab(val key: String, val displayName: String, val nativeName: String?)
+
+@Composable
+private fun LanguagePickerRow(
+    languages: List<LangTab>,
+    selectedKey: String,
+    onSelect: (String) -> Unit
+) {
+    if (languages.size <= 1) return
+    @OptIn(ExperimentalLayoutApi::class)
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        languages.forEach { lang ->
+            val isSelected = lang.key == selectedKey
+            Button(
+                onClick = { onSelect(lang.key) },
+                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Green else Color(0xFF3A3A4A)),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 36.dp)
+            ) {
+                Text(
+                    lang.displayName,
+                    fontSize = 12.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1, softWrap = false
+                )
+            }
+        }
+    }
+}
+
+/** Group TRANSLATE secondaries by language and produce the picker
+ *  list. "Original" is always first. */
+private fun buildLangTabs(translates: List<SecondaryResult>): List<LangTab> {
+    val out = mutableListOf(LangTab("original", "Original", null))
+    val seen = LinkedHashMap<String, String?>()
+    translates.forEach { t ->
+        val lang = t.targetLanguage?.takeIf { it.isNotBlank() } ?: return@forEach
+        if (lang !in seen) seen[lang] = t.targetLanguageNative
+    }
+    seen.forEach { (lang, native) ->
+        val key = lang.lowercase(java.util.Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+        out += LangTab(key, lang, native?.takeIf { it != lang })
+    }
+    return out
+}
+
 @Composable
 private fun ReportsViewerScreenLoaded(
     report: Report,
@@ -88,18 +141,60 @@ private fun ReportsViewerScreenLoaded(
 ) {
     val context = LocalContext.current
 
+    // Load TRANSLATE secondaries up front; the picker / overlay both
+    // key on this list. Empty list → no picker shown, viewer behaves
+    // as before.
+    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), report.id) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, report.id, SecondaryKind.TRANSLATE)
+                .filter { !it.content.isNullOrBlank() }
+        }
+    }
+    val translates = translatesState.value
+    val langTabs = remember(translates) { buildLangTabs(translates) }
+    var selectedLangKey by remember { mutableStateOf("original") }
+    // Keep the selection valid if translations finish loading after
+    // first composition — if the previously chosen key dropped off the
+    // list (e.g. a translation was deleted) snap back to Original.
+    LaunchedEffect(langTabs) {
+        if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = "original"
+    }
+    // Quick lookups for the active language: by-targetId → translated
+    // content. Recomputed only when the selected language or the
+    // translation list changes.
+    val translationByTarget = remember(translates, selectedLangKey) {
+        if (selectedLangKey == "original") emptyMap()
+        else {
+            val tab = langTabs.firstOrNull { it.key == selectedLangKey }
+            val langName = tab?.displayName ?: return@remember emptyMap()
+            translates
+                .filter { it.targetLanguage == langName }
+                .associate {
+                    val k = (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "")
+                    k to (it.content ?: "")
+                }
+        }
+    }
+
     // Single-section variants: just the prompt, or just the cost table — no agent picker,
     // no per-agent body. These come from the View row's Prompt / Costs buttons.
     if (initialSection == "prompt" || initialSection == "costs") {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
             TitleBar(title = title, onBackClick = onDismiss, onAiClick = onNavigateHome)
+            // Costs aggregate every API call (including translation
+            // calls) so the language picker doesn't apply — only the
+            // prompt screen shows the picker.
+            if (initialSection == "prompt") {
+                LanguagePickerRow(langTabs, selectedLangKey) { selectedLangKey = it }
+            }
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 if (initialSection == "prompt") {
-                    if (report.prompt.isBlank()) {
+                    val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
+                    if (displayPrompt.isBlank()) {
                         Text("(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
                     } else {
-                        Text(report.prompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
+                        Text(displayPrompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
                     }
                 } else {
                     val hasAgentCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
@@ -130,6 +225,8 @@ private fun ReportsViewerScreenLoaded(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val providerName = selectedReportAgent?.let { AppService.findById(it.provider)?.displayName ?: it.provider } ?: "View Reports"
         TitleBar(title = providerName, onBackClick = onDismiss, onAiClick = onNavigateHome)
+
+        LanguagePickerRow(langTabs, selectedLangKey) { selectedLangKey = it }
 
         // Agent buttons
         if (agentsWithResults.isNotEmpty()) {
@@ -163,7 +260,8 @@ private fun ReportsViewerScreenLoaded(
                 }
             } else if (selectedReportAgent?.responseBody != null) {
                 Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
-                    val rawBody = selectedReportAgent.responseBody ?: ""
+                    val translated = translationByTarget["AGENT:${selectedReportAgent.agentId}"]
+                    val rawBody = translated ?: (selectedReportAgent.responseBody ?: "")
                     val conclusion = extractTagContent(rawBody, "conclusion")
                     val motivation = extractTagContent(rawBody, "motivation")
                     val strippedBody = if (conclusion != null || motivation != null)

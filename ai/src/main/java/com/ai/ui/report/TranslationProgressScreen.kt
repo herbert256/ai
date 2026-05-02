@@ -29,8 +29,9 @@ import com.ai.viewmodel.ReportViewModel
 /** Progress + result screen for a translation run. Watches the
  *  ReportViewModel.translationRun StateFlow; per-item rows show
  *  PENDING / RUNNING ⏳ / DONE ✅ + cost / ERROR ❌ as the runner ticks
- *  forward. When all rows finish the runner creates the new report and
- *  the "To translated report" button enables.
+ *  forward. When all rows finish the translations are saved as
+ *  TRANSLATE secondaries on the SOURCE report and the Done button
+ *  pops back to that report.
  */
 @Composable
 internal fun TranslationProgressScreen(
@@ -38,8 +39,7 @@ internal fun TranslationProgressScreen(
     onCancel: () -> Unit,
     onConsume: () -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onOpenTranslatedReport: (String) -> Unit
+    onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     val run = runState ?: run {
@@ -137,20 +137,17 @@ internal fun TranslationProgressScreen(
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("Cancel", maxLines = 1, softWrap = false) }
             }
-            val newId = run.newReportId
             Button(
                 onClick = {
-                    if (newId != null) {
-                        onConsume()
-                        onOpenTranslatedReport(newId)
-                    }
+                    if (run.isFinished) onConsume()
+                    onBack()
                 },
-                enabled = newId != null,
+                enabled = run.isFinished || run.cancelled,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) {
                 Text(
-                    if (newId != null) "To translated report" else "Translating…",
+                    if (run.isFinished) "Done" else "Translating…",
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, softWrap = false
                 )

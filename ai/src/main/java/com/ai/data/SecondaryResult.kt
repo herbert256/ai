@@ -28,19 +28,27 @@ data class SecondaryResult(
     val inputCost: Double? = null,
     val outputCost: Double? = null,
     val durationMs: Long? = null,
-    /** When kind == TRANSLATE: identifier of the item in the SOURCE
-     *  report this translation operated on. "prompt" for the report
-     *  prompt, agent.agentId for an agent response, secondary.id for
-     *  a Summary or Compare. Null on non-translate rows. */
+    /** When kind == TRANSLATE: identifier of the item this translation
+     *  operated on. "prompt" for the report prompt, agent.agentId for
+     *  an agent response, secondary.id for a Summary or Compare. Null
+     *  on non-translate rows. */
     val translateSourceTargetId: String? = null,
     /** Companion to [translateSourceTargetId]. One of "PROMPT", "AGENT",
      *  "SUMMARY", "COMPARE". Null on non-translate rows. */
     val translateSourceKind: String? = null,
-    /** For translated copies of Summary / Compare secondaries created
-     *  by the translation flow: the source report's secondary.id this
-     *  entry was translated from. Used by exports to pair a translation
-     *  entry with the resulting secondary in the translated report.
-     *  Null on originals and non-translatable kinds. */
+    /** Target language for a TRANSLATE row, English name (e.g. "Dutch",
+     *  "German"). Used to group translated content into per-language
+     *  views in the report viewer / Complete HTML / Zipped HTML. Null
+     *  on non-translate rows. */
+    val targetLanguage: String? = null,
+    /** Companion to [targetLanguage] — native rendering for the picker
+     *  ("Nederlands", "Deutsch"). Null on non-translate rows. */
+    val targetLanguageNative: String? = null,
+    /** Legacy field — set by the old "translation creates a copy" flow
+     *  on Summary / Compare secondaries that were duplicated onto a
+     *  translated report. New translations don't fork the report so
+     *  this stays null on every TRANSLATE row written by the current
+     *  code path; preserved on disk so old reports still load. */
     val translatedFromSecondaryId: String? = null
 )
 

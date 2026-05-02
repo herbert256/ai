@@ -44,8 +44,7 @@ fun ReportsScreenNav(
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    onOpenReport: (String) -> Unit = {}
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -139,8 +138,7 @@ fun ReportsScreenNav(
             reportViewModel.startTranslation(scope, context, sourceId, langName, langNative, prov, model)
         },
         onCancelTranslation = { reportViewModel.cancelTranslation() },
-        onConsumeTranslation = { reportViewModel.consumeTranslationRun() },
-        onOpenTranslatedReport = { newId -> onOpenReport(newId) }
+        onConsumeTranslation = { reportViewModel.consumeTranslationRun() }
     )
 }
 
@@ -221,8 +219,7 @@ fun ReportsScreen(
     translationRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
     onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
     onCancelTranslation: () -> Unit = {},
-    onConsumeTranslation: () -> Unit = {},
-    onOpenTranslatedReport: (String) -> Unit = {}
+    onConsumeTranslation: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -545,11 +542,7 @@ fun ReportsScreen(
             onCancel = onCancelTranslation,
             onConsume = onConsumeTranslation,
             onBack = { showTranslateProgress = false },
-            onNavigateHome = onNavigateHome,
-            onOpenTranslatedReport = { newId ->
-                showTranslateProgress = false
-                onOpenTranslatedReport(newId)
-            }
+            onNavigateHome = onNavigateHome
         )
         return
     }

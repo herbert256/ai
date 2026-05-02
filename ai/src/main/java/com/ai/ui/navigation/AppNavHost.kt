@@ -171,20 +171,11 @@ fun AppNavHost(
                 initialTitle = title, initialPrompt = prompt)
         }
         composable(NavRoutes.AI_REPORTS) {
-            val context = LocalContext.current
-            val scope = rememberCoroutineScope()
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
-                onOpenReport = { reportId ->
-                    // Re-enter AI_REPORTS with the chosen report restored
-                    // — same flow History uses to open a finished report.
-                    scope.launch {
-                        reportViewModel.restoreCompletedReport(context, reportId)
-                    }
-                })
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,

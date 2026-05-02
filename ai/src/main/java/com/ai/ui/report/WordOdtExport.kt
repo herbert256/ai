@@ -35,10 +35,13 @@ internal data class DocBlock(
  *  uses. The export shows the full set of report content: title +
  *  rapport, every per-agent response (with citations / search results /
  *  related questions), every meta result (rerank / summarize / compare /
- *  moderation / translation), the prompt, the per-call cost table, and
- *  every captured API trace with redacted bodies. The lone DOCX/ODT
- *  affordance is the leading TOC block — Word and LibreOffice fill the
- *  page numbers in when the document is opened. */
+ *  moderation), the prompt, the per-call cost table, and every captured
+ *  API trace with redacted bodies. When translations exist on the
+ *  report each translated language is appended after the originals
+ *  with a "Language: X" heading and the translated prompt / agents /
+ *  summaries / compares. The lone DOCX/ODT affordance is the leading
+ *  TOC block — Word and LibreOffice fill the page numbers in when the
+ *  document is opened. */
 private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Boolean): List<DocBlock> {
     val out = mutableListOf<DocBlock>()
     out += DocBlock(DocBlockKind.HEADING, data.title.ifBlank { "Untitled" }, 1)
@@ -54,6 +57,38 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Bool
         out += mdToBlocks(data.rapportText, headingBase = 2)
     }
 
+    val languages = com.ai.ui.report.buildLanguageViews(data)
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+
+    languages.forEachIndexed { i, lv ->
+        val isOriginal = (lv.key == "original")
+        if (i > 0) out += DocBlock(DocBlockKind.HEADING, "Language: ${lv.displayName}", 2)
+        appendLanguageContent(out, lv.data, short, isOriginal, maxAnchor)
+    }
+
+    if (!short) {
+        // Short skips the cost table and the JSON-trace dump per spec.
+        appendCosts(out, data)
+        appendTraces(out, data.traces)
+    }
+
+    if (!data.closeText.isNullOrBlank()) {
+        out += mdToBlocks(data.closeText, headingBase = 2)
+    }
+    return out
+}
+
+/** Emit one language's narrative content into [out]: Reports,
+ *  Summaries, Compares, (Original-only Reranks / Moderations,) Prompt.
+ *  [headingBoost] is added to all headings so a translated language's
+ *  Reports heading nests one level under its "Language: X" parent. */
+private fun appendLanguageContent(
+    out: MutableList<DocBlock>,
+    data: com.ai.ui.report.HtmlReportData,
+    short: Boolean,
+    isOriginal: Boolean,
+    maxAnchor: Int
+) {
     if (data.agents.isNotEmpty()) {
         out += DocBlock(DocBlockKind.HEADING, "Reports", 2)
         for (a in data.agents) {
@@ -84,19 +119,15 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Bool
             }
         }
     }
-
-    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
     appendSecondary(out, data.secondary, SecondaryKind.SUMMARIZE, "Summaries", maxAnchor)
     appendSecondary(out, data.secondary, SecondaryKind.COMPARE, "Compares", maxAnchor)
-    if (!short) {
-        // Short skips Rerank + Translate per spec — those rows are
-        // structural / billing-history, not the core narrative the
-        // user wants in a short hand-out.
+    if (isOriginal && !short) {
+        // Reranks / Moderations are structured JSON — never translated;
+        // skipped entirely on the per-language repeats too. Short skips
+        // them per spec.
         appendSecondary(out, data.secondary, SecondaryKind.RERANK, "Reranks", maxAnchor)
     }
-    appendSecondary(out, data.secondary, SecondaryKind.MODERATION, "Moderations", maxAnchor)
-    if (!short) appendTranslations(out, data.secondary)
-
+    if (isOriginal) appendSecondary(out, data.secondary, SecondaryKind.MODERATION, "Moderations", maxAnchor)
     if (data.prompt.isNotBlank()) {
         out += DocBlock(DocBlockKind.HEADING, "Prompt", 2)
         data.prompt.split(Regex("\n\\s*\n")).forEach { para ->
@@ -104,17 +135,6 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Bool
             if (t.isNotEmpty()) out += DocBlock(DocBlockKind.PARAGRAPH, t)
         }
     }
-
-    if (!short) {
-        // Short skips the cost table and the JSON-trace dump per spec.
-        appendCosts(out, data)
-        appendTraces(out, data.traces)
-    }
-
-    if (!data.closeText.isNullOrBlank()) {
-        out += mdToBlocks(data.closeText, headingBase = 2)
-    }
-    return out
 }
 
 private fun appendSecondary(
@@ -149,32 +169,6 @@ private fun appendSecondary(
             else -> out += mdToBlocks(s.content, headingBase = 4)
         }
     }
-}
-
-private fun appendTranslations(
-    out: MutableList<DocBlock>, secondary: List<com.ai.ui.report.HtmlSecondaryData>
-) {
-    val items = secondary.filter { it.kind == SecondaryKind.TRANSLATE }
-    if (items.isEmpty()) return
-    out += DocBlock(DocBlockKind.HEADING, "Translations", 2)
-    val rows = items.map { s ->
-        val what = s.agentName.removePrefix("Translate:").trim().ifBlank { s.agentName }
-        val secs = s.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-        val totalCents = ((s.inputCost ?: 0.0) + (s.outputCost ?: 0.0)) * 100
-        listOf(
-            what,
-            "${s.providerDisplay} / ${s.model}",
-            secs,
-            (s.inputTokens ?: 0).toString(),
-            (s.outputTokens ?: 0).toString(),
-            "%.2f".format(totalCents)
-        )
-    }
-    out += DocBlock(
-        kind = DocBlockKind.TABLE,
-        tableHeader = listOf("What", "Provider / Model", "Seconds", "Input tokens", "Output tokens", "Total cents"),
-        tableRows = rows
-    )
 }
 
 private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.report.HtmlReportData) {

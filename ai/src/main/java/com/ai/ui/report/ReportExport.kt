@@ -68,7 +68,32 @@ internal data class HtmlSecondaryData(
     val pricingTier: String? = null,
     val translateSourceKind: String? = null,
     val translateSourceTargetId: String? = null,
+    /** TRANSLATE rows only — language this row produced text in. */
+    val targetLanguage: String? = null,
+    val targetLanguageNative: String? = null,
+    /** Legacy field kept for old reports that forked into translated
+     *  copies. Always null on new TRANSLATE rows. */
     val translatedFromSecondaryId: String? = null
+)
+
+/** A "view" of [HtmlReportData] under one language — Original or one of
+ *  the translation runs that produced TRANSLATE secondaries on the
+ *  report. The language picker on Complete HTML and the per-language
+ *  directories on Zipped HTML iterate this list. */
+internal data class HtmlLanguageView(
+    /** Stable id used in CSS selectors / directory names. Lowercase,
+     *  filesystem-safe. "original" for the source content; otherwise
+     *  the lowercased English language name with non-alnum stripped. */
+    val key: String,
+    /** Human-facing label rendered on the picker tab — "Original",
+     *  "Dutch", "German", … */
+    val displayName: String,
+    /** Native rendering for the picker subline. Null on Original. */
+    val nativeName: String?,
+    /** Report data with translated text overlaid. Costs / JSON / Rerank
+     *  / Moderation rows are unchanged across languages — only Prompt /
+     *  Reports / Summaries / Compares get the overlay. */
+    val data: HtmlReportData
 )
 
 // ===== Public Functions =====
@@ -236,6 +261,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             pricingTier = secPricing?.source,
             translateSourceKind = s.translateSourceKind,
             translateSourceTargetId = s.translateSourceTargetId,
+            targetLanguage = s.targetLanguage,
+            targetLanguageNative = s.targetLanguageNative,
             translatedFromSecondaryId = s.translatedFromSecondaryId
         )
     }
@@ -285,6 +312,79 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
     )
 }
 
+/** Build the language picker list — Original plus one entry per
+ *  distinct [HtmlSecondaryData.targetLanguage] across the TRANSLATE
+ *  rows in [base]. Each translated language's [HtmlLanguageView.data]
+ *  reuses [base] but with the prompt / agent.responseText /
+ *  summary.content / compare.content overlaid by the matching
+ *  TRANSLATE row's content. Cost rows and traces are NOT mutated —
+ *  the cost table sums the same totals across languages, and the
+ *  language picker only swaps the narrative content sections. The
+ *  TRANSLATE rows themselves are filtered out of each language view's
+ *  secondary list (they're translation metadata, not part of the
+ *  report's narrative). When no TRANSLATE rows exist the result is a
+ *  one-element list containing only the Original view. */
+internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
+    val translates = base.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
+    // Language order = first-seen across the (already-timestamped)
+    // TRANSLATE rows, preserving the order languages were run.
+    val languageOrder = LinkedHashMap<String, String?>()
+    for (t in translates) {
+        val lang = t.targetLanguage?.takeIf { it.isNotBlank() } ?: continue
+        if (lang !in languageOrder) languageOrder[lang] = t.targetLanguageNative
+    }
+
+    val nonTranslateSecondary = base.secondary.filter { it.kind != SecondaryKind.TRANSLATE }
+    val original = HtmlLanguageView(
+        key = "original",
+        displayName = "Original",
+        nativeName = null,
+        data = base.copy(secondary = nonTranslateSecondary)
+    )
+    if (languageOrder.isEmpty()) return listOf(original)
+
+    val views = mutableListOf(original)
+    for ((lang, native) in languageOrder) {
+        // Index the translations for this language by source target so
+        // the overlay can substitute in O(1) per item.
+        val byTarget = translates.filter { it.targetLanguage == lang && !it.content.isNullOrBlank() }
+            .associateBy { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+
+        val translatedPrompt = byTarget["PROMPT:prompt"]?.content ?: base.prompt
+        val translatedAgents = base.agents.map { a ->
+            val tx = byTarget["AGENT:${a.agentId}"]?.content
+            if (tx != null) a.copy(responseText = tx) else a
+        }
+        val translatedSecondary = nonTranslateSecondary.map { s ->
+            val key = when (s.kind) {
+                SecondaryKind.SUMMARIZE -> "SUMMARY:${s.id}"
+                SecondaryKind.COMPARE -> "COMPARE:${s.id}"
+                else -> null
+            }
+            val tx = key?.let { byTarget[it]?.content }
+            if (tx != null) s.copy(content = tx) else s
+        }
+        views += HtmlLanguageView(
+            key = languageKey(lang),
+            displayName = lang,
+            nativeName = native?.takeIf { it != lang },
+            data = base.copy(
+                prompt = translatedPrompt,
+                agents = translatedAgents,
+                secondary = translatedSecondary
+            )
+        )
+    }
+    return views
+}
+
+/** Lower-case, alnum-only key for use in CSS ids and zip directory
+ *  names. "Mandarin Chinese" → "mandarinchinese". The English name is
+ *  the canonical id source so the same TRANSLATE rows always group
+ *  under the same key regardless of how they were rendered. */
+internal fun languageKey(language: String): String =
+    language.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+
 private fun ApiTrace.toRedactedExportJson(): String {
     val redactedTrace = copy(
         request = request.copy(
@@ -301,115 +401,48 @@ private fun ApiTrace.toRedactedExportJson(): String {
 }
 
 // ===== Unified HTML Report =====
-// Top-level "view picker" lets the user switch between Reports / Summaries /
-// Compares / Reranks / Moderations / Translations / Prompt / Costs. Each
-// view that contains 2+ items also gets its own "One by one" / "All
-// together" sub-toggle (scoped per view); single-item views render the
-// content directly. Prompt and Costs never get the sub-toggle.
+// Top-level "language picker" (Original | Dutch | German …) wraps each
+// language's set of view-blocks. When no translations exist on the
+// report the picker collapses to a single "Original" block and stays
+// hidden. Inside each language block the "view picker" lets the user
+// switch between Reports / Summaries / Compares / Reranks /
+// Moderations / Prompt / Costs / JSON. Costs and JSON are emitted only
+// inside the Original block — they aggregate across all languages and
+// would be misleading duplicates. Reranks / Moderations are also
+// Original-only (their content is structured JSON, not narrative
+// translatable text). Each multi-item view gets its own "One by one"
+// / "All together" sub-toggle.
+//
+// All in-block toggles use DOM-relative `closest()` traversal in JS
+// rather than IDs, so identical button/card markup in different
+// language blocks doesn't collide.
 
 private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
-    val defaultAllTogether = data.reportType == ReportType.TABLE
-    val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
-    val summaries = data.secondary.filter { it.kind == SecondaryKind.SUMMARIZE }
-    val compares = data.secondary.filter { it.kind == SecondaryKind.COMPARE }
-    val moderations = data.secondary.filter { it.kind == SecondaryKind.MODERATION }
-    val translations = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
-    val hasPrompt = data.prompt.isNotBlank()
-    val hasAgentCosts = data.agents.any { it.inputTokens != null }
-    val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
-    val hasCosts = hasAgentCosts || hasSecondaryCosts
-    val hasReports = data.agents.isNotEmpty()
-    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
-    // Lookup so the rerank table can show "<provider> · <model>" next to
-    // each ranked [N] reference.
-    val agentsByAnchor: Map<Int, String> = data.agents.mapNotNull { a ->
-        a.anchorIndex?.let { it to "${a.providerDisplay} · ${a.model}" }
-    }.toMap()
-
-    // Build the view list. Order: Reports, then meta kinds in a stable
-    // order, then Prompt + Costs at the end.
-    data class View(val id: String, val label: String)
-    val views = mutableListOf<View>()
-    if (hasReports) views += View("reports", "Reports")
-    if (summaries.isNotEmpty()) views += View("summaries", "Summaries")
-    if (compares.isNotEmpty()) views += View("compares", "Compares")
-    if (reranks.isNotEmpty()) views += View("reranks", "Reranks")
-    if (moderations.isNotEmpty()) views += View("moderations", "Moderations")
-    if (translations.isNotEmpty()) views += View("translations", "Translations")
-    if (hasPrompt) views += View("prompt", "Prompt")
-    if (hasCosts) views += View("costs", "Costs")
-    if (data.traces.isNotEmpty()) views += View("json", "JSON")
-
-    val firstViewId = views.firstOrNull()?.id ?: "reports"
-
     val sb = StringBuilder()
     sb.append(htmlHead(data.title))
     sb.append("<body><div class='container'>")
     sb.append("<h1>${esc(data.title)}</h1>")
     data.rapportText?.let { sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(it)}</div>") }
 
-    // Top-level view picker — always shown when any view exists.
-    if (views.isNotEmpty()) {
-        sb.append("<div class='view-picker'>")
-        views.forEach { v ->
-            val active = if (v.id == firstViewId) " active" else ""
-            sb.append("<button id='view-btn-${v.id}' class='view-btn$active' onclick=\"showView('${v.id}')\">${esc(v.label)}</button>")
+    val languages = buildLanguageViews(data)
+
+    // Language picker — shown only when there's at least one
+    // translation. With no translations the lone "Original" view is
+    // rendered straight without the extra row of chrome.
+    if (languages.size > 1) {
+        sb.append("<div class='lang-picker'>")
+        languages.forEachIndexed { i, lv ->
+            val active = if (i == 0) " active" else ""
+            val sub = if (lv.nativeName != null) " <span class='lang-native'>${esc(lv.nativeName)}</span>" else ""
+            sb.append("<button class='lang-btn$active' onclick=\"showLanguage(this,'${lv.key}')\">${esc(lv.displayName)}$sub</button>")
         }
         sb.append("</div>")
     }
 
-    if (hasReports) {
-        val display = if (firstViewId == "reports") "block" else "none"
-        sb.append("<div id='view-reports' class='view-block' style='display:$display'>")
-        renderReportsView(sb, data, defaultAllTogether)
-        sb.append("</div>")
-    }
-    if (summaries.isNotEmpty()) {
-        val display = if (firstViewId == "summaries") "block" else "none"
-        sb.append("<div id='view-summaries' class='view-block' style='display:$display'>")
-        renderMetaItemsView(sb, "summaries", summaries, maxAnchor)
-        sb.append("</div>")
-    }
-    if (compares.isNotEmpty()) {
-        val display = if (firstViewId == "compares") "block" else "none"
-        sb.append("<div id='view-compares' class='view-block' style='display:$display'>")
-        renderMetaItemsView(sb, "compares", compares, maxAnchor)
-        sb.append("</div>")
-    }
-    if (reranks.isNotEmpty()) {
-        val display = if (firstViewId == "reranks") "block" else "none"
-        sb.append("<div id='view-reranks' class='view-block' style='display:$display'>")
-        renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor)
-        sb.append("</div>")
-    }
-    if (moderations.isNotEmpty()) {
-        val display = if (firstViewId == "moderations") "block" else "none"
-        sb.append("<div id='view-moderations' class='view-block' style='display:$display'>")
-        renderMetaItemsView(sb, "moderations", moderations, maxAnchor)
-        sb.append("</div>")
-    }
-    if (translations.isNotEmpty()) {
-        val display = if (firstViewId == "translations") "block" else "none"
-        sb.append("<div id='view-translations' class='view-block' style='display:$display'>")
-        renderMetaItemsView(sb, "translations", translations, maxAnchor)
-        sb.append("</div>")
-    }
-    if (hasPrompt) {
-        val display = if (firstViewId == "prompt") "block" else "none"
-        sb.append("<div id='view-prompt' class='view-block' style='display:$display'>")
-        sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
-        sb.append("</div>")
-    }
-    if (hasCosts) {
-        val display = if (firstViewId == "costs") "block" else "none"
-        sb.append("<div id='view-costs' class='view-block' style='display:$display'>")
-        renderCostsView(sb, data)
-        sb.append("</div>")
-    }
-    if (data.traces.isNotEmpty()) {
-        val display = if (firstViewId == "json") "block" else "none"
-        sb.append("<div id='view-json' class='view-block' style='display:$display'>")
-        renderJsonView(sb, data.traces)
+    languages.forEachIndexed { i, lv ->
+        val display = if (i == 0) "block" else "none"
+        sb.append("<div class='lang-block' data-lang='${lv.key}' style='display:$display'>")
+        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"))
         sb.append("</div>")
     }
 
@@ -421,26 +454,94 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     return sb.toString()
 }
 
+/** Emit one language's view-picker + view-blocks. [isOriginal] gates
+ *  the views whose content is shared across languages (Costs, JSON) or
+ *  doesn't have meaningful translations (Reranks, Moderations) — those
+ *  appear only in the Original block. */
+private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOriginal: Boolean) {
+    val data = lv.data
+    val defaultAllTogether = data.reportType == ReportType.TABLE
+    val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
+    val summaries = data.secondary.filter { it.kind == SecondaryKind.SUMMARIZE }
+    val compares = data.secondary.filter { it.kind == SecondaryKind.COMPARE }
+    val moderations = data.secondary.filter { it.kind == SecondaryKind.MODERATION }
+    val hasPrompt = data.prompt.isNotBlank()
+    val hasReports = data.agents.isNotEmpty()
+    val hasAgentCosts = data.agents.any { it.inputTokens != null }
+    val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
+    val hasCosts = isOriginal && (hasAgentCosts || hasSecondaryCosts)
+    val hasJson = isOriginal && data.traces.isNotEmpty()
+    val showReranks = isOriginal && reranks.isNotEmpty()
+    val showModerations = isOriginal && moderations.isNotEmpty()
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+    val agentsByAnchor: Map<Int, String> = data.agents.mapNotNull { a ->
+        a.anchorIndex?.let { it to "${a.providerDisplay} · ${a.model}" }
+    }.toMap()
+
+    data class View(val id: String, val label: String)
+    val views = mutableListOf<View>()
+    if (hasReports) views += View("reports", "Reports")
+    if (summaries.isNotEmpty()) views += View("summaries", "Summaries")
+    if (compares.isNotEmpty()) views += View("compares", "Compares")
+    if (showReranks) views += View("reranks", "Reranks")
+    if (showModerations) views += View("moderations", "Moderations")
+    if (hasPrompt) views += View("prompt", "Prompt")
+    if (hasCosts) views += View("costs", "Costs")
+    if (hasJson) views += View("json", "JSON")
+
+    if (views.isEmpty()) return
+
+    val firstViewId = views.first().id
+
+    sb.append("<div class='view-picker'>")
+    views.forEach { v ->
+        val active = if (v.id == firstViewId) " active" else ""
+        sb.append("<button class='view-btn$active' data-view-id='${v.id}' onclick=\"showView(this,'${v.id}')\">${esc(v.label)}</button>")
+    }
+    sb.append("</div>")
+
+    fun emitBlock(id: String, body: () -> Unit) {
+        val display = if (id == firstViewId) "block" else "none"
+        sb.append("<div class='view-block' data-view-id='$id' style='display:$display'>")
+        body()
+        sb.append("</div>")
+    }
+
+    if (hasReports) emitBlock("reports") { renderReportsView(sb, data, defaultAllTogether, isOriginal) }
+    if (summaries.isNotEmpty()) emitBlock("summaries") { renderMetaItemsView(sb, "summaries", summaries, maxAnchor) }
+    if (compares.isNotEmpty()) emitBlock("compares") { renderMetaItemsView(sb, "compares", compares, maxAnchor) }
+    if (showReranks) emitBlock("reranks") { renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor) }
+    if (showModerations) emitBlock("moderations") { renderMetaItemsView(sb, "moderations", moderations, maxAnchor) }
+    if (hasPrompt) emitBlock("prompt") {
+        sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
+    }
+    if (hasCosts) emitBlock("costs") { renderCostsView(sb, data) }
+    if (hasJson) emitBlock("json") { renderJsonView(sb, data.traces) }
+}
+
 // ===== View Renderers =====
 
 /** Reports view — agents in either One-by-one or All-together layout.
  *  Default layout follows the report's reportType (CLASSIC=oneByOne,
  *  TABLE=allTogether). The sub-toggle is always shown for this view since
- *  even a single agent might benefit from the All-together card layout. */
-private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAllTogether: Boolean) {
+ *  even a single agent might benefit from the All-together card layout.
+ *  [emitAnchors] is true only for the Original language block; rerank
+ *  hyperlinks like `#result-N` jump to the Original's per-agent cards
+ *  and emitting duplicate `id` attributes in translated language blocks
+ *  would shadow the lookup. */
+private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAllTogether: Boolean, emitAnchors: Boolean) {
     sb.append("<div class='layout-toggle'>")
-    sb.append("<button id='layout-btn-reports-oneByOne' class='layout-btn${if (!defaultAllTogether) " active" else ""}' onclick=\"showLayout('reports','oneByOne')\">One by one</button>")
-    sb.append("<button id='layout-btn-reports-allTogether' class='layout-btn${if (defaultAllTogether) " active" else ""}' onclick=\"showLayout('reports','allTogether')\">All together</button>")
+    sb.append("<button class='layout-btn${if (!defaultAllTogether) " active" else ""}' data-layout='oneByOne' onclick=\"showLayout(this,'oneByOne')\">One by one</button>")
+    sb.append("<button class='layout-btn${if (defaultAllTogether) " active" else ""}' data-layout='allTogether' onclick=\"showLayout(this,'allTogether')\">All together</button>")
     sb.append("</div>")
 
-    sb.append("<div id='layout-reports-oneByOne' class='layout'${if (defaultAllTogether) " style='display:none'" else ""}>")
+    sb.append("<div class='layout' data-layout='oneByOne'${if (defaultAllTogether) " style='display:none'" else ""}>")
     sb.append("<div class='agent-buttons'>")
-    data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' onclick=\"showAgent('${escId(a.agentId)}')\">${esc(a.agentName)}</button>") }
+    data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}' onclick=\"showAgent(this,'${escId(a.agentId)}')\">${esc(a.agentName)}</button>") }
     sb.append("</div>")
     data.agents.forEachIndexed { i, a ->
-        val anchorAttrs = a.anchorIndex?.let { " data-result='$it'" } ?: ""
-        sb.append("<div id='agent-${escId(a.agentId)}' class='agent-result${if (i == 0) " active" else ""}'$anchorAttrs>")
-        a.anchorIndex?.let { sb.append("<a id='result-$it'></a>") }
+        val resultIdAttr = if (emitAnchors) a.anchorIndex?.let { " id='result-$it'" } ?: "" else ""
+        sb.append("<div class='agent-result${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}'$resultIdAttr>")
         sb.append("<div class='agent-header'>${esc(a.providerDisplay)} - ${esc(a.model)}</div>")
         sb.append("<div class='report-content'>")
         if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
@@ -464,12 +565,10 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
     }
     sb.append("</div>")
 
-    sb.append("<div id='layout-reports-allTogether' class='layout'${if (!defaultAllTogether) " style='display:none'" else ""}>")
+    sb.append("<div class='layout' data-layout='allTogether'${if (!defaultAllTogether) " style='display:none'" else ""}>")
     sb.append("<div class='table-grid'>")
     data.agents.forEach { a ->
-        val anchorAttr = a.anchorIndex?.let { " id='card-result-$it'" } ?: ""
-        sb.append("<div class='table-card'$anchorAttr>")
-        a.anchorIndex?.let { sb.append("<a id='all-result-$it'></a>") }
+        sb.append("<div class='table-card'>")
         sb.append("<div class='card-header'>${esc(a.providerDisplay)}</div>")
         sb.append("<div class='card-model'>${esc(a.model)}</div>")
         if (a.errorMessage != null) {
@@ -487,10 +586,11 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
     sb.append("</div>")
 }
 
-/** Meta-items view (Summaries / Compares / Reranks / Moderations /
- *  Translations). Single-item views render the lone item directly with no
- *  sub-toggle. Multi-item views get their own One-by-one / All-together
- *  toggle scoped by [viewId]. */
+/** Meta-items view (Summaries / Compares / Reranks / Moderations).
+ *  Single-item views render the lone item directly with no sub-toggle.
+ *  Multi-item views get their own One-by-one / All-together toggle.
+ *  All scoping is DOM-relative (closest('.view-block')) so multiple
+ *  copies of the same view across language blocks don't collide. */
 private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<HtmlSecondaryData>, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
     if (items.isEmpty()) return
 
@@ -502,19 +602,19 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
     }
 
     sb.append("<div class='layout-toggle'>")
-    sb.append("<button id='layout-btn-${viewId}-oneByOne' class='layout-btn active' onclick=\"showLayout('${viewId}','oneByOne')\">One by one</button>")
-    sb.append("<button id='layout-btn-${viewId}-allTogether' class='layout-btn' onclick=\"showLayout('${viewId}','allTogether')\">All together</button>")
+    sb.append("<button class='layout-btn active' data-layout='oneByOne' onclick=\"showLayout(this,'oneByOne')\">One by one</button>")
+    sb.append("<button class='layout-btn' data-layout='allTogether' onclick=\"showLayout(this,'allTogether')\">All together</button>")
     sb.append("</div>")
 
-    sb.append("<div id='layout-${viewId}-oneByOne' class='layout'>")
+    sb.append("<div class='layout' data-layout='oneByOne'>")
     sb.append("<div class='agent-buttons'>")
     items.forEachIndexed { i, it ->
         val label = "${it.providerDisplay} · ${it.model}"
-        sb.append("<button class='item-btn${if (i == 0) " active" else ""}' data-view='${viewId}' onclick=\"showItem('${viewId}','${escId(it.id)}')\">${esc(label)}</button>")
+        sb.append("<button class='item-btn${if (i == 0) " active" else ""}' data-item='${escId(it.id)}' onclick=\"showItem(this,'${escId(it.id)}')\">${esc(label)}</button>")
     }
     sb.append("</div>")
     items.forEachIndexed { i, it ->
-        sb.append("<div id='item-${viewId}-${escId(it.id)}' class='item-content${if (i == 0) " active" else ""}' data-view='${viewId}'>")
+        sb.append("<div class='item-content${if (i == 0) " active" else ""}' data-item='${escId(it.id)}'>")
         sb.append("<div class='secondary-section'>")
         renderMetaCard(sb, it, maxAnchor, agentsByAnchor)
         sb.append("</div>")
@@ -522,7 +622,7 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
     }
     sb.append("</div>")
 
-    sb.append("<div id='layout-${viewId}-allTogether' class='layout' style='display:none'>")
+    sb.append("<div class='layout' data-layout='allTogether' style='display:none'>")
     sb.append("<div class='secondary-section'>")
     items.forEach { renderMetaCard(sb, it, maxAnchor, agentsByAnchor) }
     sb.append("</div>")
@@ -537,29 +637,6 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
     sb.append("<div class='$headerClass'>${esc(item.providerDisplay)} · ${esc(item.model)} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
     if (item.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(item.errorMessage)}</div>")
-    } else if (item.kind == SecondaryKind.TRANSLATE) {
-        // Translation cards are meta-only — the translated content lives on
-        // the new translated Report's agents/secondaries. Show what was
-        // translated, how long the API call took, and the tokens / cents.
-        sb.append("<div class='secondary-body'>")
-        sb.append("<table class='translate-meta'>")
-        // The agentName is "Translate: <label>" — strip the prefix so the
-        // label reads as a plain "what was translated" value.
-        val what = item.agentName.removePrefix("Translate:").trim().ifBlank { item.agentName }
-        sb.append("<tr><td class='k'>What</td><td>${esc(what)}</td></tr>")
-        item.durationMs?.let {
-            sb.append("<tr><td class='k'>Seconds</td><td class='num'>${"%.1f".format(it / 1000.0)}</td></tr>")
-        }
-        item.inputTokens?.let { sb.append("<tr><td class='k'>Input tokens</td><td class='num'>$it</td></tr>") }
-        item.outputTokens?.let { sb.append("<tr><td class='k'>Output tokens</td><td class='num'>$it</td></tr>") }
-        item.inputCost?.let { sb.append("<tr><td class='k'>Input cents</td><td class='num'>${"%.2f".format(it * 100)}</td></tr>") }
-        item.outputCost?.let { sb.append("<tr><td class='k'>Output cents</td><td class='num'>${"%.2f".format(it * 100)}</td></tr>") }
-        if (item.inputCost != null || item.outputCost != null) {
-            val total = (item.inputCost ?: 0.0) + (item.outputCost ?: 0.0)
-            sb.append("<tr><td class='k'>Total cents</td><td class='num'>${"%.2f".format(total * 100)}</td></tr>")
-        }
-        sb.append("</table>")
-        sb.append("</div>")
     } else if (!item.content.isNullOrBlank()) {
         when (item.kind) {
             SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor, agentsByAnchor)}</div>")
@@ -799,6 +876,11 @@ private fun htmlHead(title: String) = """<!DOCTYPE html><html><head><meta charse
 body{background:#1a1a1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:16px}
 .container{max-width:800px;margin:0 auto}
 h1{color:#fff;font-size:24px;margin-bottom:16px}
+.lang-picker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #333}
+.lang-btn{background:transparent;color:#A5D6A7;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
+.lang-btn.active{background:#A5D6A7;color:#1a1a1a;border-color:#A5D6A7}
+.lang-native{color:#888;font-weight:normal;font-size:11px;margin-left:4px}
+.lang-btn.active .lang-native{color:#1a1a1a}
 .view-picker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .view-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
 .view-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
@@ -888,10 +970,11 @@ ul{padding-left:20px}li{margin:4px 0}
 
 private fun htmlScript() = """
 <script>
-function showView(name){document.querySelectorAll('.view-block').forEach(e=>e.style.display='none');document.querySelectorAll('.view-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('view-'+name);var btn=document.getElementById('view-btn-'+name);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
-function showLayout(view,mode){var a=document.getElementById('layout-'+view+'-oneByOne');var b=document.getElementById('layout-'+view+'-allTogether');var ba=document.getElementById('layout-btn-'+view+'-oneByOne');var bb=document.getElementById('layout-btn-'+view+'-allTogether');if(mode==='oneByOne'){if(a)a.style.display='block';if(b)b.style.display='none';if(ba)ba.classList.add('active');if(bb)bb.classList.remove('active')}else{if(a)a.style.display='none';if(b)b.style.display='block';if(ba)ba.classList.remove('active');if(bb)bb.classList.add('active')}}
-function showAgent(id){document.querySelectorAll('.agent-result').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.agent-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('agent-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
-function showItem(view,id){document.querySelectorAll('.item-content[data-view="'+view+'"]').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.item-btn[data-view="'+view+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('item-'+view+'-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
+function showLanguage(btn,key){document.querySelectorAll('.lang-block').forEach(function(e){e.style.display=(e.getAttribute('data-lang')===key)?'block':'none';});document.querySelectorAll('.lang-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
+function showView(btn,id){var scope=btn.closest('.lang-block')||document;scope.querySelectorAll(':scope > .view-block').forEach(function(e){e.style.display='none';});scope.querySelectorAll(':scope > .view-picker .view-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector(':scope > .view-block[data-view-id="'+id+'"]');if(el)el.style.display='block';btn.classList.add('active');}
+function showLayout(btn,mode){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll(':scope > .layout').forEach(function(l){l.style.display=(l.getAttribute('data-layout')===mode)?'block':'none';});scope.querySelectorAll(':scope > .layout-toggle .layout-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
+function showAgent(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.agent-result').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.agent-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.agent-result[data-agent="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
+function showItem(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.item-content').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.item-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.item-content[data-item="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
 function showCat(cid){document.querySelectorAll('.cat-block').forEach(e=>e.style.display='none');document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('cat-'+cid);var btn=document.getElementById('cat-btn-'+cid);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
 function showTrace(cid,id){document.querySelectorAll('.trace-pane[data-cat="'+cid+'"]').forEach(e=>e.style.display='none');document.querySelectorAll('.trace-btn[data-cat="'+cid+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('trace-'+id);var btn=document.getElementById('trace-btn-'+id);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
 function showTracePart(traceId,part){document.querySelectorAll('.trace-part[data-trace="'+traceId+'"]').forEach(e=>e.classList.remove('trace-part-active'));document.querySelectorAll('.trace-part-btn[data-trace="'+traceId+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('part-'+traceId+'-'+part);var btn=document.getElementById('part-btn-'+traceId+'-'+part);if(el)el.classList.add('trace-part-active');if(btn)btn.classList.add('active')}

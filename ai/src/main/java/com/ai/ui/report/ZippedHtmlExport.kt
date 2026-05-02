@@ -19,105 +19,102 @@ import java.util.zip.ZipOutputStream
 
 /**
  * "Zipped HTML" export — bundles every section of the Complete report
- * into its own .html file inside a directory tree that mirrors the
- * Medium HTML's view picker. The user gets a navigable mini-site:
- * top-level index links to each section's index, which links to each
- * item's own page; traces drill down one extra level to a per-trace
- * directory whose four files (request_headers, request_body,
- * response_headers, response_body) are the redacted parts of that
- * single API call.
+ * into its own .html file inside a directory tree, one directory per
+ * language. The user gets a navigable mini-site: a zip-root index
+ * lists each language; each language directory has Reports / Summaries
+ * / Compares / Prompt; the Original directory additionally has
+ * Reranks / Moderations / Costs / JSON traces (those don't translate).
  *
  * Tree:
  *
- *   index.html
+ *   index.html         — zip-root: links to each language directory
  *   style.css
- *   Reports/
- *     index.html
- *     <01_provider_model>.html ...
- *   Summaries/
- *     index.html
- *     <01_provider_model>.html ...
- *   Compares/, Reranks/, Moderations/, Translations/  (same shape)
- *   Prompt/
- *     index.html
- *   Costs/
- *     index.html
- *   JSON/
- *     index.html
- *     <category>/
+ *   original/
+ *     index.html       — language root: links to sections below
+ *     Reports/         — every successful agent's response page
  *       index.html
- *       <01_method_host_status>/
- *         index.html
- *         request_headers.html
- *         request_body.html
- *         response_headers.html
- *         response_body.html
- *
- * Source-report traces (translated reports) live under JSON/source/
- * mirroring the same per-category / per-trace structure.
+ *       <01_provider_model>.html ...
+ *     Summaries/, Compares/  (translatable meta-kinds — same shape)
+ *     Reranks/, Moderations/ (Original only — structured JSON, not
+ *                             translated)
+ *     Prompt/
+ *       index.html
+ *     Costs/           — Original only; sums all calls including
+ *                        translation API calls
+ *       index.html
+ *     JSON/            — Original only; the captured API traces
+ *       index.html
+ *       <category>/
+ *         <01_method_host_status>/
+ *           index.html
+ *           request_headers.html  request_body.html
+ *           response_headers.html response_body.html
+ *   dutch/             — translated language directory
+ *     index.html
+ *     Reports/         — translated agent responses
+ *     Summaries/, Compares/, Prompt/
+ *   german/, …
  */
 internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
     val data = buildHtmlReportData(context, report)
-    // Each report's traces live alongside its other HTML sections —
-    // /JSON/ for the main report, /Source/JSON/ for the source side
-    // of a translated report. Each side's traceIndex covers (a) its
-    // own traces under that side's JSON tree, and (b) — for the main
-    // side — the source's traces too (under /Source/JSON/), so an
-    // agent page on the main side can still drop a 🐞 link to the
-    // source-inherited trace that produced its response.
-    val sourceData = report.sourceReportId?.let { sid ->
-        ReportStorage.getReport(context, sid)?.let { buildHtmlReportData(context, it) }
-    }
-    val mainOwnTraces = traceLocsForOwn(data, jsonRoot = "JSON/")
-    val sourceOwnTraces = sourceData?.let { traceLocsForOwn(it, jsonRoot = "Source/JSON/") }.orEmpty()
-    val mainTraceIndex = mainOwnTraces + sourceOwnTraces
-    val sourceTraceIndex = sourceOwnTraces
-    // Reverse index — lets every trace's per-trace index page link back
-    // to the report/secondary page that was built from it (the inverse
-    // of the 🐞 ladybug link from agent → trace).
-    val mainReportIndex = buildReportIndex(data, basePath = "", origin = "this")
-    val sourceReportIndex = sourceData?.let { buildReportIndex(it, basePath = "Source/", origin = "source") } ?: emptyList()
-    val combinedReportIndex = mainReportIndex + sourceReportIndex
+    val languages = buildLanguageViews(data)
+    val originalView = languages.first()
+    // Trace + report indexes are built off the Original view only —
+    // translations don't add new traces beyond those tagged with the
+    // source report's id (which already live in originalView.data).
+    val originalTraces = traceLocsForOwn(originalView.data, jsonRoot = "original/JSON/")
+    val originalReportIndex = buildReportIndex(originalView.data, basePath = "original/", origin = "this")
     val baos = ByteArrayOutputStream()
     ZipOutputStream(baos.buffered()).use { zos ->
         emit(zos, "style.css", sharedCss())
-        emitReportSections(zos, data, mainTraceIndex, basePath = "", isMain = true, sourceData = sourceData, reportIndex = combinedReportIndex)
-        if (sourceData != null) {
-            emitReportSections(zos, sourceData, sourceTraceIndex, basePath = "Source/", isMain = false, sourceData = null, reportIndex = combinedReportIndex)
+        emit(zos, "index.html", zipRootIndex(data, languages))
+        languages.forEach { lv ->
+            val isOriginal = (lv.key == "original")
+            emitLanguageSections(
+                zos = zos,
+                data = lv.data,
+                lv = lv,
+                traceIndex = if (isOriginal) originalTraces else emptyList(),
+                reportIndex = if (isOriginal) originalReportIndex else emptyList(),
+                basePath = "${lv.key}/",
+                isOriginal = isOriginal
+            )
         }
     }
     return baos.toByteArray()
 }
 
-/** Emit every section file for a single report at the given [basePath]
- *  prefix. [isMain] gates two things: only the main report owns the
- *  Translations and JSON sections (source's traces are reachable
- *  through the main JSON tree under JSON/source/). [sourceData] is
- *  threaded into the Translations renderer so each translation entry
- *  can link to its matching page under Source/. */
-private fun emitReportSections(
+/** Emit every section file for one language at the given [basePath]
+ *  prefix. [isOriginal] gates Reranks / Moderations / Costs / JSON —
+ *  those are emitted only inside `original/` since they don't have
+ *  meaningful per-language variants (rerank/moderation are structured
+ *  JSON; costs and traces are global to the report). */
+private fun emitLanguageSections(
     zos: ZipOutputStream,
     data: HtmlReportData,
+    lv: HtmlLanguageView,
     traceIndex: List<TraceLoc>,
+    reportIndex: List<ReportLoc>,
     basePath: String,
-    isMain: Boolean,
-    sourceData: HtmlReportData?,
-    reportIndex: List<ReportLoc>
+    isOriginal: Boolean
 ) {
-    emit(zos, "${basePath}index.html", rootIndex(data, basePath, hasSource = isMain && sourceData != null))
+    emit(zos, "${basePath}index.html", languageIndex(data, lv, basePath, isOriginal))
 
-    if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex, basePath)
-    emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries", traceIndex, basePath)
-    emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares", traceIndex, basePath)
-    emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex, basePath)
-    emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex, basePath)
-    if (isMain) emitTranslations(zos, data, sourceData, traceIndex)
-    if (data.prompt.isNotBlank()) emitPrompt(zos, data, basePath)
-    if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
-        emitCosts(zos, data, basePath)
+    if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex, basePath, lv.displayName)
+    emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries", traceIndex, basePath, lv.displayName)
+    emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares", traceIndex, basePath, lv.displayName)
+    if (isOriginal) {
+        emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex, basePath, lv.displayName)
+        emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex, basePath, lv.displayName)
     }
-    if (data.traces.any { it.origin == "this" }) {
-        emitTraces(zos, data, reportIndex, basePath, hasSourceJson = isMain && sourceData != null)
+    if (data.prompt.isNotBlank()) emitPrompt(zos, data, basePath, lv.displayName)
+    if (isOriginal) {
+        if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
+            emitCosts(zos, data, basePath, lv.displayName)
+        }
+        if (data.traces.any { it.origin == "this" }) {
+            emitTraces(zos, data, reportIndex, basePath, lv.displayName)
+        }
     }
 }
 
@@ -217,16 +214,6 @@ private fun buildReportIndex(data: HtmlReportData, basePath: String, origin: Str
             out += ReportLoc(s.providerDisplay, s.model, traceCategory, "${basePath}$sectionLabel/$filename", origin)
         }
     }
-    // Translations live on the main report only (basePath="") and have
-    // their own per-translation page emitted by emitTranslations.
-    if (basePath.isEmpty()) {
-        val translations = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
-        translations.forEachIndexed { idx, s ->
-            val what = s.agentName.removePrefix("Translate:").trim().ifBlank { s.agentName }
-            val filename = itemFilename(idx, what)
-            out += ReportLoc(s.providerDisplay, s.model, "Report translate", "Translations/$filename", origin)
-        }
-    }
     return out
 }
 
@@ -250,41 +237,44 @@ private fun reportLink(loc: ReportLoc?, pageDepth: Int): String {
     return "<a class='bug' href='${esc(rel)}' title='View report page built from this call'>📄</a>"
 }
 
-// ===== Sections present (used by the root index to list links) =====
+// ===== Sections present in one language directory =====
 
-private fun rootSections(data: HtmlReportData): List<Pair<String, String>> {
+private fun languageSections(data: HtmlReportData, isOriginal: Boolean): List<Pair<String, String>> {
     val out = mutableListOf<Pair<String, String>>()
     if (data.prompt.isNotBlank()) out += "Prompt" to "Prompt/"
-    if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) out += "Costs" to "Costs/"
+    if (isOriginal && (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null })) {
+        out += "Costs" to "Costs/"
+    }
     if (data.agents.isNotEmpty()) out += "Reports" to "Reports/"
     val byKind: (SecondaryKind, String) -> Unit = { kind, label ->
         if (data.secondary.any { it.kind == kind }) out += label to "$label/"
     }
     byKind(SecondaryKind.SUMMARIZE, "Summaries")
     byKind(SecondaryKind.COMPARE, "Compares")
-    byKind(SecondaryKind.RERANK, "Reranks")
-    byKind(SecondaryKind.MODERATION, "Moderations")
-    if (data.secondary.any { it.kind == SecondaryKind.TRANSLATE }) out += "Translations" to "Translations/"
-    if (data.traces.isNotEmpty()) out += "JSON" to "JSON/"
+    if (isOriginal) {
+        byKind(SecondaryKind.RERANK, "Reranks")
+        byKind(SecondaryKind.MODERATION, "Moderations")
+        if (data.traces.isNotEmpty()) out += "JSON" to "JSON/"
+    }
     return out
 }
 
-// ===== Root index =====
+// ===== Indexes =====
 
-private fun rootIndex(data: HtmlReportData, basePath: String, hasSource: Boolean): String {
+/** Zip-root index page — lists each language directory and links into
+ *  it. With no translations there's still a single "Original" entry. */
+private fun zipRootIndex(data: HtmlReportData, languages: List<HtmlLanguageView>): String {
     val sb = StringBuilder()
-    sb.append(htmlHead(title = data.title.ifBlank { "AI Report" }, depth = 0, basePath = basePath))
-    sb.append("<nav>").append("<a href='index.html'>${esc(data.title.ifBlank { "AI Report" })}</a>").append("</nav>")
+    sb.append(htmlHead(title = data.title.ifBlank { "AI Report" }, depth = 0))
+    sb.append("<nav>").append("<span class='here'>${esc(data.title.ifBlank { "AI Report" })}</span>").append("</nav>")
     sb.append("<main>")
     sb.append("<h1>").append(esc(data.title.ifBlank { "AI Report" })).append("</h1>")
     sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
     if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
-    sb.append("<h2>Sections</h2><ul class='section-list'>")
-    rootSections(data).forEach { (label, href) ->
-        sb.append("<li><a href='${esc(href)}index.html'>").append(esc(label)).append("</a></li>")
-    }
-    if (hasSource) {
-        sb.append("<li><a href='Source/index.html'>Source <span class='count'>(original report)</span></a></li>")
+    sb.append("<h2>Languages</h2><ul class='section-list'>")
+    languages.forEach { lv ->
+        val native = lv.nativeName?.let { " <span class='count'>${esc(it)}</span>" } ?: ""
+        sb.append("<li><a href='${esc(lv.key)}/index.html'>").append(esc(lv.displayName)).append(native).append("</a></li>")
     }
     sb.append("</ul>")
     if (!data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(data.closeText)}</div>")
@@ -292,9 +282,33 @@ private fun rootIndex(data: HtmlReportData, basePath: String, hasSource: Boolean
     return sb.toString()
 }
 
+/** Per-language index page — lists the sections inside this language's
+ *  directory. Sits at `<langKey>/index.html`. Links upward to the zip
+ *  root via "../index.html". */
+private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: String, isOriginal: Boolean): String {
+    val sb = StringBuilder()
+    sb.append(htmlHead(title = "${lv.displayName} - ${data.title}", depth = 0, basePath = basePath))
+    // Two-step breadcrumb back up to the zip root.
+    sb.append("<nav>")
+        .append("<a href='../index.html'>${esc(data.title.ifBlank { "AI Report" })}</a>")
+        .append(" <span class='sep'>›</span> ")
+        .append("<span class='here'>${esc(lv.displayName)}</span>")
+        .append("</nav>")
+    sb.append("<main>")
+    sb.append("<h1>").append(esc(lv.displayName))
+    if (lv.nativeName != null) sb.append(" <span class='count'>").append(esc(lv.nativeName)).append("</span>")
+    sb.append("</h1>")
+    sb.append("<h2>Sections</h2><ul class='section-list'>")
+    languageSections(data, isOriginal).forEach { (label, href) ->
+        sb.append("<li><a href='${esc(href)}index.html'>").append(esc(label)).append("</a></li>")
+    }
+    sb.append("</ul></main></body></html>")
+    return sb.toString()
+}
+
 // ===== Reports section =====
 
-private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: List<TraceLoc>, basePath: String = "") {
+private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: List<TraceLoc>, basePath: String, langDisplay: String?) {
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
     val items = data.agents.mapIndexed { idx, a ->
         Triple(itemFilename(idx, "${a.providerDisplay}_${a.model}"), a.providerDisplay + " / " + a.model, a)
@@ -302,7 +316,7 @@ private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: 
     // Section index
     val sb = StringBuilder()
     sb.append(htmlHead("Reports - ${data.title}", depth = 1, basePath = basePath))
-    sb.append(breadcrumb(1, listOf("Reports" to null), data))
+    sb.append(breadcrumb(1, listOf("Reports" to null), data, langDisplay))
     sb.append("<main><h1>Reports</h1><ul class='item-list'>")
     items.forEach { (filename, label, _) ->
         sb.append("<li><a href='${esc(filename)}'>").append(esc(label)).append("</a></li>")
@@ -311,14 +325,14 @@ private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: 
     emit(zos, "${basePath}Reports/index.html", sb.toString())
     // Per-agent files
     items.forEach { (filename, label, a) ->
-        emit(zos, "${basePath}Reports/$filename", reportPage(label, a, data, maxAnchor, traceIndex, basePath))
+        emit(zos, "${basePath}Reports/$filename", reportPage(label, a, data, maxAnchor, traceIndex, basePath, langDisplay))
     }
 }
 
-private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, basePath: String): String {
+private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, basePath: String, langDisplay: String?): String {
     val sb = StringBuilder()
     sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
-    sb.append(breadcrumb(1, listOf("Reports" to "index.html", label to null), data))
+    sb.append(breadcrumb(1, listOf("Reports" to "index.html", label to null), data, langDisplay))
     sb.append("<main>")
     // Match by (provider displayName, model) and the "Report" category
     // — that's the per-agent run on the original report. For
@@ -358,7 +372,7 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
 
 // ===== Secondary (Summaries / Compares / Reranks / Moderations) =====
 
-private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String, traceIndex: List<TraceLoc>, basePath: String = "") {
+private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String, traceIndex: List<TraceLoc>, basePath: String, langDisplay: String?) {
     val items = data.secondary.filter { it.kind == kind }
     if (items.isEmpty()) return
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
@@ -368,7 +382,7 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
     // Section index
     val sb = StringBuilder()
     sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
-    sb.append(breadcrumb(1, listOf(label to null), data))
+    sb.append(breadcrumb(1, listOf(label to null), data, langDisplay))
     sb.append("<main><h1>").append(esc(label)).append("</h1><ul class='item-list'>")
     withFiles.forEach { (filename, itemLabel, s) ->
         sb.append("<li><a href='${esc(filename)}'>").append(esc(itemLabel))
@@ -385,14 +399,14 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
         SecondaryKind.TRANSLATE -> "Report translate"
     }
     withFiles.forEach { (filename, itemLabel, s) ->
-        emit(zos, "${basePath}$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath))
+        emit(zos, "${basePath}$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath, langDisplay))
     }
 }
 
-private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, traceCategory: String, basePath: String): String {
+private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, traceCategory: String, basePath: String, langDisplay: String?): String {
     val sb = StringBuilder()
     sb.append(htmlHead("$itemLabel - ${data.title}", depth = 1, basePath = basePath))
-    sb.append(breadcrumb(1, listOf(section to "index.html", itemLabel to null), data))
+    sb.append(breadcrumb(1, listOf(section to "index.html", itemLabel to null), data, langDisplay))
     sb.append("<main>")
     val match = traceIndex.findMatch(s.providerDisplay, s.model, traceCategory)
     sb.append("<h1>").append(esc(itemLabel)).append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
@@ -421,147 +435,22 @@ private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryDa
     return sb.toString()
 }
 
-// ===== Translations (meta-only — no translated content) =====
-
-private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData, sourceData: HtmlReportData?, traceIndex: List<TraceLoc>) {
-    val items = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
-    if (items.isEmpty()) return
-    val withFiles = items.mapIndexed { idx, s ->
-        val what = s.agentName.removePrefix("Translate:").trim().ifBlank { s.agentName }
-        Triple(itemFilename(idx, what), what, s)
-    }
-    val sb = StringBuilder()
-    sb.append(htmlHead("Translations - ${data.title}", depth = 1))
-    sb.append(breadcrumb(1, listOf("Translations" to null), data))
-    sb.append("<main><h1>Translations</h1><ul class='item-list'>")
-    withFiles.forEach { (filename, what, _) ->
-        sb.append("<li><a href='${esc(filename)}'>").append(esc(what)).append("</a></li>")
-    }
-    sb.append("</ul></main></body></html>")
-    emit(zos, "Translations/index.html", sb.toString())
-    withFiles.forEach { (filename, what, s) ->
-        val pageSb = StringBuilder()
-        pageSb.append(htmlHead("Translation: $what - ${data.title}", depth = 1))
-        pageSb.append(breadcrumb(1, listOf("Translations" to "index.html", what to null), data))
-        pageSb.append("<main>")
-        val traceMatch = traceIndex.findMatch(s.providerDisplay, s.model, "Report translate")
-        pageSb.append("<h1>Translation: ").append(esc(what)).append(bugLink(traceMatch, pageDepth = 1)).append("</h1>")
-        // Two cross-tree links: "Original" → matching page under
-        // Source/, "Result" → matching page in the current report.
-        // Resolved via translateSourceKind / translateSourceTargetId
-        // (set when the translation flow created the SecondaryResult)
-        // and translatedFromSecondaryId (stamped on the translated
-        // copies of Summary/Compare secondaries).
-        val (sourceLink, resultLink) = resolveTranslationLinks(s, data, sourceData)
-        if (sourceLink != null || resultLink != null) {
-            pageSb.append("<div class='translate-links'>")
-            if (sourceLink != null) {
-                pageSb.append("<a class='cross-link' href='${esc(sourceLink)}'>📜 Original (Source)</a>")
-            }
-            if (resultLink != null) {
-                pageSb.append("<a class='cross-link' href='${esc(resultLink)}'>🌐 Result</a>")
-            }
-            pageSb.append("</div>")
-        }
-        pageSb.append("<table class='kv'>")
-        pageSb.append("<tr><th>What</th><td>").append(esc(what)).append("</td></tr>")
-        pageSb.append("<tr><th>Provider / Model</th><td>").append(esc(s.providerDisplay)).append(" / ").append(esc(s.model)).append("</td></tr>")
-        pageSb.append("<tr><th>Timestamp</th><td>").append(esc(s.timestamp)).append("</td></tr>")
-        s.durationMs?.let { pageSb.append("<tr><th>Seconds</th><td class='num'>").append("%.1f".format(it / 1000.0)).append("</td></tr>") }
-        s.inputTokens?.let { pageSb.append("<tr><th>Input tokens</th><td class='num'>").append(it).append("</td></tr>") }
-        s.outputTokens?.let { pageSb.append("<tr><th>Output tokens</th><td class='num'>").append(it).append("</td></tr>") }
-        s.inputCost?.let { pageSb.append("<tr><th>Input cents</th><td class='num'>").append("%.2f".format(it * 100)).append("</td></tr>") }
-        s.outputCost?.let { pageSb.append("<tr><th>Output cents</th><td class='num'>").append("%.2f".format(it * 100)).append("</td></tr>") }
-        if (s.inputCost != null || s.outputCost != null) {
-            val total = (s.inputCost ?: 0.0) + (s.outputCost ?: 0.0)
-            pageSb.append("<tr><th>Total cents</th><td class='num'>").append("%.2f".format(total * 100)).append("</td></tr>")
-        }
-        pageSb.append("</table>")
-        pageSb.append("</main></body></html>")
-        emit(zos, "Translations/$filename", pageSb.toString())
-    }
-}
-
-/** Resolve a translation entry to its (Original under Source/, Result
- *  in the current report) link pair. Each is relative to the
- *  Translations/ directory (so "../Source/Reports/01_X.html" reaches
- *  Source/Reports/01_X.html). Either side returns null when the
- *  matching page can't be found — typically because the translation
- *  metadata is from before the link fields existed on SecondaryResult,
- *  or because the source report could not be loaded. */
-internal fun resolveTranslationLinks(
-    translate: HtmlSecondaryData,
-    currentData: HtmlReportData,
-    sourceData: HtmlReportData?
-): Pair<String?, String?> {
-    val kind = translate.translateSourceKind ?: return null to null
-    val targetId = translate.translateSourceTargetId ?: ""
-
-    // Helper: agent file name in a given report (matches itemFilename's
-    // index-based naming used by emitReports).
-    fun agentFileFor(d: HtmlReportData?, agentId: String): String? {
-        if (d == null) return null
-        val idx = d.agents.indexOfFirst { it.agentId == agentId }.takeIf { it >= 0 } ?: return null
-        val a = d.agents[idx]
-        return itemFilename(idx, "${a.providerDisplay}_${a.model}")
-    }
-    // Helper: secondary file name in a given report keyed by its id.
-    fun secondaryFileFor(d: HtmlReportData?, secId: String, kindFilter: SecondaryKind): String? {
-        if (d == null) return null
-        val list = d.secondary.filter { it.kind == kindFilter }
-        val idx = list.indexOfFirst { it.id == secId }.takeIf { it >= 0 } ?: return null
-        val s = list[idx]
-        return itemFilename(idx, "${s.providerDisplay}_${s.model}")
-    }
-
-    return when (kind) {
-        "PROMPT" -> {
-            val src = if (sourceData != null) "../Source/Prompt/index.html" else null
-            val res = "../Prompt/index.html"
-            src to res
-        }
-        "AGENT" -> {
-            val src = agentFileFor(sourceData, targetId)?.let { "../Source/Reports/$it" }
-            // The translated report keeps source's agentId, so look up
-            // by the same id on the current report.
-            val res = agentFileFor(currentData, targetId)?.let { "../Reports/$it" }
-            src to res
-        }
-        "SUMMARY", "COMPARE" -> {
-            val sectionDir = if (kind == "SUMMARY") "Summaries" else "Compares"
-            val secKind = if (kind == "SUMMARY") SecondaryKind.SUMMARIZE else SecondaryKind.COMPARE
-            val src = secondaryFileFor(sourceData, targetId, secKind)?.let { "../Source/$sectionDir/$it" }
-            // The translated copy preserves translatedFromSecondaryId,
-            // pointing at the source's id we just used as the lookup
-            // key. Find the translated entry by that back-reference.
-            val translatedList = currentData.secondary.filter { it.kind == secKind }
-            val translatedIdx = translatedList.indexOfFirst { it.translatedFromSecondaryId == targetId }
-            val res = if (translatedIdx >= 0) {
-                val t = translatedList[translatedIdx]
-                "../$sectionDir/" + itemFilename(translatedIdx, "${t.providerDisplay}_${t.model}")
-            } else null
-            src to res
-        }
-        else -> null to null
-    }
-}
-
 // ===== Prompt =====
 
-private fun emitPrompt(zos: ZipOutputStream, data: HtmlReportData, basePath: String = "") {
+private fun emitPrompt(zos: ZipOutputStream, data: HtmlReportData, basePath: String, langDisplay: String?) {
     val sb = StringBuilder()
     sb.append(htmlHead("Prompt - ${data.title}", depth = 1, basePath = basePath))
-    sb.append(breadcrumb(1, listOf("Prompt" to null), data))
+    sb.append(breadcrumb(1, listOf("Prompt" to null), data, langDisplay))
     sb.append("<main><h1>Prompt</h1><pre class='prompt'>").append(esc(data.prompt)).append("</pre></main></body></html>")
     emit(zos, "${basePath}Prompt/index.html", sb.toString())
 }
 
 // ===== Costs =====
 
-private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: String = "") {
+private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: String, langDisplay: String?) {
     val sb = StringBuilder()
     sb.append(htmlHead("Costs - ${data.title}", depth = 1, basePath = basePath))
-    sb.append(breadcrumb(1, listOf("Costs" to null), data))
+    sb.append(breadcrumb(1, listOf("Costs" to null), data, langDisplay))
     sb.append("<main><h1>Costs</h1>")
     // Scroll container so the wide nowrap table can overflow horizontally
     // on narrow viewports without forcing the whole page to scroll.
@@ -660,21 +549,17 @@ private fun costSortScript(): String = """
 
 // ===== Traces =====
 
-/** Emit the JSON/ tree for one report side. Both the main report and
- *  the source report (when present) get their own JSON/ section
- *  under /JSON/ and /Source/JSON/ respectively. [basePath] is "" for
- *  main or "Source/" for source. [hasSourceJson] adds a link from the
- *  main JSON index across to /Source/JSON/ for navigability. */
-private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData, reportIndex: List<ReportLoc>, basePath: String, hasSourceJson: Boolean) {
+/** Emit the JSON/ tree under one language directory. Only Original
+ *  gets a JSON tree — translation API calls land on the source report
+ *  id so they're already in the same trace set as the originals. */
+private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData, reportIndex: List<ReportLoc>, basePath: String, langDisplay: String?) {
     val ownTraces = data.traces.filter { it.origin == "this" }
     val ownGroups = ownTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
     val ownKeys = ownGroups.keys.sortedWith(compareBy({ it == "Other" }, { it.lowercase() }))
 
-    // JSON/index.html (or Source/JSON/index.html) — list of categories.
     val sb = StringBuilder()
-    val depth = 1 + basePath.count { it == '/' }
     sb.append(htmlHead("JSON traces - ${data.title}", depth = 1, basePath = basePath))
-    sb.append(breadcrumb(depth, listOf("JSON" to null), data))
+    sb.append(breadcrumb(1, listOf("JSON" to null), data, langDisplay))
     sb.append("<main><h1>JSON traces</h1>")
     if (ownKeys.isNotEmpty()) {
         sb.append("<h2>Categories</h2><ul class='item-list'>")
@@ -682,28 +567,23 @@ private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData, reportIndex: 
             .append(esc(k)).append(" <span class='count'>(").append(ownGroups[k]!!.size).append(")</span></a></li>") }
         sb.append("</ul>")
     }
-    // Cross-link from main JSON to source JSON tree (translated reports
-    // mirror the full traces under /Source/JSON/ alongside the source
-    // report's other HTML pages).
-    if (hasSourceJson) {
-        sb.append("<h2>Source report</h2><ul class='item-list'>")
-        sb.append("<li><a href='../Source/JSON/index.html'>Source/JSON/</a></li>")
-        sb.append("</ul>")
-    }
     sb.append("</main></body></html>")
     emit(zos, "${basePath}JSON/index.html", sb.toString())
 
     // Own categories
     ownKeys.forEach { cat -> emitTraceCategory(zos, "${basePath}JSON/${safeName(cat)}", data, cat, ownGroups[cat]!!,
-        depth = depth + 1,
-        crumbs = listOf("JSON" to "../index.html", cat to null), reportIndex = reportIndex) }
+        depth = 2,
+        basePath = basePath,
+        crumbs = listOf("JSON" to "../index.html", cat to null),
+        reportIndex = reportIndex,
+        langDisplay = langDisplay) }
 }
 
-private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlReportData, category: String, traces: List<HtmlTraceData>, depth: Int, crumbs: List<Pair<String, String?>>, reportIndex: List<ReportLoc>) {
+private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlReportData, category: String, traces: List<HtmlTraceData>, depth: Int, basePath: String, crumbs: List<Pair<String, String?>>, reportIndex: List<ReportLoc>, langDisplay: String?) {
     // Category index — list of traces.
     val sb = StringBuilder()
-    sb.append(htmlHead("$category - ${data.title}", depth))
-    sb.append(breadcrumb(depth, crumbs, data))
+    sb.append(htmlHead("$category - ${data.title}", depth = depth, basePath = basePath))
+    sb.append(breadcrumb(depth, crumbs, data, langDisplay))
     sb.append("<main><h1>").append(esc(category)).append("</h1><ul class='trace-list'>")
     traces.forEachIndexed { idx, t ->
         val dir = traceDirName(idx, t)
@@ -727,9 +607,9 @@ private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlR
         // exists).
         val reportMatch = reportIndex.findReportFor(t)
         val tsb = StringBuilder()
-        tsb.append(htmlHead("Trace ${t.method} ${t.hostname} ${t.statusCode} - ${data.title}", depth + 1))
-        tsb.append(breadcrumb(depth + 1, traceCrumbs, data))
-        tsb.append("<main><h1>Trace").append(reportLink(reportMatch, depth + 1)).append("</h1>")
+        tsb.append(htmlHead("Trace ${t.method} ${t.hostname} ${t.statusCode} - ${data.title}", depth = depth + 1, basePath = basePath))
+        tsb.append(breadcrumb(depth + 1, traceCrumbs, data, langDisplay))
+        tsb.append("<main><h1>Trace").append(reportLink(reportMatch, depth + 1 + basePath.count { it == '/' })).append("</h1>")
         tsb.append("<table class='kv'>")
         tsb.append("<tr><th>Timestamp</th><td>").append(esc(t.timestamp)).append("</td></tr>")
         tsb.append("<tr><th>Method</th><td>").append(esc(t.method)).append("</td></tr>")
@@ -749,21 +629,21 @@ private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlR
         tsb.append("</main></body></html>")
         emit(zos, "$dirPath/$dir/index.html", tsb.toString())
         // 4 part files
-        emit(zos, "$dirPath/$dir/request_headers.html", tracePartPage(data, t, "Request headers", t.requestHeaders, depth + 1, traceCrumbs))
-        emit(zos, "$dirPath/$dir/request_body.html", tracePartPage(data, t, "Request body", t.requestBody, depth + 1, traceCrumbs))
-        emit(zos, "$dirPath/$dir/response_headers.html", tracePartPage(data, t, "Response headers", t.responseHeaders, depth + 1, traceCrumbs))
-        emit(zos, "$dirPath/$dir/response_body.html", tracePartPage(data, t, "Response body", t.responseBody, depth + 1, traceCrumbs))
+        emit(zos, "$dirPath/$dir/request_headers.html", tracePartPage(data, t, "Request headers", t.requestHeaders, depth + 1, basePath, traceCrumbs, langDisplay))
+        emit(zos, "$dirPath/$dir/request_body.html", tracePartPage(data, t, "Request body", t.requestBody, depth + 1, basePath, traceCrumbs, langDisplay))
+        emit(zos, "$dirPath/$dir/response_headers.html", tracePartPage(data, t, "Response headers", t.responseHeaders, depth + 1, basePath, traceCrumbs, langDisplay))
+        emit(zos, "$dirPath/$dir/response_body.html", tracePartPage(data, t, "Response body", t.responseBody, depth + 1, basePath, traceCrumbs, langDisplay))
     }
 }
 
-private fun tracePartPage(data: HtmlReportData, t: HtmlTraceData, partLabel: String, body: String, depth: Int, crumbs: List<Pair<String, String?>>): String {
+private fun tracePartPage(data: HtmlReportData, t: HtmlTraceData, partLabel: String, body: String, depth: Int, basePath: String, crumbs: List<Pair<String, String?>>, langDisplay: String?): String {
     // Replace the trailing "Trace" crumb with a link to the trace's
     // index so the part page can navigate up one step to the trace's
     // overview and then onwards.
     val partCrumbs = crumbs.dropLast(1) + ("Trace" to "index.html") + (partLabel to null)
     val sb = StringBuilder()
-    sb.append(htmlHead("$partLabel - ${t.method} ${t.hostname} - ${data.title}", depth))
-    sb.append(breadcrumb(depth, partCrumbs, data))
+    sb.append(htmlHead("$partLabel - ${t.method} ${t.hostname} - ${data.title}", depth = depth, basePath = basePath))
+    sb.append(breadcrumb(depth, partCrumbs, data, langDisplay))
     sb.append("<main><h1>").append(esc(partLabel)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(t.method)).append(" ").append(esc(t.url)).append("</div>")
     val display = body.ifBlank { "(empty)" }
@@ -863,14 +743,23 @@ internal fun traceDirName(idx: Int, t: HtmlTraceData): String {
 }
 
 /** Breadcrumb header. The last entry's URL is null — it's the
- *  "current page" label and renders without a link. Earlier entries are
- *  rendered as links pointing at the supplied (relative) URL. The
- *  leading "AI Report" link always goes back to the root index.html. */
-private fun breadcrumb(depth: Int, crumbs: List<Pair<String, String?>>, data: HtmlReportData): String {
+ *  "current page" label and renders without a link. Earlier entries
+ *  are rendered as links pointing at the supplied (relative) URL.
+ *  When [langDisplay] is non-null an extra "language" hop is inserted
+ *  between the zip-root link and the section crumbs ("AI Report >
+ *  Original > Reports > Foo / Bar"). [depth] counts levels within the
+ *  language directory; the zip-root link adds one extra ../ to clear
+ *  the language directory. */
+private fun breadcrumb(depth: Int, crumbs: List<Pair<String, String?>>, data: HtmlReportData, langDisplay: String? = null): String {
     val sb = StringBuilder()
     sb.append("<nav>")
-    val rootRel = "../".repeat(depth) + "index.html"
-    sb.append("<a href='").append(esc(rootRel)).append("'>").append(esc(data.title.ifBlank { "AI Report" })).append("</a>")
+    val toZipRoot = "../".repeat(depth + (if (langDisplay != null) 1 else 0)) + "index.html"
+    sb.append("<a href='").append(esc(toZipRoot)).append("'>").append(esc(data.title.ifBlank { "AI Report" })).append("</a>")
+    if (langDisplay != null) {
+        sb.append(" <span class='sep'>›</span> ")
+        val toLangRoot = "../".repeat(depth) + "index.html"
+        sb.append("<a href='").append(esc(toLangRoot)).append("'>").append(esc(langDisplay)).append("</a>")
+    }
     crumbs.forEach { (label, href) ->
         sb.append(" <span class='sep'>›</span> ")
         if (href != null) sb.append("<a href='").append(esc(href)).append("'>").append(esc(label)).append("</a>")
