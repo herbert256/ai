@@ -231,6 +231,27 @@ fun ReportsScreen(
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
     val currentReportId = uiState.currentReportId
 
+    // Per-kind row counts for the View card. Gates the Summaries /
+    // Compares / Reranks / Moderations buttons so we don't show
+    // launchers for kinds the report has no rows of yet. Polled while
+    // a meta batch is in flight so newly added rows light up the
+    // buttons without forcing the user to bounce in/out of the screen.
+    var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0, 0)) }
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches) {
+        val rid = currentReportId ?: run { secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0); return@LaunchedEffect }
+        // First read covers the steady state. Then while a batch is
+        // running, repoll every 500 ms so brand-new rows appear; the
+        // loop self-cancels when the LaunchedEffect re-keys (batch
+        // count changes back to 0).
+        secondaryCounts = withContext(Dispatchers.IO) { SecondaryResultStorage.countForReport(context, rid) }
+        if (uiState.activeSecondaryBatches > 0) {
+            while (true) {
+                delay(500)
+                secondaryCounts = withContext(Dispatchers.IO) { SecondaryResultStorage.countForReport(context, rid) }
+            }
+        }
+    }
+
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
     var viewerSection by remember { mutableStateOf<String?>(null) }
@@ -278,6 +299,10 @@ fun ReportsScreen(
     // open, the user can browse all Rerank/Summarize/Compare entries and
     // launch new ones from the bottom Add card.
     var showMetaScreen by remember { mutableStateOf(false) }
+    // Per-kind list overlays reached from the View card's
+    // Summaries/Compares/Reranks/Moderations buttons. Each opens
+    // SecondaryResultsScreen filtered to that one kind.
+    var listKind by remember { mutableStateOf<SecondaryKind?>(null) }
 
     // Screen keepalive during generation
     DisposableEffect(isGenerating, isComplete) {
@@ -547,6 +572,19 @@ fun ReportsScreen(
         return
     }
 
+    val openListKind = listKind
+    if (openListKind != null && currentReportId != null) {
+        val rid = currentReportId
+        SecondaryResultsScreen(
+            reportId = rid,
+            kind = openListKind,
+            onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
+            onBack = { listKind = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     if (showMetaScreen && currentReportId != null) {
         val rid = currentReportId
         ReportMetaScreen(
@@ -690,7 +728,9 @@ fun ReportsScreen(
                 onRegenerate = { currentReportId?.let(onRegenerate) },
                 onDelete = { showDeleteConfirm = true },
                 onMeta = { showMetaScreen = true },
-                onTranslate = { showTranslateLanguagePicker = true }
+                onTranslate = { showTranslateLanguagePicker = true },
+                secondaryCounts = secondaryCounts,
+                onViewSecondaryKind = { kind -> listKind = kind }
             )
         }
     }
@@ -825,7 +865,9 @@ private fun ColumnScope.GenerationPhase(
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onMeta: () -> Unit = {},
-    onTranslate: () -> Unit = {}
+    onTranslate: () -> Unit = {},
+    secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
+    onViewSecondaryKind: (SecondaryKind) -> Unit = {}
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -970,10 +1012,35 @@ private fun ColumnScope.GenerationPhase(
         // Section: View
         Text("View", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = onViewResults, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Results", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+            Button(onClick = onViewResults, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Reports", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onViewPrompt, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Prompt", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onViewCosts, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Costs", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onTrace, enabled = currentReportId != null, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Trace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+        }
+        // Per-meta-kind viewers — one button per kind that has at
+        // least one row on this report. Tapping opens the kind's
+        // SecondaryResultsScreen so the user can browse / drill into
+        // existing entries directly without going through the unified
+        // Meta hub. Buttons are gated on the live count so they
+        // appear/disappear as batches finish.
+        val metaButtons = listOfNotNull(
+            if (secondaryCounts.summarize > 0) Triple("Summaries", AppColors.Orange, SecondaryKind.SUMMARIZE) else null,
+            if (secondaryCounts.compare > 0) Triple("Compares", AppColors.Purple, SecondaryKind.COMPARE) else null,
+            if (secondaryCounts.rerank > 0) Triple("Reranks", AppColors.Blue, SecondaryKind.RERANK) else null,
+            if (secondaryCounts.moderation > 0) Triple("Moderations", AppColors.Indigo, SecondaryKind.MODERATION) else null
+        )
+        if (metaButtons.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                metaButtons.forEach { (label, color, kind) ->
+                    Button(
+                        onClick = { onViewSecondaryKind(kind) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = color),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                }
+            }
         }
 
         // Section: Edit

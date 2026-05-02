@@ -77,21 +77,28 @@ private sealed interface ReportLoadState {
     data class Loaded(val report: Report) : ReportLoadState
 }
 
-/** A single tab in the in-app viewer's language picker. Built from the
+/** A single tab in a report's language picker. Built from the
  *  TRANSLATE secondaries on the report — Original always present;
- *  Dutch / German / … added per distinct [SecondaryResult.targetLanguage]. */
-private data class LangTab(val key: String, val displayName: String, val nativeName: String?)
+ *  Dutch / German / … added per distinct [SecondaryResult.targetLanguage].
+ *  Used by the in-app report viewer (ContentDisplay) and the per-kind
+ *  Summaries / Compares lists (SecondaryResultsScreen). [key] is a
+ *  filesystem-safe lowercase id; [displayName] is the human English
+ *  name and matches [SecondaryResult.targetLanguage]. */
+internal data class LangTab(val key: String, val displayName: String, val nativeName: String?) {
+    companion object { const val ORIGINAL_KEY = "original" }
+}
 
 @Composable
-private fun LanguagePickerRow(
+internal fun LanguagePickerRow(
     languages: List<LangTab>,
     selectedKey: String,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
 ) {
     if (languages.size <= 1) return
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -116,8 +123,8 @@ private fun LanguagePickerRow(
 
 /** Group TRANSLATE secondaries by language and produce the picker
  *  list. "Original" is always first. */
-private fun buildLangTabs(translates: List<SecondaryResult>): List<LangTab> {
-    val out = mutableListOf(LangTab("original", "Original", null))
+internal fun buildLangTabs(translates: List<SecondaryResult>): List<LangTab> {
+    val out = mutableListOf(LangTab(LangTab.ORIGINAL_KEY, "Original", null))
     val seen = LinkedHashMap<String, String?>()
     translates.forEach { t ->
         val lang = t.targetLanguage?.takeIf { it.isNotBlank() } ?: return@forEach
@@ -186,7 +193,7 @@ private fun ReportsViewerScreenLoaded(
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.
             if (initialSection == "prompt") {
-                LanguagePickerRow(langTabs, selectedLangKey) { selectedLangKey = it }
+                LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
             }
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 if (initialSection == "prompt") {
@@ -226,7 +233,7 @@ private fun ReportsViewerScreenLoaded(
         val providerName = selectedReportAgent?.let { AppService.findById(it.provider)?.displayName ?: it.provider } ?: "View Reports"
         TitleBar(title = providerName, onBackClick = onDismiss, onAiClick = onNavigateHome)
 
-        LanguagePickerRow(langTabs, selectedLangKey) { selectedLangKey = it }
+        LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
 
         // Agent buttons
         if (agentsWithResults.isNotEmpty()) {

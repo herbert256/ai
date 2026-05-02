@@ -335,11 +335,16 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
     }
 
     val nonTranslateSecondary = base.secondary.filter { it.kind != SecondaryKind.TRANSLATE }
+    // Original view shows only secondaries with no language tag (the
+    // canonical originals); per-language SUMMARIZE/COMPARE rows
+    // tagged with a targetLanguage live exclusively in their own
+    // language view.
+    val originalSecondary = nonTranslateSecondary.filter { it.targetLanguage == null }
     val original = HtmlLanguageView(
         key = "original",
         displayName = "Original",
         nativeName = null,
-        data = base.copy(secondary = nonTranslateSecondary)
+        data = base.copy(secondary = originalSecondary)
     )
     if (languageOrder.isEmpty()) return listOf(original)
 
@@ -355,15 +360,28 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
             val tx = byTarget["AGENT:${a.agentId}"]?.content
             if (tx != null) a.copy(responseText = tx) else a
         }
-        val translatedSecondary = nonTranslateSecondary.map { s ->
+        // SUMMARIZE / COMPARE rows for this language come in two
+        // flavours: native per-language batch rows tagged with
+        // targetLanguage = lang (preferred — generated directly from
+        // translated input), and Original rows whose content has been
+        // translated via a TRANSLATE row pointing at them (legacy
+        // path, still surfaced so old translate-only flows keep
+        // working). Both are included.
+        val perLangSummariesAndCompares = nonTranslateSecondary.filter {
+            (it.kind == SecondaryKind.SUMMARIZE || it.kind == SecondaryKind.COMPARE) &&
+                it.targetLanguage == lang
+        }
+        val overlaidOriginalSummariesAndCompares = nonTranslateSecondary.mapNotNull { s ->
+            if (s.targetLanguage != null) return@mapNotNull null
             val key = when (s.kind) {
                 SecondaryKind.SUMMARIZE -> "SUMMARY:${s.id}"
                 SecondaryKind.COMPARE -> "COMPARE:${s.id}"
-                else -> null
+                else -> return@mapNotNull null
             }
-            val tx = key?.let { byTarget[it]?.content }
-            if (tx != null) s.copy(content = tx) else s
+            val tx = byTarget[key]?.content ?: return@mapNotNull null
+            s.copy(content = tx)
         }
+        val translatedSecondary = perLangSummariesAndCompares + overlaidOriginalSummariesAndCompares
         views += HtmlLanguageView(
             key = languageKey(lang),
             displayName = lang,

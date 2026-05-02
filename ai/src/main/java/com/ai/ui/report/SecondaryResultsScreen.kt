@@ -54,6 +54,31 @@ internal fun SecondaryResultsScreen(
             SecondaryResultStorage.listForReport(context, reportId, kind)
         }
     }
+    // TRANSLATE rows on this report — drives the language picker for
+    // SUMMARIZE / COMPARE views. Languages not seen on TRANSLATE rows
+    // never get a tab even if a per-language batch row exists, since
+    // the spec is "show the picker iff there are translations."
+    val translates by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter { !it.targetLanguage.isNullOrBlank() }
+        }
+    }
+    val showLanguagePicker = (kind == SecondaryKind.SUMMARIZE || kind == SecondaryKind.COMPARE) && translates.isNotEmpty()
+    val languages = remember(translates) { buildLangTabs(translates) }
+    var selectedLangKey by remember { mutableStateOf(LangTab.ORIGINAL_KEY) }
+    LaunchedEffect(languages) {
+        if (languages.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+    }
+    val selectedLanguageName: String? = remember(selectedLangKey, languages) {
+        if (selectedLangKey == LangTab.ORIGINAL_KEY) null
+        else languages.firstOrNull { it.key == selectedLangKey }?.displayName
+    }
+
+    val filteredResults = remember(results, selectedLangKey, showLanguagePicker, selectedLanguageName) {
+        if (!showLanguagePicker) results
+        else results.filter { it.targetLanguage == selectedLanguageName }
+    }
 
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
     if (openResult != null) {
@@ -81,15 +106,28 @@ internal fun SecondaryResultsScreen(
         TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (results.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No ${title.lowercase()} for this report", color = AppColors.TextSecondary, fontSize = 14.sp)
+        if (showLanguagePicker) {
+            LanguagePickerRow(
+                languages = languages,
+                selectedKey = selectedLangKey,
+                onSelect = { selectedLangKey = it },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        if (filteredResults.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                val msg = if (showLanguagePicker && selectedLanguageName != null)
+                    "No ${title.lowercase()} for $selectedLanguageName yet"
+                else "No ${title.lowercase()} for this report"
+                Text(msg, color = AppColors.TextSecondary, fontSize = 14.sp)
             }
             return@Column
         }
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(results, key = { it.id }) { r ->
+            items(filteredResults, key = { it.id }) { r ->
                 SecondaryRow(
                     r,
                     onClick = { openId = r.id },
@@ -100,6 +138,7 @@ internal fun SecondaryResultsScreen(
         }
     }
 }
+
 
 @Composable
 private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {

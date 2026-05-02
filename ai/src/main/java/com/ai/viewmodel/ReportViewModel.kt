@@ -590,6 +590,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val aiSettings = state.aiSettings
                 val generalSettings = state.generalSettings
                 val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
                 // Bump the parent report's timestamp so it sorts to the top
                 // of the History list — adding a meta result is a real
                 // update to the report, not a passive read.
@@ -607,24 +608,46 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         if (ids.isNullOrEmpty()) null else ids.toSet()
                     }
                 }
-                val resultsBlock = buildResultsBlock(report, includeIds)
                 val successfulCount = if (includeIds != null) includeIds.size
                     else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                val resolvedPrompt = resolveSecondaryPrompt(
-                    template, question = report.prompt, results = resultsBlock,
-                    count = successfulCount, title = report.title
-                )
 
-                // Per-batch semaphore: bounds the in-batch fan-out. Each
-                // batch has its own — overlapping batches are not capped
-                // against each other (intentional; that's the whole point
-                // of allowing concurrent runs).
+                // Multi-language fan-out for SUMMARIZE / COMPARE: one
+                // batch per language present on the report. RERANK and
+                // MODERATION always run on the original — their content
+                // is structured JSON / per-response classifications and
+                // doesn't translate. The Original language is encoded
+                // as null and the SecondaryResult.targetLanguage stays
+                // null for it; translations get the human English name.
+                val translationLanguages = if (kind == SecondaryKind.SUMMARIZE || kind == SecondaryKind.COMPARE) {
+                    val nativeByLang = LinkedHashMap<String, String?>()
+                    allSecondaries
+                        .filter { it.kind == SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
+                        .forEach { tr ->
+                            val l = tr.targetLanguage!!
+                            if (l !in nativeByLang) nativeByLang[l] = tr.targetLanguageNative
+                        }
+                    nativeByLang
+                } else LinkedHashMap()
+                val languages: List<Pair<String?, String?>> = listOf<Pair<String?, String?>>(null to null) +
+                    translationLanguages.map { (lang, native) -> lang to native }
+
+                // Per-batch semaphore: bounds the in-batch fan-out across
+                // every (language, pick) tuple. Overlapping batches are
+                // not capped against each other (intentional; that's the
+                // whole point of allowing concurrent runs).
                 val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 coroutineScope {
-                    picks.map { (provider, model) ->
-                        async {
-                            sem.withPermit {
-                                executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report)
+                    languages.flatMap { (lang, langNative) ->
+                        val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
+                        val resolvedPrompt = resolveSecondaryPrompt(
+                            template, question = translatedPrompt, results = resultsBlock,
+                            count = successfulCount, title = report.title
+                        )
+                        picks.map { (provider, model) ->
+                            async {
+                                sem.withPermit {
+                                    executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report, lang, langNative)
+                                }
                             }
                         }
                     }.awaitAll()
@@ -640,14 +663,56 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Build the (prompt, @RESULTS@ block) pair for one language's
+     *  Summarize / Compare batch. When [language] is null the original
+     *  prompt + raw agent bodies are returned. Otherwise translated
+     *  text is taken from TRANSLATE rows tagged with [language] —
+     *  PROMPT:prompt for the question, AGENT:<agentId> for each
+     *  agent's body. Falls back to the original text per-item if a
+     *  translation is missing so a partial translation set still
+     *  produces a coherent batch. */
+    private fun buildLanguageInputs(
+        report: Report,
+        secondaries: List<SecondaryResult>,
+        language: String?,
+        includeIds: Set<Int>?
+    ): Pair<String, String> {
+        if (language == null) return report.prompt to buildResultsBlock(report, includeIds)
+        val byTarget = secondaries
+            .filter { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == language && !it.content.isNullOrBlank() }
+            .associateBy { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+        val translatedPrompt = byTarget["PROMPT:prompt"]?.content ?: report.prompt
+        val sb = StringBuilder()
+        val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+        var emitted = 0
+        val total = if (includeIds != null) successful.indices.count { (it + 1) in includeIds } else successful.size
+        successful.forEachIndexed { idx, agent ->
+            val originalId = idx + 1
+            if (includeIds != null && originalId !in includeIds) return@forEachIndexed
+            val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
+            sb.append("[").append(originalId).append("] provider=").append(provDisplay)
+                .append(" model=").append(agent.model).append('\n')
+            val body = byTarget["AGENT:${agent.agentId}"]?.content ?: (agent.responseBody?.trim() ?: "")
+            sb.append(body)
+            emitted++
+            if (emitted != total) sb.append("\n\n")
+        }
+        return translatedPrompt to sb.toString()
+    }
+
     private suspend fun executeSecondaryTask(
         context: Context, reportId: String, kind: SecondaryKind,
         provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings,
-        report: Report
+        report: Report,
+        targetLanguage: String? = null,
+        targetLanguageNative: String? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
-        val agentName = "${provider.displayName} / $model"
+        val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
+        val agentName = "${provider.displayName} / $model$langSuffix"
         val placeholder = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
+            .copy(targetLanguage = targetLanguage, targetLanguageNative = targetLanguageNative)
+        SecondaryResultStorage.save(context, placeholder)
 
         // Moderation runs through the dedicated /v1/moderations
         // endpoint — one batch call classifying every report response.
