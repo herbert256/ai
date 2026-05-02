@@ -69,43 +69,48 @@ internal data class HtmlSecondaryData(
 
 // ===== Public Functions =====
 
-/** JSON export — emits a zip of every captured API trace tagged with
- *  the report's id, organized into one directory per category (with
- *  "Other" for traces that have no category). For translated reports
- *  the source report's traces ride along under a top-level "source/"
- *  prefix so consumers can tell them apart. Each entry is the raw
- *  trace JSON, unmodified — no redaction applied (callers who want
- *  redacted bodies should use the Complete HTML/PDF export instead). */
+/** Build the zip-of-traces for a report. Returns null when the report
+ *  has no captured traces (own + source combined). The zip's top-level
+ *  directories are the trace categories; for translated reports the
+ *  source report's traces sit under a "source/" prefix. Each entry is
+ *  the raw trace JSON, unmodified. Shared by the JSON export action
+ *  and the "Export all" bulk-zip path. */
+internal fun buildJsonTraceZipBytes(context: android.content.Context, report: Report): ByteArray? {
+    val ownTraces = ApiTracer.getTraceFilesForReport(report.id)
+    val sourceTraces = report.sourceReportId?.let { ApiTracer.getTraceFilesForReport(it) }.orEmpty()
+    if (ownTraces.isEmpty() && sourceTraces.isEmpty()) return null
+    val baos = java.io.ByteArrayOutputStream()
+    java.util.zip.ZipOutputStream(baos.buffered()).use { zos ->
+        fun writeTrace(t: com.ai.data.TraceFileInfo, prefix: String) {
+            val cat = (t.category ?: "Other").trim().ifBlank { "Other" }
+            // Filesystem-safe category name (slashes / colons / etc. would
+            // otherwise create unintended subdirectories).
+            val safeCat = cat.replace(Regex("[^A-Za-z0-9 _.-]+"), "_")
+            val raw = ApiTracer.readTraceFileRaw(t.filename) ?: return
+            val entry = java.util.zip.ZipEntry("$prefix$safeCat/${t.filename}")
+            entry.time = t.timestamp
+            zos.putNextEntry(entry)
+            zos.write(raw.toByteArray(Charsets.UTF_8))
+            zos.closeEntry()
+        }
+        ownTraces.forEach { writeTrace(it, "") }
+        sourceTraces.forEach { writeTrace(it, "source/") }
+    }
+    return baos.toByteArray()
+}
+
 internal fun shareReportAsJson(context: android.content.Context, reportId: String, action: ReportExportAction = ReportExportAction.SHARE) {
     val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
     try {
-        val ownTraces = ApiTracer.getTraceFilesForReport(reportId)
-        val sourceTraces = report.sourceReportId?.let { ApiTracer.getTraceFilesForReport(it) }.orEmpty()
-        if (ownTraces.isEmpty() && sourceTraces.isEmpty()) {
+        val bytes = buildJsonTraceZipBytes(context, report)
+        if (bytes == null) {
             Toast.makeText(context, "No traces for this report", Toast.LENGTH_SHORT).show()
             return
         }
-
         val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
         val outFile = File(File(context.cacheDir, "ai_analysis").also { it.mkdirs() },
             "ai_report_${safeTitle}_traces_${timestamp()}.zip")
-
-        java.util.zip.ZipOutputStream(outFile.outputStream().buffered()).use { zos ->
-            fun writeTrace(t: com.ai.data.TraceFileInfo, prefix: String) {
-                val cat = (t.category ?: "Other").trim().ifBlank { "Other" }
-                // Filesystem-safe category name (slashes / colons / etc. would
-                // otherwise create unintended subdirectories).
-                val safeCat = cat.replace(Regex("[^A-Za-z0-9 _.-]+"), "_")
-                val raw = ApiTracer.readTraceFileRaw(t.filename) ?: return
-                val entry = java.util.zip.ZipEntry("$prefix$safeCat/${t.filename}")
-                entry.time = t.timestamp
-                zos.putNextEntry(entry)
-                zos.write(raw.toByteArray(Charsets.UTF_8))
-                zos.closeEntry()
-            }
-            ownTraces.forEach { writeTrace(it, "") }
-            sourceTraces.forEach { writeTrace(it, "source/") }
-        }
+        outFile.writeBytes(bytes)
 
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
         val intent = when (action) {

@@ -31,7 +31,8 @@ import kotlinx.coroutines.launch
 fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit
+    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit,
+    onExportAll: suspend ((Int, Int) -> Unit) -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -150,6 +151,35 @@ fun ReportExportScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("View in browser", maxLines = 1, softWrap = false) }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // "Export all" — bundle all 8 documents (Short + Complete × HTML
+        // / PDF / DOCX / ODT) plus the JSON traces zip into a single
+        // master zip and hand it to the standard share sheet.
+        Button(
+            onClick = {
+                scope.launch {
+                    progress = 0 to 1
+                    try {
+                        onExportAll { d, t -> progress = d to t }
+                        progress = null
+                        onBack()
+                    } catch (e: Exception) {
+                        android.util.Log.e("ReportExport", "Export all failed", e)
+                        progress = null
+                        android.widget.Toast.makeText(
+                            context,
+                            "Export all failed: ${e.javaClass.simpleName}: ${e.message}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            },
+            enabled = progress == null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) { Text("Export all (zip)", maxLines = 1, softWrap = false) }
     }
 }
 

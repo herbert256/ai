@@ -131,6 +131,9 @@ fun ReportsScreenNav(
         onExport = { rid, fmt, det, act, onProgress ->
             shareReportAsExport(context, rid, fmt, det, act, uiState.aiSettings, viewModel.repository, onProgress)
         },
+        onExportAll = { rid, onProgress ->
+            bulkExportAndShare(context, rid, onProgress)
+        },
         translationRun = reportViewModel.translationRun.collectAsState().value,
         onStartTranslation = { sourceId, langName, langNative, prov, model ->
             reportViewModel.startTranslation(scope, context, sourceId, langName, langNative, prov, model)
@@ -214,6 +217,7 @@ fun ReportsScreen(
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> },
+    onExportAll: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> },
     translationRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
     onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
     onCancelTranslation: () -> Unit = {},
@@ -605,7 +609,8 @@ fun ReportsScreen(
         ReportExportScreen(
             onBack = { showExport = false },
             onNavigateHome = onNavigateHome,
-            onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) }
+            onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) },
+            onExportAll = { onProgress -> onExportAll(rid, onProgress) }
         )
         return
     }

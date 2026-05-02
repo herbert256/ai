@@ -117,7 +117,7 @@ suspend fun shareReportAsExport(
  * The HTML returned to disk for HTML exports is never touched — only the copy
  * we hand to the PDF renderer.
  */
-private fun makeStaticForPdf(html: String): String {
+internal fun makeStaticForPdf(html: String): String {
     // Reveal every JS-hidden region of the new Medium HTML so a static
     // bitmap snapshot shows the whole report top-to-bottom: the
     // view-picker / sub-toggles / per-item button rows are tab UI in a
@@ -177,7 +177,7 @@ private fun makeStaticForPdf(html: String): String {
  *  No index, no cost table, no API trace dump. The same HTML is what
  *  buildShortHtml returns for HTML/PDF SHORT exports; DOCX/ODT have
  *  their own block-based equivalent in WordOdtExport. */
-private fun buildShortHtml(context: Context, report: Report): String {
+internal fun buildShortHtml(context: Context, report: Report): String {
     val agents = report.agents
         .filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
         .sortedBy { it.agentName.lowercase() }
@@ -378,7 +378,7 @@ private fun getAppVersion(context: Context): String = try {
  *
  * Must be called from Main since WebView's measure / layout / draw require the UI thread.
  */
-private suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File, withTocPage: Boolean = false) {
+internal suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File, withTocPage: Boolean = false) {
     val pageWidth = 1240
     val pageHeight = 1754
     val tag = "PdfExport"
