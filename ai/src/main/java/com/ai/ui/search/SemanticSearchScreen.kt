@@ -37,11 +37,12 @@ import java.util.Locale
 /**
  * Semantic search across saved reports. The user picks an embedding-typed
  * model from any active provider; the screen embeds the query, embeds each
- * report's title + first chunk of body (lazily, cached forever per
- * (docId, provider, model)), scores by cosine similarity, returns top 10.
+ * report's title + first chunk of body (lazily, cached per
+ * (docId, provider, model, content hash)), scores by cosine similarity, returns top 10.
  *
  * MVP scope: reports only (no chats yet), single-pass scoring (no chunking
- * within a long report), no live re-index when reports change.
+ * within a long report). Cached report embeddings include a content hash, so
+ * edited reports are re-embedded automatically on the next search.
  */
 @Composable
 fun SemanticSearchScreen(
@@ -200,7 +201,7 @@ private suspend fun runSearch(
         if (i % 10 == 0) onProgress("Indexing reports… ${i + 1} / ${reports.size}")
         val rep = "${r.title}\n${r.prompt}\n${r.agents.firstOrNull { !it.responseBody.isNullOrBlank() }?.responseBody?.take(2000) ?: ""}"
         val title = r.title.ifBlank { "(untitled)" } + " — " + df.format(Date(r.timestamp))
-        val existing = EmbeddingsStore.get(context, r.id, service.id, model)
+        val existing = EmbeddingsStore.get(context, r.id, service.id, model, rep)
         if (existing != null) cached += Triple(r.id, existing, title)
         else toEmbed += Triple(r.id, rep, title)
     }
@@ -213,7 +214,7 @@ private suspend fun runSearch(
         val vecs = repository.embed(service, apiKey, model, batch.map { it.second }) ?: return emptyList()
         for ((j, item) in batch.withIndex()) {
             val v = vecs[j]
-            EmbeddingsStore.put(context, item.first, service.id, model, v)
+            EmbeddingsStore.put(context, item.first, service.id, model, item.second, v)
             cached += Triple(item.first, v, item.third)
         }
     }
