@@ -49,6 +49,7 @@ internal fun SecondaryScopeScreen(
         SecondaryKind.COMPARE -> "Compare"
         SecondaryKind.RERANK -> "Rerank" // never reached but exhaustive
         SecondaryKind.MODERATION -> "Moderation" // also never reached — moderation never enters the scope screen
+        SecondaryKind.TRANSLATE -> "Translate" // never reached — translation has its own flow
     }
     var topOnly by remember { mutableStateOf(false) }
     var countText by remember {

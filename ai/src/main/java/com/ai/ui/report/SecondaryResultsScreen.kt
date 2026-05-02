@@ -75,6 +75,7 @@ internal fun SecondaryResultsScreen(
         SecondaryKind.SUMMARIZE -> "Summaries"
         SecondaryKind.COMPARE -> "Compares"
         SecondaryKind.MODERATION -> "Moderations"
+        SecondaryKind.TRANSLATE -> "Translations"
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
@@ -131,6 +132,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
             SecondaryKind.SUMMARIZE -> "summary"
             SecondaryKind.COMPARE -> "compare"
             SecondaryKind.MODERATION -> "moderation"
+            SecondaryKind.TRANSLATE -> "translation"
         }
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -164,6 +166,7 @@ internal fun SecondaryResultDetailScreen(
         SecondaryKind.SUMMARIZE -> "Summary"
         SecondaryKind.COMPARE -> "Compare"
         SecondaryKind.MODERATION -> "Moderation"
+        SecondaryKind.TRANSLATE -> "Translate"
     }
     var confirmDelete by remember { mutableStateOf(false) }
 

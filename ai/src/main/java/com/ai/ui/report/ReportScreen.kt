@@ -482,6 +482,7 @@ fun ReportsScreen(
             SecondaryKind.SUMMARIZE -> "Summarize"
             SecondaryKind.COMPARE -> "Compare"
             SecondaryKind.MODERATION -> "Moderation"
+            SecondaryKind.TRANSLATE -> "Translate" // never reached — Translate has its own picker
         }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,

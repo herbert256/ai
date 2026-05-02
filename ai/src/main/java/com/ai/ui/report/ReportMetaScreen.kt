@@ -73,7 +73,11 @@ internal fun ReportMetaScreen(
     // thread — listForReport parses every JSON under the secondary dir.
     val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick, isRunning) {
         value = withContext(Dispatchers.IO) {
+            // TRANSLATE rows are cost records, not user-actionable
+            // meta operations — drop them from this list. They still
+            // surface in the cost table.
             SecondaryResultStorage.listForReport(context, reportId)
+                .filter { it.kind != SecondaryKind.TRANSLATE }
                 .sortedByDescending { it.timestamp }
         }
     }
@@ -179,6 +183,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
         SecondaryKind.SUMMARIZE -> "Summary"
         SecondaryKind.COMPARE -> "Compare"
         SecondaryKind.MODERATION -> "Moderation"
+        SecondaryKind.TRANSLATE -> "Translate"
     }
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -230,6 +235,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
             SecondaryKind.SUMMARIZE -> "summary"
             SecondaryKind.COMPARE -> "compare"
             SecondaryKind.MODERATION -> "moderation"
+            SecondaryKind.TRANSLATE -> "translate"
         }
         AlertDialog(
             onDismissRequest = { confirmDelete = false },

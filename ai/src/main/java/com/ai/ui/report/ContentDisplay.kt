@@ -264,6 +264,7 @@ fun ReportCostTable(report: Report) {
             SecondaryKind.SUMMARIZE -> "summarize"
             SecondaryKind.COMPARE -> "compare"
             SecondaryKind.MODERATION -> "moderation"
+            SecondaryKind.TRANSLATE -> "translate"
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }

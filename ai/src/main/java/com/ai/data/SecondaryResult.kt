@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-enum class SecondaryKind { RERANK, SUMMARIZE, COMPARE, MODERATION }
+enum class SecondaryKind { RERANK, SUMMARIZE, COMPARE, MODERATION, TRANSLATE }
 
 /**
  * A meta-result that operates on a parent Report's per-agent outputs:
@@ -124,13 +124,13 @@ object SecondaryResultStorage {
      *  result screen to decide whether to surface the View Reranks /
      *  Summaries / Compares buttons without paying for the full file parse
      *  on every recomposition. */
-    data class Counts(val rerank: Int, val summarize: Int, val compare: Int, val moderation: Int)
+    data class Counts(val rerank: Int, val summarize: Int, val compare: Int, val moderation: Int, val translate: Int)
     fun countForReport(context: Context, reportId: String): Counts {
         init(context)
         return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0, 0)
-            if (!dir.exists()) return@withLock Counts(0, 0, 0, 0)
-            var rerank = 0; var summarize = 0; var compare = 0; var moderation = 0
+            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0, 0, 0)
+            if (!dir.exists()) return@withLock Counts(0, 0, 0, 0, 0)
+            var rerank = 0; var summarize = 0; var compare = 0; var moderation = 0; var translate = 0
             dir.listFiles { f -> f.extension == "json" }?.forEach { file ->
                 try {
                     val r = gson.fromJson(file.readText(), SecondaryResult::class.java)
@@ -139,10 +139,11 @@ object SecondaryResultStorage {
                         SecondaryKind.SUMMARIZE -> summarize++
                         SecondaryKind.COMPARE -> compare++
                         SecondaryKind.MODERATION -> moderation++
+                        SecondaryKind.TRANSLATE -> translate++
                     }
                 } catch (_: Exception) {}
             }
-            Counts(rerank, summarize, compare, moderation)
+            Counts(rerank, summarize, compare, moderation, translate)
         }
     }
 }
