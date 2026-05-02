@@ -1,6 +1,5 @@
 package com.ai.ui.report
 
-import com.ai.data.SecondaryKind
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
@@ -9,8 +8,8 @@ import org.junit.Test
  * Zipped HTML export to lay out per-item HTML files inside the
  * generated zip — and the trace-directory naming used by the JSON
  * tree. They're plain string functions but the export's link-up
- * relies on their output being stable, so a regression would
- * break breadcrumb / 🐞 / Source/Result links.
+ * relies on their output being stable, so a regression would break
+ * breadcrumb / 🐞 navigation.
  */
 class ZippedHtmlNamingTest {
 
@@ -85,142 +84,16 @@ class ZippedHtmlNamingTest {
         assertThat(dir.endsWith("500")).isTrue()
     }
 
-    // ===== resolveTranslationLinks =====
+    // ===== languageKey =====
 
-    private fun agent(idx: Int): HtmlAgentData = HtmlAgentData(
-        agentId = "agent-$idx",
-        agentName = "agent $idx",
-        provider = null,
-        providerDisplay = "ProvX",
-        model = "model-$idx",
-        responseText = null,
-        errorMessage = null,
-        citations = null,
-        searchResults = null,
-        relatedQuestions = null,
-        rawUsageJson = null,
-        responseHeaders = null
-    )
-
-    private fun secondary(id: String, kind: SecondaryKind, fromId: String? = null): HtmlSecondaryData =
-        HtmlSecondaryData(
-            id = id,
-            kind = kind,
-            providerDisplay = "ProvX",
-            model = "model",
-            agentName = "name",
-            timestamp = "2026-05-02 09:00:00",
-            content = "",
-            errorMessage = null,
-            translatedFromSecondaryId = fromId
-        )
-
-    private fun data(agents: List<HtmlAgentData> = emptyList(), secondary: List<HtmlSecondaryData> = emptyList()): HtmlReportData =
-        HtmlReportData(
-            title = "T",
-            prompt = "",
-            timestamp = "ts",
-            rapportText = null,
-            closeText = null,
-            agents = agents,
-            secondary = secondary,
-            traces = emptyList()
-        )
-
-    @Test fun resolveTranslationLinks_PROMPT_with_source_yields_both_links() {
-        val translate = HtmlSecondaryData(
-            id = "t1", kind = SecondaryKind.TRANSLATE,
-            providerDisplay = "Anthropic", model = "claude-haiku-4-5",
-            agentName = "Translate: prompt", timestamp = "ts",
-            content = "", errorMessage = null,
-            translateSourceKind = "PROMPT",
-            translateSourceTargetId = "prompt"
-        )
-        val current = data()
-        val source = data()
-        val (src, res) = resolveTranslationLinks(translate, current, source)
-        assertThat(src).isEqualTo("../Source/Prompt/index.html")
-        assertThat(res).isEqualTo("../Prompt/index.html")
+    @Test fun languageKey_lowercases_and_strips_non_alphanumerics() {
+        assertThat(languageKey("Dutch")).isEqualTo("dutch")
+        assertThat(languageKey("Mandarin Chinese")).isEqualTo("mandarinchinese")
+        assertThat(languageKey("Persian (Farsi)")).isEqualTo("persianfarsi")
     }
 
-    @Test fun resolveTranslationLinks_PROMPT_without_source_returns_null_source() {
-        val translate = HtmlSecondaryData(
-            id = "t1", kind = SecondaryKind.TRANSLATE,
-            providerDisplay = "p", model = "m", agentName = "Translate: prompt",
-            timestamp = "ts", content = "", errorMessage = null,
-            translateSourceKind = "PROMPT", translateSourceTargetId = "prompt"
-        )
-        val (src, res) = resolveTranslationLinks(translate, data(), sourceData = null)
-        assertThat(src).isNull()
-        assertThat(res).isEqualTo("../Prompt/index.html")
-    }
-
-    @Test fun resolveTranslationLinks_AGENT_links_by_preserved_agentId() {
-        val src = data(agents = listOf(agent(1), agent(2), agent(3)))
-        val current = data(agents = listOf(agent(1), agent(2), agent(3)))
-        val translate = HtmlSecondaryData(
-            id = "t", kind = SecondaryKind.TRANSLATE,
-            providerDisplay = "p", model = "m", agentName = "Translate: ProvX / model-2",
-            timestamp = "ts", content = "", errorMessage = null,
-            translateSourceKind = "AGENT", translateSourceTargetId = "agent-2"
-        )
-        val (sourceLink, resultLink) = resolveTranslationLinks(translate, current, src)
-        assertThat(sourceLink).isEqualTo("../Source/Reports/02_ProvX_model-2.html")
-        assertThat(resultLink).isEqualTo("../Reports/02_ProvX_model-2.html")
-    }
-
-    @Test fun resolveTranslationLinks_AGENT_returns_null_when_target_missing() {
-        val src = data(agents = listOf(agent(1)))
-        val current = data(agents = listOf(agent(1)))
-        val translate = HtmlSecondaryData(
-            id = "t", kind = SecondaryKind.TRANSLATE,
-            providerDisplay = "p", model = "m", agentName = "Translate: ?",
-            timestamp = "ts", content = "", errorMessage = null,
-            translateSourceKind = "AGENT", translateSourceTargetId = "agent-99"
-        )
-        val (s, r) = resolveTranslationLinks(translate, current, src)
-        assertThat(s).isNull()
-        assertThat(r).isNull()
-    }
-
-    @Test fun resolveTranslationLinks_SUMMARY_uses_translatedFromSecondaryId_for_result() {
-        val srcSummary = secondary("src-1", SecondaryKind.SUMMARIZE)
-        val translatedSummary = secondary("new-1", SecondaryKind.SUMMARIZE, fromId = "src-1")
-        val source = data(secondary = listOf(srcSummary))
-        val current = data(secondary = listOf(translatedSummary))
-        val translate = HtmlSecondaryData(
-            id = "t", kind = SecondaryKind.TRANSLATE,
-            providerDisplay = "p", model = "m",
-            agentName = "Translate: Summary 1: ProvX / model",
-            timestamp = "ts", content = "", errorMessage = null,
-            translateSourceKind = "SUMMARY", translateSourceTargetId = "src-1"
-        )
-        val (s, r) = resolveTranslationLinks(translate, current, source)
-        assertThat(s).isEqualTo("../Source/Summaries/01_ProvX_model.html")
-        assertThat(r).isEqualTo("../Summaries/01_ProvX_model.html")
-    }
-
-    @Test fun resolveTranslationLinks_unknown_kind_yields_pair_of_nulls() {
-        val translate = HtmlSecondaryData(
-            id = "t", kind = SecondaryKind.TRANSLATE,
-            providerDisplay = "p", model = "m", agentName = "?",
-            timestamp = "ts", content = "", errorMessage = null,
-            translateSourceKind = "UNRECOGNISED", translateSourceTargetId = "x"
-        )
-        val (s, r) = resolveTranslationLinks(translate, data(), data())
-        assertThat(s).isNull()
-        assertThat(r).isNull()
-    }
-
-    @Test fun resolveTranslationLinks_no_source_kind_returns_null_pair() {
-        val translate = HtmlSecondaryData(
-            id = "t", kind = SecondaryKind.TRANSLATE,
-            providerDisplay = "p", model = "m", agentName = "Translate: prompt",
-            timestamp = "ts", content = "", errorMessage = null,
-            translateSourceKind = null, translateSourceTargetId = "prompt"
-        )
-        val (s, r) = resolveTranslationLinks(translate, data(), data())
-        assertThat(s).isNull()
-        assertThat(r).isNull()
+    @Test fun languageKey_falls_back_to_x_when_input_has_no_alnum() {
+        assertThat(languageKey("---")).isEqualTo("x")
+        assertThat(languageKey("")).isEqualTo("x")
     }
 }
