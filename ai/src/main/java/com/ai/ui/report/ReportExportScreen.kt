@@ -74,19 +74,24 @@ fun ReportExportScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Format", fontWeight = FontWeight.Bold, color = Color.White)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // FlowRow so OpenDocument doesn't push the row off-screen on
+                    // narrow phones — chips wrap to a second line if needed.
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         ReportExportFormat.entries.forEach { f ->
                             FilterChip(
                                 selected = format == f,
                                 onClick = { format = f },
-                                label = { Text(f.name) }
+                                label = { Text(f.displayName) }
                             )
                         }
                     }
                 }
             }
 
-            if (format != ReportExportFormat.JSON) {
+            if (format != ReportExportFormat.JSON && format != ReportExportFormat.DOCX && format != ReportExportFormat.ODT) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Detail", fontWeight = FontWeight.Bold, color = Color.White)

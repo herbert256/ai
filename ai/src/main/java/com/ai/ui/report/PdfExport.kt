@@ -46,7 +46,13 @@ private data class IntroCostRow(
     val pricingTier: String
 )
 
-enum class ReportExportFormat { HTML, PDF, JSON }
+enum class ReportExportFormat(val displayName: String) {
+    HTML("HTML"),
+    PDF("PDF"),
+    DOCX("MS Word"),
+    ODT("OpenDocument"),
+    JSON("JSON")
+}
 enum class ReportExportDetail { SHORT, MEDIUM, COMPREHENSIVE }
 enum class ReportExportAction { SHARE, VIEW }
 
@@ -97,6 +103,16 @@ suspend fun shareReportAsExport(
         return true
     }
 
+    // DOCX/ODT ignore the Detail picker (like JSON does) — they emit a
+    // flat block-based representation of the report content. Inline
+    // markdown formatting is stripped to plain text.
+    if (format == ReportExportFormat.DOCX || format == ReportExportFormat.ODT) {
+        onProgress(0, 1)
+        val ok = shareReportAsDocxOrOdt(context, reportId, format, action)
+        onProgress(1, 1)
+        return ok
+    }
+
     val html = when (detail) {
         ReportExportDetail.SHORT -> { onProgress(0, 1); buildShortHtml(report).also { onProgress(1, 1) } }
         ReportExportDetail.MEDIUM -> { onProgress(0, 1); convertReportToHtml(context, report, getAppVersion(context)).also { onProgress(1, 1) } }
@@ -109,7 +125,7 @@ suspend fun shareReportAsExport(
     return when (format) {
         ReportExportFormat.HTML -> { dispatchHtml(context, html, "$baseName.html", report.title, action); true }
         ReportExportFormat.PDF -> { dispatchPdf(context, makeStaticForPdf(html), "$baseName.pdf", report.title, action); true }
-        ReportExportFormat.JSON -> true // unreachable
+        ReportExportFormat.JSON, ReportExportFormat.DOCX, ReportExportFormat.ODT -> true // handled above
     }
 }
 
