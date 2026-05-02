@@ -880,7 +880,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
          *  Report can attribute per-row cost to the translation
          *  operation rather than carrying the source-run figures
          *  through unchanged. Null until the call returns. */
-        val tokenUsage: com.ai.data.TokenUsage? = null
+        val tokenUsage: com.ai.data.TokenUsage? = null,
+        /** Wall-clock duration of the translation API call. Surfaced
+         *  in the Costs table so translate rows aren't blank in the
+         *  Seconds column. Null until the call returns. */
+        val durationMs: Long? = null
     )
 
     data class TranslationRunState(
@@ -1044,6 +1048,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             name = "Translate / ${provider.displayName} / $model",
             provider = provider, model = model, apiKey = apiKey
         )
+        val callStart = System.currentTimeMillis()
         val response = try {
             appViewModel.repository.analyzeWithAgent(
                 agent, "", resolved, AgentParameters(), null, context, baseUrl
@@ -1053,6 +1058,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         } catch (e: Exception) {
             AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agent.name)
         }
+        val callDurationMs = System.currentTimeMillis() - callStart
         val tu = response.tokenUsage
         val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
         val costCents = costDollars * 100
@@ -1064,13 +1070,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     status = TranslationStatus.DONE,
                     translatedText = response.analysis,
                     costCents = costCents,
-                    tokenUsage = tu
+                    tokenUsage = tu,
+                    durationMs = callDurationMs
                 )
                 else it.copy(
                     status = TranslationStatus.ERROR,
                     errorMessage = response.error ?: "Empty response",
                     costCents = costCents,
-                    tokenUsage = tu
+                    tokenUsage = tu,
+                    durationMs = callDurationMs
                 )
             }
             state.copy(items = updated, totalCostCents = updated.sumOf { it.costCents })
@@ -1181,7 +1189,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 errorMessage = item.errorMessage,
                 tokenUsage = tu,
                 inputCost = inCost,
-                outputCost = outCost
+                outputCost = outCost,
+                durationMs = item.durationMs
             ))
         }
 
