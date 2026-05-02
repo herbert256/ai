@@ -33,8 +33,8 @@ fun AnalysisRepository.sendChatStream(
         return@flow
     }
     when (service.apiFormat) {
-        ApiFormat.ANTHROPIC -> streamAnthropic(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-        ApiFormat.GOOGLE -> streamGemini(apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        ApiFormat.ANTHROPIC -> streamAnthropic(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+        ApiFormat.GOOGLE -> streamGemini(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
         ApiFormat.OPENAI_COMPATIBLE -> streamOpenAi(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
     }
 }
@@ -181,7 +181,7 @@ private fun AnalysisRepository.streamOpenAi(
 }
 
 private fun AnalysisRepository.streamAnthropic(
-    apiKey: String, model: String, messages: List<ChatMessage>,
+    service: AppService, apiKey: String, model: String, messages: List<ChatMessage>,
     params: ChatParameters, baseUrl: String
 ): Flow<String> = flow {
     val api = ApiFactory.createClaudeApi(baseUrl)
@@ -194,7 +194,8 @@ private fun AnalysisRepository.streamAnthropic(
         system = systemPrompt,
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
         search = if (params.searchEnabled) true else null,
-        tools = if (params.webSearchTool) anthropicWebSearchTool() else null
+        tools = if (params.webSearchTool) anthropicWebSearchTool() else null,
+        thinking = anthropicThinkingField(service, model, params.reasoningEffort)
     )
     val response = withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) }
     if (response.isSuccessful) {
@@ -208,7 +209,7 @@ private fun AnalysisRepository.streamAnthropic(
 }
 
 private fun AnalysisRepository.streamGemini(
-    apiKey: String, model: String, messages: List<ChatMessage>,
+    service: AppService, apiKey: String, model: String, messages: List<ChatMessage>,
     params: ChatParameters, baseUrl: String
 ): Flow<String> = flow {
     val api = ApiFactory.createGeminiApi(baseUrl)
@@ -218,7 +219,8 @@ private fun AnalysisRepository.streamGemini(
         contents = contents,
         generationConfig = GeminiGenerationConfig(
             params.temperature, params.topP, params.topK, params.maxTokens,
-            search = if (params.searchEnabled) true else null
+            search = if (params.searchEnabled) true else null,
+            thinkingConfig = geminiThinkingConfigField(service, model, params.reasoningEffort)
         ),
         systemInstruction = systemInstruction,
         tools = if (params.webSearchTool) geminiWebSearchTool() else null

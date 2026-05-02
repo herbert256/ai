@@ -200,7 +200,8 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
         frequency_penalty = params?.frequencyPenalty, presence_penalty = params?.presencePenalty,
         seed = params?.seed,
         search = if (params?.searchEnabled == true) true else null,
-        tools = if (params?.webSearchTool == true) anthropicWebSearchTool() else null
+        tools = if (params?.webSearchTool == true) anthropicWebSearchTool() else null,
+        thinking = anthropicThinkingField(service, model, params?.reasoningEffort)
     )
     val response = api.createMessage(apiKey, request = request)
     val headers = formatHeaders(response.headers())
@@ -240,7 +241,8 @@ private suspend fun AnalysisRepository.analyzeGemini(
     val genConfig = params?.let {
         GeminiGenerationConfig(it.temperature, it.topP, it.topK, it.maxTokens,
             it.stopSequences?.takeIf { s -> s.isNotEmpty() }, it.frequencyPenalty, it.presencePenalty, it.seed,
-            if (it.searchEnabled) true else null)
+            if (it.searchEnabled) true else null,
+            thinkingConfig = geminiThinkingConfigField(service, model, it.reasoningEffort))
     }
     val systemInstruction = params?.systemPrompt?.takeIf { it.isNotBlank() }?.let {
         GeminiContent(listOf(GeminiPart(text = it)))
@@ -345,7 +347,8 @@ private suspend fun AnalysisRepository.chatAnthropic(
         model = model, messages = claudeMessages, max_tokens = params.maxTokens ?: defaultClaudeMaxTokens(model),
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
         system = systemPrompt, search = if (params.searchEnabled) true else null,
-        tools = if (params.webSearchTool) anthropicWebSearchTool() else null
+        tools = if (params.webSearchTool) anthropicWebSearchTool() else null,
+        thinking = anthropicThinkingField(service, model, params.reasoningEffort)
     )
     val response = api.createMessage(apiKey, request = request)
     if (response.isSuccessful) {
@@ -372,7 +375,8 @@ private suspend fun AnalysisRepository.chatGemini(
         contents = contents,
         generationConfig = GeminiGenerationConfig(
             params.temperature, params.topP, params.topK, params.maxTokens,
-            search = if (params.searchEnabled) true else null
+            search = if (params.searchEnabled) true else null,
+            thinkingConfig = geminiThinkingConfigField(service, model, params.reasoningEffort)
         ),
         systemInstruction = systemInstruction,
         tools = if (params.webSearchTool) geminiWebSearchTool() else null
@@ -770,6 +774,39 @@ internal fun reasoningField(service: AppService, model: String, effort: String?)
     if (effort.isNullOrBlank()) return null
     if (PricingCache.liteLLMSupportsReasoning(service, model) == false) return null
     return mapOf("effort" to effort)
+}
+
+/** Map low/medium/high to a token budget Anthropic + Gemini both
+ *  consume. Round numbers — exact ceiling depends on the model, but
+ *  these are well within every current Claude / Gemini cap. */
+private fun budgetForEffort(effort: String?): Int? = when (effort?.lowercase()) {
+    "low" -> 1024
+    "medium" -> 4096
+    "high" -> 16384
+    else -> null
+}
+
+/** Anthropic extended-thinking block. Only attached when LiteLLM
+ *  / models.dev say the model supports reasoning (or doesn't have an
+ *  opinion), and never on the Anthropic 2.x family which doesn't
+ *  understand the field. Returns null otherwise. */
+internal fun anthropicThinkingField(service: AppService, model: String, effort: String?): Map<String, Any>? {
+    val budget = budgetForEffort(effort) ?: return null
+    if (PricingCache.liteLLMSupportsReasoning(service, model) == false) return null
+    if (PricingCache.modelsDevSupportsReasoning(service, model) == false) return null
+    return mapOf("type" to "enabled", "budget_tokens" to budget)
+}
+
+/** Gemini 2.5 thinking config block. Same supports-reasoning guard as
+ *  the Anthropic equivalent. includeThoughts surfaces the model's
+ *  internal reasoning summary in the response — left off by default
+ *  to avoid bloating the response body for callers that just want the
+ *  final answer. */
+internal fun geminiThinkingConfigField(service: AppService, model: String, effort: String?): Map<String, Any>? {
+    val budget = budgetForEffort(effort) ?: return null
+    if (PricingCache.liteLLMSupportsReasoning(service, model) == false) return null
+    if (PricingCache.modelsDevSupportsReasoning(service, model) == false) return null
+    return mapOf("thinkingBudget" to budget)
 }
 
 /** Per-format web-search tool descriptor, or null when unsupported by this

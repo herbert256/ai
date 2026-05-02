@@ -215,7 +215,12 @@ data class ClaudeRequest(
     val presence_penalty: Float? = null,
     val seed: Int? = null,
     val search: Boolean? = null,
-    val tools: List<Any>? = null
+    val tools: List<Any>? = null,
+    /** Anthropic extended-thinking block: `{type: "enabled",
+     *  budget_tokens: N}`. Only attached when the chosen model supports
+     *  it; mapped from the unified low/medium/high effort levels by
+     *  [com.ai.data.anthropicThinkingField]. */
+    val thinking: Map<String, Any>? = null
 )
 
 data class ClaudeContentBlock(
@@ -300,7 +305,12 @@ data class GeminiGenerationConfig(
     val frequencyPenalty: Float? = null,
     val presencePenalty: Float? = null,
     val seed: Int? = null,
-    val search: Boolean? = null
+    val search: Boolean? = null,
+    /** Gemini 2.5 thinking config: `{thinkingBudget: N, includeThoughts:
+     *  bool}`. Only attached when the model supports thinking; mapped
+     *  from the unified effort levels by
+     *  [com.ai.data.geminiThinkingConfigField]. */
+    val thinkingConfig: Map<String, Any>? = null
 )
 
 data class GeminiCandidate(
