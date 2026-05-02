@@ -313,7 +313,8 @@ fun AppNavHost(
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
                     aiSettings = uiState.aiSettings,
-                    isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel)
+                    isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
+                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
@@ -359,7 +360,8 @@ fun AppNavHost(
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) },
                     aiSettings = uiState.aiSettings,
-                    isVisionCapable = uiState.aiSettings.isVisionCapable(provider, model)
+                    isVisionCapable = uiState.aiSettings.isVisionCapable(provider, model),
+                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
                 )
             }
         }
@@ -380,7 +382,8 @@ fun AppNavHost(
                     onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages, webSearchTool = webSearch) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) },
                     aiSettings = uiState.aiSettings,
-                    isVisionCapable = uiState.aiSettings.isVisionCapable(session.provider, session.model)
+                    isVisionCapable = uiState.aiSettings.isVisionCapable(session.provider, session.model),
+                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }

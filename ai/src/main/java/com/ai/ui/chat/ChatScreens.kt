@@ -39,8 +39,10 @@ import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.AppViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ===== Provider Selection =====
 
@@ -225,7 +227,8 @@ fun ChatSessionScreen(
     aiSettings: Settings,
     initialMessages: List<ChatMessage> = emptyList(),
     sessionId: String? = null,
-    isVisionCapable: Boolean = false
+    isVisionCapable: Boolean = false,
+    onNavigateToTraceFile: (String) -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
 
@@ -426,7 +429,7 @@ fun ChatSessionScreen(
                 ) {
                     items(displayMessages.size, key = { "${displayMessages[it].role}_${displayMessages[it].timestamp}_$it" }) { idx ->
                         val msg = displayMessages[idx]
-                        ChatMessageBubble(msg, userName)
+                        ChatMessageBubble(msg, userName, model, onNavigateToTraceFile)
                     }
                     if (isStreaming) {
                         item(key = "streaming") {
@@ -596,8 +599,27 @@ fun ChatSessionScreen(
 // ===== Message Bubbles =====
 
 @Composable
-private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
+private fun ChatMessageBubble(
+    message: ChatMessage,
+    userName: String = "You",
+    model: String = "",
+    onNavigateToTraceFile: (String) -> Unit = {}
+) {
     val isUser = message.role == "user"
+    // For assistant messages, look up the trace file recorded by the
+    // OkHttp interceptor for this session's model. Match heuristic:
+    // same model, no reportId (chat traces aren't tagged with one),
+    // closest timestamp to the message. Off the UI thread because
+    // ApiTracer.getTraceFiles parses every JSON.
+    val traceFilenameState = if (isUser || model.isBlank()) null
+        else produceState<String?>(initialValue = null, message.timestamp, model) {
+            value = withContext(Dispatchers.IO) {
+                com.ai.data.ApiTracer.getTraceFiles()
+                    .filter { it.reportId == null && it.model == model }
+                    .minByOrNull { kotlin.math.abs(it.timestamp - message.timestamp) }
+                    ?.filename
+            }
+        }
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -606,11 +628,27 @@ private fun ChatMessageBubble(message: ChatMessage, userName: String = "You") {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = if (isUser) userName else "Assistant",
-                fontSize = 11.sp, fontWeight = FontWeight.Medium,
-                color = if (isUser) AppColors.Purple else AppColors.Blue
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isUser) userName else "Assistant",
+                    fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                    color = if (isUser) AppColors.Purple else AppColors.Blue,
+                    modifier = Modifier.weight(1f)
+                )
+                // 🐛 button — opens the trace for this assistant turn.
+                // Only rendered when a matching trace exists; the lookup
+                // result is null on user messages and on assistant
+                // responses where tracing was off at call time.
+                val traceFilename = traceFilenameState?.value
+                if (traceFilename != null) {
+                    Text(
+                        "🐛", fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable { onNavigateToTraceFile(traceFilename) }
+                            .padding(start = 6.dp, top = 2.dp, bottom = 2.dp, end = 2.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             message.imageBase64?.let { b64 ->
                 val bmp = remember(b64) {
