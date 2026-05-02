@@ -419,7 +419,7 @@ private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData, sourceD
  *  matching page can't be found — typically because the translation
  *  metadata is from before the link fields existed on SecondaryResult,
  *  or because the source report could not be loaded. */
-private fun resolveTranslationLinks(
+internal fun resolveTranslationLinks(
     translate: HtmlSecondaryData,
     currentData: HtmlReportData,
     sourceData: HtmlReportData?
@@ -715,15 +715,15 @@ private fun emit(zos: ZipOutputStream, path: String, content: String) {
     zos.closeEntry()
 }
 
-private fun safeName(s: String): String =
+internal fun safeName(s: String): String =
     s.replace(Regex("[^A-Za-z0-9._-]+"), "_").trim('_').ifBlank { "_" }.take(80)
 
-private fun itemFilename(idx: Int, label: String): String {
+internal fun itemFilename(idx: Int, label: String): String {
     val n = "%02d".format(idx + 1)
     return "${n}_${safeName(label)}.html"
 }
 
-private fun traceDirName(idx: Int, t: HtmlTraceData): String {
+internal fun traceDirName(idx: Int, t: HtmlTraceData): String {
     val n = "%02d".format(idx + 1)
     val tail = listOfNotNull(t.method, t.hostname, t.statusCode.toString()).joinToString("_")
     return "${n}_${safeName(tail)}"

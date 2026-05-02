@@ -168,7 +168,7 @@ internal suspend fun bulkExportAndShare(
  *  the file paths). Used by the bulk export to flatten the Zipped
  *  HTML and the trace bundle into the master zip rather than nesting
  *  archives. */
-private fun unpackInto(zos: ZipOutputStream, innerZipBytes: ByteArray, prefix: String) {
+internal fun unpackInto(zos: ZipOutputStream, innerZipBytes: ByteArray, prefix: String) {
     ZipInputStream(innerZipBytes.inputStream()).use { zis ->
         while (true) {
             val entry = zis.nextEntry ?: break

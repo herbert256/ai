@@ -448,6 +448,7 @@ fun TraceDetailScreen(
             ?.let { ApiTracer.prettyPrintJson(it) } ?: ""
     }
 
+
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
         TitleBar(title = "Trace: $statusCode", onBackClick = onBack, onAiClick = onNavigateHome)
 
@@ -614,37 +615,22 @@ fun TraceDetailScreen(
 /** Build a copy of the trace's raw JSON with API keys / tokens /
  *  cookies replaced by "[REDACTED]" — used by Copy and Share so the
  *  bytes that leave the device are scrubbed, while the on-disk file
- *  and the in-app display stay raw. Redacts:
- *   - request URL query params (key, api_key, apikey, access_token, token)
- *   - request and response sensitive headers (Authorization, X-API-Key, …)
- *   - sensitive JSON keys in both bodies (api_key, token, secret, …)
- */
+ *  and the in-app display stay raw. Reuses the redaction helpers in
+ *  com.ai.ui.report.PdfExport (URL query params, sensitive headers,
+ *  sensitive JSON keys). */
 private fun redactedTraceJson(trace: ApiTrace): String {
     val redactedTrace = trace.copy(
         request = trace.request.copy(
-            url = redactSecretsInUrl(trace.request.url),
-            headers = redactHeaderMap(trace.request.headers),
+            url = com.ai.ui.report.redactUrl(trace.request.url),
+            headers = com.ai.ui.report.redactHeaderMap(trace.request.headers),
             body = trace.request.body?.let { com.ai.ui.report.redactJsonString(it) }
         ),
         response = trace.response.copy(
-            headers = redactHeaderMap(trace.response.headers),
+            headers = com.ai.ui.report.redactHeaderMap(trace.response.headers),
             body = trace.response.body?.let { com.ai.ui.report.redactJsonString(it) }
         )
     )
     return com.ai.data.createAppGson(prettyPrint = true).toJson(redactedTrace)
-}
-
-private fun redactHeaderMap(headers: Map<String, String>): Map<String, String> =
-    headers.mapValues { (name, value) ->
-        if (name.lowercase(Locale.US) in com.ai.ui.report.SENSITIVE_HEADERS) com.ai.ui.report.REDACTED else value
-    }
-
-/** Strip API-key-bearing query params from a request URL. Gemini's
- *  endpoint embeds the key as `?key=…`; some other providers accept
- *  `api_key=` / `access_token=` / `token=`. */
-private fun redactSecretsInUrl(url: String): String {
-    val pattern = Regex("([?&])(key|api[_-]?key|access[_-]?token|token)=[^&]*", RegexOption.IGNORE_CASE)
-    return pattern.replace(url) { m -> "${m.groupValues[1]}${m.groupValues[2]}=${com.ai.ui.report.REDACTED}" }
 }
 
 private fun shareTrace(context: Context, content: String, filename: String) {
@@ -746,7 +732,7 @@ private fun JsonTreeNodeView(node: JsonTreeNode, depth: Int) {
  *  marker; the response carries the model's reply in a format-specific
  *  shape. Returns null when either side can't be parsed — the caller
  *  hides the "Translation result" button in that case. */
-private fun extractTranslationParts(requestBody: String?, responseBody: String?): Pair<String, String>? {
+internal fun extractTranslationParts(requestBody: String?, responseBody: String?): Pair<String, String>? {
     if (requestBody.isNullOrBlank() || responseBody.isNullOrBlank()) return null
     val userPrompt = extractUserPrompt(requestBody) ?: return null
     val marker = "TEXT TO TRANSLATE:"
@@ -762,7 +748,7 @@ private fun extractTranslationParts(requestBody: String?, responseBody: String?)
  *  three shapes: OpenAI-compatible / Anthropic messages[] arrays
  *  (with content as either a plain string or a content-parts array)
  *  and Gemini's contents[].parts[].text. */
-private fun extractUserPrompt(json: String): String? {
+internal fun extractUserPrompt(json: String): String? {
     return try {
         @Suppress("DEPRECATION")
         val root = JsonParser().parse(json)
@@ -814,7 +800,7 @@ private fun extractUserPrompt(json: String): String? {
  *  Tries OpenAI choices[0].message.content, Anthropic content[].text,
  *  Gemini candidates[0].content.parts[0].text — the first non-blank
  *  text wins. */
-private fun extractAssistantContent(json: String): String? {
+internal fun extractAssistantContent(json: String): String? {
     return try {
         @Suppress("DEPRECATION")
         val root = JsonParser().parse(json)
