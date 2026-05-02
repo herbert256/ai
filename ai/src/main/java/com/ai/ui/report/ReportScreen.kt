@@ -1187,14 +1187,12 @@ private fun ColumnScope.GenerationPhase(
                     val statusEmoji = if (run.errorCount > 0) "❌" else "✅"
                     Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     val langLabel = run.targetLanguage ?: "Translate"
-                    val callsLabel = "${run.callCount} call${if (run.callCount == 1) "" else "s"}"
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "Translate · $langLabel",
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
-                        Text(callsLabel, fontSize = 11.sp, color = AppColors.TextTertiary)
                     }
                     if (run.totalCost > 0.0) {
                         Text(formatCents(run.totalCost), fontSize = 10.sp,
