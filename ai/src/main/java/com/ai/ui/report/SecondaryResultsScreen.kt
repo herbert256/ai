@@ -77,9 +77,39 @@ internal fun SecondaryResultsScreen(
         else languages.firstOrNull { it.key == selectedLangKey }?.displayName
     }
 
-    val filteredResults = remember(results, selectedLangKey, showLanguagePicker, selectedLanguageName) {
-        if (!showLanguagePicker) results
-        else results.filter { it.targetLanguage == selectedLanguageName }
+    // For SUMMARIZE / COMPARE: a non-Original language view shows two
+    // sources of translated content side by side:
+    //   1. Per-language rows tagged with targetLanguage = X (produced
+    //      by the multi-language Summarize/Compare batch flow).
+    //   2. Original rows (targetLanguage == null) whose content has
+    //      been overlaid by a TRANSLATE row pointing at them
+    //      (Translate-only flow). The overlay copies the translated
+    //      content onto the Original row so the user sees the
+    //      translated text without losing the row's metadata.
+    // The Original view shows untagged rows only; non-SUMMARIZE/
+    // non-COMPARE kinds skip the overlay path entirely.
+    val filteredResults = remember(results, selectedLangKey, showLanguagePicker, selectedLanguageName, translates) {
+        if (!showLanguagePicker) return@remember results
+        if (selectedLanguageName == null) return@remember results.filter { it.targetLanguage == null }
+        val perLang = results.filter { it.targetLanguage == selectedLanguageName }
+        val sourceKind = when (kind) {
+            SecondaryKind.SUMMARIZE -> "SUMMARY"
+            SecondaryKind.COMPARE -> "COMPARE"
+            else -> return@remember perLang
+        }
+        val txByTarget = translates
+            .filter {
+                it.targetLanguage == selectedLanguageName &&
+                    it.translateSourceKind == sourceKind &&
+                    !it.content.isNullOrBlank()
+            }
+            .associateBy { it.translateSourceTargetId ?: "" }
+        val overlaid = results.mapNotNull { s ->
+            if (s.targetLanguage != null) return@mapNotNull null
+            val tx = txByTarget[s.id] ?: return@mapNotNull null
+            s.copy(content = tx.content)
+        }
+        perLang + overlaid
     }
 
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
