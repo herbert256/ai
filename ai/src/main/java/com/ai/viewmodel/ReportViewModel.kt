@@ -129,7 +129,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 prompt = aiPrompt, agents = reportTasks.map { it.reportAgent },
                 rapportText = rapportText, reportType = reportType, closeText = state.externalCloseHtml,
                 imageBase64 = imageBase64, imageMime = imageMime,
-                webSearchTool = state.reportWebSearchTool
+                webSearchTool = state.reportWebSearchTool,
+                reasoningEffort = state.reportReasoningEffort
             )
             val reportId = report.id
 
@@ -366,6 +367,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 genericPromptTitle = report.title, genericPromptText = report.prompt,
                 reportImageBase64 = report.imageBase64, reportImageMime = report.imageMime,
                 reportWebSearchTool = report.webSearchTool,
+                reportReasoningEffort = report.reasoningEffort,
                 pendingReportModels = emptyList(),
                 stagedReportModels = emptyList(),
                 hasPendingPromptChange = false,
@@ -781,9 +783,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // The report's web-search-tool flag is OR'd on top so a regen
             // doesn't lose 🌐 if the original report had it on.
             val baseOverride = state.reportAdvancedParameters
-            val overrideParams = if (report.webSearchTool) {
+            val withWeb = if (report.webSearchTool) {
                 (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
             } else baseOverride
+            // Same overlay for the per-report 🧠 reasoning level — read
+            // off the saved report so a per-row re-run keeps the level
+            // even if the user navigated away and lost UiState.
+            val overrideParams = if (report.reasoningEffort != null) {
+                (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort)
+            } else withWeb
             executeReportTask(
                 context, reportId, report.prompt, overrideParams, task,
                 report.imageBase64, report.imageMime, isRegeneration = true
@@ -1036,7 +1044,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             closeText = source.closeText,
             imageBase64 = source.imageBase64,
             imageMime = source.imageMime,
-            webSearchTool = source.webSearchTool
+            webSearchTool = source.webSearchTool,
+            reasoningEffort = source.reasoningEffort
         )
 
         // Recreate summary/compare meta results on the new report with
