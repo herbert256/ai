@@ -32,6 +32,7 @@ internal data class HtmlTraceData(
     val url: String,
     val statusCode: Int,
     val model: String?,
+    val category: String?,
     val requestHeaders: String,
     val requestBody: String,
     val responseHeaders: String,
@@ -199,6 +200,7 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
                 url = t.request.url,
                 statusCode = t.response.statusCode,
                 model = t.model,
+                category = t.category,
                 requestHeaders = redactHeaders(t.request.headers),
                 requestBody = redactedReqBody,
                 responseHeaders = redactHeaders(t.response.headers),
@@ -531,35 +533,75 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
  *  before being serialised into the HTML so a shared export doesn't
  *  leak credentials. */
 private fun renderJsonView(sb: StringBuilder, traces: List<HtmlTraceData>) {
-    // Top trace selector — one button per trace.
-    sb.append("<div class='trace-list'>")
-    traces.forEachIndexed { i, t ->
-        val active = if (i == 0) " active" else ""
-        val label = buildString {
-            if (t.origin == "source") append("[source] ")
-            append(t.timestamp).append(" · ").append(t.method).append(" · ").append(t.hostname)
-            if (!t.model.isNullOrBlank()) append(" / ").append(t.model)
-            append(" · ").append(t.statusCode)
-        }
-        sb.append("<button id='trace-btn-${t.id}' class='trace-btn$active' onclick=\"showTrace('${t.id}')\">${esc(label)}</button>")
-    }
-    sb.append("</div>")
+    // Group traces by category. Null categories collapse into a single
+    // "Other" bucket (pre-feature traces, plus any unbracketed sites).
+    // Order: alphabetical by category label, with "Other" pinned to the
+    // end so it doesn't elbow ahead of real categories.
+    val groups = traces.groupBy { it.category ?: "Other" }
+    val orderedKeys = groups.keys.sortedWith(compareBy(
+        { it == "Other" },         // false (real cats) < true ("Other")
+        { it.lowercase() }
+    ))
+    if (orderedKeys.isEmpty()) return
 
-    // Per-trace pane: 4 part-tabs + 4 hidden <pre>'s; first is shown.
-    traces.forEachIndexed { i, t ->
-        val display = if (i == 0) "block" else "none"
-        sb.append("<div id='trace-${t.id}' class='trace-pane' style='display:$display'>")
-        sb.append("<div class='trace-meta'><span class='trace-meta-url'>${esc(t.method)} ${esc(t.url)}</span></div>")
-        sb.append("<div class='trace-part-tabs'>")
-        sb.append("<button id='part-btn-${t.id}-reqh' class='trace-part-btn active' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqh')\">Request headers</button>")
-        sb.append("<button id='part-btn-${t.id}-reqb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqb')\">Request body</button>")
-        sb.append("<button id='part-btn-${t.id}-resh' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resh')\">Response headers</button>")
-        sb.append("<button id='part-btn-${t.id}-resb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resb')\">Response body</button>")
+    // The category list assigns a stable short id used everywhere in this
+    // view — escId is overkill for indexes, but keeps the convention
+    // consistent with the rest of the export.
+    val categoryIds = orderedKeys.mapIndexed { idx, cat -> cat to "c$idx" }.toMap()
+
+    // Category row — only emitted when there are 2+ buttons. Otherwise
+    // the lone category's content shows directly with no chrome above it.
+    if (orderedKeys.size > 1) {
+        sb.append("<div class='cat-list'>")
+        orderedKeys.forEachIndexed { i, cat ->
+            val active = if (i == 0) " active" else ""
+            val cid = categoryIds[cat]!!
+            sb.append("<button id='cat-btn-$cid' class='cat-btn$active' onclick=\"showCat('$cid')\">${esc(cat)} (${groups[cat]!!.size})</button>")
+        }
         sb.append("</div>")
-        sb.append("<pre id='part-${t.id}-reqh' class='trace-part trace-part-active' data-trace='${t.id}'>${esc(t.requestHeaders)}</pre>")
-        sb.append("<pre id='part-${t.id}-reqb' class='trace-part' data-trace='${t.id}'>${esc(t.requestBody)}</pre>")
-        sb.append("<pre id='part-${t.id}-resh' class='trace-part' data-trace='${t.id}'>${esc(t.responseHeaders)}</pre>")
-        sb.append("<pre id='part-${t.id}-resb' class='trace-part' data-trace='${t.id}'>${esc(t.responseBody)}</pre>")
+    }
+
+    // Per-category block: a (conditional) trace-button row + per-trace
+    // panes. Hidden by default unless this is the first category. Single-
+    // trace categories skip the trace-button row and render the lone
+    // trace's parts directly.
+    orderedKeys.forEachIndexed { i, cat ->
+        val cid = categoryIds[cat]!!
+        val catTraces = groups[cat]!!
+        val display = if (i == 0) "block" else "none"
+        sb.append("<div id='cat-$cid' class='cat-block' style='display:$display'>")
+
+        if (catTraces.size > 1) {
+            sb.append("<div class='trace-list'>")
+            catTraces.forEachIndexed { ti, t ->
+                val tActive = if (ti == 0) " active" else ""
+                val label = buildString {
+                    if (t.origin == "source") append("[source] ")
+                    append(t.timestamp).append(" · ").append(t.method).append(" · ").append(t.hostname)
+                    if (!t.model.isNullOrBlank()) append(" / ").append(t.model)
+                    append(" · ").append(t.statusCode)
+                }
+                sb.append("<button id='trace-btn-${t.id}' class='trace-btn$tActive' data-cat='$cid' onclick=\"showTrace('$cid','${t.id}')\">${esc(label)}</button>")
+            }
+            sb.append("</div>")
+        }
+
+        catTraces.forEachIndexed { ti, t ->
+            val paneDisplay = if (ti == 0) "block" else "none"
+            sb.append("<div id='trace-${t.id}' class='trace-pane' data-cat='$cid' style='display:$paneDisplay'>")
+            sb.append("<div class='trace-meta'><span class='trace-meta-url'>${esc(t.method)} ${esc(t.url)}</span></div>")
+            sb.append("<div class='trace-part-tabs'>")
+            sb.append("<button id='part-btn-${t.id}-reqh' class='trace-part-btn active' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqh')\">Request headers</button>")
+            sb.append("<button id='part-btn-${t.id}-reqb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqb')\">Request body</button>")
+            sb.append("<button id='part-btn-${t.id}-resh' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resh')\">Response headers</button>")
+            sb.append("<button id='part-btn-${t.id}-resb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resb')\">Response body</button>")
+            sb.append("</div>")
+            sb.append("<pre id='part-${t.id}-reqh' class='trace-part trace-part-active' data-trace='${t.id}'>${esc(t.requestHeaders)}</pre>")
+            sb.append("<pre id='part-${t.id}-reqb' class='trace-part' data-trace='${t.id}'>${esc(t.requestBody)}</pre>")
+            sb.append("<pre id='part-${t.id}-resh' class='trace-part' data-trace='${t.id}'>${esc(t.responseHeaders)}</pre>")
+            sb.append("<pre id='part-${t.id}-resb' class='trace-part' data-trace='${t.id}'>${esc(t.responseBody)}</pre>")
+            sb.append("</div>")
+        }
         sb.append("</div>")
     }
 }
@@ -717,6 +759,10 @@ ul{padding-left:20px}li{margin:4px 0}
 .secondary-card-header{color:#FF9800;font-weight:600;font-size:13px;margin-bottom:8px}
 .secondary-ts{color:#888;font-weight:normal;font-size:11px;margin-left:8px}
 .secondary-body{font-size:14px;line-height:1.5}
+.cat-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cat-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:bold}
+.cat-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
+.cat-block{margin-bottom:8px}
 .trace-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .trace-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:6px 10px;cursor:pointer;font-size:11px;font-family:monospace}
 .trace-btn.active{background:#64B5F6;color:#1a1a1a;border-color:#64B5F6}
@@ -750,7 +796,8 @@ function showView(name){document.querySelectorAll('.view-block').forEach(e=>e.st
 function showLayout(view,mode){var a=document.getElementById('layout-'+view+'-oneByOne');var b=document.getElementById('layout-'+view+'-allTogether');var ba=document.getElementById('layout-btn-'+view+'-oneByOne');var bb=document.getElementById('layout-btn-'+view+'-allTogether');if(mode==='oneByOne'){if(a)a.style.display='block';if(b)b.style.display='none';if(ba)ba.classList.add('active');if(bb)bb.classList.remove('active')}else{if(a)a.style.display='none';if(b)b.style.display='block';if(ba)ba.classList.remove('active');if(bb)bb.classList.add('active')}}
 function showAgent(id){document.querySelectorAll('.agent-result').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.agent-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('agent-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
 function showItem(view,id){document.querySelectorAll('.item-content[data-view="'+view+'"]').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.item-btn[data-view="'+view+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('item-'+view+'-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
-function showTrace(id){document.querySelectorAll('.trace-pane').forEach(e=>e.style.display='none');document.querySelectorAll('.trace-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('trace-'+id);var btn=document.getElementById('trace-btn-'+id);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
+function showCat(cid){document.querySelectorAll('.cat-block').forEach(e=>e.style.display='none');document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('cat-'+cid);var btn=document.getElementById('cat-btn-'+cid);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
+function showTrace(cid,id){document.querySelectorAll('.trace-pane[data-cat="'+cid+'"]').forEach(e=>e.style.display='none');document.querySelectorAll('.trace-btn[data-cat="'+cid+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('trace-'+id);var btn=document.getElementById('trace-btn-'+id);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
 function showTracePart(traceId,part){document.querySelectorAll('.trace-part[data-trace="'+traceId+'"]').forEach(e=>e.classList.remove('trace-part-active'));document.querySelectorAll('.trace-part-btn[data-trace="'+traceId+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('part-'+traceId+'-'+part);var btn=document.getElementById('part-btn-'+traceId+'-'+part);if(el)el.classList.add('trace-part-active');if(btn)btn.classList.add('active')}
 function toggleThink(id){var el=document.getElementById('think-'+id);var btn=document.getElementById('think-btn-'+id);if(el.style.display==='block'){el.style.display='none';btn.textContent='Think'}else{el.style.display='block';btn.textContent='Hide Think'}}
 </script>
