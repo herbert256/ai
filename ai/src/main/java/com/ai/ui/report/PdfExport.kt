@@ -219,6 +219,9 @@ private suspend fun buildComprehensiveHtml(
         gs.introPrompt.ifBlank { com.ai.data.SecondaryPrompts.DEFAULT_INTRO }
     }
 
+    val previousTraceCategory = ApiTracer.currentCategory
+    ApiTracer.currentCategory = "Report intro"
+    try {
     coroutineScope {
         uniqueModels.map { (providerId, model) ->
             async(Dispatchers.IO) {
@@ -275,6 +278,9 @@ private suspend fun buildComprehensiveHtml(
                 }
             }
         }.awaitAll()
+    }
+    } finally {
+        ApiTracer.currentCategory = previousTraceCategory
     }
     onProgress(totalSteps, totalSteps)
     return buildPdfHtml(context, report, traces, intros, introCosts.toList(), sections, getAppVersion(context))

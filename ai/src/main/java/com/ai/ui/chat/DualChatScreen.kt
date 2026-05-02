@@ -332,6 +332,7 @@ fun DualChatSessionScreen(
         chatJob = scope.launch {
             isRunning = true; isStopped = false; errorMessage = null
             ApiTracer.currentReportId = sessionId
+            ApiTracer.currentCategory = "Dual chat"
             try {
                 while (currentInteraction < targetInteractions) {
                     // Model 1's turn
@@ -371,6 +372,7 @@ fun DualChatSessionScreen(
                 errorMessage = e.message ?: "Unknown error"
             } finally {
                 ApiTracer.currentReportId = null
+                ApiTracer.currentCategory = null
                 thinkingModel = null; isRunning = false; isStopped = true
             }
         }

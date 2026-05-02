@@ -410,6 +410,8 @@ fun ChatSessionScreen(
         scope.launch {
             isStreaming = true; streamingContentState.value = ""
             val sb = StringBuilder()
+            val previousCategory = com.ai.data.ApiTracer.currentCategory
+            com.ai.data.ApiTracer.currentCategory = "Chat"
             try {
                 onSendMessageStream(messages, useWebSearch, reasoningEffort).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
                 val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
@@ -431,6 +433,7 @@ fun ChatSessionScreen(
                     saveSession(messages)
                 }
             } finally {
+                com.ai.data.ApiTracer.currentCategory = previousCategory
                 isStreaming = false; streamingContentState.value = ""
             }
         }
@@ -449,6 +452,8 @@ fun ChatSessionScreen(
         if (mod == null) { actuallySend(input, img); return }
         scope.launch {
             isModerating = true
+            val previousCategory = com.ai.data.ApiTracer.currentCategory
+            com.ai.data.ApiTracer.currentCategory = "Chat validate input"
             try {
                 val (modProvider, modModelId) = mod
                 val apiKey = aiSettings.getApiKey(modProvider)
@@ -474,6 +479,7 @@ fun ChatSessionScreen(
                     actuallySend(input, img)
                 }
             } finally {
+                com.ai.data.ApiTracer.currentCategory = previousCategory
                 isModerating = false
             }
         }

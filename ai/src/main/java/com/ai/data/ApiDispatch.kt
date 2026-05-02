@@ -81,10 +81,12 @@ suspend fun AnalysisRepository.fetchModelsWithKinds(
     service: AppService,
     apiKey: String
 ): FetchedModels = withContext(Dispatchers.IO) {
-    when (service.apiFormat) {
-        ApiFormat.ANTHROPIC -> fetchModelsAnthropic(service, apiKey)
-        ApiFormat.GOOGLE -> fetchModelsGemini(service, apiKey)
-        ApiFormat.OPENAI_COMPATIBLE -> fetchModelsOpenAi(service, apiKey)
+    withTraceCategory("Retrieve models list") {
+        when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> fetchModelsAnthropic(service, apiKey)
+            ApiFormat.GOOGLE -> fetchModelsGemini(service, apiKey)
+            ApiFormat.OPENAI_COMPATIBLE -> fetchModelsOpenAi(service, apiKey)
+        }
     }
 }
 
@@ -557,29 +559,34 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
 // ============================================================================
 
 suspend fun AnalysisRepository.testModel(service: AppService, apiKey: String, model: String): String? = withContext(Dispatchers.IO) {
-    try {
-        val response = analyze(service, apiKey, AnalysisRepository.TEST_PROMPT, model)
-        if (response.isSuccess) null else response.error ?: "Unknown error"
-    } catch (e: kotlinx.coroutines.CancellationException) {
-        throw e
-    } catch (e: Exception) { e.message ?: "Connection error" }
+    withTraceCategory("Provider test") {
+        try {
+            val response = analyze(service, apiKey, AnalysisRepository.TEST_PROMPT, model)
+            if (response.isSuccess) null else response.error ?: "Unknown error"
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) { e.message ?: "Connection error" }
+    }
 }
 
 suspend fun AnalysisRepository.testModelWithPrompt(
     service: AppService, apiKey: String, model: String, prompt: String
 ): Pair<String?, String?> = withContext(Dispatchers.IO) {
-    try {
-        val response = analyze(service, apiKey, prompt, model)
-        if (response.isSuccess) Pair(response.analysis, null) else Pair(null, response.error ?: "Unknown error")
-    } catch (e: kotlinx.coroutines.CancellationException) {
-        throw e
-    } catch (e: Exception) { Pair(null, e.message ?: "Connection error") }
+    withTraceCategory("Provider test") {
+        try {
+            val response = analyze(service, apiKey, prompt, model)
+            if (response.isSuccess) Pair(response.analysis, null) else Pair(null, response.error ?: "Unknown error")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) { Pair(null, e.message ?: "Connection error") }
+    }
 }
 
 /** Test API connection with raw JSON body. */
 suspend fun AnalysisRepository.testApiConnectionWithJson(
     service: AppService, apiKey: String, baseUrl: String, jsonBody: String
 ): AnalysisResponse = withContext(Dispatchers.IO) {
+    withTraceCategory("Provider test") {
     try {
         val client = OkHttpClient.Builder()
             .addInterceptor(TracingInterceptor())
@@ -622,6 +629,7 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Exception) { AnalysisResponse(service, null, "Error: ${e.message}") }
+    }
 }
 
 // ============================================================================

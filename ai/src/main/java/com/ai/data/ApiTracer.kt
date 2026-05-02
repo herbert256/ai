@@ -16,8 +16,22 @@ import kotlin.concurrent.withLock
 
 data class TraceRequest(val url: String, val method: String, val headers: Map<String, String>, val body: String?)
 data class TraceResponse(val statusCode: Int, val headers: Map<String, String>, val body: String?)
-data class ApiTrace(val timestamp: Long, val hostname: String, val reportId: String? = null, val model: String? = null, val request: TraceRequest, val response: TraceResponse)
-data class TraceFileInfo(val filename: String, val hostname: String, val timestamp: Long, val statusCode: Int, val reportId: String? = null, val model: String? = null)
+data class ApiTrace(
+    val timestamp: Long, val hostname: String,
+    val reportId: String? = null, val model: String? = null,
+    /** Functional description of the call site that produced this trace,
+     *  e.g. "Report", "Report compare", "Chat", "Chat validate input",
+     *  "Provider test", "Retrieve models list", "Pricing fetch". Set
+     *  via [ApiTracer.currentCategory] / [withTraceCategory] before the
+     *  API call runs. Null on traces written before the field existed
+     *  or from sites that don't bracket their calls. */
+    val category: String? = null,
+    val request: TraceRequest, val response: TraceResponse
+)
+data class TraceFileInfo(
+    val filename: String, val hostname: String, val timestamp: Long, val statusCode: Int,
+    val reportId: String? = null, val model: String? = null, val category: String? = null
+)
 
 /**
  * Singleton managing API trace storage as JSON files under trace/ directory.
@@ -31,6 +45,14 @@ object ApiTracer {
     private val fileSequence = AtomicLong(0)
     @Volatile var isTracingEnabled: Boolean = false
     @Volatile var currentReportId: String? = null
+    /** Free-form label describing what kind of call is in flight (e.g.
+     *  "Report compare", "Chat validate input"). Read at trace-write time
+     *  by [TracingInterceptor] and persisted on the trace JSON so the
+     *  Trace screen can offer a category filter. Same volatile + global
+     *  pattern as [currentReportId] — overlapping flows on different
+     *  threads will share whichever value was set last; precision is
+     *  per-flow, not per-call. */
+    @Volatile var currentCategory: String? = null
 
     fun init(context: Context) = lock.withLock {
         traceDir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
@@ -54,7 +76,7 @@ object ApiTracer {
         dir.listFiles()?.filter { it.extension == "json" }?.mapNotNull { file ->
             try {
                 val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
-                TraceFileInfo(file.name, trace.hostname, trace.timestamp, trace.response.statusCode, trace.reportId, trace.model)
+                TraceFileInfo(file.name, trace.hostname, trace.timestamp, trace.response.statusCode, trace.reportId, trace.model, trace.category)
             } catch (_: Exception) { null }
         }?.sortedByDescending { it.timestamp } ?: emptyList()
     }
@@ -160,7 +182,8 @@ class TracingInterceptor : Interceptor {
         }
         val model = modelFromBody ?: modelFromUrl
 
-        ApiTracer.saveTrace(ApiTrace(timestamp, hostname, ApiTracer.currentReportId, model, traceRequest,
+        ApiTracer.saveTrace(ApiTrace(timestamp, hostname, ApiTracer.currentReportId, model,
+            ApiTracer.currentCategory, traceRequest,
             TraceResponse(response.code, responseHeaders, responseBody)))
         return response
     }
@@ -211,4 +234,14 @@ class RateLimitRetryInterceptor(
         }
         return current
     }
+}
+
+/** Set [ApiTracer.currentCategory] for the duration of [block], restoring
+ *  whatever was there before. Use to bracket a top-level flow's API
+ *  calls — works fine inside suspend lambdas because the function is
+ *  inlined at the call site. */
+inline fun <R> withTraceCategory(category: String, block: () -> R): R {
+    val previous = ApiTracer.currentCategory
+    ApiTracer.currentCategory = category
+    return try { block() } finally { ApiTracer.currentCategory = previous }
 }

@@ -56,14 +56,31 @@ fun TraceListScreen(
     // getTraceFiles parses every trace JSON to extract 4 summary fields;
     // with hundreds of traces this is tens of ms. Off the UI thread so
     // opening the trace list doesn't stall.
-    var traceFiles by remember { mutableStateOf(emptyList<TraceFileInfo>()) }
+    var allTraceFiles by remember { mutableStateOf(emptyList<TraceFileInfo>()) }
     LaunchedEffect(reportId, modelFilter) {
-        traceFiles = withContext(Dispatchers.IO) {
+        allTraceFiles = withContext(Dispatchers.IO) {
             when {
                 reportId != null -> ApiTracer.getTraceFilesForReport(reportId)
                 modelFilter != null -> ApiTracer.getTraceFiles().filter { it.model == modelFilter }
                 else -> ApiTracer.getTraceFiles()
             }
+        }
+    }
+    // Build the category list from whatever the loaded set actually
+    // contains. "(All)" sits at the top; "(uncategorised)" represents
+    // pre-feature traces and any sites that weren't bracketed.
+    val categories = remember(allTraceFiles) {
+        val present = allTraceFiles.map { it.category }.distinct()
+        val labelled = present.filterNotNull().sorted()
+        val hasUncategorised = present.contains(null)
+        listOf("(All)") + labelled + (if (hasUncategorised) listOf("(uncategorised)") else emptyList())
+    }
+    var selectedCategory by rememberSaveable { mutableStateOf("(All)") }
+    val traceFiles = remember(allTraceFiles, selectedCategory) {
+        when (selectedCategory) {
+            "(All)" -> allTraceFiles
+            "(uncategorised)" -> allTraceFiles.filter { it.category == null }
+            else -> allTraceFiles.filter { it.category == selectedCategory }
         }
     }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
@@ -86,6 +103,39 @@ fun TraceListScreen(
                 else -> "API Traces"
             }
             TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
+
+            // Category pulldown — only shown when there's something to
+            // pick from beyond "(All)". Clearing the filter re-shows
+            // everything.
+            if (categories.size > 1) {
+                var expanded by remember { mutableStateOf(false) }
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors(),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Category: $selectedCategory", fontSize = 12.sp,
+                            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("▾", fontSize = 12.sp, color = AppColors.TextTertiary)
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        categories.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat, fontSize = 13.sp) },
+                                onClick = {
+                                    selectedCategory = cat
+                                    expanded = false
+                                    currentPage = 0
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
             if (totalPages > 1) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -115,8 +165,8 @@ fun TraceListScreen(
             if (reportId == null && modelFilter == null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(onClick = {
-                    onClearTraces(); traceFiles = emptyList(); currentPage = 0
-                }, enabled = traceFiles.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
+                    onClearTraces(); allTraceFiles = emptyList(); currentPage = 0
+                }, enabled = allTraceFiles.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Clear Traces", maxLines = 1, softWrap = false) }
             }

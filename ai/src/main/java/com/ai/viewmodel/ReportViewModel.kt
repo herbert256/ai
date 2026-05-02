@@ -137,6 +137,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             try {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
                 ApiTracer.currentReportId = reportId
+                ApiTracer.currentCategory = "Report"
 
                 val semaphore = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 coroutineScope {
@@ -156,6 +157,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             } finally {
                 ApiTracer.currentReportId = null
+                ApiTracer.currentCategory = null
             }
         }
     }
@@ -567,6 +569,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
         scope.launch(Dispatchers.IO) {
+            // Tag every API call this batch makes with a kind-specific
+            // category so the trace screen can filter by it. Restored
+            // (not blanket-cleared) so an enclosing flow's category
+            // survives if runSecondary is ever called nested.
+            val previousCategory = ApiTracer.currentCategory
+            ApiTracer.currentCategory = when (kind) {
+                SecondaryKind.RERANK -> "Report rerank"
+                SecondaryKind.SUMMARIZE -> "Report summarize"
+                SecondaryKind.COMPARE -> "Report compare"
+                SecondaryKind.MODERATION -> "Report moderation"
+                SecondaryKind.TRANSLATE -> "Report translate"
+            }
             try {
                 val state = appViewModel.uiState.value
                 val aiSettings = state.aiSettings
@@ -612,6 +626,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }.awaitAll()
                 }
             } finally {
+                ApiTracer.currentCategory = previousCategory
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
@@ -752,7 +767,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  shape so the regenerate still goes through. */
     fun regenerateAgent(scope: kotlinx.coroutines.CoroutineScope, context: Context, reportId: String, agentId: String) {
         scope.launch(Dispatchers.IO) {
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val previousReportId = ApiTracer.currentReportId
+            val previousCategory = ApiTracer.currentCategory
+            ApiTracer.currentReportId = reportId
+            ApiTracer.currentCategory = "Report regenerate agent"
+            val report = ReportStorage.getReport(context, reportId) ?: run {
+                ApiTracer.currentReportId = previousReportId
+                ApiTracer.currentCategory = previousCategory
+                return@launch
+            }
             val ra = report.agents.find { it.agentId == agentId } ?: return@launch
             val provider = AppService.findById(ra.provider) ?: return@launch
             val state = appViewModel.uiState.value
@@ -795,10 +818,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val overrideParams = if (report.reasoningEffort != null) {
                 (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort)
             } else withWeb
-            executeReportTask(
-                context, reportId, report.prompt, overrideParams, task,
-                report.imageBase64, report.imageMime, isRegeneration = true
-            )
+            try {
+                executeReportTask(
+                    context, reportId, report.prompt, overrideParams, task,
+                    report.imageBase64, report.imageMime, isRegeneration = true
+                )
+            } finally {
+                ApiTracer.currentReportId = previousReportId
+                ApiTracer.currentCategory = previousCategory
+            }
         }
     }
 
@@ -958,7 +986,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // explicitId parameter on ReportStorage.createReport.
             val newId = java.util.UUID.randomUUID().toString()
             val previousTraceReportId = ApiTracer.currentReportId
+            val previousTraceCategory = ApiTracer.currentCategory
             ApiTracer.currentReportId = newId
+            ApiTracer.currentCategory = "Translation"
             try {
                 // Concurrency 3: translation calls are typically the slowest
                 // I/O in the app; cap so a 30-item report doesn't blow past
@@ -979,6 +1009,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 _translationRun.update { it?.copy(newReportId = newId) }
             } finally {
                 ApiTracer.currentReportId = previousTraceReportId
+                ApiTracer.currentCategory = previousTraceCategory
             }
         }
     }

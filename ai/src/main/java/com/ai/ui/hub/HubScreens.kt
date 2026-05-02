@@ -252,6 +252,8 @@ fun NewReportScreen(
                     if (mod == null) { proceed(); return@next }
                     coroutineScope.launch {
                         isModerating = true
+                        val previousCategory = ApiTracer.currentCategory
+                        ApiTracer.currentCategory = "Hub validate input"
                         try {
                             val (modProvider, modModelId) = mod
                             val apiKey = uiState.aiSettings.getApiKey(modProvider)
@@ -272,6 +274,7 @@ fun NewReportScreen(
                                 proceed()
                             }
                         } finally {
+                            ApiTracer.currentCategory = previousCategory
                             isModerating = false
                         }
                     }

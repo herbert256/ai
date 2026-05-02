@@ -672,6 +672,7 @@ object PricingCache {
      * through BackupManager via the existing PREFS_TO_BACKUP entry).
      */
     suspend fun fetchModelsDevOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+      withTraceCategory("Pricing fetch") {
         try {
             // Route through the shared OkHttp client (TracingInterceptor +
             // proper timeouts) instead of java.net.URL.openStream — so a
@@ -701,6 +702,7 @@ object PricingCache {
             android.util.Log.e("PricingCache", "models.dev refresh failed: ${e.message}", e)
             null
         }
+      }
     }
 
     /** Walk models.dev's two-level shape (provider → models → model entry)
@@ -903,6 +905,7 @@ object PricingCache {
     }
 
     suspend fun fetchHeliconeOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+      withTraceCategory("Pricing fetch") {
         try {
             val json = ApiFactory.fetchUrlAsString("https://www.helicone.ai/api/llm-costs")
             if (json.isNullOrBlank()) {
@@ -927,6 +930,7 @@ object PricingCache {
             android.util.Log.e("PricingCache", "Helicone refresh failed: ${e.message}", e)
             null
         }
+      }
     }
 
     private fun findHeliconePricing(provider: AppService, model: String): ModelPricing? {
@@ -1018,6 +1022,7 @@ object PricingCache {
     }
 
     suspend fun fetchLLMPricesOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+      withTraceCategory("Pricing fetch") {
         try {
             val combined = mutableMapOf<String, ModelPricing>()
             for (vendor in llmPricesVendors) {
@@ -1040,6 +1045,7 @@ object PricingCache {
             android.util.Log.e("PricingCache", "llm-prices refresh failed: ${e.message}", e)
             null
         }
+      }
     }
 
     private fun findLLMPricesPricing(provider: AppService, model: String): ModelPricing? {
@@ -1126,6 +1132,7 @@ object PricingCache {
     }
 
     suspend fun fetchArtificialAnalysisOnline(context: Context, apiKey: String): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+      withTraceCategory("Pricing fetch") {
         if (apiKey.isBlank()) {
             android.util.Log.w("PricingCache", "Artificial Analysis refresh skipped: missing API key")
             return@withContext null
@@ -1157,6 +1164,7 @@ object PricingCache {
             android.util.Log.e("PricingCache", "Artificial Analysis refresh failed: ${e.message}", e)
             null
         }
+      }
     }
 
     private fun findArtificialAnalysisPricing(provider: AppService, model: String): ModelPricing? {
@@ -1187,17 +1195,19 @@ object PricingCache {
 
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
-        return try {
-            val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-            val response = api.listModelsDetailed("Bearer $apiKey")
-            if (response.isSuccessful) {
-                response.body()?.data?.mapNotNull { model ->
-                    val pp = model.pricing?.prompt?.toDoubleOrNull()
-                    val cp = model.pricing?.completion?.toDoubleOrNull()
-                    if (pp != null && cp != null) model.id to ModelPricing(model.id, pp, cp, "OPENROUTER") else null
-                }?.toMap() ?: emptyMap()
-            } else emptyMap()
-        } catch (_: Exception) { emptyMap() }
+        return withTraceCategory("Pricing fetch") {
+            try {
+                val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
+                val response = api.listModelsDetailed("Bearer $apiKey")
+                if (response.isSuccessful) {
+                    response.body()?.data?.mapNotNull { model ->
+                        val pp = model.pricing?.prompt?.toDoubleOrNull()
+                        val cp = model.pricing?.completion?.toDoubleOrNull()
+                        if (pp != null && cp != null) model.id to ModelPricing(model.id, pp, cp, "OPENROUTER") else null
+                    }?.toMap() ?: emptyMap()
+                } else emptyMap()
+            } catch (_: Exception) { emptyMap() }
+        }
     }
 
     // Private helpers
@@ -1449,25 +1459,27 @@ object PricingCache {
 
     suspend fun fetchAndSaveModelSpecifications(context: Context, apiKey: String): Pair<Int, Int>? {
         if (apiKey.isBlank()) return null
-        return try {
-            val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-            val response = api.listModelsDetailed("Bearer $apiKey")
-            if (!response.isSuccessful) return null
-            val models = response.body()?.data ?: emptyList()
-            val pricingEntries = mutableListOf<ModelPricingEntry>()
-            val parametersEntries = mutableListOf<ModelSupportedParametersEntry>()
-            for (model in models) {
-                val parts = model.id.split("/", limit = 2)
-                if (parts.size != 2) continue
-                val aiService = AppService.entries.find { it.openRouterName == parts[0] } ?: continue
-                if (model.pricing != null) pricingEntries.add(ModelPricingEntry(aiService.id, parts[1], model.pricing))
-                if (model.supported_parameters != null) parametersEntries.add(ModelSupportedParametersEntry(aiService.id, parts[1], model.supported_parameters))
-            }
-            java.io.File(context.filesDir, "model_pricing.json").writeText(gson.toJson(pricingEntries))
-            java.io.File(context.filesDir, "model_supported_parameters.json").writeText(gson.toJson(parametersEntries))
-            clearSupportedParametersCache()
-            Pair(pricingEntries.size, parametersEntries.size)
-        } catch (e: Exception) { android.util.Log.e("PricingCache", "Failed: ${e.message}"); null }
+        return withTraceCategory("OpenRouter model specs") {
+            try {
+                val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
+                val response = api.listModelsDetailed("Bearer $apiKey")
+                if (!response.isSuccessful) return@withTraceCategory null
+                val models = response.body()?.data ?: emptyList()
+                val pricingEntries = mutableListOf<ModelPricingEntry>()
+                val parametersEntries = mutableListOf<ModelSupportedParametersEntry>()
+                for (model in models) {
+                    val parts = model.id.split("/", limit = 2)
+                    if (parts.size != 2) continue
+                    val aiService = AppService.entries.find { it.openRouterName == parts[0] } ?: continue
+                    if (model.pricing != null) pricingEntries.add(ModelPricingEntry(aiService.id, parts[1], model.pricing))
+                    if (model.supported_parameters != null) parametersEntries.add(ModelSupportedParametersEntry(aiService.id, parts[1], model.supported_parameters))
+                }
+                java.io.File(context.filesDir, "model_pricing.json").writeText(gson.toJson(pricingEntries))
+                java.io.File(context.filesDir, "model_supported_parameters.json").writeText(gson.toJson(parametersEntries))
+                clearSupportedParametersCache()
+                Pair(pricingEntries.size, parametersEntries.size)
+            } catch (e: Exception) { android.util.Log.e("PricingCache", "Failed: ${e.message}"); null }
+        }
     }
 
     @Volatile private var supportedParametersCache: Map<String, List<String>>? = null
