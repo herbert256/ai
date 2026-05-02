@@ -82,6 +82,34 @@ fun ReportSingleResultScreen(
     }
     val traceFilename = traceFilenameState.value
 
+    // For translated reports: load the source agent's response so the
+    // "Translation info" button can pop a split-screen original-vs-
+    // translation viewer. The translated copy preserves agentId, so a
+    // direct match by agentId works.
+    val sourceAgentBodyState = produceState<String?>(initialValue = null, report.sourceReportId, agentId) {
+        val sid = report.sourceReportId ?: return@produceState
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, sid)?.agents
+                ?.firstOrNull { it.agentId == agentId }?.responseBody
+        }
+    }
+    val sourceAgentBody = sourceAgentBodyState.value
+    val canShowTranslation = sourceAgentBody != null && !agent.responseBody.isNullOrBlank()
+    var showTranslationCompare by remember { mutableStateOf(false) }
+
+    if (showTranslationCompare && sourceAgentBody != null && agent.responseBody != null) {
+        TranslationCompareScreen(
+            title = "Translation info — ${provider.displayName} / ${agent.model}",
+            originalLabel = "Original",
+            originalContent = sourceAgentBody,
+            translatedLabel = "Translation",
+            translatedContent = agent.responseBody!!,
+            onBack = { showTranslationCompare = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     var confirmRemove by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -164,6 +192,13 @@ fun ReportSingleResultScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+            if (canShowTranslation) {
+                Button(
+                    onClick = { showTranslationCompare = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
             // 4th button on its own row so the longer label fits without
             // squashing the three short buttons above. Kicks off a single-

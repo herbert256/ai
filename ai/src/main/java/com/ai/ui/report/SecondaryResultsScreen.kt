@@ -200,6 +200,40 @@ internal fun SecondaryResultDetailScreen(
     }
     val agentLabels = agentLabelsState.value
 
+    // Translation comparison: only meaningful for SUMMARIZE / COMPARE,
+    // and only when this secondary is a translated copy (its
+    // translatedFromSecondaryId points at the source's untranslated
+    // counterpart). Load the source's content lazily.
+    val sourceContentState = produceState<String?>(
+        initialValue = null,
+        result.id, result.translatedFromSecondaryId
+    ) {
+        val srcId = result.translatedFromSecondaryId ?: return@produceState
+        value = withContext(Dispatchers.IO) {
+            val parent = ReportStorage.getReport(context, result.reportId) ?: return@withContext null
+            val srcReportId = parent.sourceReportId ?: return@withContext null
+            SecondaryResultStorage.get(context, srcReportId, srcId)?.content
+        }
+    }
+    val sourceContent = sourceContentState.value
+    val canShowTranslation =
+        (result.kind == SecondaryKind.SUMMARIZE || result.kind == SecondaryKind.COMPARE) &&
+            !sourceContent.isNullOrBlank() && !result.content.isNullOrBlank()
+    var showTranslationCompare by remember { mutableStateOf(false) }
+
+    if (showTranslationCompare && sourceContent != null && result.content != null) {
+        TranslationCompareScreen(
+            title = "Translation info — $title — $provider / ${result.model}",
+            originalLabel = "Original",
+            originalContent = sourceContent,
+            translatedLabel = "Translation",
+            translatedContent = result.content,
+            onBack = { showTranslationCompare = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "$title — $provider", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
@@ -251,6 +285,14 @@ internal fun SecondaryResultDetailScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+        if (canShowTranslation) {
+            Button(
+                onClick = { showTranslationCompare = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = { confirmDelete = true },
