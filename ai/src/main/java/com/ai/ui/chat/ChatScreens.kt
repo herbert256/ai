@@ -214,6 +214,17 @@ fun ChatParametersScreen(
     }
 }
 
+/** State carried into the "input flagged" dialog. The trace filename
+ *  is captured at moderation-call time so the dialog can offer a 🐛
+ *  button that opens the recorded request/response — useful for
+ *  spotting why a particular input fired (which categories, scores). */
+private data class FlaggedState(
+    val input: String,
+    val result: com.ai.data.ModerationInputResult,
+    val img: Pair<String, String>?,
+    val traceFilename: String?
+)
+
 // ===== Chat Session =====
 
 @Composable
@@ -276,7 +287,7 @@ fun ChatSessionScreen(
     // Result of the pre-send moderation call: when non-null and flagged,
     // the proceed/cancel dialog renders. The pending input + image are
     // captured so Proceed can fire the actual send without re-typing.
-    var pendingFlagged by remember { mutableStateOf<Triple<String, com.ai.data.ModerationInputResult, Pair<String, String>?>?>(null) }
+    var pendingFlagged by remember { mutableStateOf<FlaggedState?>(null) }
     var moderationError by remember { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
 
@@ -398,13 +409,24 @@ fun ChatSessionScreen(
             try {
                 val (modProvider, modModelId) = mod
                 val apiKey = aiSettings.getApiKey(modProvider)
+                // Snapshot the wall clock just before the call so we can
+                // pick out the resulting trace by "model match + timestamp
+                // ≥ this value" — avoids grabbing an earlier trace of the
+                // same model from a previous turn.
+                val callStart = System.currentTimeMillis()
                 val (results, apiResult) = com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(input))
                 val r = results?.firstOrNull()
                 if (apiResult.errorMessage != null || r == null) {
                     moderationError = apiResult.errorMessage ?: "No moderation result"
                     actuallySend(input, img)
                 } else if (r.flagged) {
-                    pendingFlagged = Triple(input, r, img)
+                    val traceFilename = withContext(Dispatchers.IO) {
+                        com.ai.data.ApiTracer.getTraceFiles()
+                            .filter { it.reportId == null && it.model == modModelId && it.timestamp >= callStart }
+                            .minByOrNull { it.timestamp }
+                            ?.filename
+                    }
+                    pendingFlagged = FlaggedState(input, r, img, traceFilename)
                 } else {
                     actuallySend(input, img)
                 }
@@ -620,15 +642,30 @@ fun ChatSessionScreen(
 
     val flagged = pendingFlagged
     if (flagged != null) {
-        val (input, result, img) = flagged
         AlertDialog(
             onDismissRequest = { pendingFlagged = null },
-            title = { Text("Input flagged by moderation") },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Input flagged by moderation", modifier = Modifier.weight(1f))
+                    if (flagged.traceFilename != null) {
+                        Text(
+                            "🐛", fontSize = 18.sp,
+                            modifier = Modifier
+                                .clickable {
+                                    val fn = flagged.traceFilename
+                                    pendingFlagged = null
+                                    onNavigateToTraceFile(fn)
+                                }
+                                .padding(start = 8.dp, end = 4.dp)
+                        )
+                    }
+                }
+            },
             text = {
                 Column {
                     Text(
                         "The chosen moderation model flagged this input under: " +
-                            result.firedCategories.joinToString(", "),
+                            flagged.result.firedCategories.joinToString(", "),
                         fontSize = 13.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -640,8 +677,9 @@ fun ChatSessionScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
+                    val s = flagged
                     pendingFlagged = null
-                    actuallySend(input, img)
+                    actuallySend(s.input, s.img)
                 }) { Text("Proceed anyway", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
