@@ -76,14 +76,68 @@ fun TraceListScreen(
         listOf("(All)") + labelled + (if (hasUncategorised) listOf("(uncategorised)") else emptyList())
     }
     var selectedCategory by rememberSaveable { mutableStateOf("(All)") }
-    val traceFiles = remember(allTraceFiles, selectedCategory) {
-        when (selectedCategory) {
-            "(All)" -> allTraceFiles
-            "(uncategorised)" -> allTraceFiles.filter { it.category == null }
-            else -> allTraceFiles.filter { it.category == selectedCategory }
-        }
+
+    // Provider distinct list, derived from the trace hostname matched
+    // against each AppService's baseUrl. Hostnames we can't resolve get
+    // bucketed into "(unknown)" so the user can still slice by them.
+    val providers = remember(allTraceFiles) {
+        val labels = allTraceFiles.map { providerLabelForHost(it.hostname) }.distinct()
+        val labelled = labels.filter { it != "(unknown)" }.sorted()
+        val hasUnknown = labels.contains("(unknown)")
+        listOf("(All)") + labelled + (if (hasUnknown) listOf("(unknown)") else emptyList())
+    }
+    var selectedProvider by rememberSaveable { mutableStateOf("(All)") }
+
+    // Model filter — chosen via the Model picker overlay. null = no filter.
+    var selectedModel by rememberSaveable { mutableStateOf<String?>(null) }
+    var showModelPicker by remember { mutableStateOf(false) }
+
+    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedModel) {
+        allTraceFiles
+            .filter { t -> when (selectedCategory) {
+                "(All)" -> true
+                "(uncategorised)" -> t.category == null
+                else -> t.category == selectedCategory
+            } }
+            .filter { t -> when (selectedProvider) {
+                "(All)" -> true
+                else -> providerLabelForHost(t.hostname) == selectedProvider
+            } }
+            .filter { t -> selectedModel == null || t.model == selectedModel }
     }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
+
+    // Models with traces in the currently scoped (Category + Provider)
+    // subset. The picker shows only these so the user can't pick one
+    // that yields zero rows.
+    val pickableModels = remember(allTraceFiles, selectedCategory, selectedProvider) {
+        allTraceFiles
+            .filter { t -> when (selectedCategory) {
+                "(All)" -> true
+                "(uncategorised)" -> t.category == null
+                else -> t.category == selectedCategory
+            } }
+            .filter { t -> when (selectedProvider) {
+                "(All)" -> true
+                else -> providerLabelForHost(t.hostname) == selectedProvider
+            } }
+            .mapNotNull { t ->
+                val m = t.model?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                providerLabelForHost(t.hostname) to m
+            }
+            .distinct()
+            .sortedWith(compareBy({ it.first.lowercase() }, { it.second.lowercase() }))
+    }
+
+    if (showModelPicker) {
+        TraceModelPickerOverlay(
+            models = pickableModels,
+            current = selectedModel,
+            onSelect = { sel -> selectedModel = sel; showModelPicker = false; currentPage = 0 },
+            onBack = { showModelPicker = false }
+        )
+        return
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val rowHeight = 52
@@ -104,36 +158,48 @@ fun TraceListScreen(
             }
             TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
 
-            // Category pulldown — only shown when there's something to
-            // pick from beyond "(All)". Clearing the filter re-shows
-            // everything.
+            // Category / Provider / Model selectors — each row is only
+            // shown when there's something useful to pick. Clearing a
+            // filter re-shows the broader scope.
             if (categories.size > 1) {
-                var expanded by remember { mutableStateOf(false) }
                 Spacer(modifier = Modifier.height(4.dp))
-                Box(modifier = Modifier.fillMaxWidth()) {
+                FilterDropdown(
+                    label = "Category",
+                    value = selectedCategory,
+                    options = categories,
+                    onPick = { selectedCategory = it; currentPage = 0 }
+                )
+            }
+            if (providers.size > 1) {
+                Spacer(modifier = Modifier.height(4.dp))
+                FilterDropdown(
+                    label = "Provider",
+                    value = selectedProvider,
+                    options = providers,
+                    onPick = { selectedProvider = it; currentPage = 0 }
+                )
+            }
+            if (pickableModels.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(
-                        onClick = { expanded = true },
-                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { showModelPicker = true },
+                        modifier = Modifier.weight(1f),
                         colors = AppColors.outlinedButtonColors(),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text("Category: $selectedCategory", fontSize = 12.sp,
+                        Text("Model: ${selectedModel ?: "(All)"}", fontSize = 12.sp,
                             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("▾", fontSize = 12.sp, color = AppColors.TextTertiary)
+                        Text("▸", fontSize = 12.sp, color = AppColors.TextTertiary)
                     }
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        categories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat, fontSize = 13.sp) },
-                                onClick = {
-                                    selectedCategory = cat
-                                    expanded = false
-                                    currentPage = 0
-                                }
-                            )
+                    if (selectedModel != null) {
+                        TextButton(onClick = { selectedModel = null; currentPage = 0 }) {
+                            Text("Clear", fontSize = 11.sp, maxLines = 1, softWrap = false)
                         }
                     }
                 }
+            }
+            if (categories.size > 1 || providers.size > 1 || pickableModels.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
@@ -169,6 +235,96 @@ fun TraceListScreen(
                 }, enabled = allTraceFiles.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Clear Traces", maxLines = 1, softWrap = false) }
+            }
+        }
+    }
+}
+
+/** Resolve a trace's hostname back to a known [AppService.displayName],
+ *  or "(unknown)" when none of the registered services' baseUrls match.
+ *  Used by the Provider filter and the Model picker so traces can be
+ *  sliced by which provider produced them. */
+private fun providerLabelForHost(host: String): String =
+    AppService.entries.firstOrNull { svc ->
+        runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()
+            ?.equals(host, ignoreCase = true) == true
+    }?.displayName ?: "(unknown)"
+
+/** Generic dropdown row used by Category and Provider — full-width
+ *  outlined button labelled "<label>: <value>" with a downward chevron,
+ *  expanding into a DropdownMenu of [options]. */
+@Composable
+private fun FilterDropdown(
+    label: String,
+    value: String,
+    options: List<String>,
+    onPick: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text("$label: $value", fontSize = 12.sp,
+                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("▾", fontSize = 12.sp, color = AppColors.TextTertiary)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt, fontSize = 13.sp) },
+                    onClick = { onPick(opt); expanded = false }
+                )
+            }
+        }
+    }
+}
+
+/** Full-screen overlay listing every (provider, model) pair that has
+ *  at least one trace in the currently scoped subset. The user picks
+ *  one to filter the trace list down to a single model, or "(All)" to
+ *  clear the filter. */
+@Composable
+private fun TraceModelPickerOverlay(
+    models: List<Pair<String, String>>,
+    current: String?,
+    onSelect: (String?) -> Unit,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(title = "Pick model", onBackClick = onBack, onAiClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+            modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }
+        ) {
+            Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("(All models)", fontSize = 13.sp,
+                    color = if (current == null) AppColors.Blue else Color.White,
+                    modifier = Modifier.weight(1f))
+                if (current == null) Text("✓", color = AppColors.Blue, fontSize = 13.sp)
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            items(models, key = { "${it.first}::${it.second}" }) { (provider, model) ->
+                val selected = current == model
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                    modifier = Modifier.fillMaxWidth().clickable { onSelect(model) }
+                ) {
+                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(provider, fontSize = 11.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(model, fontSize = 13.sp,
+                                color = if (selected) AppColors.Blue else Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (selected) Text("✓", color = AppColors.Blue, fontSize = 13.sp)
+                    }
+                }
             }
         }
     }
