@@ -147,4 +147,20 @@ dependencies {
     // Unit tests
     testImplementation(libs.junit)
     testImplementation(libs.truth)
+
+    // Instrumented tests (run on a connected device / emulator).
+    // The Compose BOM is applied here too so ui-test-junit4 picks up
+    // the same Compose version as the app.
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.truth)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    // ui-test-manifest registers ComponentActivity in a debug manifest
+    // merge so createComposeRule() can host content under test.
+    debugImplementation(libs.compose.ui.test.manifest)
 }
