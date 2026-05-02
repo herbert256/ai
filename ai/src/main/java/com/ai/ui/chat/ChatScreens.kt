@@ -11,6 +11,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -222,7 +224,7 @@ fun ChatSessionScreen(
     userName: String,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSendMessageStream: (List<ChatMessage>, Boolean) -> Flow<String>,
+    onSendMessageStream: (List<ChatMessage>, Boolean, String?) -> Flow<String>,
     onRecordStatistics: suspend (Int, Int) -> Unit,
     aiSettings: Settings,
     initialMessages: List<ChatMessage> = emptyList(),
@@ -247,6 +249,25 @@ fun ChatSessionScreen(
     // (mime, base64) of an image attached to the next user message.
     var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
     var useWebSearch by remember { mutableStateOf(parameters.webSearchTool) }
+    // Per-turn reasoning-effort hint. "" = no hint; "low"/"medium"/"high"
+    // map to the same OpenAI Responses-API / Gemini thinking field
+    // ParametersScreen exposes. Initialized from the configure-on-the-
+    // fly preset so a "high" preset starts that way; user can change
+    // per turn via the pulldown next to the web-search chip.
+    var reasoningEffort by remember { mutableStateOf(parameters.reasoningEffort ?: "") }
+    var reasoningMenuExpanded by remember { mutableStateOf(false) }
+    // Cheap layered detection — LiteLLM, then models.dev. Null from
+    // both = no info; we fall back to "show the pulldown" when the
+    // model id contains common reasoning-family markers, otherwise hide.
+    val supportsReasoning = remember(provider, model) {
+        com.ai.data.PricingCache.liteLLMSupportsReasoning(provider, model)
+            ?: com.ai.data.PricingCache.modelsDevSupportsReasoning(provider, model)
+            ?: run {
+                val id = model.lowercase()
+                id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4") ||
+                    id.startsWith("gpt-5") || "thinking" in id || "reasoning" in id
+            }
+    }
     // Per-session moderation: when set, every user input is run through
     // the chosen moderation model before being sent to the chat model.
     // null = disabled. Picker overlay below sets it.
@@ -336,7 +357,7 @@ fun ChatSessionScreen(
             isStreaming = true; streamingContentState.value = ""
             val sb = StringBuilder()
             try {
-                onSendMessageStream(messages, useWebSearch).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
+                onSendMessageStream(messages, useWebSearch, reasoningEffort).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
                 val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
                 messages = messages + assistantMsg
                 saveSession(messages)
@@ -455,7 +476,8 @@ fun ChatSessionScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(
                 selected = useWebSearch,
                 onClick = { useWebSearch = !useWebSearch },
@@ -465,6 +487,41 @@ fun ChatSessionScreen(
                     selectedLabelColor = AppColors.Blue
                 )
             )
+            // Reasoning-effort pulldown — only on models that LiteLLM /
+            // models.dev say support it (or whose id matches a known
+            // reasoning family). The chip shows 🧠 + current level
+            // ("none" when unset). Tapping opens a small menu with
+            // none / low / medium / high.
+            if (supportsReasoning) {
+                Box {
+                    val levelLabel = if (reasoningEffort.isBlank()) "none"
+                        else reasoningEffort.replaceFirstChar { it.uppercase() }
+                    FilterChip(
+                        selected = reasoningEffort.isNotBlank(),
+                        onClick = { reasoningMenuExpanded = true },
+                        label = { Text("🧠 $levelLabel", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AppColors.Purple.copy(alpha = 0.2f),
+                            selectedLabelColor = AppColors.Purple
+                        )
+                    )
+                    DropdownMenu(
+                        expanded = reasoningMenuExpanded,
+                        onDismissRequest = { reasoningMenuExpanded = false },
+                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                    ) {
+                        listOf("" to "None", "low" to "Low", "medium" to "Medium", "high" to "High").forEach { (value, label) ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(label, fontSize = 13.sp,
+                                        color = if (reasoningEffort == value) AppColors.Blue else Color.White)
+                                },
+                                onClick = { reasoningEffort = value; reasoningMenuExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
             // Toggle: clicking when off opens the moderation model picker;
             // when on, taps clear the selection (off again). The chip
             // shows a 🛡 icon and either the model name or "Validate input".

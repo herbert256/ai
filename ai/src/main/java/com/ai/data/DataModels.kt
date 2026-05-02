@@ -58,7 +58,13 @@ data class ChatParameters(
     val searchEnabled: Boolean = false,
     val returnCitations: Boolean = true,
     val searchRecency: String? = null,
-    val webSearchTool: Boolean = false
+    val webSearchTool: Boolean = false,
+    /** Reasoning-effort hint for models that support it ("low" / "medium" /
+     *  "high"; null = unset). Mirrors AgentParameters.reasoningEffort —
+     *  the chat session screen sets this per-turn via the 🧠 pulldown
+     *  next to the web-search chip. Only injected at dispatch when
+     *  LiteLLM reports the model supports reasoning. */
+    val reasoningEffort: String? = null
 )
 
 /**

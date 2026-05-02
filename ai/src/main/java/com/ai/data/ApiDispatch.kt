@@ -317,10 +317,11 @@ private suspend fun AnalysisRepository.chatResponsesApi(
     val systemPrompt = messages.find { it.role == "system" }?.content
     val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
     val tools = if (params.webSearchTool) responsesWebSearchTool() else null
+    val reasoning = reasoningField(service, model, params.reasoningEffort)
     val request = if (inputMessages.size == 1 && inputMessages.first().role == "user") {
-        OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools)
+        OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools, reasoning = reasoning)
     } else {
-        OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools)
+        OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools, reasoning = reasoning)
     }
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {

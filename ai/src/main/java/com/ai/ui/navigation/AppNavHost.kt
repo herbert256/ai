@@ -310,7 +310,7 @@ fun AppNavHost(
                 ChatSessionScreen(
                     provider = agent.provider, model = effectiveModel, parameters = chatParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch) },
+                    onSendMessageStream = { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch, reasoning) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
                     aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
@@ -357,7 +357,7 @@ fun AppNavHost(
                 ChatSessionScreen(
                     provider = provider, model = model, parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch) },
+                    onSendMessageStream = { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch, reasoningEffort = reasoning) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) },
                     aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(provider, model),
@@ -379,7 +379,7 @@ fun AppNavHost(
                     provider = session.provider, model = session.model, parameters = session.parameters,
                     userName = uiState.generalSettings.userName, initialMessages = session.messages, sessionId = session.id,
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages, webSearchTool = webSearch) },
+                    onSendMessageStream = { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages, webSearchTool = webSearch, reasoningEffort = reasoning) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) },
                     aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(session.provider, session.model),

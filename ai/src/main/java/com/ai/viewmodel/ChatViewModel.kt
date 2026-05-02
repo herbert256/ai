@@ -19,10 +19,16 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         model: String,
         messages: List<ChatMessage>,
         baseUrl: String? = null,
-        webSearchTool: Boolean = false
+        webSearchTool: Boolean = false,
+        reasoningEffort: String? = null
     ): Flow<String> {
         val base = appViewModel.uiState.value.chatParameters
-        val params = if (webSearchTool && !base.webSearchTool) base.copy(webSearchTool = true) else base
+        val withWeb = if (webSearchTool && !base.webSearchTool) base.copy(webSearchTool = true) else base
+        // Per-turn reasoning override, when supplied. Empty string clears
+        // back to "no hint"; null leaves whatever the chat-screen pulldown
+        // sent last time (which is also its initial value from the
+        // configure-on-the-fly Parameters preset).
+        val params = if (reasoningEffort != null) withWeb.copy(reasoningEffort = reasoningEffort.ifBlank { null }) else withWeb
         return appViewModel.repository.sendChatStream(
             service = service, apiKey = apiKey, model = model,
             messages = messages, params = params,

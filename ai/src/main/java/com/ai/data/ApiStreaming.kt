@@ -145,7 +145,8 @@ private fun AnalysisRepository.streamOpenAi(
         val systemPrompt = messages.find { it.role == "system" }?.content
         val request = OpenAiResponsesRequest(
             model = model, input = inputMessages, instructions = systemPrompt, stream = true,
-            tools = if (params.webSearchTool) responsesWebSearchTool() else null
+            tools = if (params.webSearchTool) responsesWebSearchTool() else null,
+            reasoning = reasoningField(service, model, params.reasoningEffort)
         )
         val response = withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) }
         if (response.isSuccessful) {
