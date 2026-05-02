@@ -836,7 +836,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val status: TranslationStatus = TranslationStatus.PENDING,
         val translatedText: String? = null,
         val errorMessage: String? = null,
-        val costCents: Double = 0.0
+        val costCents: Double = 0.0,
+        /** Token usage from the translation API call. Stored so the new
+         *  Report can attribute per-row cost to the translation
+         *  operation rather than carrying the source-run figures
+         *  through unchanged. Null until the call returns. */
+        val tokenUsage: com.ai.data.TokenUsage? = null
     )
 
     data class TranslationRunState(
@@ -957,7 +962,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // All done — assemble the translated report.
             val finalState = _translationRun.value ?: return@launch
             if (finalState.cancelled) return@launch
-            val newId = createTranslatedReport(context, sourceReport, secondaries, finalState, targetLanguageName)
+            val newId = createTranslatedReport(context, sourceReport, secondaries, finalState, targetLanguageName, provider, model, pricing)
             _translationRun.update { it?.copy(newReportId = newId) }
         }
     }
@@ -1003,15 +1008,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 else if (response.isSuccess) it.copy(
                     status = TranslationStatus.DONE,
                     translatedText = response.analysis,
-                    costCents = costCents
+                    costCents = costCents,
+                    tokenUsage = tu
                 )
                 else it.copy(
                     status = TranslationStatus.ERROR,
                     errorMessage = response.error ?: "Empty response",
-                    costCents = costCents
+                    costCents = costCents,
+                    tokenUsage = tu
                 )
             }
             state.copy(items = updated, totalCostCents = updated.sumOf { it.costCents })
+        }
+        // Roll the translation call into per-(provider, model) usage so
+        // it shows up on the AI Usage screen alongside report / chat
+        // calls. Skipped on error responses so the row reflects only
+        // billable traffic.
+        if (response.isSuccess && tu != null) {
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
+                kind = "translate"
+            )
         }
     }
 
@@ -1020,18 +1037,35 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         source: Report,
         secondaries: List<SecondaryResult>,
         run: TranslationRunState,
-        targetLanguageName: String
+        targetLanguageName: String,
+        translateProvider: AppService,
+        translateModel: String,
+        translatePricing: PricingCache.ModelPricing
     ): String {
         val itemById = run.items.associateBy { it.id }
         val translatedPrompt = itemById["prompt"]?.translatedText ?: source.prompt
 
-        // Map agent responses by agentId; only successful translations
-        // overwrite the body, anything else carries the original through
-        // unchanged so partial failure still produces a usable report.
+        // Per-row cost attribution: the translated report is a new
+        // artifact; what it cost to produce is the translation calls,
+        // not the original generation. Replace each agent's tokenUsage
+        // and cost with the translation call's figures so the cost
+        // table on the translated report reflects what the user
+        // actually paid for it. Agents whose translation didn't run
+        // (no body, partial failure) keep the source-run figures so a
+        // partially-translated report doesn't lose its history.
         val newAgents = source.agents.map { agent ->
-            val key = "agent:${agent.agentId}"
-            val tx = itemById[key]?.translatedText
-            if (tx != null) agent.copy(responseBody = tx) else agent
+            val tx = itemById["agent:${agent.agentId}"]
+            if (tx?.translatedText != null && tx.tokenUsage != null) {
+                val tcost = PricingCache.computeCost(tx.tokenUsage, translatePricing)
+                agent.copy(
+                    responseBody = tx.translatedText,
+                    tokenUsage = tx.tokenUsage,
+                    cost = tcost,
+                    durationMs = null
+                )
+            } else if (tx?.translatedText != null) {
+                agent.copy(responseBody = tx.translatedText)
+            } else agent
         }.toMutableList()
 
         val newReport = ReportStorage.createReport(
@@ -1049,25 +1083,56 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         )
 
         // Recreate summary/compare meta results on the new report with
-        // translated content. Reranks and moderation results are
-        // copied as-is (structured JSON, language-agnostic) so the
-        // translated report still carries the user's earlier analysis.
+        // translated content + translation-call cost (same rationale
+        // as the agent rows). Reranks and moderation results are
+        // copied as-is (structured JSON, language-agnostic) and keep
+        // their original costs since they weren't re-run.
         for (s in secondaries) {
-            val newContent = when (s.kind) {
-                SecondaryKind.SUMMARIZE -> itemById["summary:${s.id}"]?.translatedText ?: s.content
-                SecondaryKind.COMPARE -> itemById["compare:${s.id}"]?.translatedText ?: s.content
-                SecondaryKind.RERANK, SecondaryKind.MODERATION -> s.content
+            val itemKey = when (s.kind) {
+                SecondaryKind.SUMMARIZE -> "summary:${s.id}"
+                SecondaryKind.COMPARE -> "compare:${s.id}"
+                SecondaryKind.RERANK, SecondaryKind.MODERATION -> null
             }
-            SecondaryResultStorage.save(
-                context,
+            val item = itemKey?.let { itemById[it] }
+            val translatedTu = item?.tokenUsage
+            val translatedCost = translatedTu?.let { PricingCache.computeCost(it, translatePricing) }
+            val newContent = item?.translatedText ?: s.content
+            val saved = if (item != null && translatedTu != null) {
+                s.copy(
+                    id = java.util.UUID.randomUUID().toString(),
+                    reportId = newReport.id,
+                    timestamp = System.currentTimeMillis(),
+                    content = newContent,
+                    tokenUsage = translatedTu,
+                    inputCost = translatedTu.inputTokens * translatePricing.promptPrice,
+                    outputCost = translatedTu.outputTokens * translatePricing.completionPrice,
+                    durationMs = null,
+                    errorMessage = null
+                )
+            } else {
                 s.copy(
                     id = java.util.UUID.randomUUID().toString(),
                     reportId = newReport.id,
                     timestamp = System.currentTimeMillis(),
                     content = newContent
                 )
-            )
+            }
+            SecondaryResultStorage.save(context, saved)
         }
+
+        // Roll the prompt-translation cost (which has no per-row home
+        // since the prompt isn't a billable agent row) plus every
+        // per-row translation cost into the new report's totalCost.
+        // The cost table sums per-row figures into a body total; the
+        // final number on the table reflects this property too.
+        val perRowTotal = newAgents.sumOf { it.cost ?: 0.0 }
+        val secondaryTotal = SecondaryResultStorage.listForReport(context, newReport.id).sumOf {
+            (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
+        }
+        val promptTranslateCost = run.items.firstOrNull { it.id == "prompt" }?.tokenUsage?.let {
+            PricingCache.computeCost(it, translatePricing)
+        } ?: 0.0
+        ReportStorage.setReportTotalCost(context, newReport.id, perRowTotal + secondaryTotal + promptTranslateCost)
         return newReport.id
     }
 

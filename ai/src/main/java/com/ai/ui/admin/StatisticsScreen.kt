@@ -178,6 +178,8 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
                         "rerank" -> AppColors.Orange
                         "summarize" -> AppColors.Indigo
                         "compare" -> AppColors.Purple
+                        "moderation" -> AppColors.Red
+                        "translate" -> AppColors.Blue
                         else -> AppColors.TextDim
                     }
                     Text(

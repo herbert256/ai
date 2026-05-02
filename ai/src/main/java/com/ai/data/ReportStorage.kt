@@ -245,6 +245,19 @@ object ReportStorage {
      *  list — adding a meta result is a meaningful update to the
      *  report, not a passive read. No-op if the report can't be
      *  loaded. */
+    /** Overwrite [Report.totalCost] for [reportId] without touching any
+     *  other field. Used by the Translate flow to fold the
+     *  prompt-translation cost (which has no per-row home) into the
+     *  bottom-line total alongside the per-row sums. */
+    fun setReportTotalCost(context: Context, reportId: String, totalCost: Double) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            report.totalCost = totalCost
+            saveReport(report)
+        }
+    }
+
     fun bumpReportTimestamp(context: Context, reportId: String) {
         init(context)
         lock.withLock {
