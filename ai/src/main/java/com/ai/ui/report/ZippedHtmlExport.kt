@@ -791,8 +791,12 @@ th,td{padding:6px 10px;border-bottom:1px solid #333;vertical-align:top;text-alig
 th{background:#252525;color:#9FCFFF}
 .num{text-align:right;font-family:monospace}
 .cost-table .total td{color:#6B9BFF;font-weight:bold;border-top:2px solid #444}
-.cost-table-wrap{overflow-x:auto;margin-top:8px}
-.cost-table{width:auto;white-space:nowrap}
+/* Break out of main's max-width:900px so wide cost tables don't get
+   horizontally cropped on a wide screen. width:max-content sizes to
+   the columns; max-width caps at viewport - body padding; the
+   left/transform pair re-centers on the viewport instead of main. */
+.cost-table-wrap{width:max-content;max-width:calc(100vw - 32px);margin:8px auto;position:relative;left:50%;transform:translateX(-50%);overflow-x:auto}
+.cost-table{width:auto;white-space:nowrap;margin:0 auto}
 .cost-table th, .cost-table td{white-space:nowrap}
 .cost-table th[data-sort]:hover{background:#2c2c2c}
 .kv th{width:160px;background:#252525}
