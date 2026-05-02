@@ -17,16 +17,15 @@ import java.util.zip.ZipOutputStream
 /**
  * "Export all" — build every supported export for the report and bundle
  * them into a single zip the user can hand off via the standard share
- * sheet. The bundle holds ten entries:
+ * sheet. The master zip is laid out as:
  *
- *   <title>_short.html      <title>_complete.html
- *   <title>_short.pdf       <title>_complete.pdf
- *   <title>_short.docx      <title>_complete.docx
- *   <title>_short.odt       <title>_complete.odt
- *   <title>_zipped_html.zip (Complete report split into per-item
- *                             HTML files; navigable mini-site)
- *   <title>_traces.zip      (only when the report has captured traces;
- *                             otherwise this entry is omitted)
+ *   docs/<title>_short.html      docs/<title>_complete.html
+ *   docs/<title>_short.pdf       docs/<title>_complete.pdf
+ *   docs/<title>_short.docx      docs/<title>_complete.docx
+ *   docs/<title>_short.odt       docs/<title>_complete.odt
+ *   html/   (Complete report split into per-item HTML files; nav site)
+ *   json/   (raw trace files grouped by category; omitted when the
+ *            report has no captured traces)
  *
  * `onProgress(done, total)` ticks 10 times as each artifact is
  * generated. The PDF render leg is the slowest — each render boots a
@@ -127,20 +126,21 @@ internal suspend fun bulkExportAndShare(
         // report has no captured traces.
         val traceZipBytes = buildJsonTraceZipBytes(context, report); bump()
 
-        // Master zip: every workDir file at top level + the two zip
-        // payloads expanded into their own directories so the user
-        // sees a flat-on-open mini-site instead of nested archives.
+        // Master zip layout:
+        //   docs/<title>_short.html, _complete.html, _short.pdf, ...
+        //   html/  (Zipped HTML payload, expanded)
+        //   json/  (trace bundle, expanded; only when traces exist)
         val outDir = File(context.cacheDir, "exports").also { it.mkdirs() }
         val masterZip = File(outDir, "ai_report_${safeTitle}_all_$ts.zip")
         ZipOutputStream(masterZip.outputStream().buffered()).use { zos ->
             workDir.listFiles()?.sortedBy { it.name }?.forEach { f ->
-                val entry = ZipEntry(f.name).apply { time = f.lastModified() }
+                val entry = ZipEntry("docs/${f.name}").apply { time = f.lastModified() }
                 zos.putNextEntry(entry)
                 f.inputStream().use { it.copyTo(zos) }
                 zos.closeEntry()
             }
-            unpackInto(zos, zippedHtmlBytes, "zipped_html/")
-            traceZipBytes?.let { unpackInto(zos, it, "traces/") }
+            unpackInto(zos, zippedHtmlBytes, "html/")
+            traceZipBytes?.let { unpackInto(zos, it, "json/") }
         }
 
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", masterZip)
