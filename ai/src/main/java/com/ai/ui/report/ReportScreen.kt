@@ -373,10 +373,9 @@ fun ReportsScreen(
         val already = remember(models) { models.map { it.provider to it.model }.toSet() }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
-            alreadySelected = already,
-            onConfirm = { picks ->
-                val toAdd = picks.map { (prov, m) -> toReportModel(prov, m) }
-                models = deduplicateModels(models + toAdd)
+            alreadyAdded = already,
+            onConfirm = { (prov, m) ->
+                models = deduplicateModels(models + toReportModel(prov, m))
                 showSelectAllModels = false
             },
             onBack = { showSelectAllModels = false },
@@ -447,20 +446,16 @@ fun ReportsScreen(
         }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
-            alreadySelected = emptySet(),
-            // Picker opens with nothing pre-checked — each meta action is
-            // an independent ad-hoc pick, no carry-over from the previous
-            // run on this report.
-            initialChecked = emptySet(),
-            titleText = "$pickerLabel — pick models",
-            confirmLabel = pickerLabel,
+            // Single-pick: tap fires the meta run for one model and pops
+            // back. Users wanting two Reranks just open the picker twice.
+            titleText = "$pickerLabel — pick model",
             modelTypeFilter = when (pickerKind) {
                 SecondaryKind.RERANK -> com.ai.data.ModelType.RERANK
                 SecondaryKind.MODERATION -> com.ai.data.ModelType.MODERATION
                 else -> null
             },
-            onConfirm = { picks ->
-                onRunSecondary(rid, pickerKind, picks, pendingSecondaryScope)
+            onConfirm = { pick ->
+                onRunSecondary(rid, pickerKind, listOf(pick), pendingSecondaryScope)
                 secondaryPickerKind = null
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             },

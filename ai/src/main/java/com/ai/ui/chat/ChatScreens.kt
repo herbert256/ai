@@ -661,20 +661,16 @@ fun ChatSessionScreen(
         }
     }
 
-    // Moderation model picker — single-pick (we use the first selection
-    // if the user multi-picks). Filtered to ModelType.MODERATION by
-    // default; toggle-able to widen if Mistral's model isn't in the
-    // user's catalog under that type.
+    // Moderation model picker — single-pick by design. Filtered to
+    // ModelType.MODERATION by default; toggle-able to widen if the
+    // moderation model isn't in the user's catalog under that type.
     if (showModerationPicker) {
         com.ai.ui.report.ReportSelectModelsScreen(
             aiSettings = aiSettings,
-            alreadySelected = emptySet(),
-            initialChecked = emptySet(),
             titleText = "Pick moderation model",
-            confirmLabel = "Use",
             modelTypeFilter = com.ai.data.ModelType.MODERATION,
-            onConfirm = { picks ->
-                moderationModel = picks.firstOrNull()
+            onConfirm = { pick ->
+                moderationModel = pick
                 showModerationPicker = false
             },
             onBack = { showModerationPicker = false },
