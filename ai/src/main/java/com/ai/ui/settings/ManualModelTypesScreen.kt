@@ -172,7 +172,7 @@ internal fun ManualModelTypeEditScreen(
                     onValueChange = {}, readOnly = true,
                     label = { Text("Provider") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, true),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true),
                     colors = AppColors.outlinedFieldColors()
                 )
                 ExposedDropdownMenu(expanded = providerExpanded, onDismissRequest = { providerExpanded = false }) {
@@ -205,7 +205,7 @@ internal fun ManualModelTypeEditScreen(
                     label = { Text("Model") },
                     placeholder = { Text(if (knownModels.isEmpty()) "No models — fetch this provider first" else "Pick a model") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, knownModels.isNotEmpty()),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, knownModels.isNotEmpty()),
                     colors = AppColors.outlinedFieldColors()
                 )
                 ExposedDropdownMenu(expanded = modelExpanded, onDismissRequest = { modelExpanded = false }) {
