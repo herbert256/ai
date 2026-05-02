@@ -569,11 +569,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
         scope.launch(Dispatchers.IO) {
-            // Tag every API call this batch makes with a kind-specific
-            // category so the trace screen can filter by it. Restored
-            // (not blanket-cleared) so an enclosing flow's category
-            // survives if runSecondary is ever called nested.
+            // Tag every API call this batch makes with the parent
+            // report's id and a kind-specific category. Without the
+            // reportId tag the resulting trace files would land with
+            // reportId=null and the report's JSON export wouldn't
+            // pull them in (same goes for a translated report's
+            // source/ bucket — meta runs on the source report would
+            // be invisible). Restored (not blanket-cleared) so an
+            // enclosing flow's tags survive if runSecondary is ever
+            // called nested.
+            val previousReportId = ApiTracer.currentReportId
             val previousCategory = ApiTracer.currentCategory
+            ApiTracer.currentReportId = reportId
             ApiTracer.currentCategory = when (kind) {
                 SecondaryKind.RERANK -> "Report rerank"
                 SecondaryKind.SUMMARIZE -> "Report summarize"
@@ -626,6 +633,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }.awaitAll()
                 }
             } finally {
+                ApiTracer.currentReportId = previousReportId
                 ApiTracer.currentCategory = previousCategory
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
