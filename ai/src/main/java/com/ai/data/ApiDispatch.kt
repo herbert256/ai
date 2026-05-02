@@ -298,7 +298,10 @@ private suspend fun AnalysisRepository.chatOpenAi(
         top_p = params.topP, top_k = params.topK,
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
         search = if (params.searchEnabled) true else null,
-        tools = if (params.webSearchTool) openAiChatWebSearchTool() else null
+        tools = if (params.webSearchTool) openAiChatWebSearchTool() else null,
+        reasoning_effort = params.reasoningEffort?.takeIf {
+            it.isNotBlank() && PricingCache.liteLLMSupportsReasoning(service, model) != false
+        }
     )
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
@@ -649,7 +652,14 @@ internal fun buildOpenAiRequest(service: AppService, model: String, messages: Li
         return_citations = if (service.supportsCitations) params?.returnCitations else null,
         search_recency_filter = if (service.supportsSearchRecency) params?.searchRecency else null,
         search = if (params?.searchEnabled == true) true else null,
-        tools = if (params?.webSearchTool == true) openAiChatWebSearchTool() else null
+        tools = if (params?.webSearchTool == true) openAiChatWebSearchTool() else null,
+        // Same supports-reasoning guard the Responses-API path uses —
+        // when LiteLLM definitively says the model isn't reasoning-
+        // capable, the field is dropped to avoid unknown-field errors
+        // from strict providers.
+        reasoning_effort = params?.reasoningEffort?.takeIf {
+            it.isNotBlank() && PricingCache.liteLLMSupportsReasoning(service, model) != false
+        }
     )
 }
 

@@ -166,7 +166,10 @@ private fun AnalysisRepository.streamOpenAi(
             search = if (params.searchEnabled) true else null,
             return_citations = if (service.supportsCitations) params.returnCitations else null,
             search_recency_filter = if (service.supportsSearchRecency) params.searchRecency else null,
-            tools = if (params.webSearchTool) openAiChatWebSearchTool() else null
+            tools = if (params.webSearchTool) openAiChatWebSearchTool() else null,
+            reasoning_effort = params.reasoningEffort?.takeIf {
+                it.isNotBlank() && com.ai.data.PricingCache.liteLLMSupportsReasoning(service, model) != false
+            }
         )
         val response = withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) }
         if (response.isSuccessful) {

@@ -70,7 +70,13 @@ data class OpenAiRequest(
     val return_citations: Boolean? = null,
     val search_recency_filter: String? = null,
     val search: Boolean? = null,
-    val tools: List<Any>? = null
+    val tools: List<Any>? = null,
+    /** Reasoning-effort hint for chat-completions models that honour it
+     *  (OpenRouter routing reasoning models, DeepSeek-R, Together's
+     *  reasoning routes, Groq reasoning, Mistral magistral, …). One of
+     *  "low" / "medium" / "high"; null = unset. The Responses API has
+     *  its own [OpenAiResponsesRequest.reasoning] block — separate field. */
+    val reasoning_effort: String? = null
 )
 
 data class OpenAiResponseFormat(val type: String = "text")
