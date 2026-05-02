@@ -421,7 +421,9 @@ fun TraceDetailScreen(
     val responseTreeNodes = remember(t?.response?.body) { t?.response?.body?.let { parseJsonTree(it) } }
     val allTreeNodes = remember(rawJson) { if (rawJson.isNotBlank()) parseJsonTree(rawJson) else null }
 
-    // Build content for current view
+    // Build content for current view. The on-screen display always
+    // shows the raw bytes (including secrets) — the Copy / Share
+    // buttons run their own redaction pass before exporting.
     val displayContent = remember(t, currentView) {
         if (t == null) return@remember ""
         when (currentView) {
@@ -431,6 +433,19 @@ fun TraceDetailScreen(
             TraceContentView.REQ_DATA -> ApiTracer.prettyPrintJson(t.request.body)
             TraceContentView.RSP_DATA -> ApiTracer.prettyPrintJson(t.response.body)
         }
+    }
+
+    // Parallel content used only by the Copy and Share buttons. Same
+    // shape as displayContent but with sensitive headers / JSON keys /
+    // URL query params replaced by "[REDACTED]".
+    fun redactedContentFor(view: TraceContentView, trace: ApiTrace): String = when (view) {
+        TraceContentView.ALL -> redactedTraceJson(trace)
+        TraceContentView.REQ_HEADERS -> com.ai.ui.report.redactHeaders(trace.request.headers)
+        TraceContentView.RSP_HEADERS -> com.ai.ui.report.redactHeaders(trace.response.headers)
+        TraceContentView.REQ_DATA -> com.ai.ui.report.redactJsonString(trace.request.body)
+            ?.let { ApiTracer.prettyPrintJson(it) } ?: ""
+        TraceContentView.RSP_DATA -> com.ai.ui.report.redactJsonString(trace.response.body)
+            ?.let { ApiTracer.prettyPrintJson(it) } ?: ""
     }
 
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
@@ -566,9 +581,10 @@ fun TraceDetailScreen(
                 modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }, colors = AppColors.outlinedButtonColors()
             ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
+                val toCopy = t?.let { redactedContentFor(currentView, it) } ?: displayContent
                 val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clip.setPrimaryClip(ClipData.newPlainText("trace", displayContent))
-                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                clip.setPrimaryClip(ClipData.newPlainText("trace", toCopy))
+                Toast.makeText(context, "Copied (redacted)", Toast.LENGTH_SHORT).show()
             }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Copy", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 // Save provider/model/key to prefs for EditApiRequestScreen
@@ -582,7 +598,10 @@ fun TraceDetailScreen(
                     }
                 onEditRequest()
             }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = { shareTrace(context, rawJson, currentFilename) }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = {
+                val toShare = t?.let { redactedTraceJson(it) } ?: rawJson
+                shareTrace(context, toShare, currentFilename)
+            }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.ALL }
             }, enabled = hasNext, contentPadding = PaddingValues(0.dp),
@@ -590,6 +609,42 @@ fun TraceDetailScreen(
             ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
         }
     }
+}
+
+/** Build a copy of the trace's raw JSON with API keys / tokens /
+ *  cookies replaced by "[REDACTED]" — used by Copy and Share so the
+ *  bytes that leave the device are scrubbed, while the on-disk file
+ *  and the in-app display stay raw. Redacts:
+ *   - request URL query params (key, api_key, apikey, access_token, token)
+ *   - request and response sensitive headers (Authorization, X-API-Key, …)
+ *   - sensitive JSON keys in both bodies (api_key, token, secret, …)
+ */
+private fun redactedTraceJson(trace: ApiTrace): String {
+    val redactedTrace = trace.copy(
+        request = trace.request.copy(
+            url = redactSecretsInUrl(trace.request.url),
+            headers = redactHeaderMap(trace.request.headers),
+            body = trace.request.body?.let { com.ai.ui.report.redactJsonString(it) }
+        ),
+        response = trace.response.copy(
+            headers = redactHeaderMap(trace.response.headers),
+            body = trace.response.body?.let { com.ai.ui.report.redactJsonString(it) }
+        )
+    )
+    return com.ai.data.createAppGson(prettyPrint = true).toJson(redactedTrace)
+}
+
+private fun redactHeaderMap(headers: Map<String, String>): Map<String, String> =
+    headers.mapValues { (name, value) ->
+        if (name.lowercase(Locale.US) in com.ai.ui.report.SENSITIVE_HEADERS) com.ai.ui.report.REDACTED else value
+    }
+
+/** Strip API-key-bearing query params from a request URL. Gemini's
+ *  endpoint embeds the key as `?key=…`; some other providers accept
+ *  `api_key=` / `access_token=` / `token=`. */
+private fun redactSecretsInUrl(url: String): String {
+    val pattern = Regex("([?&])(key|api[_-]?key|access[_-]?token|token)=[^&]*", RegexOption.IGNORE_CASE)
+    return pattern.replace(url) { m -> "${m.groupValues[1]}${m.groupValues[2]}=${com.ai.ui.report.REDACTED}" }
 }
 
 private fun shareTrace(context: Context, content: String, filename: String) {
