@@ -5,6 +5,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.ai.data.*
+import com.ai.data.ApiTrace
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -76,8 +77,9 @@ internal data class HtmlSecondaryData(
  *  has no captured traces (own + source combined). The zip's top-level
  *  directories are the trace categories; for translated reports the
  *  source report's traces sit under a "source/" prefix. Each entry is
- *  the raw trace JSON, unmodified. Shared by the JSON export action
- *  and the "Export all" bulk-zip path. */
+ *  the redacted trace JSON. Stored app traces stay complete; only export
+ *  payloads redact credentials before leaving the app. Shared by the JSON
+ *  export action and the "Export all" bulk-zip path. */
 internal fun buildJsonTraceZipBytes(context: android.content.Context, report: Report): ByteArray? {
     val ownTraces = ApiTracer.getTraceFilesForReport(report.id)
     val sourceTraces = report.sourceReportId?.let { ApiTracer.getTraceFilesForReport(it) }.orEmpty()
@@ -89,7 +91,7 @@ internal fun buildJsonTraceZipBytes(context: android.content.Context, report: Re
             // Filesystem-safe category name (slashes / colons / etc. would
             // otherwise create unintended subdirectories).
             val safeCat = cat.replace(Regex("[^A-Za-z0-9 _.-]+"), "_")
-            val raw = ApiTracer.readTraceFileRaw(t.filename) ?: return
+            val raw = ApiTracer.readTraceFile(t.filename)?.toRedactedExportJson() ?: return
             val entry = java.util.zip.ZipEntry("$prefix$safeCat/${t.filename}")
             entry.time = t.timestamp
             zos.putNextEntry(entry)
@@ -263,7 +265,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
                 timestamp = traceFmt.format(Date(t.timestamp)),
                 method = t.request.method,
                 hostname = t.hostname,
-                url = t.request.url,
+                url = redactUrl(t.request.url),
                 statusCode = t.response.statusCode,
                 model = t.model,
                 category = t.category,
@@ -281,6 +283,21 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         agents = agents, reportType = report.reportType, secondary = secondary,
         traces = traces
     )
+}
+
+private fun ApiTrace.toRedactedExportJson(): String {
+    val redactedTrace = copy(
+        request = request.copy(
+            url = redactUrl(request.url),
+            headers = redactHeaderMap(request.headers),
+            body = redactJsonString(request.body)
+        ),
+        response = response.copy(
+            headers = redactHeaderMap(response.headers),
+            body = redactJsonString(response.body)
+        )
+    )
+    return createAppGson(prettyPrint = true).toJson(redactedTrace)
 }
 
 // ===== Unified HTML Report =====

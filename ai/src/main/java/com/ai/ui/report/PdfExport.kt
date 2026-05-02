@@ -22,6 +22,7 @@ import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -42,6 +43,7 @@ enum class ReportExportAction { SHARE, VIEW }
 internal const val REDACTED = "[REDACTED]"
 internal val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
 internal val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
+internal val SENSITIVE_QUERY_KEYS = setOf("key", "api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
 
 /**
  * Top-level dispatcher: build the right document for (format × detail) and hand it to
@@ -320,7 +322,7 @@ private suspend fun dispatchPdf(context: Context, html: String, fileName: String
     }
 }
 
-// ===== Redaction helpers (PDF only — runtime traces stay unredacted) =====
+// ===== Export redaction helpers — runtime trace storage stays unredacted =====
 
 internal fun redactJsonString(text: String?): String? {
     // Return null (not "") for blank input so the call site's `?: "(not captured)"`
@@ -350,10 +352,27 @@ private fun redactJsonElement(element: JsonElement?) {
 
 internal fun redactHeaders(headers: Map<String, String>?): String {
     if (headers.isNullOrEmpty()) return "(none)"
-    return headers.entries.joinToString("\n") { (name, value) ->
-        val safe = if (name.lowercase(Locale.US) in SENSITIVE_HEADERS) REDACTED else value
-        "$name: $safe"
+    return redactHeaderMap(headers).entries.joinToString("\n") { (name, value) -> "$name: $value" }
+}
+
+internal fun redactHeaderMap(headers: Map<String, String>?): Map<String, String> {
+    if (headers.isNullOrEmpty()) return emptyMap()
+    return headers.mapValues { (name, value) ->
+        if (name.lowercase(Locale.US) in SENSITIVE_HEADERS) REDACTED else value
     }
+}
+
+internal fun redactUrl(url: String): String {
+    val parsed = url.toHttpUrlOrNull() ?: return url
+    if (parsed.querySize == 0) return url
+    val builder = parsed.newBuilder()
+    for (i in 0 until parsed.querySize) {
+        val name = parsed.queryParameterName(i)
+        if (name.lowercase(Locale.US) in SENSITIVE_QUERY_KEYS) {
+            builder.setQueryParameter(name, REDACTED)
+        }
+    }
+    return builder.build().toString()
 }
 
 // ===== HTML escaping =====
