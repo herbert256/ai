@@ -338,3 +338,75 @@ internal fun ReportSelectModelsScreen(
     }
 }
 
+/** Single-select picker over the user's previous AI reports. Used by
+ *  the +Report button on the new-report selection screen — tapping a
+ *  report copies its model list into the current selection so the
+ *  user can reuse a working set without re-picking each model.
+ *
+ *  Reports are loaded off the UI thread (getAllReports parses every
+ *  report JSON, including image-attached reports which can be MB-
+ *  sized). Sorted newest-first by Report.timestamp. */
+@Composable
+internal fun ReportSelectFromReportScreen(
+    onConfirm: (com.ai.data.Report) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val reports by produceState(initialValue = emptyList<com.ai.data.Report>()) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ai.data.ReportStorage.getAllReports(context)
+        }
+    }
+    val filtered = remember(reports, search) {
+        if (search.isBlank()) reports
+        else {
+            val q = search.lowercase()
+            reports.filter { it.title.lowercase().contains(q) || it.prompt.lowercase().contains(q) }
+        }
+    }
+    val tsFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(title = "Pick previous report", onBackClick = onBack, onAiClick = onNavigateHome)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search title or prompt...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp) } })
+        Text("${filtered.size} of ${reports.size} reports", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
+
+        Spacer(modifier = Modifier.height(8.dp))
+        if (reports.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No previous reports yet.", color = AppColors.TextTertiary, fontSize = 14.sp)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(filtered, key = { it.id }) { report ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onConfirm(report) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(report.title.ifBlank { "(untitled)" }, fontSize = 14.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "${tsFormat.format(java.util.Date(report.timestamp))}  ·  ${report.agents.size} model${if (report.agents.size == 1) "" else "s"}",
+                                fontSize = 11.sp, color = AppColors.TextTertiary
+                            )
+                        }
+                        Text(">", color = AppColors.Blue, fontSize = 14.sp,
+                            modifier = Modifier.padding(start = 8.dp))
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
+            }
+        }
+    }
+}
+
