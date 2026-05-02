@@ -51,7 +51,7 @@ fun SecondaryPromptsScreen(
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Meta prompts", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Internal Prompts", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {

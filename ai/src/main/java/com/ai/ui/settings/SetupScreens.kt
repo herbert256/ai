@@ -87,7 +87,7 @@ fun SetupScreen(
                     (if (comparePrompt.isNotBlank()) 1 else 0) +
                     (if (introPrompt.isNotBlank()) 1 else 0) +
                     (if (modelInfoPrompt.isNotBlank()) 1 else 0)
-                SetupNavCard("\uD83D\uDD04", "Meta prompts", "Rerank, Summarize, Compare, Intro, Model info", "$metaCount",
+                SetupNavCard("\uD83D\uDD04", "Internal Prompts", "Rerank, Summarize, Compare, Intro, Model info", "$metaCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_SECONDARY_PROMPTS) })
             }
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
