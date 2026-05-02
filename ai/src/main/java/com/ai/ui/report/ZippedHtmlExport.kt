@@ -107,7 +107,7 @@ private fun emitReportSections(
     emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares", traceIndex, basePath)
     emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex, basePath)
     emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex, basePath)
-    if (isMain) emitTranslations(zos, data, sourceData)
+    if (isMain) emitTranslations(zos, data, sourceData, traceIndex)
     if (data.prompt.isNotBlank()) emitPrompt(zos, data, basePath)
     if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
         emitCosts(zos, data, basePath)
@@ -427,7 +427,7 @@ private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryDa
 
 // ===== Translations (meta-only — no translated content) =====
 
-private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData, sourceData: HtmlReportData?) {
+private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData, sourceData: HtmlReportData?, traceIndex: List<TraceLoc>) {
     val items = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
     if (items.isEmpty()) return
     val withFiles = items.mapIndexed { idx, s ->
@@ -448,7 +448,8 @@ private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData, sourceD
         pageSb.append(htmlHead("Translation: $what - ${data.title}", depth = 1))
         pageSb.append(breadcrumb(1, listOf("Translations" to "index.html", what to null), data))
         pageSb.append("<main>")
-        pageSb.append("<h1>Translation: ").append(esc(what)).append("</h1>")
+        val traceMatch = traceIndex.findMatch(s.providerDisplay, s.model, "Report translate")
+        pageSb.append("<h1>Translation: ").append(esc(what)).append(bugLink(traceMatch, pageDepth = 1)).append("</h1>")
         // Two cross-tree links: "Original" → matching page under
         // Source/, "Result" → matching page in the current report.
         // Resolved via translateSourceKind / translateSourceTargetId
