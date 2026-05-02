@@ -3,6 +3,7 @@ package com.ai.ui.report
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import com.ai.data.AppService
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
@@ -56,16 +57,21 @@ import java.util.zip.ZipOutputStream
  */
 internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
     val data = buildHtmlReportData(context, report)
+    // Pre-compute the zip-relative path to every trace's index page so
+    // the agent / secondary HTML files emitted below can drop a 🐞
+    // link to a matching trace. Same naming logic as emitTraces uses
+    // when it actually writes the trace files.
+    val traceIndex = buildTraceIndex(data)
     val baos = ByteArrayOutputStream()
     ZipOutputStream(baos.buffered()).use { zos ->
         emit(zos, "style.css", sharedCss())
         emit(zos, "index.html", rootIndex(data))
 
-        if (data.agents.isNotEmpty()) emitReports(zos, data)
-        emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries")
-        emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares")
-        emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks")
-        emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations")
+        if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex)
+        emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries", traceIndex)
+        emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares", traceIndex)
+        emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex)
+        emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex)
         emitTranslations(zos, data)
 
         if (data.prompt.isNotBlank()) emitPrompt(zos, data)
@@ -75,6 +81,80 @@ internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
         if (data.traces.isNotEmpty()) emitTraces(zos, data)
     }
     return baos.toByteArray()
+}
+
+// ===== Trace index — looks up the zip path of a matching trace =====
+
+/** A single trace's identity + the zip-relative path to its index page,
+ *  used when emitting agent / secondary HTML files to drop a 🐞 link
+ *  to the right trace directory. */
+private data class TraceLoc(
+    val providerLabel: String,
+    val model: String?,
+    val category: String?,
+    val zipPath: String
+)
+
+/** Build the same per-category, per-trace directory naming as
+ *  emitTraces. Stored as a flat list since lookups are O(N) over the
+ *  trace count which is small. */
+private fun buildTraceIndex(data: HtmlReportData): List<TraceLoc> {
+    val out = mutableListOf<TraceLoc>()
+    val ownTraces = data.traces.filter { it.origin == "this" }
+    val sourceTraces = data.traces.filter { it.origin == "source" }
+    val ownGroups = ownTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
+    ownGroups.forEach { (cat, list) ->
+        val catSafe = safeName(cat)
+        list.forEachIndexed { idx, t ->
+            val dir = traceDirName(idx, t)
+            out += TraceLoc(
+                providerLabel = providerLabelFor(t.hostname),
+                model = t.model,
+                category = t.category,
+                zipPath = "JSON/$catSafe/$dir/index.html"
+            )
+        }
+    }
+    val sourceGroups = sourceTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
+    sourceGroups.forEach { (cat, list) ->
+        val catSafe = safeName(cat)
+        list.forEachIndexed { idx, t ->
+            val dir = traceDirName(idx, t)
+            out += TraceLoc(
+                providerLabel = providerLabelFor(t.hostname),
+                model = t.model,
+                category = t.category,
+                zipPath = "JSON/source/$catSafe/$dir/index.html"
+            )
+        }
+    }
+    return out
+}
+
+/** First trace whose provider + model match, optionally narrowed to one
+ *  of [categoryHints] (e.g. "Report rerank" for a rerank page). Null
+ *  when nothing matches. */
+private fun List<TraceLoc>.findMatch(providerLabel: String, model: String?, vararg categoryHints: String): TraceLoc? {
+    val hints = categoryHints.toSet()
+    return firstOrNull { loc ->
+        loc.providerLabel == providerLabel &&
+            (model == null || loc.model == model) &&
+            (hints.isEmpty() || loc.category in hints)
+    }
+}
+
+private fun providerLabelFor(host: String): String =
+    AppService.entries.firstOrNull { svc ->
+        runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()
+            ?.equals(host, ignoreCase = true) == true
+    }?.displayName ?: host
+
+/** Render a "🐞 trace" link relative to a page at [pageDepth] inside
+ *  the zip (Reports/X.html → depth 1). */
+private fun bugLink(loc: TraceLoc?, pageDepth: Int): String {
+    if (loc == null) return ""
+    val rel = "../".repeat(pageDepth) + loc.zipPath
+    return "<a class='bug' href='${esc(rel)}' title='View API trace'>🐞</a>"
 }
 
 // ===== Sections present (used by the root index to list links) =====
@@ -118,7 +198,7 @@ private fun rootIndex(data: HtmlReportData): String {
 
 // ===== Reports section =====
 
-private fun emitReports(zos: ZipOutputStream, data: HtmlReportData) {
+private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: List<TraceLoc>) {
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
     val items = data.agents.mapIndexed { idx, a ->
         Triple(itemFilename(idx, "${a.providerDisplay}_${a.model}"), a.providerDisplay + " / " + a.model, a)
@@ -134,15 +214,24 @@ private fun emitReports(zos: ZipOutputStream, data: HtmlReportData) {
     sb.append("</ul></main></body></html>")
     emit(zos, "Reports/index.html", sb.toString())
     // Per-agent files
-    items.forEach { (filename, label, a) -> emit(zos, "Reports/$filename", reportPage(label, a, data, maxAnchor)) }
+    items.forEach { (filename, label, a) ->
+        emit(zos, "Reports/$filename", reportPage(label, a, data, maxAnchor, traceIndex))
+    }
 }
 
-private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, maxAnchor: Int): String {
+private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>): String {
     val sb = StringBuilder()
     sb.append(htmlHead("$label - ${data.title}", depth = 1))
     sb.append(breadcrumb(1, listOf("Reports" to "index.html", label to null), data))
     sb.append("<main>")
-    sb.append("<h1>").append(esc(a.providerDisplay)).append(" / ").append(esc(a.model)).append("</h1>")
+    // Match by (provider displayName, model) and the "Report" category
+    // — that's the per-agent run on the original report. For
+    // translated reports there's no own-side trace for the agent run
+    // (the response carries over from the source), so the lookup
+    // naturally lands on a source-side trace.
+    val match = traceIndex.findMatch(a.providerDisplay, a.model, "Report")
+    sb.append("<h1>").append(esc(a.providerDisplay)).append(" / ").append(esc(a.model))
+        .append(bugLink(match, pageDepth = 1)).append("</h1>")
     if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
     if (!a.responseText.isNullOrBlank()) sb.append("<div class='response'>${processThinkSections(a.responseText, a.agentId)}</div>")
     a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
@@ -173,7 +262,7 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
 
 // ===== Secondary (Summaries / Compares / Reranks / Moderations) =====
 
-private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String) {
+private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String, traceIndex: List<TraceLoc>) {
     val items = data.secondary.filter { it.kind == kind }
     if (items.isEmpty()) return
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
@@ -192,17 +281,25 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
     sb.append("</ul></main></body></html>")
     emit(zos, "$label/index.html", sb.toString())
     // Per-item files
+    val traceCategory = when (kind) {
+        SecondaryKind.SUMMARIZE -> "Report summarize"
+        SecondaryKind.COMPARE -> "Report compare"
+        SecondaryKind.RERANK -> "Report rerank"
+        SecondaryKind.MODERATION -> "Report moderation"
+        SecondaryKind.TRANSLATE -> "Report translate"
+    }
     withFiles.forEach { (filename, itemLabel, s) ->
-        emit(zos, "$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor))
+        emit(zos, "$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory))
     }
 }
 
-private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int): String {
+private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, traceCategory: String): String {
     val sb = StringBuilder()
     sb.append(htmlHead("$itemLabel - ${data.title}", depth = 1))
     sb.append(breadcrumb(1, listOf(section to "index.html", itemLabel to null), data))
     sb.append("<main>")
-    sb.append("<h1>").append(esc(itemLabel)).append("</h1>")
+    val match = traceIndex.findMatch(s.providerDisplay, s.model, traceCategory)
+    sb.append("<h1>").append(esc(itemLabel)).append(bugLink(match, pageDepth = 1)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(s.timestamp)).append("</div>")
     if (s.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
@@ -499,6 +596,8 @@ nav .sep{color:#666;margin:0 4px}
 nav .here{color:#fff;font-weight:bold}
 main{max-width:900px;margin:0 auto}
 h1{color:#6B9BFF;font-size:22px;margin-bottom:8px}
+.bug{font-size:16px;text-decoration:none;margin-left:8px;vertical-align:middle;opacity:0.8}
+.bug:hover{opacity:1}
 h2{color:#8BB8FF;font-size:18px;margin-top:24px}
 h3{color:#9FCFFF;font-size:15px;margin-top:16px}
 .meta{color:#888;font-size:12px;margin-bottom:16px}
