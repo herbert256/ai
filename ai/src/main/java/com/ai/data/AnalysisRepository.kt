@@ -113,7 +113,7 @@ class AnalysisRepository {
             seed = overrideParams.seed ?: agentParams.seed,
             responseFormatJson = overrideParams.responseFormatJson || agentParams.responseFormatJson,
             searchEnabled = overrideParams.searchEnabled || agentParams.searchEnabled,
-            returnCitations = overrideParams.returnCitations || agentParams.returnCitations,
+            returnCitations = overrideParams.returnCitations,
             searchRecency = overrideParams.searchRecency ?: agentParams.searchRecency,
             webSearchTool = overrideParams.webSearchTool || agentParams.webSearchTool,
             reasoningEffort = overrideParams.reasoningEffort ?: agentParams.reasoningEffort
