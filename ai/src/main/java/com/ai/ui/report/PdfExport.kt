@@ -11,40 +11,22 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.content.FileProvider
 import com.ai.data.AnalysisRepository
-import com.ai.data.ApiTrace
-import com.ai.data.ApiTracer
 import com.ai.data.AppService
-import com.ai.data.PricingCache
-import com.ai.data.PromptCache
 import com.ai.data.Report
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
-import com.ai.model.Agent
 import com.ai.model.Settings
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private data class IntroCostRow(
-    val introducedFor: String,
-    val runProvider: String,
-    val runModel: String,
-    val inputTokens: Long,
-    val outputTokens: Long,
-    val cost: Double,
-    val pricingTier: String
-)
 
 enum class ReportExportFormat(val displayName: String) {
     HTML("HTML"),
@@ -53,18 +35,8 @@ enum class ReportExportFormat(val displayName: String) {
     ODT("OpenDocument"),
     JSON("JSON")
 }
-enum class ReportExportDetail { SHORT, MEDIUM, COMPREHENSIVE }
+enum class ReportExportDetail { SHORT, COMPLETE }
 enum class ReportExportAction { SHARE, VIEW }
-
-/** Per-model block toggles for the Comprehensive export. All on by default. */
-data class ReportExportSections(
-    val introduction: Boolean = true,
-    val result: Boolean = true,
-    val requestJson: Boolean = true,
-    val responseJson: Boolean = true,
-    val requestHeaders: Boolean = true,
-    val responseHeaders: Boolean = true
-)
 
 internal const val REDACTED = "[REDACTED]"
 internal val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
@@ -72,13 +44,12 @@ internal val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "
 
 /**
  * Top-level dispatcher: build the right document for (format × detail) and hand it to
- * Android's standard share sheet. JSON ignores the detail level. PDF and HTML support
- * SHORT (title + prompt + per-model results), MEDIUM (current rich HTML report), or
- * COMPREHENSIVE (index + prompt + cost table + per-model: intro / MD result / redacted
- * request+response JSON+headers / links + about footer).
+ * Android's standard share sheet. JSON ignores the detail level. HTML, PDF, DOCX,
+ * and ODT all support SHORT (prompt + per-model results + meta items minus
+ * rerank/translate, no traces, no costs, no index) or COMPLETE (the full Medium
+ * HTML structure with prompt, costs, traces, index, every meta kind).
  *
- * `onProgress(done, total)` advances during the per-model intro fetches that the
- * comprehensive variants kick off. Other variants report 0/1 and 1/1 only.
+ * `onProgress(done, total)` reports 0/1 → 1/1 for these paths.
  */
 suspend fun shareReportAsExport(
     context: Context,
@@ -86,10 +57,9 @@ suspend fun shareReportAsExport(
     format: ReportExportFormat,
     detail: ReportExportDetail,
     action: ReportExportAction,
-    aiSettings: Settings,
-    repository: AnalysisRepository,
-    onProgress: (Int, Int) -> Unit,
-    sections: ReportExportSections = ReportExportSections()
+    @Suppress("UNUSED_PARAMETER") aiSettings: Settings,
+    @Suppress("UNUSED_PARAMETER") repository: AnalysisRepository,
+    onProgress: (Int, Int) -> Unit
 ): Boolean {
     val report = ReportStorage.getReport(context, reportId) ?: return false
 
@@ -103,33 +73,30 @@ suspend fun shareReportAsExport(
         return true
     }
 
-    // DOCX/ODT ignore the Detail picker (like JSON does) — they emit a
-    // flat block-based representation of the report content. Inline
-    // markdown formatting is stripped to plain text.
     if (format == ReportExportFormat.DOCX || format == ReportExportFormat.ODT) {
         onProgress(0, 1)
-        val ok = shareReportAsDocxOrOdt(context, reportId, format, action)
+        val ok = shareReportAsDocxOrOdt(context, reportId, format, detail, action)
         onProgress(1, 1)
         return ok
     }
 
+    onProgress(0, 1)
     val html = when (detail) {
-        ReportExportDetail.SHORT -> { onProgress(0, 1); buildShortHtml(report).also { onProgress(1, 1) } }
-        ReportExportDetail.MEDIUM -> { onProgress(0, 1); convertReportToHtml(context, report, getAppVersion(context)).also { onProgress(1, 1) } }
-        ReportExportDetail.COMPREHENSIVE -> buildComprehensiveHtml(context, report, aiSettings, repository, sections, onProgress)
+        ReportExportDetail.SHORT -> buildShortHtml(context, report)
+        ReportExportDetail.COMPLETE -> convertReportToHtml(context, report, getAppVersion(context))
     }
+    onProgress(1, 1)
 
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val detailTag = detail.name.lowercase()
     val baseName = "ai_report_${safeTitle}_${detailTag}_${pdfTimestamp()}"
     return when (format) {
         ReportExportFormat.HTML -> { dispatchHtml(context, html, "$baseName.html", report.title, action); true }
-        // Medium PDF gets a JS-injected TOC page at the top with real
-        // page numbers; SHORT/COMPREHENSIVE skip it (Comprehensive
-        // already renders its own static index page).
+        // Complete PDF gets a JS-injected TOC page at the top with real
+        // page numbers; Short skips it.
         ReportExportFormat.PDF -> {
             dispatchPdf(context, makeStaticForPdf(html), "$baseName.pdf", report.title, action,
-                withTocPage = detail == ReportExportDetail.MEDIUM)
+                withTocPage = detail == ReportExportDetail.COMPLETE)
             true
         }
         ReportExportFormat.JSON, ReportExportFormat.DOCX, ReportExportFormat.ODT -> true // handled above
@@ -201,138 +168,22 @@ private fun makeStaticForPdf(html: String): String {
     return if (idx >= 0) html.substring(0, idx) + override + html.substring(idx) else html + override
 }
 
-/** Original entry point — kept for backwards compatibility with any caller that still
- *  asks for the comprehensive PDF directly. */
-suspend fun shareReportAsPdf(
-    context: Context,
-    reportId: String,
-    aiSettings: Settings,
-    repository: AnalysisRepository,
-    onProgress: (Int, Int) -> Unit
-): Boolean = shareReportAsExport(context, reportId, ReportExportFormat.PDF, ReportExportDetail.COMPREHENSIVE, ReportExportAction.SHARE, aiSettings, repository, onProgress)
+// ===== Short HTML — prompt, per-model results, meta items =====
 
-private suspend fun buildComprehensiveHtml(
-    context: Context,
-    report: Report,
-    aiSettings: Settings,
-    repository: AnalysisRepository,
-    sections: ReportExportSections,
-    onProgress: (Int, Int) -> Unit
-): String {
-    val traces = ApiTracer.getTraceFilesForReport(report.id)
-        .mapNotNull { ApiTracer.readTraceFile(it.filename) }
+/** Short HTML: prompt + per-model responses + meta items (Summaries,
+ *  Compares, Moderations only — Rerank and Translate skipped per spec).
+ *  No index, no cost table, no API trace dump. The same HTML is what
+ *  buildShortHtml returns for HTML/PDF SHORT exports; DOCX/ODT have
+ *  their own block-based equivalent in WordOdtExport. */
+private fun buildShortHtml(context: Context, report: Report): String {
+    val agents = report.agents
+        .filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
+        .sortedBy { it.agentName.lowercase() }
+    val secondary = com.ai.data.SecondaryResultStorage.listForReport(context, report.id)
+    val summaries = secondary.filter { it.kind == com.ai.data.SecondaryKind.SUMMARIZE }
+    val compares = secondary.filter { it.kind == com.ai.data.SecondaryKind.COMPARE }
+    val moderations = secondary.filter { it.kind == com.ai.data.SecondaryKind.MODERATION }
 
-    val successfulAgents = report.agents.filter {
-        it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED
-    }
-    val uniqueModels = successfulAgents
-        .map { (it.provider to it.model) }
-        .distinct()
-
-    val intros = java.util.concurrent.ConcurrentHashMap<String, String?>()
-    val introCosts = java.util.Collections.synchronizedList(mutableListOf<IntroCostRow>())
-    val completed = java.util.concurrent.atomic.AtomicInteger(0)
-
-    // Skip the intro API calls entirely when the user disabled the Introduction
-    // section in the Per-model sections card — saves tokens, time, and a bunch
-    // of progress-bar churn for an output we'd just throw away.
-    if (!sections.introduction) {
-        onProgress(1, 1)
-        return buildPdfHtml(context, report, traces, intros, introCosts.toList(), sections, getAppVersion(context))
-    }
-
-    val totalSteps = uniqueModels.size + 1
-
-    // Each model writes its own intro using the user's "intro" Internal Prompt
-    // text (with @MODEL@ / @PROVIDER@ / @AGENT@ / @SWARM@ / @NOW@ substitutions).
-    // The prompt's configured agent is intentionally ignored — it's marked N/A
-    // for this prompt because the runner is decided at call time: the same
-    // (provider, model) we ran in the report describes itself.
-    //
-    // Caches by (resolved-prompt-text, intro::providerId::model) so a re-export
-    // doesn't re-spend tokens, but a different model still gets its own intro.
-    // Runs concurrently — one launch per unique (provider, model).
-    // Intro template lives on GeneralSettings.introPrompt now (used to
-    // be a Settings.prompts entry named "intro" with the agentId
-    // intentionally ignored). Empty falls back to SecondaryPrompts
-    // .DEFAULT_INTRO so the existing flow keeps working out of the box.
-    val introPromptTemplate = run {
-        val prefs = context.getSharedPreferences(com.ai.ui.settings.SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-        val gs = com.ai.ui.settings.SettingsPreferences(prefs, context.filesDir).loadGeneralSettings()
-        gs.introPrompt.ifBlank { com.ai.data.SecondaryPrompts.DEFAULT_INTRO }
-    }
-
-    val previousTraceCategory = ApiTracer.currentCategory
-    ApiTracer.currentCategory = "Report intro"
-    try {
-    coroutineScope {
-        uniqueModels.map { (providerId, model) ->
-            async(Dispatchers.IO) {
-                val key = "$providerId::$model"
-                try {
-                    val provider = AppService.findById(providerId) ?: run { intros[key] = null; return@async }
-                    val agentIdForCache = "intro::$providerId::$model"
-                    // Apply @MODEL@/@PROVIDER@/@AGENT@/@SWARM@/@NOW@ to the user's
-                    // intro template. @AGENT@ is the synthetic name; @SWARM@ stays
-                    // unset since intros are per-model not per-swarm.
-                    // Same @MODEL@ / @PROVIDER@ / @AGENT@ / @SWARM@ / @NOW@
-                    // substitution the old Prompt.resolvePrompt did.
-                    val resolvedPrompt = introPromptTemplate
-                        .replace("@MODEL@", model)
-                        .replace("@PROVIDER@", provider.displayName)
-                        .replace("@AGENT@", "$model (self-intro)")
-                        .replace("@NOW@", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date()))
-                    val cacheKey = PromptCache.keyFor(resolvedPrompt, agentIdForCache)
-                    PromptCache.get(cacheKey)?.let { intros[key] = it; return@async }
-
-                    val apiKey = aiSettings.getApiKey(provider)
-                    if (apiKey.isBlank()) { intros[key] = null; return@async }
-
-                    val syntheticAgent = Agent(
-                        id = agentIdForCache,
-                        name = "Self-intro for ${provider.displayName} / $model",
-                        provider = provider,
-                        model = model,
-                        apiKey = apiKey
-                    )
-                    val resp = repository.analyzePlayerWithAgent(
-                        syntheticAgent,
-                        resolvedPrompt,
-                        aiSettings.resolveAgentParameters(syntheticAgent)
-                    )
-                    resp.tokenUsage?.let { tu ->
-                        val pricing = PricingCache.getPricing(context, provider, model)
-                        val cost = PricingCache.computeCost(tu, pricing)
-                        introCosts += IntroCostRow(
-                            introducedFor = "${provider.displayName} / $model",
-                            runProvider = provider.displayName,
-                            runModel = model,
-                            inputTokens = tu.inputTokens.toLong(),
-                            outputTokens = tu.outputTokens.toLong(),
-                            cost = cost,
-                            pricingTier = pricing.source
-                        )
-                    }
-                    intros[key] = resp.analysis?.also { PromptCache.put(cacheKey, it) }
-                } catch (_: Exception) {
-                    intros[key] = null
-                } finally {
-                    onProgress(completed.incrementAndGet(), totalSteps)
-                }
-            }
-        }.awaitAll()
-    }
-    } finally {
-        ApiTracer.currentCategory = previousTraceCategory
-    }
-    onProgress(totalSteps, totalSteps)
-    return buildPdfHtml(context, report, traces, intros, introCosts.toList(), sections, getAppVersion(context))
-}
-
-// ===== Short HTML — title + prompt + per-model results =====
-
-private fun buildShortHtml(report: Report): String {
-    val agents = report.agents.filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
     val sb = StringBuilder()
     sb.append("<!DOCTYPE html><html><head><meta charset='utf-8'><style>")
     sb.append("""
@@ -340,12 +191,19 @@ private fun buildShortHtml(report: Report): String {
         h1 { font-size: 20pt; margin: 0 0 8px 0; }
         h2 { font-size: 14pt; color: #0b2c5a; border-bottom: 1px solid #cfcfcf; padding-bottom: 4px; margin: 18px 0 6px 0; }
         h3 { font-size: 12pt; color: #0b2c5a; margin: 12px 0 4px 0; }
+        h4 { font-size: 11pt; color: #555; margin: 10px 0 4px 0; }
         .prompt { white-space: pre-wrap; word-break: break-word; }
         .err { color: #b00020; }
+        .meta-ts { color: #888; font-weight: normal; font-size: 10pt; margin-left: 6px; }
     """.trimIndent())
     sb.append("</style></head><body>")
     sb.append("<h1>").append(esc(report.title)).append("</h1>")
+    if (!report.rapportText.isNullOrBlank()) {
+        sb.append("<div>").append(convertMarkdownToHtmlForExport(report.rapportText!!)).append("</div>")
+    }
+
     sb.append("<h2>Prompt</h2><p class='prompt'>").append(esc(report.prompt)).append("</p>")
+
     sb.append("<h2>Results</h2>")
     for (a in agents) {
         val provider = AppService.findById(a.provider)
@@ -357,6 +215,39 @@ private fun buildShortHtml(report: Report): String {
         if (!a.responseBody.isNullOrBlank()) {
             sb.append("<div>").append(convertMarkdownToHtmlForExport(a.responseBody!!)).append("</div>")
         }
+        a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
+            sb.append("<h4>Sources</h4><ol>")
+            cites.forEach { url -> sb.append("<li><a href='").append(esc(url)).append("'>").append(esc(url)).append("</a></li>") }
+            sb.append("</ol>")
+        }
+        a.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { qs ->
+            sb.append("<h4>Related questions</h4><ol>")
+            qs.forEach { q -> sb.append("<li>").append(esc(q)).append("</li>") }
+            sb.append("</ol>")
+        }
+    }
+
+    fun appendMeta(items: List<com.ai.data.SecondaryResult>, heading: String) {
+        if (items.isEmpty()) return
+        sb.append("<h2>").append(heading).append("</h2>")
+        for (s in items) {
+            val provDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
+            val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(s.timestamp))
+            sb.append("<h3>").append(esc(provDisplay)).append(" / ").append(esc(s.model))
+                .append("<span class='meta-ts'>").append(esc(ts)).append("</span></h3>")
+            if (s.errorMessage != null) {
+                sb.append("<p class='err'>Error: ").append(esc(s.errorMessage)).append("</p>")
+            } else if (!s.content.isNullOrBlank()) {
+                sb.append("<div>").append(convertMarkdownToHtmlForExport(s.content)).append("</div>")
+            }
+        }
+    }
+    appendMeta(summaries, "Summaries")
+    appendMeta(compares, "Compares")
+    appendMeta(moderations, "Moderations")
+
+    if (!report.closeText.isNullOrBlank()) {
+        sb.append("<div>").append(convertMarkdownToHtmlForExport(report.closeText!!)).append("</div>")
     }
     sb.append("</body></html>")
     return sb.toString()
@@ -427,274 +318,6 @@ private fun openReportAsJson(context: Context, report: Report) {
     context.startActivity(intent)
 }
 
-// ===== HTML composition =====
-
-private fun buildPdfHtml(
-    context: Context,
-    report: Report,
-    traces: List<ApiTrace>,
-    intros: Map<String, String?>,
-    introCosts: List<IntroCostRow>,
-    sections: ReportExportSections,
-    appVersion: String
-): String {
-    val agents = report.agents.filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
-    val sb = StringBuilder(8 * 1024)
-    sb.append("<!DOCTYPE html><html><head><meta charset='utf-8'><style>")
-    sb.append("""
-        @page { margin: 14mm; }
-        html { background: #ece6d6; }
-        body {
-            font-family: 'Georgia', 'Times New Roman', serif;
-            font-size: 11pt; color: #2a2622; line-height: 1.5;
-            margin: 0; padding: 0; background: #ece6d6;
-        }
-        .page {
-            page-break-before: always;
-            background: #fbfbf6;
-            border: 1px solid #c8b894;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-            max-width: 760px;
-            margin: 18px auto;
-            padding: 26px 32px 32px 32px;
-            position: relative;
-        }
-        .page::before {
-            content: ""; display: block; height: 6px;
-            background: linear-gradient(90deg, #0b2c5a 0%, #1a73e8 50%, #c8b27a 100%);
-            margin: -26px -32px 22px -32px;
-        }
-        h1 {
-            font-family: 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
-            font-size: 26pt; margin: 0 0 10px 0; color: #0b2c5a;
-            border-bottom: 2px solid #c8b27a; padding-bottom: 8px;
-            letter-spacing: -0.2px;
-        }
-        h2 {
-            font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
-            font-size: 17pt; margin: 18px 0 10px 0;
-            color: #0b2c5a; padding: 0 0 4px 12px;
-            border-left: 4px solid #c8b27a;
-            border-bottom: 1px solid #d8d2bf;
-        }
-        h3 {
-            font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
-            font-size: 12pt; margin: 16px 0 4px 0; color: #1a73e8;
-            text-transform: uppercase; letter-spacing: 0.6px;
-        }
-        .meta {
-            color: #888; font-size: 9pt; margin-bottom: 16px;
-            font-style: italic; border-bottom: 1px dotted #c8b894; padding-bottom: 8px;
-        }
-        .toc {
-            background: rgba(255, 252, 240, 0.7); padding: 14px 18px;
-            border: 1px solid #c8b894;
-            margin: 8px 0;
-        }
-        .toc a {
-            display: block; color: #0b2c5a; text-decoration: none;
-            padding: 5px 0; font-size: 11pt; border-bottom: 1px dotted #d8d2bf;
-        }
-        .toc a:last-child { border-bottom: none; }
-        .toc a.sub { padding-left: 22px; color: #555; font-size: 10pt; }
-        .code {
-            font-family: 'Courier New', 'Menlo', 'Monaco', monospace; font-size: 9pt;
-            background: #f4f0e0; padding: 10px 14px;
-            white-space: pre-wrap; word-break: break-all;
-            border-left: 3px solid #1a73e8;
-            margin: 8px 0; color: #2a2622;
-        }
-        table {
-            border-collapse: collapse; width: auto; max-width: 100%;
-            margin: 12px auto;
-            font-family: 'Helvetica Neue', 'Helvetica', sans-serif; font-size: 10pt;
-            border: 1px solid #c8b894;
-        }
-        th, td { border: 1px solid #e0d8c2; padding: 6px 10px; text-align: left; vertical-align: top; }
-        th {
-            background: #0b2c5a; color: #fbfbf6; font-weight: 600;
-            text-transform: uppercase; font-size: 9pt; letter-spacing: 0.5px;
-        }
-        tr:nth-child(even) td { background: rgba(232, 224, 200, 0.4); }
-        td.num, th.num { text-align: right; font-family: 'Courier New', monospace; }
-        .total td {
-            font-weight: bold; background: #f0e8c8 !important;
-            border-top: 2px solid #0b2c5a;
-        }
-        .intro {
-            background: linear-gradient(180deg, #fff8e8 0%, #faf2d8 100%);
-            border-left: 4px solid #1a73e8; padding: 12px 16px;
-            margin: 10px 0; font-style: italic; color: #333;
-        }
-        .links { margin: 10px 0 18px 0; font-size: 10pt; }
-        .links a {
-            display: inline-block; color: #fbfbf6 !important; background: #0b2c5a;
-            margin: 0 6px 4px 0; padding: 4px 12px;
-            text-decoration: none; font-size: 9pt; font-family: 'Helvetica', sans-serif;
-            letter-spacing: 0.3px;
-        }
-        .err { color: #b00020; font-weight: bold; }
-        .about { color: #555; font-size: 10pt; line-height: 1.65; }
-        ul, ol { margin: 4px 0 10px 22px; }
-        p { margin: 6px 0; }
-        .result h1 { font-size: 15pt; margin: 12px 0 6px 0; border-bottom: none; padding-bottom: 0; }
-        .result h2 { font-size: 13pt; border-bottom: none; border-left: none; padding: 0; color: #0b2c5a; margin: 10px 0 4px 0; }
-        .result h3 { font-size: 12pt; color: #0b2c5a; margin: 8px 0 4px 0; text-transform: none; letter-spacing: 0; }
-        blockquote { border-left: 3px solid #c8b27a; padding: 4px 12px; margin: 8px 0; color: #555; font-style: italic; }
-    """.trimIndent())
-    sb.append("</style></head><body>")
-
-    val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
-
-    // Cover — title + generation meta in its own centered .page card.
-    sb.append("<div class='page' id='cover'>")
-    sb.append("<h1>${esc(report.title)}</h1>")
-    sb.append("<div class='meta'>Generated ").append(now).append(" · AI app v").append(esc(appVersion)).append("</div>")
-    sb.append("</div>")
-
-    // Index — wrapped in its own page card so it matches the look of the rest.
-    sb.append("<div class='page' id='index'>")
-    sb.append("<h2>Index</h2><div class='toc'>")
-    sb.append("<a href='#prompt'>1. Prompt</a>")
-    sb.append("<a href='#costs'>2. Cost summary</a>")
-    sb.append("<a href='#models'>3. Models</a>")
-    agents.forEachIndexed { i, a ->
-        val anchor = "a-$i"
-        val label = a.agentName.ifBlank { "${a.provider} / ${a.model}" }
-        sb.append("<a class='sub' href='#$anchor'>3.${i + 1} ${esc(label)}</a>")
-    }
-    sb.append("<a href='#about'>4. About this report</a>")
-    sb.append("</div></div>")
-
-    // Prompt
-    sb.append("<div class='page' id='prompt'>")
-    sb.append("<h2>1. Prompt</h2>")
-    sb.append("<div class='code'>").append(esc(report.prompt)).append("</div>")
-    sb.append("</div>")
-
-    // Cost summary
-    sb.append("<div class='page' id='costs'>")
-    sb.append("<h2>2. Cost summary</h2>")
-    sb.append("<table>")
-    sb.append("<tr><th>Agent</th><th>Provider</th><th>Model</th><th>Tier</th><th class='num'>In</th><th class='num'>Out</th><th class='num'>Cost (¢)</th></tr>")
-    var totalIn = 0L; var totalOut = 0L; var totalCost = 0.0
-    for (a in agents) {
-        val provider = AppService.findById(a.provider)
-        val tu = a.tokenUsage
-        val pricing = provider?.let { PricingCache.getPricing(context, it, a.model) }
-        val inT: Long = (tu?.inputTokens ?: 0).toLong()
-        val outT: Long = (tu?.outputTokens ?: 0).toLong()
-        val cost = a.cost ?: (if (tu != null && pricing != null) PricingCache.computeCost(tu, pricing) else 0.0)
-        totalIn += inT; totalOut += outT; totalCost += cost
-        sb.append("<tr><td>").append(esc(a.agentName)).append("</td><td>")
-            .append(esc(provider?.displayName ?: a.provider)).append("</td><td>")
-            .append(esc(a.model)).append("</td><td>")
-            .append(esc(pricing?.source ?: "")).append("</td><td class='num'>")
-            .append(inT).append("</td><td class='num'>")
-            .append(outT).append("</td><td class='num'>")
-            .append("%.2f".format(cost * 100)).append("</td></tr>")
-    }
-    if (introCosts.isNotEmpty()) {
-        sb.append("<tr><td colspan='7' style='background:#fafafa; font-style:italic; color:#444;'>")
-            .append("Introductions (live calls — cached intros cost nothing)</td></tr>")
-        for (ic in introCosts) {
-            totalIn += ic.inputTokens; totalOut += ic.outputTokens; totalCost += ic.cost
-            sb.append("<tr><td>Intro: ").append(esc(ic.introducedFor)).append("</td><td>")
-                .append(esc(ic.runProvider)).append("</td><td>")
-                .append(esc(ic.runModel)).append("</td><td>")
-                .append(esc(ic.pricingTier)).append("</td><td class='num'>")
-                .append(ic.inputTokens).append("</td><td class='num'>")
-                .append(ic.outputTokens).append("</td><td class='num'>")
-                .append("%.2f".format(ic.cost * 100)).append("</td></tr>")
-        }
-    }
-    sb.append("<tr class='total'><td colspan='4'>Total</td><td class='num'>")
-        .append(totalIn).append("</td><td class='num'>")
-        .append(totalOut).append("</td><td class='num'>")
-        .append("%.2f".format(totalCost * 100)).append("</td></tr></table>")
-    sb.append("</div>")  // close costs page
-
-    // Models section header card — gives the index "3. Models" entry something to
-    // anchor against and visually separates the per-model pages from the cost
-    // summary above.
-    sb.append("<div class='page' id='models'>")
-    sb.append("<h2>3. Models</h2>")
-    sb.append("<p>Per-model results — one card per (provider, model) combination ran for this report.</p>")
-    sb.append("</div>")
-
-    // Per-model pages
-    agents.forEachIndexed { i, a ->
-        val anchor = "a-$i"
-        val provider = AppService.findById(a.provider)
-        sb.append("<div class='page' id='$anchor'>")
-        sb.append("<h2>3.${i + 1} ").append(esc(provider?.displayName ?: a.provider)).append(" / ").append(esc(a.model)).append("</h2>")
-
-        // Intro
-        if (sections.introduction) {
-            val introKey = "${a.provider}::${a.model}"
-            val intro = intros[introKey]
-            if (!intro.isNullOrBlank()) {
-                sb.append("<h3>Introduction</h3><div class='intro'>")
-                    .append(convertMarkdownToHtmlForExport(intro)).append("</div>")
-            }
-        }
-
-        // Links — always shown; small navigation aid, not one of the toggle blocks.
-        val links = mutableListOf<Pair<String, String>>()
-        provider?.adminUrl?.takeIf { it.isNotBlank() }?.let { links += "Provider console" to it }
-        provider?.openRouterName?.takeIf { it.isNotBlank() }?.let {
-            links += "Model on OpenRouter" to "https://openrouter.ai/$it/${a.model}"
-        }
-        if (links.isNotEmpty()) {
-            sb.append("<div class='links'>")
-            links.forEach { (label, url) -> sb.append("<a href='").append(esc(url)).append("'>").append(esc(label)).append("</a>") }
-            sb.append("</div>")
-        }
-
-        // Result (MD-rendered)
-        if (sections.result) {
-            sb.append("<h3>Result</h3>")
-            if (a.reportStatus == ReportStatus.ERROR) {
-                sb.append("<p class='err'>Error: ").append(esc(a.errorMessage ?: "unknown error")).append("</p>")
-            }
-            if (!a.responseBody.isNullOrBlank()) {
-                sb.append("<div class='result'>").append(convertMarkdownToHtmlForExport(a.responseBody!!)).append("</div>")
-            }
-        }
-
-        // Match a captured trace (by model) to recover request payload + headers.
-        val trace = traces.firstOrNull { it.model == a.model }
-        if (sections.requestJson) {
-            sb.append("<h3>Request JSON</h3><div class='code'>")
-                .append(esc(redactJsonString(trace?.request?.body ?: a.requestBody) ?: "(not captured)")).append("</div>")
-        }
-        if (sections.responseJson) {
-            sb.append("<h3>Response JSON</h3><div class='code'>")
-                .append(esc(redactJsonString(trace?.response?.body ?: a.responseBody) ?: "(not captured)")).append("</div>")
-        }
-        if (sections.requestHeaders) {
-            sb.append("<h3>Request headers</h3><div class='code'>")
-                .append(esc(redactHeaders(trace?.request?.headers ?: parseHeaderText(a.requestHeaders)))).append("</div>")
-        }
-        if (sections.responseHeaders) {
-            sb.append("<h3>Response headers</h3><div class='code'>")
-                .append(esc(redactHeaders(trace?.response?.headers ?: parseHeaderText(a.responseHeaders)))).append("</div>")
-        }
-
-        sb.append("</div>")
-    }
-
-    // About
-    sb.append("<div class='page' id='about'>")
-    sb.append("<h2>4. About this report</h2>")
-    sb.append("<p class='about'>Generated by the AI app (Android, version ").append(esc(appVersion))
-        .append(") on ").append(now).append(".</p>")
-    sb.append("<p class='about'>The app fans a single prompt out to multiple AI agents in parallel. Each model answers independently — the per-model pages above show the response, the on-the-wire request and response JSON (with API keys / authorization tokens redacted), the HTTP headers, and a short introduction generated by the configured 'intro' Internal Prompt. Per-call token counts and cost estimates are summarised in the cost table; cost figures use the cached OpenRouter / LiteLLM pricing where available and are best-effort.</p>")
-    sb.append("</div>")
-
-    sb.append("</body></html>")
-    return sb.toString()
-}
 
 // ===== Redaction helpers (PDF only — runtime traces stay unredacted) =====
 
@@ -730,14 +353,6 @@ internal fun redactHeaders(headers: Map<String, String>?): String {
         val safe = if (name.lowercase(Locale.US) in SENSITIVE_HEADERS) REDACTED else value
         "$name: $safe"
     }
-}
-
-private fun parseHeaderText(text: String?): Map<String, String> {
-    if (text.isNullOrBlank()) return emptyMap()
-    return text.lines().mapNotNull { line ->
-        val idx = line.indexOf(':')
-        if (idx <= 0) null else line.substring(0, idx).trim() to line.substring(idx + 1).trim()
-    }.toMap()
 }
 
 // ===== HTML escaping =====

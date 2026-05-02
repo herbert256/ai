@@ -20,30 +20,24 @@ import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.launch
 
 /**
- * Full-screen overlay that lets the user pick the export format (HTML / PDF / JSON) and,
- * when relevant, the detail level (Short / Medium / Comprehensive) before kicking off
- * the export. The actual export call is delegated via `onExport`; while it's running we
- * show a progress dialog driven by the (done, total) updates the export pushes.
+ * Full-screen overlay that lets the user pick the export format (HTML / PDF /
+ * MS Word / OpenDocument / JSON) and, when relevant, the detail level (Short /
+ * Complete) before kicking off the export. JSON ignores the detail picker;
+ * every other format honors it. The actual export call is delegated via
+ * `onExport`; while it's running we show a progress dialog driven by the
+ * (done, total) updates the export pushes.
  */
 @Composable
 fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportSections, ReportExportAction, (Int, Int) -> Unit) -> Unit
+    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var format by rememberSaveable { mutableStateOf(ReportExportFormat.HTML) }
-    var detail by rememberSaveable { mutableStateOf(ReportExportDetail.MEDIUM) }
-    // Comprehensive section toggles — six independent flags. rememberSaveable so
-    // taking a side trip into the browser keeps the user's choices.
-    var includeIntroduction by rememberSaveable { mutableStateOf(true) }
-    var includeResult by rememberSaveable { mutableStateOf(true) }
-    var includeRequestJson by rememberSaveable { mutableStateOf(true) }
-    var includeResponseJson by rememberSaveable { mutableStateOf(true) }
-    var includeRequestHeaders by rememberSaveable { mutableStateOf(true) }
-    var includeResponseHeaders by rememberSaveable { mutableStateOf(true) }
+    var detail by rememberSaveable { mutableStateOf(ReportExportDetail.COMPLETE) }
     var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     progress?.let { (done, total) ->
@@ -91,7 +85,7 @@ fun ReportExportScreen(
                 }
             }
 
-            if (format != ReportExportFormat.JSON && format != ReportExportFormat.DOCX && format != ReportExportFormat.ODT) {
+            if (format != ReportExportFormat.JSON) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Detail", fontWeight = FontWeight.Bold, color = Color.White)
@@ -106,33 +100,11 @@ fun ReportExportScreen(
                         }
                         Text(
                             when (detail) {
-                                ReportExportDetail.SHORT -> "Title, prompt, and the result for each provider/model. Nothing else."
-                                ReportExportDetail.MEDIUM -> "Standard report: results, citations, search snippets, related questions."
-                                ReportExportDetail.COMPREHENSIVE -> "Index, prompt, cost table, per-model intro + result + redacted request/response JSON & headers, about footer."
+                                ReportExportDetail.SHORT -> "Prompt, per-model results (with citations and related questions), and meta items: Summaries, Compares, Moderations. No index, no costs, no traces."
+                                ReportExportDetail.COMPLETE -> "Index, prompt, every meta kind (Rerank / Summarize / Compare / Moderation / Translate), the cost table, and every captured API trace with redacted bodies."
                             },
                             fontSize = 12.sp, color = AppColors.TextTertiary
                         )
-                    }
-                }
-            }
-
-            // Per-model section toggles — only meaningful for the Comprehensive
-            // detail since it's the only variant that emits these blocks.
-            if (format != ReportExportFormat.JSON && detail == ReportExportDetail.COMPREHENSIVE) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Per-model sections", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            "Choose which blocks to include for each model card.",
-                            fontSize = 11.sp, color = AppColors.TextTertiary,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        SectionToggleRow("Model introduction", includeIntroduction) { includeIntroduction = it }
-                        SectionToggleRow("Result rendered", includeResult) { includeResult = it }
-                        SectionToggleRow("Request JSON", includeRequestJson) { includeRequestJson = it }
-                        SectionToggleRow("Response JSON", includeResponseJson) { includeResponseJson = it }
-                        SectionToggleRow("Request headers", includeRequestHeaders) { includeRequestHeaders = it }
-                        SectionToggleRow("Response headers", includeResponseHeaders) { includeResponseHeaders = it }
                     }
                 }
             }
@@ -141,18 +113,10 @@ fun ReportExportScreen(
         fun runExport(action: ReportExportAction) {
             val pickedFormat = format
             val pickedDetail = detail
-            val pickedSections = ReportExportSections(
-                introduction = includeIntroduction,
-                result = includeResult,
-                requestJson = includeRequestJson,
-                responseJson = includeResponseJson,
-                requestHeaders = includeRequestHeaders,
-                responseHeaders = includeResponseHeaders
-            )
             scope.launch {
                 progress = 0 to 1
                 try {
-                    onExport(pickedFormat, pickedDetail, pickedSections, action) { d, t -> progress = d to t }
+                    onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
                     progress = null
                     // For SHARE the share sheet itself is the user's last action so we
                     // collapse this screen away. For VIEW the file just opened in the
@@ -189,13 +153,3 @@ fun ReportExportScreen(
     }
 }
 
-@Composable
-private fun SectionToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}

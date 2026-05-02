@@ -39,11 +39,16 @@ internal data class DocBlock(
  *  every captured API trace with redacted bodies. The lone DOCX/ODT
  *  affordance is the leading TOC block — Word and LibreOffice fill the
  *  page numbers in when the document is opened. */
-private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData): List<DocBlock> {
+private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Boolean): List<DocBlock> {
     val out = mutableListOf<DocBlock>()
     out += DocBlock(DocBlockKind.HEADING, data.title.ifBlank { "Untitled" }, 1)
-    out += DocBlock(DocBlockKind.HEADING, "Index", 2)
-    out += DocBlock(DocBlockKind.TOC)
+    if (!short) {
+        // Short reports skip the index per spec — no TOC field. Complete
+        // reports get a Word/LibreOffice TOC the consuming app populates
+        // with page numbers when the document is opened.
+        out += DocBlock(DocBlockKind.HEADING, "Index", 2)
+        out += DocBlock(DocBlockKind.TOC)
+    }
 
     if (!data.rapportText.isNullOrBlank()) {
         out += mdToBlocks(data.rapportText, headingBase = 2)
@@ -83,9 +88,14 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData): List<DocBl
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
     appendSecondary(out, data.secondary, SecondaryKind.SUMMARIZE, "Summaries", maxAnchor)
     appendSecondary(out, data.secondary, SecondaryKind.COMPARE, "Compares", maxAnchor)
-    appendSecondary(out, data.secondary, SecondaryKind.RERANK, "Reranks", maxAnchor)
+    if (!short) {
+        // Short skips Rerank + Translate per spec — those rows are
+        // structural / billing-history, not the core narrative the
+        // user wants in a short hand-out.
+        appendSecondary(out, data.secondary, SecondaryKind.RERANK, "Reranks", maxAnchor)
+    }
     appendSecondary(out, data.secondary, SecondaryKind.MODERATION, "Moderations", maxAnchor)
-    appendTranslations(out, data.secondary)
+    if (!short) appendTranslations(out, data.secondary)
 
     if (data.prompt.isNotBlank()) {
         out += DocBlock(DocBlockKind.HEADING, "Prompt", 2)
@@ -95,8 +105,11 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData): List<DocBl
         }
     }
 
-    appendCosts(out, data)
-    appendTraces(out, data.traces)
+    if (!short) {
+        // Short skips the cost table and the JSON-trace dump per spec.
+        appendCosts(out, data)
+        appendTraces(out, data.traces)
+    }
 
     if (!data.closeText.isNullOrBlank()) {
         out += mdToBlocks(data.closeText, headingBase = 2)
@@ -344,9 +357,9 @@ private fun escXml(s: String): String {
 
 // ===== DOCX (Office Open XML) =====
 
-internal fun buildDocxBytes(context: Context, report: com.ai.data.Report): ByteArray {
+internal fun buildDocxBytes(context: Context, report: com.ai.data.Report, short: Boolean = false): ByteArray {
     val data = com.ai.ui.report.buildHtmlReportData(context, report)
-    val blocks = buildMediumBlocks(data)
+    val blocks = buildMediumBlocks(data, short)
     val docXml = buildString {
         append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
         append("""<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>""")
@@ -469,9 +482,9 @@ internal fun buildDocxBytes(context: Context, report: com.ai.data.Report): ByteA
 
 // ===== ODT (OpenDocument Text) =====
 
-internal fun buildOdtBytes(context: Context, report: com.ai.data.Report): ByteArray {
+internal fun buildOdtBytes(context: Context, report: com.ai.data.Report, short: Boolean = false): ByteArray {
     val data = com.ai.ui.report.buildHtmlReportData(context, report)
-    val blocks = buildMediumBlocks(data)
+    val blocks = buildMediumBlocks(data, short)
     val contentXml = buildString {
         append("""<?xml version="1.0" encoding="UTF-8"?>""")
         append("""<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">""")
@@ -594,16 +607,17 @@ private fun ZipOutputStream.writeEntry(name: String, body: String) {
 
 internal fun shareReportAsDocxOrOdt(
     context: Context, reportId: String,
-    format: ReportExportFormat, action: ReportExportAction
+    format: ReportExportFormat, detail: ReportExportDetail, action: ReportExportAction
 ): Boolean {
     val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return false
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
     val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
+    val isShort = detail == ReportExportDetail.SHORT
     val (bytes, ext, mime, formatLabel) = when (format) {
-        ReportExportFormat.DOCX -> Quad(buildDocxBytes(context, report), "docx",
+        ReportExportFormat.DOCX -> Quad(buildDocxBytes(context, report, isShort), "docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "MS Word")
-        ReportExportFormat.ODT -> Quad(buildOdtBytes(context, report), "odt",
+        ReportExportFormat.ODT -> Quad(buildOdtBytes(context, report, isShort), "odt",
             "application/vnd.oasis.opendocument.text", "OpenDocument")
         else -> return false
     }
