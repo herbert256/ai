@@ -1,0 +1,593 @@
+package com.ai.ui.report
+
+import android.content.Context
+import android.content.Intent
+import androidx.core.content.FileProvider
+import com.ai.data.Report
+import com.ai.data.ReportStorage
+import com.ai.data.SecondaryKind
+import com.google.gson.JsonParser
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+/**
+ * "Zipped HTML" export — bundles every section of the Complete report
+ * into its own .html file inside a directory tree that mirrors the
+ * Medium HTML's view picker. The user gets a navigable mini-site:
+ * top-level index links to each section's index, which links to each
+ * item's own page; traces drill down one extra level to a per-trace
+ * directory whose four files (request_headers, request_body,
+ * response_headers, response_body) are the redacted parts of that
+ * single API call.
+ *
+ * Tree:
+ *
+ *   index.html
+ *   style.css
+ *   Reports/
+ *     index.html
+ *     <01_provider_model>.html ...
+ *   Summaries/
+ *     index.html
+ *     <01_provider_model>.html ...
+ *   Compares/, Reranks/, Moderations/, Translations/  (same shape)
+ *   Prompt/
+ *     index.html
+ *   Costs/
+ *     index.html
+ *   JSON/
+ *     index.html
+ *     <category>/
+ *       index.html
+ *       <01_method_host_status>/
+ *         index.html
+ *         request_headers.html
+ *         request_body.html
+ *         response_headers.html
+ *         response_body.html
+ *
+ * Source-report traces (translated reports) live under JSON/source/
+ * mirroring the same per-category / per-trace structure.
+ */
+internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
+    val data = buildHtmlReportData(context, report)
+    val baos = ByteArrayOutputStream()
+    ZipOutputStream(baos.buffered()).use { zos ->
+        emit(zos, "style.css", sharedCss())
+        emit(zos, "index.html", rootIndex(data))
+
+        if (data.agents.isNotEmpty()) emitReports(zos, data)
+        emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries")
+        emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares")
+        emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks")
+        emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations")
+        emitTranslations(zos, data)
+
+        if (data.prompt.isNotBlank()) emitPrompt(zos, data)
+        if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
+            emitCosts(zos, data)
+        }
+        if (data.traces.isNotEmpty()) emitTraces(zos, data)
+    }
+    return baos.toByteArray()
+}
+
+// ===== Sections present (used by the root index to list links) =====
+
+private fun rootSections(data: HtmlReportData): List<Pair<String, String>> {
+    val out = mutableListOf<Pair<String, String>>()
+    if (data.agents.isNotEmpty()) out += "Reports" to "Reports/"
+    val byKind: (SecondaryKind, String) -> Unit = { kind, label ->
+        if (data.secondary.any { it.kind == kind }) out += label to "$label/"
+    }
+    byKind(SecondaryKind.SUMMARIZE, "Summaries")
+    byKind(SecondaryKind.COMPARE, "Compares")
+    byKind(SecondaryKind.RERANK, "Reranks")
+    byKind(SecondaryKind.MODERATION, "Moderations")
+    if (data.secondary.any { it.kind == SecondaryKind.TRANSLATE }) out += "Translations" to "Translations/"
+    if (data.prompt.isNotBlank()) out += "Prompt" to "Prompt/"
+    if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) out += "Costs" to "Costs/"
+    if (data.traces.isNotEmpty()) out += "JSON" to "JSON/"
+    return out
+}
+
+// ===== Root index =====
+
+private fun rootIndex(data: HtmlReportData): String {
+    val sb = StringBuilder()
+    sb.append(htmlHead(title = data.title.ifBlank { "AI Report" }, depth = 0))
+    sb.append("<nav>").append("<a href='index.html'>${esc(data.title.ifBlank { "AI Report" })}</a>").append("</nav>")
+    sb.append("<main>")
+    sb.append("<h1>").append(esc(data.title.ifBlank { "AI Report" })).append("</h1>")
+    sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
+    if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
+    sb.append("<h2>Sections</h2><ul class='section-list'>")
+    rootSections(data).forEach { (label, href) ->
+        sb.append("<li><a href='${esc(href)}index.html'>").append(esc(label)).append("</a></li>")
+    }
+    sb.append("</ul>")
+    if (!data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(data.closeText)}</div>")
+    sb.append("</main></body></html>")
+    return sb.toString()
+}
+
+// ===== Reports section =====
+
+private fun emitReports(zos: ZipOutputStream, data: HtmlReportData) {
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+    val items = data.agents.mapIndexed { idx, a ->
+        Triple(itemFilename(idx, "${a.providerDisplay}_${a.model}"), a.providerDisplay + " / " + a.model, a)
+    }
+    // Section index
+    val sb = StringBuilder()
+    sb.append(htmlHead("Reports - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf("Reports" to null), data))
+    sb.append("<main><h1>Reports</h1><ul class='item-list'>")
+    items.forEach { (filename, label, _) ->
+        sb.append("<li><a href='${esc(filename)}'>").append(esc(label)).append("</a></li>")
+    }
+    sb.append("</ul></main></body></html>")
+    emit(zos, "Reports/index.html", sb.toString())
+    // Per-agent files
+    items.forEach { (filename, label, a) -> emit(zos, "Reports/$filename", reportPage(label, a, data, maxAnchor)) }
+}
+
+private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, maxAnchor: Int): String {
+    val sb = StringBuilder()
+    sb.append(htmlHead("$label - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf("Reports" to "index.html", label to null), data))
+    sb.append("<main>")
+    sb.append("<h1>").append(esc(a.providerDisplay)).append(" / ").append(esc(a.model)).append("</h1>")
+    if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
+    if (!a.responseText.isNullOrBlank()) sb.append("<div class='response'>${processThinkSections(a.responseText, a.agentId)}</div>")
+    a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
+        sb.append("<h3>Sources</h3><ol class='sources'>")
+        cites.forEach { url -> sb.append("<li><a href='").append(esc(url)).append("'>").append(esc(url)).append("</a></li>") }
+        sb.append("</ol>")
+    }
+    a.searchResults?.takeIf { it.isNotEmpty() }?.let { results ->
+        sb.append("<h3>Search results</h3><ol class='search-results'>")
+        results.forEach { r ->
+            val url = r.url ?: ""
+            val name = r.name ?: url
+            sb.append("<li><a href='").append(esc(url)).append("'>").append(esc(name)).append("</a>")
+            if (!r.snippet.isNullOrBlank()) sb.append("<div class='snippet'>").append(esc(r.snippet)).append("</div>")
+            sb.append("</li>")
+        }
+        sb.append("</ol>")
+    }
+    a.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { qs ->
+        sb.append("<h3>Related questions</h3><ol class='related'>")
+        qs.forEach { q -> sb.append("<li>").append(esc(q)).append("</li>") }
+        sb.append("</ol>")
+    }
+    sb.append("</main></body></html>")
+    @Suppress("UNUSED_PARAMETER") val unused = maxAnchor
+    return sb.toString()
+}
+
+// ===== Secondary (Summaries / Compares / Reranks / Moderations) =====
+
+private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String) {
+    val items = data.secondary.filter { it.kind == kind }
+    if (items.isEmpty()) return
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+    val withFiles = items.mapIndexed { idx, s ->
+        Triple(itemFilename(idx, "${s.providerDisplay}_${s.model}"), "${s.providerDisplay} / ${s.model}", s)
+    }
+    // Section index
+    val sb = StringBuilder()
+    sb.append(htmlHead("$label - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf(label to null), data))
+    sb.append("<main><h1>").append(esc(label)).append("</h1><ul class='item-list'>")
+    withFiles.forEach { (filename, itemLabel, s) ->
+        sb.append("<li><a href='${esc(filename)}'>").append(esc(itemLabel))
+            .append(" <span class='ts'>").append(esc(s.timestamp)).append("</span></a></li>")
+    }
+    sb.append("</ul></main></body></html>")
+    emit(zos, "$label/index.html", sb.toString())
+    // Per-item files
+    withFiles.forEach { (filename, itemLabel, s) ->
+        emit(zos, "$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor))
+    }
+}
+
+private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int): String {
+    val sb = StringBuilder()
+    sb.append(htmlHead("$itemLabel - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf(section to "index.html", itemLabel to null), data))
+    sb.append("<main>")
+    sb.append("<h1>").append(esc(itemLabel)).append("</h1>")
+    sb.append("<div class='meta'>").append(esc(s.timestamp)).append("</div>")
+    if (s.errorMessage != null) {
+        sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
+    } else if (!s.content.isNullOrBlank()) {
+        when (s.kind) {
+            SecondaryKind.RERANK -> sb.append("<div class='response'>${renderRerankContentLocal(s.content, maxAnchor)}</div>")
+            SecondaryKind.COMPARE -> {
+                val linkified = Regex("""\[(\d+)\]""").replace(s.content) { m ->
+                    val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
+                    if (id in 1..maxAnchor) "[$id]" else m.value
+                }
+                sb.append("<div class='response'>${convertMarkdownToHtmlForExport(linkified)}</div>")
+            }
+            else -> sb.append("<div class='response'>${convertMarkdownToHtmlForExport(s.content)}</div>")
+        }
+    }
+    sb.append("</main></body></html>")
+    return sb.toString()
+}
+
+// ===== Translations (meta-only — no translated content) =====
+
+private fun emitTranslations(zos: ZipOutputStream, data: HtmlReportData) {
+    val items = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
+    if (items.isEmpty()) return
+    val withFiles = items.mapIndexed { idx, s ->
+        val what = s.agentName.removePrefix("Translate:").trim().ifBlank { s.agentName }
+        Triple(itemFilename(idx, what), what, s)
+    }
+    val sb = StringBuilder()
+    sb.append(htmlHead("Translations - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf("Translations" to null), data))
+    sb.append("<main><h1>Translations</h1><ul class='item-list'>")
+    withFiles.forEach { (filename, what, _) ->
+        sb.append("<li><a href='${esc(filename)}'>").append(esc(what)).append("</a></li>")
+    }
+    sb.append("</ul></main></body></html>")
+    emit(zos, "Translations/index.html", sb.toString())
+    withFiles.forEach { (filename, what, s) ->
+        val pageSb = StringBuilder()
+        pageSb.append(htmlHead("Translation: $what - ${data.title}", depth = 1))
+        pageSb.append(breadcrumb(1, listOf("Translations" to "index.html", what to null), data))
+        pageSb.append("<main>")
+        pageSb.append("<h1>Translation: ").append(esc(what)).append("</h1>")
+        pageSb.append("<table class='kv'>")
+        pageSb.append("<tr><th>What</th><td>").append(esc(what)).append("</td></tr>")
+        pageSb.append("<tr><th>Provider / Model</th><td>").append(esc(s.providerDisplay)).append(" / ").append(esc(s.model)).append("</td></tr>")
+        pageSb.append("<tr><th>Timestamp</th><td>").append(esc(s.timestamp)).append("</td></tr>")
+        s.durationMs?.let { pageSb.append("<tr><th>Seconds</th><td class='num'>").append("%.1f".format(it / 1000.0)).append("</td></tr>") }
+        s.inputTokens?.let { pageSb.append("<tr><th>Input tokens</th><td class='num'>").append(it).append("</td></tr>") }
+        s.outputTokens?.let { pageSb.append("<tr><th>Output tokens</th><td class='num'>").append(it).append("</td></tr>") }
+        s.inputCost?.let { pageSb.append("<tr><th>Input cents</th><td class='num'>").append("%.2f".format(it * 100)).append("</td></tr>") }
+        s.outputCost?.let { pageSb.append("<tr><th>Output cents</th><td class='num'>").append("%.2f".format(it * 100)).append("</td></tr>") }
+        if (s.inputCost != null || s.outputCost != null) {
+            val total = (s.inputCost ?: 0.0) + (s.outputCost ?: 0.0)
+            pageSb.append("<tr><th>Total cents</th><td class='num'>").append("%.2f".format(total * 100)).append("</td></tr>")
+        }
+        pageSb.append("</table>")
+        pageSb.append("</main></body></html>")
+        emit(zos, "Translations/$filename", pageSb.toString())
+    }
+}
+
+// ===== Prompt =====
+
+private fun emitPrompt(zos: ZipOutputStream, data: HtmlReportData) {
+    val sb = StringBuilder()
+    sb.append(htmlHead("Prompt - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf("Prompt" to null), data))
+    sb.append("<main><h1>Prompt</h1><pre class='prompt'>").append(esc(data.prompt)).append("</pre></main></body></html>")
+    emit(zos, "Prompt/index.html", sb.toString())
+}
+
+// ===== Costs =====
+
+private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData) {
+    val sb = StringBuilder()
+    sb.append(htmlHead("Costs - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf("Costs" to null), data))
+    sb.append("<main><h1>Costs</h1>")
+    sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th>")
+    sb.append("<th class='num'>Seconds</th><th class='num'>Input tokens</th><th class='num'>Output tokens</th>")
+    sb.append("<th class='num'>Input cents</th><th class='num'>Output cents</th><th class='num'>Total cents</th></tr>")
+    data class Row(val type: String, val provider: String, val model: String, val tier: String, val durationMs: Long?, val inT: Int, val outT: Int, val inC: Double, val outC: Double)
+    val agentRows = data.agents.filter { it.inputCost != null }.map {
+        Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
+    }
+    val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
+        val type = when (it.kind) {
+            SecondaryKind.RERANK -> "rerank"; SecondaryKind.SUMMARIZE -> "summarize"
+            SecondaryKind.COMPARE -> "compare"; SecondaryKind.MODERATION -> "moderation"
+            SecondaryKind.TRANSLATE -> "translate"
+        }
+        Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
+    }
+    val sorted = (agentRows + secondaryRows).sortedByDescending { it.inC + it.outC }
+    var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
+    sorted.forEach { r ->
+        tIn += r.inT; tOut += r.outT; tInC += r.inC; tOutC += r.outC
+        val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+        sb.append("<tr><td>").append(esc(r.type)).append("</td><td>").append(esc(r.provider))
+            .append("</td><td>").append(esc(r.model)).append("</td><td>").append(esc(r.tier))
+            .append("</td><td class='num'>").append(secs)
+            .append("</td><td class='num'>").append(r.inT).append("</td><td class='num'>").append(r.outT)
+            .append("</td><td class='num'>").append("%.2f".format(r.inC))
+            .append("</td><td class='num'>").append("%.2f".format(r.outC))
+            .append("</td><td class='num'>").append("%.2f".format(r.inC + r.outC)).append("</td></tr>")
+    }
+    sb.append("<tr class='total'><td colspan='5'>Total</td>")
+    sb.append("<td class='num'>").append(tIn).append("</td><td class='num'>").append(tOut).append("</td>")
+    sb.append("<td class='num'>").append("%.2f".format(tInC)).append("</td>")
+    sb.append("<td class='num'>").append("%.2f".format(tOutC)).append("</td>")
+    sb.append("<td class='num'>").append("%.2f".format(tInC + tOutC)).append("</td></tr>")
+    sb.append("</table></main></body></html>")
+    emit(zos, "Costs/index.html", sb.toString())
+}
+
+// ===== Traces =====
+
+private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData) {
+    val ownTraces = data.traces.filter { it.origin == "this" }
+    val sourceTraces = data.traces.filter { it.origin == "source" }
+
+    // JSON/index.html — list of "this" categories + a link to source/ when present
+    val sb = StringBuilder()
+    sb.append(htmlHead("JSON traces - ${data.title}", depth = 1))
+    sb.append(breadcrumb(1, listOf("JSON" to null), data))
+    sb.append("<main><h1>JSON traces</h1>")
+    val ownGroups = ownTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
+    val ownKeys = ownGroups.keys.sortedWith(compareBy({ it == "Other" }, { it.lowercase() }))
+    if (ownKeys.isNotEmpty()) {
+        sb.append("<h2>Categories</h2><ul class='item-list'>")
+        ownKeys.forEach { k -> sb.append("<li><a href='").append(esc(safeName(k))).append("/index.html'>")
+            .append(esc(k)).append(" <span class='count'>(").append(ownGroups[k]!!.size).append(")</span></a></li>") }
+        sb.append("</ul>")
+    }
+    if (sourceTraces.isNotEmpty()) {
+        sb.append("<h2>Source report</h2><ul class='item-list'>")
+        sb.append("<li><a href='source/index.html'>source/ <span class='count'>(").append(sourceTraces.size).append(")</span></a></li>")
+        sb.append("</ul>")
+    }
+    sb.append("</main></body></html>")
+    emit(zos, "JSON/index.html", sb.toString())
+
+    // Own categories
+    ownKeys.forEach { cat -> emitTraceCategory(zos, "JSON/${safeName(cat)}", data, cat, ownGroups[cat]!!, depth = 2,
+        crumbs = listOf("JSON" to "../index.html", cat to null)) }
+
+    // Source categories — under JSON/source/<category>/...
+    if (sourceTraces.isNotEmpty()) {
+        val sourceGroups = sourceTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
+        val sourceKeys = sourceGroups.keys.sortedWith(compareBy({ it == "Other" }, { it.lowercase() }))
+        // JSON/source/index.html
+        val srcSb = StringBuilder()
+        srcSb.append(htmlHead("JSON traces from source report - ${data.title}", depth = 2))
+        srcSb.append(breadcrumb(2, listOf("JSON" to "../index.html", "source" to null), data))
+        srcSb.append("<main><h1>JSON traces — source report</h1><ul class='item-list'>")
+        sourceKeys.forEach { k -> srcSb.append("<li><a href='").append(esc(safeName(k)))
+            .append("/index.html'>").append(esc(k)).append(" <span class='count'>(").append(sourceGroups[k]!!.size).append(")</span></a></li>") }
+        srcSb.append("</ul></main></body></html>")
+        emit(zos, "JSON/source/index.html", srcSb.toString())
+
+        sourceKeys.forEach { cat -> emitTraceCategory(zos, "JSON/source/${safeName(cat)}", data, cat, sourceGroups[cat]!!,
+            depth = 3, crumbs = listOf("JSON" to "../../index.html", "source" to "../index.html", cat to null)) }
+    }
+}
+
+private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlReportData, category: String, traces: List<HtmlTraceData>, depth: Int, crumbs: List<Pair<String, String?>>) {
+    // Category index — list of traces.
+    val sb = StringBuilder()
+    sb.append(htmlHead("$category - ${data.title}", depth))
+    sb.append(breadcrumb(depth, crumbs, data))
+    sb.append("<main><h1>").append(esc(category)).append("</h1><ul class='trace-list'>")
+    traces.forEachIndexed { idx, t ->
+        val dir = traceDirName(idx, t)
+        sb.append("<li><a href='").append(esc(dir)).append("/index.html'>")
+        sb.append(esc(t.timestamp)).append(" · ").append(esc(t.method)).append(" · ").append(esc(t.hostname))
+        if (!t.model.isNullOrBlank()) sb.append(" / ").append(esc(t.model))
+        sb.append(" · ").append(t.statusCode).append("</a></li>")
+    }
+    sb.append("</ul></main></body></html>")
+    emit(zos, "$dirPath/index.html", sb.toString())
+
+    // Per-trace dirs — index.html plus the four part files.
+    val crumbsChain = crumbs.toMutableList()
+    val parentLabel = crumbsChain.removeAt(crumbsChain.lastIndex).first
+    crumbsChain += parentLabel to "index.html"
+    traces.forEachIndexed { idx, t ->
+        val dir = traceDirName(idx, t)
+        val traceCrumbs = crumbsChain + ("Trace" to null)
+        // Per-trace index — metadata + 4 links.
+        val tsb = StringBuilder()
+        tsb.append(htmlHead("Trace ${t.method} ${t.hostname} ${t.statusCode} - ${data.title}", depth + 1))
+        tsb.append(breadcrumb(depth + 1, traceCrumbs, data))
+        tsb.append("<main><h1>Trace</h1>")
+        tsb.append("<table class='kv'>")
+        tsb.append("<tr><th>Timestamp</th><td>").append(esc(t.timestamp)).append("</td></tr>")
+        tsb.append("<tr><th>Method</th><td>").append(esc(t.method)).append("</td></tr>")
+        tsb.append("<tr><th>URL</th><td>").append(esc(t.url)).append("</td></tr>")
+        tsb.append("<tr><th>Host</th><td>").append(esc(t.hostname)).append("</td></tr>")
+        if (!t.model.isNullOrBlank()) tsb.append("<tr><th>Model</th><td>").append(esc(t.model)).append("</td></tr>")
+        tsb.append("<tr><th>Status</th><td>").append(t.statusCode).append("</td></tr>")
+        if (t.category != null) tsb.append("<tr><th>Category</th><td>").append(esc(t.category)).append("</td></tr>")
+        tsb.append("<tr><th>Origin</th><td>").append(esc(t.origin)).append("</td></tr>")
+        tsb.append("</table>")
+        tsb.append("<h2>Parts</h2><ul class='item-list'>")
+        tsb.append("<li><a href='request_headers.html'>Request headers</a></li>")
+        tsb.append("<li><a href='request_body.html'>Request body</a></li>")
+        tsb.append("<li><a href='response_headers.html'>Response headers</a></li>")
+        tsb.append("<li><a href='response_body.html'>Response body</a></li>")
+        tsb.append("</ul>")
+        tsb.append("</main></body></html>")
+        emit(zos, "$dirPath/$dir/index.html", tsb.toString())
+        // 4 part files
+        emit(zos, "$dirPath/$dir/request_headers.html", tracePartPage(data, t, "Request headers", t.requestHeaders, depth + 1, traceCrumbs))
+        emit(zos, "$dirPath/$dir/request_body.html", tracePartPage(data, t, "Request body", t.requestBody, depth + 1, traceCrumbs))
+        emit(zos, "$dirPath/$dir/response_headers.html", tracePartPage(data, t, "Response headers", t.responseHeaders, depth + 1, traceCrumbs))
+        emit(zos, "$dirPath/$dir/response_body.html", tracePartPage(data, t, "Response body", t.responseBody, depth + 1, traceCrumbs))
+    }
+}
+
+private fun tracePartPage(data: HtmlReportData, t: HtmlTraceData, partLabel: String, body: String, depth: Int, crumbs: List<Pair<String, String?>>): String {
+    // Replace the trailing "Trace" crumb with a link to the trace's
+    // index so the part page can navigate up one step to the trace's
+    // overview and then onwards.
+    val partCrumbs = crumbs.dropLast(1) + ("Trace" to "index.html") + (partLabel to null)
+    val sb = StringBuilder()
+    sb.append(htmlHead("$partLabel - ${t.method} ${t.hostname} - ${data.title}", depth))
+    sb.append(breadcrumb(depth, partCrumbs, data))
+    sb.append("<main><h1>").append(esc(partLabel)).append("</h1>")
+    sb.append("<div class='meta'>").append(esc(t.method)).append(" ").append(esc(t.url)).append("</div>")
+    sb.append("<pre class='code'>").append(esc(body.ifBlank { "(empty)" })).append("</pre>")
+    sb.append("</main></body></html>")
+    return sb.toString()
+}
+
+// ===== Helpers =====
+
+private fun emit(zos: ZipOutputStream, path: String, content: String) {
+    zos.putNextEntry(ZipEntry(path))
+    zos.write(content.toByteArray(Charsets.UTF_8))
+    zos.closeEntry()
+}
+
+private fun safeName(s: String): String =
+    s.replace(Regex("[^A-Za-z0-9._-]+"), "_").trim('_').ifBlank { "_" }.take(80)
+
+private fun itemFilename(idx: Int, label: String): String {
+    val n = "%02d".format(idx + 1)
+    return "${n}_${safeName(label)}.html"
+}
+
+private fun traceDirName(idx: Int, t: HtmlTraceData): String {
+    val n = "%02d".format(idx + 1)
+    val tail = listOfNotNull(t.method, t.hostname, t.statusCode.toString()).joinToString("_")
+    return "${n}_${safeName(tail)}"
+}
+
+/** Breadcrumb header. The last entry's URL is null — it's the
+ *  "current page" label and renders without a link. Earlier entries are
+ *  rendered as links pointing at the supplied (relative) URL. The
+ *  leading "AI Report" link always goes back to the root index.html. */
+private fun breadcrumb(depth: Int, crumbs: List<Pair<String, String?>>, data: HtmlReportData): String {
+    val sb = StringBuilder()
+    sb.append("<nav>")
+    val rootRel = "../".repeat(depth) + "index.html"
+    sb.append("<a href='").append(esc(rootRel)).append("'>").append(esc(data.title.ifBlank { "AI Report" })).append("</a>")
+    crumbs.forEach { (label, href) ->
+        sb.append(" <span class='sep'>›</span> ")
+        if (href != null) sb.append("<a href='").append(esc(href)).append("'>").append(esc(label)).append("</a>")
+        else sb.append("<span class='here'>").append(esc(label)).append("</span>")
+    }
+    sb.append("</nav>")
+    return sb.toString()
+}
+
+/** HTML head fragment. CSS lives at the root as style.css and is
+ *  referenced via a "../" prefix scaled to [depth] (number of zip
+ *  directory levels above the current file). */
+private fun htmlHead(title: String, depth: Int): String {
+    val css = "../".repeat(depth) + "style.css"
+    return "<!DOCTYPE html><html><head><meta charset='utf-8'>" +
+        "<title>${esc(title)}</title>" +
+        "<link rel='stylesheet' href='${esc(css)}'>" +
+        "</head><body>"
+}
+
+private fun sharedCss(): String = """
+body{background:#1a1a1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:16px;line-height:1.5}
+nav{background:#252525;padding:8px 12px;border-radius:4px;margin-bottom:16px;font-size:13px}
+nav a{color:#64B5F6;text-decoration:none}
+nav a:hover{text-decoration:underline}
+nav .sep{color:#666;margin:0 4px}
+nav .here{color:#fff;font-weight:bold}
+main{max-width:900px;margin:0 auto}
+h1{color:#6B9BFF;font-size:22px;margin-bottom:8px}
+h2{color:#8BB8FF;font-size:18px;margin-top:24px}
+h3{color:#9FCFFF;font-size:15px;margin-top:16px}
+.meta{color:#888;font-size:12px;margin-bottom:16px}
+.section-list,.item-list,.trace-list{list-style:none;padding:0}
+.section-list li,.item-list li,.trace-list li{background:#252525;border-radius:4px;padding:8px 12px;margin-bottom:6px}
+.section-list a,.item-list a,.trace-list a{color:#64B5F6;text-decoration:none;display:block}
+.section-list a:hover,.item-list a:hover,.trace-list a:hover{text-decoration:underline}
+.count,.ts{color:#888;font-size:11px;margin-left:8px}
+.error{background:#2a1a1a;border-radius:4px;padding:8px 12px;color:#ff6b6b;margin-bottom:12px}
+.response,.rapport,.close-text{background:#252525;border-radius:6px;padding:12px 16px;margin-top:8px}
+.rapport{border-left:3px solid #4CAF50}
+table{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px}
+th,td{padding:6px 10px;border-bottom:1px solid #333;vertical-align:top;text-align:left}
+th{background:#252525;color:#9FCFFF}
+.num{text-align:right;font-family:monospace}
+.cost-table .total td{color:#6B9BFF;font-weight:bold;border-top:2px solid #444}
+.kv th{width:160px;background:#252525}
+pre{background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:10px;color:#ccc;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;overflow-x:auto;line-height:1.4}
+pre.prompt{font-size:13px;color:#e0e0e0}
+pre.code{max-height:none}
+.snippet{color:#aaa;font-size:11px;margin-top:2px}
+""".trimIndent()
+
+// ===== Inline helpers (mirror the ReportExport.kt versions, kept
+//      local so this file doesn't reach into private state) =====
+
+private fun esc(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
+
+/** Matches the ReportExport renderRerankContent — try to parse the
+ *  rerank JSON array, render as a table; otherwise fall back to
+ *  markdown with [N] tags preserved (no anchor links since this page
+ *  doesn't host the agent cards). */
+private fun renderRerankContentLocal(content: String, maxAnchor: Int): String {
+    @Suppress("UNUSED_PARAMETER") val unused = maxAnchor
+    val cleaned = content.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    val asArray = try {
+        @Suppress("DEPRECATION")
+        JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
+    } catch (_: Exception) { null }
+    if (asArray != null && asArray.size() > 0 && asArray.all { it.isJsonObject }) {
+        val rows = asArray.mapNotNull { el ->
+            val obj = el.asJsonObject
+            val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
+            val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
+            val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val reason = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString
+            Triple(id, rank to score, reason)
+        }.sortedBy { it.second.first ?: Int.MAX_VALUE }
+        if (rows.isNotEmpty()) {
+            val sb = StringBuilder()
+            sb.append("<table><tr><th>Rank</th><th>Result</th><th>Score</th><th>Reason</th></tr>")
+            rows.forEach { (id, rs, reason) ->
+                val rank = rs.first?.toString() ?: ""
+                val score = rs.second?.let { "%.0f".format(it) } ?: ""
+                sb.append("<tr><td class='num'>").append(rank)
+                    .append("</td><td>[").append(id).append("]</td><td class='num'>").append(score)
+                    .append("</td><td>").append(esc(reason ?: "")).append("</td></tr>")
+            }
+            sb.append("</table>")
+            return sb.toString()
+        }
+    }
+    return convertMarkdownToHtmlForExport(content)
+}
+
+// ===== Dispatcher =====
+
+internal fun shareReportAsZippedHtml(context: Context, reportId: String, action: ReportExportAction) {
+    val report = ReportStorage.getReport(context, reportId) ?: return
+    val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+    val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
+    val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
+    val outFile = File(dir, "ai_report_${safeTitle}_zipped_html_$ts.zip")
+    outFile.writeBytes(buildZippedHtmlBytes(context, report))
+
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+    val intent = when (action) {
+        ReportExportAction.SHARE -> Intent(Intent.ACTION_SEND).apply {
+            type = "application/zip"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "AI Report (zipped HTML) - ${report.title}")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        ReportExportAction.VIEW -> Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/zip")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+    val chooser = if (action == ReportExportAction.SHARE) Intent.createChooser(intent, "Share AI Report (zipped HTML)") else intent
+    context.startActivity(chooser)
+}

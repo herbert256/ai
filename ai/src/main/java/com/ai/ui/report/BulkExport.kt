@@ -16,19 +16,21 @@ import java.util.zip.ZipOutputStream
 /**
  * "Export all" — build every supported export for the report and bundle
  * them into a single zip the user can hand off via the standard share
- * sheet. The bundle holds nine entries:
+ * sheet. The bundle holds ten entries:
  *
  *   <title>_short.html      <title>_complete.html
  *   <title>_short.pdf       <title>_complete.pdf
  *   <title>_short.docx      <title>_complete.docx
  *   <title>_short.odt       <title>_complete.odt
+ *   <title>_zipped_html.zip (Complete report split into per-item
+ *                             HTML files; navigable mini-site)
  *   <title>_traces.zip      (only when the report has captured traces;
  *                             otherwise this entry is omitted)
  *
- * `onProgress(done, total)` ticks 9 times as each artifact is generated.
- * The PDF render leg is the slowest — each render boots a WebView, lays
- * out the entire HTML, and slices the bitmap into pages — so the two
- * PDFs alone usually account for most of the wall time.
+ * `onProgress(done, total)` ticks 10 times as each artifact is
+ * generated. The PDF render leg is the slowest — each render boots a
+ * WebView, lays out the entire HTML, and slices the bitmap into pages
+ * — so the two PDFs alone usually account for most of the wall time.
  */
 internal suspend fun bulkExportAndShare(
     context: Context,
@@ -42,7 +44,7 @@ internal suspend fun bulkExportAndShare(
     // that follows can't service its frame callbacks and the
     // CompletableDeferred inside renderHtmlToPdfFile times out.
     val report = ReportStorage.getReport(context, reportId) ?: return@withContext false
-    val total = 9
+    val total = 10
     var done = 0
     suspend fun bump() {
         done++
@@ -95,8 +97,11 @@ internal suspend fun bulkExportAndShare(
             renderHtmlToPdfFile(context, makeStaticForPdf(completeHtml), pdfComplete, withTocPage = true)
         }
         bump()
-        // 9. JSON traces zip — skipped if the report has no captured
-        // traces (the bundle still gets the eight document files).
+        // 9. Zipped HTML — Complete report broken into one HTML file
+        // per item (navigable mini-site).
+        File(workDir, "${safeTitle}_zipped_html.zip").writeBytes(buildZippedHtmlBytes(context, report)); bump()
+        // 10. JSON traces zip — skipped if the report has no captured
+        // traces (the bundle still gets the nine document files).
         val traceZipBytes = buildJsonTraceZipBytes(context, report)
         if (traceZipBytes != null) {
             File(workDir, "${safeTitle}_traces.zip").writeBytes(traceZipBytes)

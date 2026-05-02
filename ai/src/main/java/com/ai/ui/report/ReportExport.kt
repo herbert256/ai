@@ -708,7 +708,7 @@ private fun renderRerankContent(content: String, maxAnchor: Int): String {
     return convertMarkdownToHtmlForExport(linkified)
 }
 
-private fun processThinkSections(text: String, agentId: String): String {
+internal fun processThinkSections(text: String, agentId: String): String {
     val pattern = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
     var idx = 0
     val result = pattern.replace(text) { m ->

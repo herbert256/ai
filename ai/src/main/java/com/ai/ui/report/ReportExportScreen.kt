@@ -86,7 +86,7 @@ fun ReportExportScreen(
                 }
             }
 
-            if (format != ReportExportFormat.JSON) {
+            if (format != ReportExportFormat.JSON && format != ReportExportFormat.ZIPPED_HTML) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Detail", fontWeight = FontWeight.Bold, color = Color.White)

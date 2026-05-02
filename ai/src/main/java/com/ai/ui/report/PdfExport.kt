@@ -33,7 +33,8 @@ enum class ReportExportFormat(val displayName: String) {
     PDF("PDF"),
     DOCX("MS Word"),
     ODT("OpenDocument"),
-    JSON("JSON")
+    JSON("JSON"),
+    ZIPPED_HTML("Zipped HTML")
 }
 enum class ReportExportDetail { SHORT, COMPLETE }
 enum class ReportExportAction { SHARE, VIEW }
@@ -75,6 +76,16 @@ suspend fun shareReportAsExport(
         return true
     }
 
+    if (format == ReportExportFormat.ZIPPED_HTML) {
+        onProgress(0, 1)
+        // Zipped HTML always emits the Complete content, broken into
+        // one .html file per item with directories matching the view
+        // picker. Detail picker is hidden for this format.
+        shareReportAsZippedHtml(context, reportId, action)
+        onProgress(1, 1)
+        return true
+    }
+
     if (format == ReportExportFormat.DOCX || format == ReportExportFormat.ODT) {
         onProgress(0, 1)
         val ok = shareReportAsDocxOrOdt(context, reportId, format, detail, action)
@@ -101,7 +112,8 @@ suspend fun shareReportAsExport(
                 withTocPage = detail == ReportExportDetail.COMPLETE)
             true
         }
-        ReportExportFormat.JSON, ReportExportFormat.DOCX, ReportExportFormat.ODT -> true // handled above
+        ReportExportFormat.JSON, ReportExportFormat.DOCX, ReportExportFormat.ODT,
+        ReportExportFormat.ZIPPED_HTML -> true // handled above
     }
 }
 
