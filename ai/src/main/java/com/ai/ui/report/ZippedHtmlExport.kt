@@ -914,17 +914,22 @@ h3{color:#9FCFFF;font-size:15px;margin-top:16px}
 .error{background:#2a1a1a;border-radius:4px;padding:8px 12px;color:#ff6b6b;margin-bottom:12px}
 .response,.rapport,.close-text{background:#252525;border-radius:6px;padding:12px 16px;margin-top:8px}
 .rapport{border-left:3px solid #4CAF50}
-table{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px}
+/* Tables: only as wide as their content, horizontally centered, but
+   never wider than the viewport (minus body padding). The position
+   + left/transform trio re-centers each table on the viewport
+   instead of being clipped by main's 900px max-width — narrow
+   tables remain centered as before, wide tables (cost / rerank /
+   etc.) can extend toward the screen edges. */
+table{border-collapse:collapse;width:max-content;max-width:calc(100vw - 32px);margin:8px auto;font-size:13px;position:relative;left:50%;transform:translateX(-50%)}
 th,td{padding:6px 10px;border-bottom:1px solid #333;vertical-align:top;text-align:left}
 th{background:#252525;color:#9FCFFF}
 .num{text-align:right;font-family:monospace}
 .cost-table .total td{color:#6B9BFF;font-weight:bold;border-top:2px solid #444}
-/* Break out of main's max-width:900px so wide cost tables don't get
-   horizontally cropped on a wide screen. width:max-content sizes to
-   the columns; max-width caps at viewport - body padding; the
-   left/transform pair re-centers on the viewport instead of main. */
-.cost-table-wrap{width:max-content;max-width:calc(100vw - 32px);margin:8px auto;position:relative;left:50%;transform:translateX(-50%);overflow-x:auto}
-.cost-table{width:auto;white-space:nowrap;margin:0 auto}
+/* The .cost-table-wrap is now a thin shell — overflow-x kept as a
+   safety net for absurd column counts; sizing is on the inner
+   table per the general rule above. */
+.cost-table-wrap{overflow-x:auto;margin:0}
+.cost-table{white-space:nowrap}
 .cost-table th, .cost-table td{white-space:nowrap}
 .cost-table th[data-sort]:hover{background:#2c2c2c}
 .kv th{width:160px;background:#252525}
