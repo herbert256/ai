@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AnalysisRepository
+import com.ai.data.ApiFormat
 import com.ai.data.AppService
 import com.ai.data.EmbeddingsStore
 import com.ai.data.ModelType
@@ -59,6 +60,7 @@ fun SemanticSearchScreen(
     // time and overridden by the user via Manual model types overrides.
     val embeddingChoices = remember(aiSettings) {
         aiSettings.getActiveServices().flatMap { service ->
+            if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) return@flatMap emptyList()
             val cfg = aiSettings.getProvider(service)
             cfg.models.mapNotNull { model ->
                 if (aiSettings.getModelType(service, model) == ModelType.EMBEDDING) service to model else null
@@ -78,7 +80,7 @@ fun SemanticSearchScreen(
 
         if (embeddingChoices.isEmpty()) {
             Text(
-                "No embedding-capable models found. Mark a model as 'embedding' in AI Setup → Models setup → Manual model types overrides, or fetch a provider whose model list includes one (e.g. text-embedding-3-small on OpenAI).",
+                "No supported OpenAI-compatible embedding models found. Mark a compatible provider model as 'embedding' in AI Setup → Models setup → Manual model types overrides, or fetch a provider whose model list includes one (e.g. text-embedding-3-small on OpenAI).",
                 fontSize = 13.sp, color = AppColors.TextTertiary,
                 modifier = Modifier.padding(vertical = 12.dp)
             )
