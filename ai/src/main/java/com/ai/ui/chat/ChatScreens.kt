@@ -414,7 +414,16 @@ fun ChatSessionScreen(
                     Text("Start a conversation...", color = AppColors.TextTertiary, fontSize = 14.sp)
                 }
             } else {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Bottom-anchor: short conversations sit just above the
+                // input row instead of pinned to the top with empty space
+                // below (and getting pushed out of view when the keyboard
+                // shrinks the viewport). Long conversations behave normally
+                // — items scroll past the top edge as usual.
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)
+                ) {
                     items(displayMessages.size, key = { "${displayMessages[it].role}_${displayMessages[it].timestamp}_$it" }) { idx ->
                         val msg = displayMessages[idx]
                         ChatMessageBubble(msg, userName)
