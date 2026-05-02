@@ -116,9 +116,13 @@ class ZippedHtmlBuildInstrumentedTest {
 
         assertThat(entries).contains("Source/index.html")
         assertThat(entries).contains("Source/Reports/index.html")
-        assertThat(entries).contains("JSON/index.html")
-        // Source's own traces live under JSON/source/ in the main tree.
-        assertThat(entries.any { it.startsWith("JSON/source/") }).isTrue()
+        // Source's own traces now live alongside its other HTML
+        // sections under /Source/JSON/ rather than /JSON/source/. The
+        // main translated side has no own traces in this scenario
+        // (the planted trace was for src.id), so its /JSON/ tree is
+        // legitimately absent.
+        assertThat(entries).contains("Source/JSON/index.html")
+        assertThat(entries.any { it.startsWith("Source/JSON/Report/") }).isTrue()
     }
 
     @Test fun root_index_lists_all_present_sections_and_links_to_Source() {

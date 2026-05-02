@@ -44,7 +44,7 @@ class HousekeepingScreenTest {
         // Per the recent change, the wording explicitly excludes usage
         // statistics from the wipe — guard that promise here.
         rule.onNodeWithText(
-            "This permanently deletes all reports, chat history, and API traces. " +
+            "This permanently deletes all reports, chat history, API traces, and the prompt history. " +
                 "Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) " +
                 "and usage statistics are kept."
         ).assertIsDisplayed()
