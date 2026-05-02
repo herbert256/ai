@@ -161,34 +161,131 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
 }
 
 // ===== Unified HTML Report =====
-// Emits BOTH layouts (One-by-one / All-together) and a top-level toggle to switch
-// between them on the fly. The initial layout follows data.reportType so pre-existing
-// reports saved as TABLE open in All-together by default.
+// Top-level "view picker" lets the user switch between Reports / Summaries /
+// Compares / Reranks / Moderations / Translations / Prompt / Costs. Each
+// view that contains 2+ items also gets its own "One by one" / "All
+// together" sub-toggle (scoped per view); single-item views render the
+// content directly. Prompt and Costs never get the sub-toggle.
 
 private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     val defaultAllTogether = data.reportType == ReportType.TABLE
+    val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
+    val summaries = data.secondary.filter { it.kind == SecondaryKind.SUMMARIZE }
+    val compares = data.secondary.filter { it.kind == SecondaryKind.COMPARE }
+    val moderations = data.secondary.filter { it.kind == SecondaryKind.MODERATION }
+    val translations = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
+    val hasPrompt = data.prompt.isNotBlank()
+    val hasAgentCosts = data.agents.any { it.inputTokens != null }
+    val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
+    val hasCosts = hasAgentCosts || hasSecondaryCosts
+    val hasReports = data.agents.isNotEmpty()
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+
+    // Build the view list. Order: Reports, then meta kinds in a stable
+    // order, then Prompt + Costs at the end.
+    data class View(val id: String, val label: String)
+    val views = mutableListOf<View>()
+    if (hasReports) views += View("reports", "Reports")
+    if (summaries.isNotEmpty()) views += View("summaries", "Summaries")
+    if (compares.isNotEmpty()) views += View("compares", "Compares")
+    if (reranks.isNotEmpty()) views += View("reranks", "Reranks")
+    if (moderations.isNotEmpty()) views += View("moderations", "Moderations")
+    if (translations.isNotEmpty()) views += View("translations", "Translations")
+    if (hasPrompt) views += View("prompt", "Prompt")
+    if (hasCosts) views += View("costs", "Costs")
+
+    val firstViewId = views.firstOrNull()?.id ?: "reports"
+
     val sb = StringBuilder()
     sb.append(htmlHead(data.title))
     sb.append("<body><div class='container'>")
     sb.append("<h1>${esc(data.title)}</h1>")
     data.rapportText?.let { sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(it)}</div>") }
 
-    // Layout toggle
+    // Top-level view picker — always shown when any view exists.
+    if (views.isNotEmpty()) {
+        sb.append("<div class='view-picker'>")
+        views.forEach { v ->
+            val active = if (v.id == firstViewId) " active" else ""
+            sb.append("<button id='view-btn-${v.id}' class='view-btn$active' onclick=\"showView('${v.id}')\">${esc(v.label)}</button>")
+        }
+        sb.append("</div>")
+    }
+
+    if (hasReports) {
+        val display = if (firstViewId == "reports") "block" else "none"
+        sb.append("<div id='view-reports' class='view-block' style='display:$display'>")
+        renderReportsView(sb, data, defaultAllTogether)
+        sb.append("</div>")
+    }
+    if (summaries.isNotEmpty()) {
+        val display = if (firstViewId == "summaries") "block" else "none"
+        sb.append("<div id='view-summaries' class='view-block' style='display:$display'>")
+        renderMetaItemsView(sb, "summaries", summaries, maxAnchor)
+        sb.append("</div>")
+    }
+    if (compares.isNotEmpty()) {
+        val display = if (firstViewId == "compares") "block" else "none"
+        sb.append("<div id='view-compares' class='view-block' style='display:$display'>")
+        renderMetaItemsView(sb, "compares", compares, maxAnchor)
+        sb.append("</div>")
+    }
+    if (reranks.isNotEmpty()) {
+        val display = if (firstViewId == "reranks") "block" else "none"
+        sb.append("<div id='view-reranks' class='view-block' style='display:$display'>")
+        renderMetaItemsView(sb, "reranks", reranks, maxAnchor)
+        sb.append("</div>")
+    }
+    if (moderations.isNotEmpty()) {
+        val display = if (firstViewId == "moderations") "block" else "none"
+        sb.append("<div id='view-moderations' class='view-block' style='display:$display'>")
+        renderMetaItemsView(sb, "moderations", moderations, maxAnchor)
+        sb.append("</div>")
+    }
+    if (translations.isNotEmpty()) {
+        val display = if (firstViewId == "translations") "block" else "none"
+        sb.append("<div id='view-translations' class='view-block' style='display:$display'>")
+        renderMetaItemsView(sb, "translations", translations, maxAnchor)
+        sb.append("</div>")
+    }
+    if (hasPrompt) {
+        val display = if (firstViewId == "prompt") "block" else "none"
+        sb.append("<div id='view-prompt' class='view-block' style='display:$display'>")
+        sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
+        sb.append("</div>")
+    }
+    if (hasCosts) {
+        val display = if (firstViewId == "costs") "block" else "none"
+        sb.append("<div id='view-costs' class='view-block' style='display:$display'>")
+        renderCostsView(sb, data)
+        sb.append("</div>")
+    }
+
+    data.closeText?.let { sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(it)}</div>") }
+    sb.append("<div class='footer'>Generated by AI v$appVersion on ${data.timestamp}</div>")
+    sb.append("</div>")
+    sb.append(htmlScript())
+    sb.append("</body></html>")
+    return sb.toString()
+}
+
+// ===== View Renderers =====
+
+/** Reports view — agents in either One-by-one or All-together layout.
+ *  Default layout follows the report's reportType (CLASSIC=oneByOne,
+ *  TABLE=allTogether). The sub-toggle is always shown for this view since
+ *  even a single agent might benefit from the All-together card layout. */
+private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAllTogether: Boolean) {
     sb.append("<div class='layout-toggle'>")
-    sb.append("<button id='layout-btn-oneByOne' class='layout-btn${if (!defaultAllTogether) " active" else ""}' onclick=\"showLayout('oneByOne')\">One by one</button>")
-    sb.append("<button id='layout-btn-allTogether' class='layout-btn${if (defaultAllTogether) " active" else ""}' onclick=\"showLayout('allTogether')\">All together</button>")
+    sb.append("<button id='layout-btn-reports-oneByOne' class='layout-btn${if (!defaultAllTogether) " active" else ""}' onclick=\"showLayout('reports','oneByOne')\">One by one</button>")
+    sb.append("<button id='layout-btn-reports-allTogether' class='layout-btn${if (defaultAllTogether) " active" else ""}' onclick=\"showLayout('reports','allTogether')\">All together</button>")
     sb.append("</div>")
 
-    // ----- One-by-one layout -----
-    sb.append("<div id='layout-oneByOne' class='layout'${if (defaultAllTogether) " style='display:none'" else ""}>")
+    sb.append("<div id='layout-reports-oneByOne' class='layout'${if (defaultAllTogether) " style='display:none'" else ""}>")
     sb.append("<div class='agent-buttons'>")
     data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' onclick=\"showAgent('${escId(a.agentId)}')\">${esc(a.agentName)}</button>") }
     sb.append("</div>")
-
     data.agents.forEachIndexed { i, a ->
-        // Two anchors per card: the original agent-id slot for the
-        // one-by-one tab show/hide JS, and a stable result-N anchor that
-        // the Reranks block links into.
         val anchorAttrs = a.anchorIndex?.let { " data-result='$it'" } ?: ""
         sb.append("<div id='agent-${escId(a.agentId)}' class='agent-result${if (i == 0) " active" else ""}'$anchorAttrs>")
         a.anchorIndex?.let { sb.append("<a id='result-$it'></a>") }
@@ -213,10 +310,9 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
         }
         sb.append("</div></div>")
     }
-    sb.append("</div>") // /#layout-oneByOne
+    sb.append("</div>")
 
-    // ----- All-together layout -----
-    sb.append("<div id='layout-allTogether' class='layout'${if (!defaultAllTogether) " style='display:none'" else ""}>")
+    sb.append("<div id='layout-reports-allTogether' class='layout'${if (!defaultAllTogether) " style='display:none'" else ""}>")
     sb.append("<div class='table-grid'>")
     data.agents.forEach { a ->
         val anchorAttr = a.anchorIndex?.let { " id='card-result-$it'" } ?: ""
@@ -236,128 +332,109 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
         sb.append("</div>")
     }
     sb.append("</div>")
-    sb.append("</div>") // /#layout-allTogether
-
-    // Shared footer (prompt, costs, close text) is outside the layouts so it's always visible.
-    appendPromptAndCosts(sb, data)
-    appendSecondarySections(sb, data)
-    data.closeText?.let { sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(it)}</div>") }
-    sb.append("<div class='footer'>Generated by AI v$appVersion on ${data.timestamp}</div>")
     sb.append("</div>")
-    sb.append(htmlScript())
-    sb.append("</body></html>")
-    return sb.toString()
 }
 
-// ===== HTML Helpers =====
+/** Meta-items view (Summaries / Compares / Reranks / Moderations /
+ *  Translations). Single-item views render the lone item directly with no
+ *  sub-toggle. Multi-item views get their own One-by-one / All-together
+ *  toggle scoped by [viewId]. */
+private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<HtmlSecondaryData>, maxAnchor: Int) {
+    if (items.isEmpty()) return
 
-private fun appendPromptAndCosts(sb: StringBuilder, data: HtmlReportData) {
-    val hasPrompt = data.prompt.isNotBlank()
-    val hasAgentCosts = data.agents.any { it.inputTokens != null }
-    val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
-    val hasCosts = hasAgentCosts || hasSecondaryCosts
-    if (!hasPrompt && !hasCosts) return
+    if (items.size == 1) {
+        sb.append("<div class='secondary-section'>")
+        renderMetaCard(sb, items[0], maxAnchor)
+        sb.append("</div>")
+        return
+    }
 
-    sb.append("<div class='section-buttons'>")
-    if (hasPrompt) sb.append("<button id='btn-prompt' class='section-btn' onclick=\"toggleSection('prompt')\">Prompt</button>")
-    if (hasCosts) sb.append("<button id='btn-costs' class='section-btn' onclick=\"toggleSection('costs')\">Costs</button>")
+    sb.append("<div class='layout-toggle'>")
+    sb.append("<button id='layout-btn-${viewId}-oneByOne' class='layout-btn active' onclick=\"showLayout('${viewId}','oneByOne')\">One by one</button>")
+    sb.append("<button id='layout-btn-${viewId}-allTogether' class='layout-btn' onclick=\"showLayout('${viewId}','allTogether')\">All together</button>")
     sb.append("</div>")
 
-    if (hasPrompt) sb.append("<div id='section-prompt' class='section-content' style='display:none'><div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div></div>")
-
-    if (hasCosts) {
-        sb.append("<div id='section-costs' class='section-content' style='display:none'><div class='prompt-section'><div class='prompt-label'>Costs</div>")
-        sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
-        data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
-        val agentRows = data.agents.filter { it.inputCost != null }.map {
-            Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
-                (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
-        }
-        val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
-            val type = when (it.kind) {
-                SecondaryKind.RERANK -> "rerank"
-                SecondaryKind.SUMMARIZE -> "summarize"
-                SecondaryKind.COMPARE -> "compare"
-                SecondaryKind.MODERATION -> "moderation"
-                SecondaryKind.TRANSLATE -> "translate"
-            }
-            Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
-                (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
-        }
-        val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
-        var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
-        sorted.forEach { r ->
-            tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
-            val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
-        }
-        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
-        sb.append("</table></div></div>")
+    sb.append("<div id='layout-${viewId}-oneByOne' class='layout'>")
+    sb.append("<div class='agent-buttons'>")
+    items.forEachIndexed { i, it ->
+        val label = "${it.providerDisplay} · ${it.model}"
+        sb.append("<button class='item-btn${if (i == 0) " active" else ""}' data-view='${viewId}' onclick=\"showItem('${viewId}','${escId(it.id)}')\">${esc(label)}</button>")
     }
+    sb.append("</div>")
+    items.forEachIndexed { i, it ->
+        sb.append("<div id='item-${viewId}-${escId(it.id)}' class='item-content${if (i == 0) " active" else ""}' data-view='${viewId}'>")
+        sb.append("<div class='secondary-section'>")
+        renderMetaCard(sb, it, maxAnchor)
+        sb.append("</div>")
+        sb.append("</div>")
+    }
+    sb.append("</div>")
+
+    sb.append("<div id='layout-${viewId}-allTogether' class='layout' style='display:none'>")
+    sb.append("<div class='secondary-section'>")
+    items.forEach { renderMetaCard(sb, it, maxAnchor) }
+    sb.append("</div>")
+    sb.append("</div>")
 }
 
-/** Render the Reranks and Summaries blocks at the end of the report.
- *  Rerank entries are post-processed to convert any reference to a result
- *  bracket (`[N]` / `id: N`) into an anchor link back to the corresponding
- *  agent card. */
-private fun appendSecondarySections(sb: StringBuilder, data: HtmlReportData) {
-    val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
-    val summaries = data.secondary.filter { it.kind == SecondaryKind.SUMMARIZE }
-    val compares = data.secondary.filter { it.kind == SecondaryKind.COMPARE }
-    if (reranks.isEmpty() && summaries.isEmpty() && compares.isEmpty()) return
-
-    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
-
-    if (reranks.isNotEmpty()) {
-        sb.append("<div class='secondary-section'><h2 class='secondary-heading'>Reranks</h2>")
-        reranks.forEach { r ->
-            sb.append("<div class='secondary-card'>")
-            sb.append("<div class='secondary-card-header'>${esc(r.providerDisplay)} · ${esc(r.model)} <span class='secondary-ts'>${esc(r.timestamp)}</span></div>")
-            if (r.errorMessage != null) {
-                sb.append("<div class='error'>Error: ${esc(r.errorMessage)}</div>")
-            } else if (!r.content.isNullOrBlank()) {
-                sb.append("<div class='secondary-body'>${renderRerankContent(r.content, maxAnchor)}</div>")
-            }
-            sb.append("</div>")
-        }
-        sb.append("</div>")
-    }
-
-    if (summaries.isNotEmpty()) {
-        sb.append("<div class='secondary-section'><h2 class='secondary-heading'>Summaries</h2>")
-        summaries.forEach { s ->
-            sb.append("<div class='secondary-card'>")
-            sb.append("<div class='secondary-card-header'>${esc(s.providerDisplay)} · ${esc(s.model)} <span class='secondary-ts'>${esc(s.timestamp)}</span></div>")
-            if (s.errorMessage != null) {
-                sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
-            } else if (!s.content.isNullOrBlank()) {
-                sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(s.content)}</div>")
-            }
-            sb.append("</div>")
-        }
-        sb.append("</div>")
-    }
-
-    if (compares.isNotEmpty()) {
-        sb.append("<div class='secondary-section secondary-compare'><h2 class='secondary-heading secondary-heading-compare'>Compares</h2>")
-        compares.forEach { c ->
-            sb.append("<div class='secondary-card secondary-card-compare'>")
-            sb.append("<div class='secondary-card-header secondary-card-header-compare'>${esc(c.providerDisplay)} · ${esc(c.model)} <span class='secondary-ts'>${esc(c.timestamp)}</span></div>")
-            if (c.errorMessage != null) {
-                sb.append("<div class='error'>Error: ${esc(c.errorMessage)}</div>")
-            } else if (!c.content.isNullOrBlank()) {
+private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int) {
+    val isCompare = item.kind == SecondaryKind.COMPARE
+    val cardClass = if (isCompare) "secondary-card secondary-card-compare" else "secondary-card"
+    val headerClass = if (isCompare) "secondary-card-header secondary-card-header-compare" else "secondary-card-header"
+    sb.append("<div class='$cardClass'>")
+    sb.append("<div class='$headerClass'>${esc(item.providerDisplay)} · ${esc(item.model)} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
+    if (item.errorMessage != null) {
+        sb.append("<div class='error'>Error: ${esc(item.errorMessage)}</div>")
+    } else if (!item.content.isNullOrBlank()) {
+        when (item.kind) {
+            SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor)}</div>")
+            SecondaryKind.COMPARE -> {
                 // Linkify [N] references the same way as rerank's fallback
                 // path so users can jump to any cited result card.
-                val linkified = Regex("""\[(\d+)\]""").replace(c.content) { m ->
+                val linkified = Regex("""\[(\d+)\]""").replace(item.content) { m ->
                     val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
                     if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
                 }
                 sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(linkified)}</div>")
             }
-            sb.append("</div>")
+            else -> sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(item.content)}</div>")
         }
-        sb.append("</div>")
     }
+    sb.append("</div>")
+}
+
+/** Costs view — the per-call cost table. Sorted by total cents desc so
+ *  the most expensive call is always at the top. Includes report agents
+ *  AND every secondary kind (rerank/summarize/compare/moderation/
+ *  translate) as separate rows. */
+private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
+    sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
+    sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+    data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
+    val agentRows = data.agents.filter { it.inputCost != null }.map {
+        Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+            (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
+    }
+    val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
+        val type = when (it.kind) {
+            SecondaryKind.RERANK -> "rerank"
+            SecondaryKind.SUMMARIZE -> "summarize"
+            SecondaryKind.COMPARE -> "compare"
+            SecondaryKind.MODERATION -> "moderation"
+            SecondaryKind.TRANSLATE -> "translate"
+        }
+        Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+            (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
+    }
+    val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
+    var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
+    sorted.forEach { r ->
+        tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
+        val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+        sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+    }
+    sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
+    sb.append("</table></div>")
 }
 
 /** If the rerank model returned the requested JSON array, render it as a
@@ -457,6 +534,10 @@ private fun htmlHead(title: String) = """<!DOCTYPE html><html><head><meta charse
 body{background:#1a1a1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:16px}
 .container{max-width:800px;margin:0 auto}
 h1{color:#fff;font-size:24px;margin-bottom:16px}
+.view-picker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.view-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
+.view-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
+.view-block{margin-bottom:16px}
 .layout-toggle{display:flex;gap:8px;margin-bottom:16px}
 .layout-btn{background:transparent;color:#6B9BFF;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
 .layout-btn.active{background:#6B9BFF;color:#1a1a1a;border-color:#6B9BFF}
@@ -464,6 +545,9 @@ h1{color:#fff;font-size:24px;margin-bottom:16px}
 .agent-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}
 .agent-btn.active{background:#8B5CF6;color:#fff;border-color:#8B5CF6}
 .agent-result{display:none}.agent-result.active{display:block}
+.item-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}
+.item-btn.active{background:#FF9800;color:#fff;border-color:#FF9800}
+.item-content{display:none}.item-content.active{display:block}
 .agent-header{color:#6B9BFF;font-size:18px;font-weight:600;margin-bottom:12px}
 .agent-response{line-height:1.6}
 .error{color:#ff6b6b;padding:8px;background:#2a1a1a;border-radius:4px;margin-bottom:8px}
@@ -520,9 +604,10 @@ ul{padding-left:20px}li{margin:4px 0}
 
 private fun htmlScript() = """
 <script>
-function showLayout(which){var a=document.getElementById('layout-oneByOne');var b=document.getElementById('layout-allTogether');var ba=document.getElementById('layout-btn-oneByOne');var bb=document.getElementById('layout-btn-allTogether');if(which==='oneByOne'){a.style.display='block';b.style.display='none';ba.classList.add('active');bb.classList.remove('active')}else{a.style.display='none';b.style.display='block';ba.classList.remove('active');bb.classList.add('active')}}
+function showView(name){document.querySelectorAll('.view-block').forEach(e=>e.style.display='none');document.querySelectorAll('.view-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('view-'+name);var btn=document.getElementById('view-btn-'+name);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
+function showLayout(view,mode){var a=document.getElementById('layout-'+view+'-oneByOne');var b=document.getElementById('layout-'+view+'-allTogether');var ba=document.getElementById('layout-btn-'+view+'-oneByOne');var bb=document.getElementById('layout-btn-'+view+'-allTogether');if(mode==='oneByOne'){if(a)a.style.display='block';if(b)b.style.display='none';if(ba)ba.classList.add('active');if(bb)bb.classList.remove('active')}else{if(a)a.style.display='none';if(b)b.style.display='block';if(ba)ba.classList.remove('active');if(bb)bb.classList.add('active')}}
 function showAgent(id){document.querySelectorAll('.agent-result').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.agent-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('agent-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
+function showItem(view,id){document.querySelectorAll('.item-content[data-view="'+view+'"]').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.item-btn[data-view="'+view+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('item-'+view+'-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
 function toggleThink(id){var el=document.getElementById('think-'+id);var btn=document.getElementById('think-btn-'+id);if(el.style.display==='block'){el.style.display='none';btn.textContent='Think'}else{el.style.display='block';btn.textContent='Hide Think'}}
-function toggleSection(id){var el=document.getElementById('section-'+id);var btn=document.getElementById('btn-'+id);var isVisible=el.style.display==='block';document.querySelectorAll('.section-content').forEach(e=>e.style.display='none');document.querySelectorAll('.section-btn').forEach(b=>b.classList.remove('active'));if(!isVisible){el.style.display='block';btn.classList.add('active')}}
 </script>
 """
