@@ -231,26 +231,43 @@ fun ReportsScreen(
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
     val currentReportId = uiState.currentReportId
 
-    // Per-kind row counts for the View card. Gates the Summaries /
-    // Compares / Reranks / Moderations buttons so we don't show
-    // launchers for kinds the report has no rows of yet. Polled while
-    // a meta batch is in flight so newly added rows light up the
-    // buttons without forcing the user to bounce in/out of the screen.
+    // Per-kind row counts + the actual meta-run list for the result
+    // page. Counts gate the Summaries / Compares / Reranks /
+    // Moderations buttons in the View row; the list drives the per-
+    // run rows shown below the agent rows. Polled while a meta batch
+    // is in flight so newly added rows / status changes surface
+    // promptly without the user bouncing in/out of the screen.
     var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0, 0)) }
+    var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
     LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches) {
-        val rid = currentReportId ?: run { secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0); return@LaunchedEffect }
-        // First read covers the steady state. Then while a batch is
-        // running, repoll every 500 ms so brand-new rows appear; the
-        // loop self-cancels when the LaunchedEffect re-keys (batch
-        // count changes back to 0).
-        secondaryCounts = withContext(Dispatchers.IO) { SecondaryResultStorage.countForReport(context, rid) }
+        val rid = currentReportId ?: run {
+            secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0)
+            secondaryRuns = emptyList()
+            return@LaunchedEffect
+        }
+        suspend fun reload() {
+            withContext(Dispatchers.IO) {
+                val list = SecondaryResultStorage.listForReport(context, rid)
+                    .filter { it.kind != SecondaryKind.TRANSLATE }
+                    .sortedByDescending { it.timestamp }
+                val counts = SecondaryResultStorage.countForReport(context, rid)
+                secondaryRuns = list
+                secondaryCounts = counts
+            }
+        }
+        reload()
         if (uiState.activeSecondaryBatches > 0) {
+            // While any batch is in flight repoll every 500 ms so
+            // brand-new ⏳ rows appear and finished rows flip to ✅/❌
+            // in place. The loop self-cancels when the LaunchedEffect
+            // re-keys (batch count back to 0).
             while (true) {
                 delay(500)
-                secondaryCounts = withContext(Dispatchers.IO) { SecondaryResultStorage.countForReport(context, rid) }
+                reload()
             }
         }
     }
+    var openMetaResultId by remember { mutableStateOf<String?>(null) }
 
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
@@ -572,6 +589,26 @@ fun ReportsScreen(
         return
     }
 
+    // Per-meta-run detail overlay reached from a Meta row in the
+    // result list. Routes through the same SecondaryResultDetailScreen
+    // the Meta hub uses, so navigation / delete behave identically.
+    val openMetaResult = openMetaResultId?.let { id -> secondaryRuns.firstOrNull { it.id == id } }
+    if (openMetaResult != null && currentReportId != null) {
+        val rid = currentReportId
+        SecondaryResultDetailScreen(
+            result = openMetaResult,
+            onDelete = {
+                onDeleteSecondary(rid, openMetaResult.id)
+                openMetaResultId = null
+            },
+            onBack = { openMetaResultId = null },
+            onNavigateHome = onNavigateHome,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo
+        )
+        return
+    }
+
     val openListKind = listKind
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
@@ -729,7 +766,9 @@ fun ReportsScreen(
                 onDelete = { showDeleteConfirm = true },
                 onTranslate = { showTranslateLanguagePicker = true },
                 secondaryCounts = secondaryCounts,
+                secondaryRuns = secondaryRuns,
                 onViewSecondaryKind = { kind -> listKind = kind },
+                onOpenSecondaryRun = { id -> openMetaResultId = id },
                 onOpenMeta = { showMetaScreen = true },
                 onRerank = {
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
@@ -890,7 +929,9 @@ private fun ColumnScope.GenerationPhase(
     onDelete: () -> Unit,
     onTranslate: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
+    secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     onViewSecondaryKind: (SecondaryKind) -> Unit = {},
+    onOpenSecondaryRun: (String) -> Unit = {},
     onOpenMeta: () -> Unit = {},
     onRerank: () -> Unit = {},
     onSummarize: () -> Unit = {},
@@ -1017,41 +1058,57 @@ private fun ColumnScope.GenerationPhase(
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
 
-        // Meta row \u2014 sits at the bottom of the agent list with the
-        // same row layout. Status icon mirrors the agent rows: \u23F3
-        // animated when a batch is in flight, \u2705 once any meta result
-        // exists, \u2699 on a fresh report with no meta activity. Tapping
-        // opens the Meta hub (ReportMetaScreen) so the user can drill
-        // into individual entries.
-        if (isComplete && currentReportId != null) {
-            val metaRunning = uiState.activeSecondaryBatches > 0
-            val metaTotal = secondaryCounts.rerank + secondaryCounts.summarize +
-                secondaryCounts.compare + secondaryCounts.moderation
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenMeta() },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (metaRunning) {
-                    val transition = rememberInfiniteTransition(label = "meta-row-hourglass")
-                    val angle by transition.animateFloat(
-                        initialValue = 0f, targetValue = 360f,
-                        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
-                        label = "meta-row-rotation"
-                    )
-                    Text("\u23F3", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
-                } else if (metaTotal > 0) {
-                    Text("\u2705", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                } else {
-                    Text("\u2699", fontSize = 16.sp, color = AppColors.TextTertiary, modifier = Modifier.width(24.dp))
+        // Meta runs \u2014 one row per individual rerank / summarize /
+        // compare / moderation result on this report, sharing the
+        // agent rows' layout (status icon + label + cost). Status
+        // mirrors the agent rows: \u23F3 while the placeholder is still
+        // empty, \u2705 on success, \u274C on error. Tapping opens that run's
+        // detail screen. TRANSLATE rows are excluded \u2014 they're cost
+        // records rather than user-actionable runs.
+        if (isComplete && secondaryRuns.isNotEmpty()) {
+            secondaryRuns.forEach { run ->
+                val running = run.errorMessage == null && run.content.isNullOrBlank()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenSecondaryRun(run.id) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    when {
+                        run.errorMessage != null -> Text("\u274C", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        running -> {
+                            val transition = rememberInfiniteTransition(label = "meta-run-${run.id}")
+                            val angle by transition.animateFloat(
+                                initialValue = 0f, targetValue = 360f,
+                                animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                                label = "meta-run-rot-${run.id}"
+                            )
+                            Text("\u23F3", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+                        }
+                        else -> Text("\u2705", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    }
+                    val kindLabel = when (run.kind) {
+                        SecondaryKind.RERANK -> "Rerank"
+                        SecondaryKind.SUMMARIZE -> "Summarize"
+                        SecondaryKind.COMPARE -> "Compare"
+                        SecondaryKind.MODERATION -> "Moderate"
+                        SecondaryKind.TRANSLATE -> "Translate"
+                    }
+                    val provDisplay = AppService.findById(run.providerId)?.displayName ?: run.providerId
+                    val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "$kindLabel \u00B7 $provDisplay / ${run.model}$langSuffix",
+                            fontSize = 13.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    val totalCost = (run.inputCost ?: 0.0) + (run.outputCost ?: 0.0)
+                    if (totalCost > 0.0) {
+                        Text(formatCents(totalCost), fontSize = 10.sp,
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    }
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Meta", fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                if (metaTotal > 0) {
-                    Text("$metaTotal", fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                }
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
-            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
 
         if (reportsAgentResults.isNotEmpty()) {
