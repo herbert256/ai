@@ -434,31 +434,41 @@ internal suspend fun renderHtmlToPdfFile(
             )
             view.layout(0, 0, pageWidth, totalHeight)
 
-            val bitmap = Bitmap.createBitmap(pageWidth, totalHeight, Bitmap.Config.ARGB_8888)
-            bitmap.eraseColor(AndroidColor.WHITE)
-            view.draw(Canvas(bitmap))
-
+            // Render page-by-page into a single reusable page-sized
+            // bitmap (~8 MB at 1240×1754 ARGB_8888) instead of
+            // allocating one giant bitmap for the entire content. A
+            // long Complete report can easily be 50–100 pages tall;
+            // the all-at-once approach asked for 100s of MB which
+            // either OOM'd or churned the GC long enough for the
+            // render timeout to fire — observed as the bulk export
+            // hanging at step 7. With the page-sized bitmap we draw
+            // the WebView once per page using a canvas translation
+            // so each slice paints into the same buffer.
+            val pageBitmap = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+            val pageCanvas = Canvas(pageBitmap)
             val pdf = PdfDocument()
             var rendered = 0
             var pageNum = 1
             while (rendered < totalHeight) {
+                pageBitmap.eraseColor(AndroidColor.WHITE)
+                pageCanvas.save()
+                pageCanvas.translate(0f, -rendered.toFloat())
+                view.draw(pageCanvas)
+                pageCanvas.restore()
+
                 val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNum).create()
-                val page = pdf.startPage(pageInfo)
-                val canvas = page.canvas
-                canvas.drawColor(AndroidColor.WHITE)
-                val sliceH = minOf(pageHeight, totalHeight - rendered)
-                val src = android.graphics.Rect(0, rendered, pageWidth, rendered + sliceH)
-                val dst = android.graphics.Rect(0, 0, pageWidth, sliceH)
-                canvas.drawBitmap(bitmap, src, dst, null)
-                pdf.finishPage(page)
+                val pdfPage = pdf.startPage(pageInfo)
+                pdfPage.canvas.drawBitmap(pageBitmap, 0f, 0f, null)
+                pdf.finishPage(pdfPage)
+
                 rendered += pageHeight
                 pageNum++
             }
-            bitmap.recycle()
+            pageBitmap.recycle()
             if (output.exists()) output.delete()
             FileOutputStream(output).use { pdf.writeTo(it) }
             pdf.close()
-            android.util.Log.i(tag, "rendered ${pageNum - 1} pages to ${output.length()} bytes")
+            android.util.Log.i(tag, "rendered ${pageNum - 1} pages to ${output.length()} bytes at +${elapsedMs()}ms")
             done.complete(Unit)
         } catch (e: Exception) {
             android.util.Log.e(tag, "PDF render failed", e)
