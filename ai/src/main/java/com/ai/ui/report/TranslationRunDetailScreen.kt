@@ -65,17 +65,16 @@ internal fun TranslationRunDetailScreen(
 
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
     if (openResult != null) {
-        SecondaryResultDetailScreen(
+        // Every row in this screen is a TRANSLATE secondary, so route
+        // through the split-screen TranslationCallDetailScreen rather
+        // than the generic SecondaryResultDetailScreen — the user
+        // wants Original / Translation side-by-side, not the meta-row
+        // chrome with Delete / Model / Trace buttons.
+        TranslationCallDetailScreen(
             result = openResult,
-            onDelete = {
-                onDelete(openResult.id)
-                openId = null
-                refreshTick++
-            },
             onBack = { openId = null },
             onNavigateHome = onNavigateHome,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onNavigateToModelInfo = onNavigateToModelInfo
+            onNavigateToTraceFile = onNavigateToTraceFile
         )
         return
     }
