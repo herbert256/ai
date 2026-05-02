@@ -16,7 +16,26 @@ internal data class HtmlReportData(
     val title: String, val prompt: String, val timestamp: String,
     val rapportText: String?, val closeText: String?,
     val agents: List<HtmlAgentData>, val reportType: ReportType = ReportType.CLASSIC,
-    val secondary: List<HtmlSecondaryData> = emptyList()
+    val secondary: List<HtmlSecondaryData> = emptyList(),
+    val traces: List<HtmlTraceData> = emptyList()
+)
+
+/** One captured API trace surfaced in the JSON view. [origin] is "this"
+ *  for traces tagged with the report's own id, or "source" for traces
+ *  carried over from the parent report when this is a translated copy. */
+internal data class HtmlTraceData(
+    val id: String,
+    val origin: String,
+    val timestamp: String,
+    val method: String,
+    val hostname: String,
+    val url: String,
+    val statusCode: Int,
+    val model: String?,
+    val requestHeaders: String,
+    val requestBody: String,
+    val responseHeaders: String,
+    val responseBody: String
 )
 
 internal data class HtmlAgentData(
@@ -152,11 +171,47 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
         )
     }
 
+    // Pull traces tagged with this report's id, plus — if this is a
+    // translated copy — the source report's traces too. The user asked to
+    // surface both sets in the JSON view: translation API calls land on
+    // the new id (since createTranslatedReport reserved it before
+    // running translations), and the original report's API calls keep
+    // their old id.
+    val traceFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+    val ownTraces = ApiTracer.getTraceFilesForReport(report.id)
+        .mapNotNull { ApiTracer.readTraceFile(it.filename) }
+        .map { it to "this" }
+    val sourceTraces = report.sourceReportId
+        ?.let { ApiTracer.getTraceFilesForReport(it) }
+        ?.mapNotNull { ApiTracer.readTraceFile(it.filename) }
+        ?.map { it to "source" }
+        .orEmpty()
+    val traces = (ownTraces + sourceTraces).sortedBy { it.first.timestamp }
+        .mapIndexed { i, (t, origin) ->
+            val redactedReqBody = redactJsonString(t.request.body) ?: ""
+            val redactedRespBody = redactJsonString(t.response.body) ?: ""
+            HtmlTraceData(
+                id = "t$i",
+                origin = origin,
+                timestamp = traceFmt.format(Date(t.timestamp)),
+                method = t.request.method,
+                hostname = t.hostname,
+                url = t.request.url,
+                statusCode = t.response.statusCode,
+                model = t.model,
+                requestHeaders = redactHeaders(t.request.headers),
+                requestBody = redactedReqBody,
+                responseHeaders = redactHeaders(t.response.headers),
+                responseBody = redactedRespBody
+            )
+        }
+
     val data = HtmlReportData(
         title = report.title, prompt = report.prompt,
         timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
         rapportText = report.rapportText, closeText = report.closeText,
-        agents = agents, reportType = report.reportType, secondary = secondary
+        agents = agents, reportType = report.reportType, secondary = secondary,
+        traces = traces
     )
 
     return renderHtmlReport(data, appVersion)
@@ -195,6 +250,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     if (translations.isNotEmpty()) views += View("translations", "Translations")
     if (hasPrompt) views += View("prompt", "Prompt")
     if (hasCosts) views += View("costs", "Costs")
+    if (data.traces.isNotEmpty()) views += View("json", "JSON")
 
     val firstViewId = views.firstOrNull()?.id ?: "reports"
 
@@ -260,6 +316,12 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
         val display = if (firstViewId == "costs") "block" else "none"
         sb.append("<div id='view-costs' class='view-block' style='display:$display'>")
         renderCostsView(sb, data)
+        sb.append("</div>")
+    }
+    if (data.traces.isNotEmpty()) {
+        val display = if (firstViewId == "json") "block" else "none"
+        sb.append("<div id='view-json' class='view-block' style='display:$display'>")
+        renderJsonView(sb, data.traces)
         sb.append("</div>")
     }
 
@@ -462,6 +524,46 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
     sb.append("</table></div>")
 }
 
+/** JSON view — every captured API trace this report knows about, with
+ *  the four parts (request headers, request body, response headers,
+ *  response body) gated behind per-trace tabs. Bodies and headers are
+ *  redacted (api keys, tokens, cookies, authorization → [REDACTED])
+ *  before being serialised into the HTML so a shared export doesn't
+ *  leak credentials. */
+private fun renderJsonView(sb: StringBuilder, traces: List<HtmlTraceData>) {
+    // Top trace selector — one button per trace.
+    sb.append("<div class='trace-list'>")
+    traces.forEachIndexed { i, t ->
+        val active = if (i == 0) " active" else ""
+        val label = buildString {
+            if (t.origin == "source") append("[source] ")
+            append(t.timestamp).append(" · ").append(t.method).append(" · ").append(t.hostname)
+            if (!t.model.isNullOrBlank()) append(" / ").append(t.model)
+            append(" · ").append(t.statusCode)
+        }
+        sb.append("<button id='trace-btn-${t.id}' class='trace-btn$active' onclick=\"showTrace('${t.id}')\">${esc(label)}</button>")
+    }
+    sb.append("</div>")
+
+    // Per-trace pane: 4 part-tabs + 4 hidden <pre>'s; first is shown.
+    traces.forEachIndexed { i, t ->
+        val display = if (i == 0) "block" else "none"
+        sb.append("<div id='trace-${t.id}' class='trace-pane' style='display:$display'>")
+        sb.append("<div class='trace-meta'><span class='trace-meta-url'>${esc(t.method)} ${esc(t.url)}</span></div>")
+        sb.append("<div class='trace-part-tabs'>")
+        sb.append("<button id='part-btn-${t.id}-reqh' class='trace-part-btn active' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqh')\">Request headers</button>")
+        sb.append("<button id='part-btn-${t.id}-reqb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqb')\">Request body</button>")
+        sb.append("<button id='part-btn-${t.id}-resh' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resh')\">Response headers</button>")
+        sb.append("<button id='part-btn-${t.id}-resb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resb')\">Response body</button>")
+        sb.append("</div>")
+        sb.append("<pre id='part-${t.id}-reqh' class='trace-part trace-part-active' data-trace='${t.id}'>${esc(t.requestHeaders)}</pre>")
+        sb.append("<pre id='part-${t.id}-reqb' class='trace-part' data-trace='${t.id}'>${esc(t.requestBody)}</pre>")
+        sb.append("<pre id='part-${t.id}-resh' class='trace-part' data-trace='${t.id}'>${esc(t.responseHeaders)}</pre>")
+        sb.append("<pre id='part-${t.id}-resb' class='trace-part' data-trace='${t.id}'>${esc(t.responseBody)}</pre>")
+        sb.append("</div>")
+    }
+}
+
 /** If the rerank model returned the requested JSON array, render it as a
  *  table with anchor links to the corresponding result cards. Otherwise
  *  fall back to running it through the markdown renderer with a simple
@@ -615,6 +717,17 @@ ul{padding-left:20px}li{margin:4px 0}
 .secondary-card-header{color:#FF9800;font-weight:600;font-size:13px;margin-bottom:8px}
 .secondary-ts{color:#888;font-weight:normal;font-size:11px;margin-left:8px}
 .secondary-body{font-size:14px;line-height:1.5}
+.trace-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.trace-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:6px 10px;cursor:pointer;font-size:11px;font-family:monospace}
+.trace-btn.active{background:#64B5F6;color:#1a1a1a;border-color:#64B5F6}
+.trace-pane{margin-top:8px}
+.trace-meta{color:#888;font-size:11px;font-family:monospace;margin-bottom:8px;word-break:break-all}
+.trace-meta-url{color:#999}
+.trace-part-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.trace-part-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:12px}
+.trace-part-btn.active{background:#FF9800;color:#fff;border-color:#FF9800}
+.trace-part{display:none;background:#1a1a1a;color:#ccc;font-size:11px;padding:10px;border-radius:6px;border-left:3px solid #555;white-space:pre-wrap;word-break:break-all;max-height:600px;overflow-y:auto;margin:0}
+.trace-part-active{display:block}
 .translate-meta{font-size:13px;margin-top:4px;border-collapse:collapse}
 .translate-meta td{padding:3px 12px 3px 0}
 .translate-meta td.k{color:#FF9800;font-weight:600;white-space:nowrap}
@@ -637,6 +750,8 @@ function showView(name){document.querySelectorAll('.view-block').forEach(e=>e.st
 function showLayout(view,mode){var a=document.getElementById('layout-'+view+'-oneByOne');var b=document.getElementById('layout-'+view+'-allTogether');var ba=document.getElementById('layout-btn-'+view+'-oneByOne');var bb=document.getElementById('layout-btn-'+view+'-allTogether');if(mode==='oneByOne'){if(a)a.style.display='block';if(b)b.style.display='none';if(ba)ba.classList.add('active');if(bb)bb.classList.remove('active')}else{if(a)a.style.display='none';if(b)b.style.display='block';if(ba)ba.classList.remove('active');if(bb)bb.classList.add('active')}}
 function showAgent(id){document.querySelectorAll('.agent-result').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.agent-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('agent-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
 function showItem(view,id){document.querySelectorAll('.item-content[data-view="'+view+'"]').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.item-btn[data-view="'+view+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('item-'+view+'-'+id);if(el)el.classList.add('active');event.target.classList.add('active')}
+function showTrace(id){document.querySelectorAll('.trace-pane').forEach(e=>e.style.display='none');document.querySelectorAll('.trace-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('trace-'+id);var btn=document.getElementById('trace-btn-'+id);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
+function showTracePart(traceId,part){document.querySelectorAll('.trace-part[data-trace="'+traceId+'"]').forEach(e=>e.classList.remove('trace-part-active'));document.querySelectorAll('.trace-part-btn[data-trace="'+traceId+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('part-'+traceId+'-'+part);var btn=document.getElementById('part-btn-'+traceId+'-'+part);if(el)el.classList.add('trace-part-active');if(btn)btn.classList.add('active')}
 function toggleThink(id){var el=document.getElementById('think-'+id);var btn=document.getElementById('think-btn-'+id);if(el.style.display==='block'){el.style.display='none';btn.textContent='Think'}else{el.style.display='block';btn.textContent='Hide Think'}}
 </script>
 """

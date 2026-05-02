@@ -66,9 +66,9 @@ data class ReportExportSections(
     val responseHeaders: Boolean = true
 )
 
-private const val REDACTED = "[REDACTED]"
-private val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
-private val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
+internal const val REDACTED = "[REDACTED]"
+internal val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
+internal val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
 
 /**
  * Top-level dispatcher: build the right document for (format × detail) and hand it to
@@ -649,7 +649,7 @@ private fun buildPdfHtml(
 
 // ===== Redaction helpers (PDF only — runtime traces stay unredacted) =====
 
-private fun redactJsonString(text: String?): String? {
+internal fun redactJsonString(text: String?): String? {
     // Return null (not "") for blank input so the call site's `?: "(not captured)"`
     // fallback fires instead of rendering an empty .code block.
     if (text.isNullOrBlank()) return null
@@ -675,7 +675,7 @@ private fun redactJsonElement(element: JsonElement?) {
     }
 }
 
-private fun redactHeaders(headers: Map<String, String>?): String {
+internal fun redactHeaders(headers: Map<String, String>?): String {
     if (headers.isNullOrEmpty()) return "(none)"
     return headers.entries.joinToString("\n") { (name, value) ->
         val safe = if (name.lowercase(Locale.US) in SENSITIVE_HEADERS) REDACTED else value

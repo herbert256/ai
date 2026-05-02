@@ -1083,7 +1083,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             imageMime = source.imageMime,
             webSearchTool = source.webSearchTool,
             reasoningEffort = source.reasoningEffort,
-            explicitId = explicitId
+            explicitId = explicitId,
+            sourceReportId = source.id
         )
 
         // Recreate summary/compare/rerank/moderation meta results on

@@ -57,7 +57,11 @@ data class Report(
      *  Persisted alongside webSearchTool so a regenerate uses the same
      *  reasoning hint without forcing the user to re-pick. Non-thinking
      *  models drop the field at dispatch. */
-    val reasoningEffort: String? = null
+    val reasoningEffort: String? = null,
+    /** Set when this report is a translated copy of another report. Lets
+     *  the HTML export pull the source's API traces into the JSON view
+     *  alongside the translation traces. Null on regular reports. */
+    val sourceReportId: String? = null
 )
 
 /**
@@ -90,13 +94,14 @@ object ReportStorage {
         // ApiTracer.currentReportId before any translation API calls run.
         // Without this the translation traces end up tagged with no
         // report id and don't surface on either report's trace screen.
-        explicitId: String? = null
+        explicitId: String? = null,
+        sourceReportId: String? = null
     ): Report {
         init(context)
         val report = Report(explicitId ?: UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
             agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
-            reasoningEffort = reasoningEffort)
+            reasoningEffort = reasoningEffort, sourceReportId = sourceReportId)
         lock.withLock { saveReport(report) }
         return report
     }
@@ -179,8 +184,9 @@ object ReportStorage {
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
         reasoningEffort: String? = null,
-        explicitId: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId) }
+        explicitId: String? = null,
+        sourceReportId: String? = null
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }
