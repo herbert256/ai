@@ -67,16 +67,24 @@ internal suspend fun bulkExportAndShare(
     } catch (_: Exception) { "?" }
 
     try {
-        // Pre-render the HTML for both detail levels — used by the HTML
-        // entries directly, and by the PDF render below (after the
-        // makeStaticForPdf override).
-        val shortHtml = buildShortHtml(context, report)
-        val completeHtml = convertReportToHtml(context, report, appVersion)
+        // Compute each large HTML lazily and drop it as soon as the
+        // step that needed it is done — holding a multi-MB Complete
+        // HTML across all 10 steps was triggering chromium memory
+        // pressure when the WebView for PDF Short tried to allocate
+        // (the symptom: hang at step 7, render times out at 30s).
 
         // 1. HTML Short
-        File(workDir, "${safeTitle}_short.html").writeText(shortHtml); bump()
+        run {
+            val shortHtml = buildShortHtml(context, report)
+            File(workDir, "${safeTitle}_short.html").writeText(shortHtml)
+        }
+        bump()
         // 2. HTML Complete
-        File(workDir, "${safeTitle}_complete.html").writeText(completeHtml); bump()
+        run {
+            val completeHtml = convertReportToHtml(context, report, appVersion)
+            File(workDir, "${safeTitle}_complete.html").writeText(completeHtml)
+        }
+        bump()
         // 3. DOCX Short
         File(workDir, "${safeTitle}_short.docx").writeBytes(buildDocxBytes(context, report, short = true)); bump()
         // 4. DOCX Complete
@@ -85,16 +93,26 @@ internal suspend fun bulkExportAndShare(
         File(workDir, "${safeTitle}_short.odt").writeBytes(buildOdtBytes(context, report, short = true)); bump()
         // 6. ODT Complete
         File(workDir, "${safeTitle}_complete.odt").writeBytes(buildOdtBytes(context, report, short = false)); bump()
+        // Suggest GC before the PDF renders so chromium has a clean
+        // heap to work with — paranoid but harmless.
+        System.gc()
         // 7. PDF Short — no TOC page. WebView lives on Main, so hop.
-        val pdfShort = File(workDir, "${safeTitle}_short.pdf")
-        withContext(Dispatchers.Main) {
-            renderHtmlToPdfFile(context, makeStaticForPdf(shortHtml), pdfShort, withTocPage = false)
+        run {
+            val pdfShort = File(workDir, "${safeTitle}_short.pdf")
+            val staticHtml = makeStaticForPdf(buildShortHtml(context, report))
+            withContext(Dispatchers.Main) {
+                renderHtmlToPdfFile(context, staticHtml, pdfShort, withTocPage = false, timeoutMs = 120_000L)
+            }
         }
         bump()
+        System.gc()
         // 8. PDF Complete — JS-injected TOC page with computed page numbers
-        val pdfComplete = File(workDir, "${safeTitle}_complete.pdf")
-        withContext(Dispatchers.Main) {
-            renderHtmlToPdfFile(context, makeStaticForPdf(completeHtml), pdfComplete, withTocPage = true)
+        run {
+            val pdfComplete = File(workDir, "${safeTitle}_complete.pdf")
+            val staticHtml = makeStaticForPdf(convertReportToHtml(context, report, appVersion))
+            withContext(Dispatchers.Main) {
+                renderHtmlToPdfFile(context, staticHtml, pdfComplete, withTocPage = true, timeoutMs = 120_000L)
+            }
         }
         bump()
         // 9. Zipped HTML — Complete report broken into one HTML file

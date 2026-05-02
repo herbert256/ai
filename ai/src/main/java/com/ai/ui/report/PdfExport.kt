@@ -390,11 +390,19 @@ private fun getAppVersion(context: Context): String = try {
  *
  * Must be called from Main since WebView's measure / layout / draw require the UI thread.
  */
-internal suspend fun renderHtmlToPdfFile(context: Context, html: String, output: File, withTocPage: Boolean = false) {
+internal suspend fun renderHtmlToPdfFile(
+    context: Context,
+    html: String,
+    output: File,
+    withTocPage: Boolean = false,
+    timeoutMs: Long = 30_000L
+) {
     val pageWidth = 1240
     val pageHeight = 1754
     val tag = "PdfExport"
-    android.util.Log.i(tag, "renderHtmlToPdfFile: starting, html=${html.length} chars, out=${output.absolutePath}, withToc=$withTocPage")
+    val startNs = System.nanoTime()
+    fun elapsedMs() = (System.nanoTime() - startNs) / 1_000_000
+    android.util.Log.i(tag, "renderHtmlToPdfFile: starting, html=${html.length} chars, out=${output.absolutePath}, withToc=$withTocPage, thread=${Thread.currentThread().name}, timeoutMs=$timeoutMs")
     val done = kotlinx.coroutines.CompletableDeferred<Unit>()
     val webView = WebView(context)
     // JS is required when we ask the WebView to inject the TOC at the top
@@ -534,8 +542,11 @@ internal suspend fun renderHtmlToPdfFile(context: Context, html: String, output:
         }
     }
     webView.webViewClient = object : WebViewClient() {
+        override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+            android.util.Log.i(tag, "onPageStarted url=$url at +${elapsedMs()}ms")
+        }
         override fun onPageFinished(view: WebView, url: String?) {
-            android.util.Log.i(tag, "onPageFinished url=$url, contentHeight=${view.contentHeight}")
+            android.util.Log.i(tag, "onPageFinished url=$url, contentHeight=${view.contentHeight} at +${elapsedMs()}ms")
             // Chromium fires onPageFinished as soon as the document finishes
             // loading, but on a "warm" process the layout pass hasn't run yet —
             // contentHeight is still 0. Poll the main handler until chromium
@@ -552,13 +563,25 @@ internal suspend fun renderHtmlToPdfFile(context: Context, html: String, output:
             }
             maybeRender()
         }
+        override fun onReceivedError(view: WebView, request: android.webkit.WebResourceRequest, error: android.webkit.WebResourceError) {
+            android.util.Log.e(tag, "onReceivedError code=${error.errorCode} desc='${error.description}' url=${request.url} at +${elapsedMs()}ms")
+        }
+        override fun onReceivedHttpError(view: WebView, request: android.webkit.WebResourceRequest, errorResponse: android.webkit.WebResourceResponse) {
+            android.util.Log.e(tag, "onReceivedHttpError status=${errorResponse.statusCode} url=${request.url} at +${elapsedMs()}ms")
+        }
     }
-    android.util.Log.i(tag, "loading HTML into WebView…")
+    android.util.Log.i(tag, "loading HTML into WebView at +${elapsedMs()}ms")
     webView.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
     try {
         // Safety timeout — if onPageFinished never fires (rare, but better to
-        // surface an error than stick the dialog forever) we cap at 30s.
-        kotlinx.coroutines.withTimeout(30_000) { done.await() }
+        // surface an error than stick the dialog forever) we cap at the
+        // configured limit. Bulk-export passes a higher value because the
+        // Complete HTML can be many MB after redacted traces are inlined.
+        kotlinx.coroutines.withTimeout(timeoutMs) { done.await() }
+        android.util.Log.i(tag, "render complete at +${elapsedMs()}ms")
+    } catch (e: Exception) {
+        android.util.Log.e(tag, "renderHtmlToPdfFile failed at +${elapsedMs()}ms: ${e.javaClass.simpleName}: ${e.message}")
+        throw e
     } finally {
         webView.stopLoading()
         webView.destroy()
