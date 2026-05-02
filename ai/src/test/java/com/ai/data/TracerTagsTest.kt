@@ -8,8 +8,8 @@ import org.junit.Test
 /**
  * Coverage for [withTracerTags] and [withTraceCategory] — the push/pop
  * helpers used to bracket every API-call flow's (reportId, category)
- * tag pair on [ApiTracer]. The previous bare-null-restore pattern this
- * replaced clobbered enclosing flows; these tests exercise the
+ * tag pair on [ApiTracer]. They replaced a bare-null-restore pattern
+ * that clobbered enclosing flows; these tests exercise the
  * save/restore behaviour they're supposed to guarantee.
  */
 class TracerTagsTest {
