@@ -11,6 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
@@ -116,18 +117,19 @@ internal suspend fun bulkExportAndShare(
         }
         bump()
         // 9. Zipped HTML — Complete report broken into one HTML file
-        // per item (navigable mini-site).
-        File(workDir, "${safeTitle}_zipped_html.zip").writeBytes(buildZippedHtmlBytes(context, report)); bump()
-        // 10. JSON traces zip — skipped if the report has no captured
-        // traces (the bundle still gets the nine document files).
-        val traceZipBytes = buildJsonTraceZipBytes(context, report)
-        if (traceZipBytes != null) {
-            File(workDir, "${safeTitle}_traces.zip").writeBytes(traceZipBytes)
-        }
-        bump()
+        // per item (navigable mini-site). Held in memory; the bytes
+        // get streamed back out into the master zip below under a
+        // zipped_html/ directory rather than being saved as a nested
+        // .zip — no zip-in-zip.
+        val zippedHtmlBytes = buildZippedHtmlBytes(context, report); bump()
+        // 10. JSON traces zip — same treatment. Bytes are unpacked
+        // into the master zip's traces/ directory. Null when the
+        // report has no captured traces.
+        val traceZipBytes = buildJsonTraceZipBytes(context, report); bump()
 
-        // Master zip: every artifact in workDir at top level (no
-        // intermediate directory), so the user just unzips and reads.
+        // Master zip: every workDir file at top level + the two zip
+        // payloads expanded into their own directories so the user
+        // sees a flat-on-open mini-site instead of nested archives.
         val outDir = File(context.cacheDir, "exports").also { it.mkdirs() }
         val masterZip = File(outDir, "ai_report_${safeTitle}_all_$ts.zip")
         ZipOutputStream(masterZip.outputStream().buffered()).use { zos ->
@@ -137,6 +139,8 @@ internal suspend fun bulkExportAndShare(
                 f.inputStream().use { it.copyTo(zos) }
                 zos.closeEntry()
             }
+            unpackInto(zos, zippedHtmlBytes, "zipped_html/")
+            traceZipBytes?.let { unpackInto(zos, it, "traces/") }
         }
 
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", masterZip)
@@ -156,5 +160,26 @@ internal suspend fun bulkExportAndShare(
         // weight. Master zip lives in the exports cache and is what the
         // share intent points at.
         runCatching { workDir.deleteRecursively() }
+    }
+}
+
+/** Stream every entry of [innerZipBytes] into [zos] under [prefix].
+ *  Skips directory-only entries (those are recreated implicitly by
+ *  the file paths). Used by the bulk export to flatten the Zipped
+ *  HTML and the trace bundle into the master zip rather than nesting
+ *  archives. */
+private fun unpackInto(zos: ZipOutputStream, innerZipBytes: ByteArray, prefix: String) {
+    ZipInputStream(innerZipBytes.inputStream()).use { zis ->
+        while (true) {
+            val entry = zis.nextEntry ?: break
+            if (entry.isDirectory) { zis.closeEntry(); continue }
+            val out = ZipEntry(prefix + entry.name).apply {
+                if (entry.time != -1L) time = entry.time
+            }
+            zos.putNextEntry(out)
+            zis.copyTo(zos)
+            zos.closeEntry()
+            zis.closeEntry()
+        }
     }
 }
