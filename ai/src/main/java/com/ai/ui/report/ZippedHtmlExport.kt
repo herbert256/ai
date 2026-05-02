@@ -68,12 +68,18 @@ internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
         ReportStorage.getReport(context, sid)?.let { buildHtmlReportData(context, it) }
     }
     val sourceTraceIndex = sourceData?.let { buildTraceIndex(it, traceJsonRoot = "JSON/source/") }
+    // Reverse index — lets every trace's per-trace index page link back
+    // to the report/secondary page that was built from it (the inverse
+    // of the 🐞 ladybug link from agent → trace).
+    val mainReportIndex = buildReportIndex(data, basePath = "", origin = "this")
+    val sourceReportIndex = sourceData?.let { buildReportIndex(it, basePath = "Source/", origin = "source") } ?: emptyList()
+    val combinedReportIndex = mainReportIndex + sourceReportIndex
     val baos = ByteArrayOutputStream()
     ZipOutputStream(baos.buffered()).use { zos ->
         emit(zos, "style.css", sharedCss())
-        emitReportSections(zos, data, mainTraceIndex, basePath = "", isMain = true, sourceData = sourceData)
+        emitReportSections(zos, data, mainTraceIndex, basePath = "", isMain = true, sourceData = sourceData, reportIndex = combinedReportIndex)
         if (sourceData != null && sourceTraceIndex != null) {
-            emitReportSections(zos, sourceData, sourceTraceIndex, basePath = "Source/", isMain = false, sourceData = null)
+            emitReportSections(zos, sourceData, sourceTraceIndex, basePath = "Source/", isMain = false, sourceData = null, reportIndex = combinedReportIndex)
         }
     }
     return baos.toByteArray()
@@ -91,7 +97,8 @@ private fun emitReportSections(
     traceIndex: List<TraceLoc>,
     basePath: String,
     isMain: Boolean,
-    sourceData: HtmlReportData?
+    sourceData: HtmlReportData?,
+    reportIndex: List<ReportLoc>
 ) {
     emit(zos, "${basePath}index.html", rootIndex(data, basePath, hasSource = isMain && sourceData != null))
 
@@ -105,7 +112,7 @@ private fun emitReportSections(
     if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
         emitCosts(zos, data, basePath)
     }
-    if (isMain && data.traces.isNotEmpty()) emitTraces(zos, data)
+    if (isMain && data.traces.isNotEmpty()) emitTraces(zos, data, reportIndex)
 }
 
 // ===== Trace index — looks up the zip path of a matching trace =====
@@ -185,6 +192,71 @@ private fun bugLink(loc: TraceLoc?, pageDepth: Int, basePath: String = ""): Stri
     val totalDepth = pageDepth + basePath.count { it == '/' }
     val rel = "../".repeat(totalDepth) + loc.zipPath
     return "<a class='bug' href='${esc(rel)}' title='View API trace'>🐞</a>"
+}
+
+// ===== Report index (reverse of TraceLoc) — every report/secondary
+//      page keyed by its (provider, model, category, origin) so a
+//      trace page can link back to the page it was built for. =====
+
+private data class ReportLoc(
+    val providerLabel: String,
+    val model: String?,
+    val category: String,        // "Report" / "Report rerank" / etc.
+    val zipPath: String,         // zip-root-relative, includes any "Source/" prefix
+    val origin: String           // "this" or "source"
+)
+
+private fun buildReportIndex(data: HtmlReportData, basePath: String, origin: String): List<ReportLoc> {
+    val out = mutableListOf<ReportLoc>()
+    data.agents.forEachIndexed { idx, a ->
+        val filename = itemFilename(idx, "${a.providerDisplay}_${a.model}")
+        out += ReportLoc(a.providerDisplay, a.model, "Report", "${basePath}Reports/$filename", origin)
+    }
+    val secondaryLabels = mapOf(
+        SecondaryKind.SUMMARIZE to ("Summaries" to "Report summarize"),
+        SecondaryKind.COMPARE to ("Compares" to "Report compare"),
+        SecondaryKind.RERANK to ("Reranks" to "Report rerank"),
+        SecondaryKind.MODERATION to ("Moderations" to "Report moderation")
+    )
+    secondaryLabels.forEach { (kind, pair) ->
+        val (sectionLabel, traceCategory) = pair
+        val items = data.secondary.filter { it.kind == kind }
+        items.forEachIndexed { idx, s ->
+            val filename = itemFilename(idx, "${s.providerDisplay}_${s.model}")
+            out += ReportLoc(s.providerDisplay, s.model, traceCategory, "${basePath}$sectionLabel/$filename", origin)
+        }
+    }
+    // Translations live on the main report only (basePath="") and have
+    // their own per-translation page emitted by emitTranslations.
+    if (basePath.isEmpty()) {
+        val translations = data.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
+        translations.forEachIndexed { idx, s ->
+            val what = s.agentName.removePrefix("Translate:").trim().ifBlank { s.agentName }
+            val filename = itemFilename(idx, what)
+            out += ReportLoc(s.providerDisplay, s.model, "Report translate", "Translations/$filename", origin)
+        }
+    }
+    return out
+}
+
+private fun List<ReportLoc>.findReportFor(t: HtmlTraceData): ReportLoc? {
+    val cat = t.category ?: return null
+    val provider = providerLabelFor(t.hostname)
+    return firstOrNull { loc ->
+        loc.origin == t.origin &&
+            loc.category == cat &&
+            loc.providerLabel == provider &&
+            (t.model == null || loc.model == null || loc.model == t.model)
+    }
+}
+
+/** "📄 report" link from a trace page at [pageDepth] (counts "../"
+ *  hops to the zip root) back to the report/secondary page that was
+ *  built from this trace — inverse of [bugLink]. */
+private fun reportLink(loc: ReportLoc?, pageDepth: Int): String {
+    if (loc == null) return ""
+    val rel = "../".repeat(pageDepth) + loc.zipPath
+    return "<a class='bug' href='${esc(rel)}' title='View report page built from this call'>📄</a>"
 }
 
 // ===== Sections present (used by the root index to list links) =====
@@ -591,7 +663,7 @@ private fun costSortScript(): String = """
 
 // ===== Traces =====
 
-private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData) {
+private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData, reportIndex: List<ReportLoc>) {
     val ownTraces = data.traces.filter { it.origin == "this" }
     val sourceTraces = data.traces.filter { it.origin == "source" }
 
@@ -618,7 +690,7 @@ private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData) {
 
     // Own categories
     ownKeys.forEach { cat -> emitTraceCategory(zos, "JSON/${safeName(cat)}", data, cat, ownGroups[cat]!!, depth = 2,
-        crumbs = listOf("JSON" to "../index.html", cat to null)) }
+        crumbs = listOf("JSON" to "../index.html", cat to null), reportIndex = reportIndex) }
 
     // Source categories — under JSON/source/<category>/...
     if (sourceTraces.isNotEmpty()) {
@@ -635,11 +707,11 @@ private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData) {
         emit(zos, "JSON/source/index.html", srcSb.toString())
 
         sourceKeys.forEach { cat -> emitTraceCategory(zos, "JSON/source/${safeName(cat)}", data, cat, sourceGroups[cat]!!,
-            depth = 3, crumbs = listOf("JSON" to "../../index.html", "source" to "../index.html", cat to null)) }
+            depth = 3, crumbs = listOf("JSON" to "../../index.html", "source" to "../index.html", cat to null), reportIndex = reportIndex) }
     }
 }
 
-private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlReportData, category: String, traces: List<HtmlTraceData>, depth: Int, crumbs: List<Pair<String, String?>>) {
+private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlReportData, category: String, traces: List<HtmlTraceData>, depth: Int, crumbs: List<Pair<String, String?>>, reportIndex: List<ReportLoc>) {
     // Category index — list of traces.
     val sb = StringBuilder()
     sb.append(htmlHead("$category - ${data.title}", depth))
@@ -662,11 +734,14 @@ private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlR
     traces.forEachIndexed { idx, t ->
         val dir = traceDirName(idx, t)
         val traceCrumbs = crumbsChain + ("Trace" to null)
-        // Per-trace index — metadata + 4 links.
+        // Per-trace index — metadata + 4 links + a back-link to the
+        // report/secondary page that was built from this call (when one
+        // exists).
+        val reportMatch = reportIndex.findReportFor(t)
         val tsb = StringBuilder()
         tsb.append(htmlHead("Trace ${t.method} ${t.hostname} ${t.statusCode} - ${data.title}", depth + 1))
         tsb.append(breadcrumb(depth + 1, traceCrumbs, data))
-        tsb.append("<main><h1>Trace</h1>")
+        tsb.append("<main><h1>Trace").append(reportLink(reportMatch, depth + 1)).append("</h1>")
         tsb.append("<table class='kv'>")
         tsb.append("<tr><th>Timestamp</th><td>").append(esc(t.timestamp)).append("</td></tr>")
         tsb.append("<tr><th>Method</th><td>").append(esc(t.method)).append("</td></tr>")
