@@ -239,20 +239,31 @@ fun ReportsScreen(
     // promptly without the user bouncing in/out of the screen.
     var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0, 0)) }
     var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
+    var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
     LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0)
             secondaryRuns = emptyList()
+            secondaryTotals = SecondaryTotals.ZERO
             return@LaunchedEffect
         }
         suspend fun reload() {
             withContext(Dispatchers.IO) {
-                val list = SecondaryResultStorage.listForReport(context, rid)
+                val all = SecondaryResultStorage.listForReport(context, rid)
+                secondaryRuns = all
                     .filter { it.kind != SecondaryKind.TRANSLATE }
                     .sortedByDescending { it.timestamp }
-                val counts = SecondaryResultStorage.countForReport(context, rid)
-                secondaryRuns = list
-                secondaryCounts = counts
+                secondaryCounts = SecondaryResultStorage.countForReport(context, rid)
+                // Totals span every persisted secondary including
+                // TRANSLATE rows — those translation calls show up
+                // in the cost table as separate rows and should sum
+                // into the bottom-line total here too.
+                secondaryTotals = SecondaryTotals(
+                    inputTokens = all.sumOf { it.tokenUsage?.inputTokens ?: 0 },
+                    outputTokens = all.sumOf { it.tokenUsage?.outputTokens ?: 0 },
+                    inputCost = all.sumOf { it.inputCost ?: 0.0 },
+                    outputCost = all.sumOf { it.outputCost ?: 0.0 }
+                )
             }
         }
         reload()
@@ -767,6 +778,7 @@ fun ReportsScreen(
                 onTranslate = { showTranslateLanguagePicker = true },
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
+                secondaryTotals = secondaryTotals,
                 onViewSecondaryKind = { kind -> listKind = kind },
                 onOpenSecondaryRun = { id -> openMetaResultId = id },
                 onOpenMeta = { showMetaScreen = true },
@@ -930,6 +942,7 @@ private fun ColumnScope.GenerationPhase(
     onTranslate: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
+    secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
     onViewSecondaryKind: (SecondaryKind) -> Unit = {},
     onOpenSecondaryRun: (String) -> Unit = {},
     onOpenMeta: () -> Unit = {},
@@ -979,6 +992,38 @@ private fun ColumnScope.GenerationPhase(
     val staged = uiState.stagedReportModels
     val isStagedMode = isComplete && staged.isNotEmpty()
 
+    // Per-agent token + cost rollup (computed up front so it can feed
+    // both the top-of-page totals banner and any per-row costs below).
+    val selectedAgents = uiState.genericReportsSelectedAgents
+    val agentCost = remember(reportsAgentResults) {
+        reportsAgentResults.entries.sumOf { (agentId, resp) ->
+            resp.tokenUsage?.let {
+                PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
+            } ?: 0.0
+        }
+    }
+    val agentInputTokens = remember(reportsAgentResults) {
+        reportsAgentResults.values.sumOf { it.tokenUsage?.inputTokens ?: 0 }
+    }
+    val agentOutputTokens = remember(reportsAgentResults) {
+        reportsAgentResults.values.sumOf { it.tokenUsage?.outputTokens ?: 0 }
+    }
+    val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens
+    val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens
+    val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost
+
+    // Totals banner — at the top of the page so the bottom-line cost
+    // is visible without scrolling. Sums tokens and cents across the
+    // per-agent rows AND every persisted meta run (rerank / summarize
+    // / compare / moderation / translate). Hidden when nothing has
+    // billed anything yet.
+    if (totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0) {
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            Text("Total: $totalInputTokens/$totalOutputTokens tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
+            Text("${formatCents(totalCost)} ¢", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+        }
+    }
+
     // Progress is in-flight UI: shown only while at least one agent is
     // still pending. Drops out once every agent finishes (or in
     // staged-edit mode where the X/Y count is meaningless until the
@@ -990,16 +1035,6 @@ private fun ColumnScope.GenerationPhase(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             color = AppColors.Purple
         )
-    }
-
-    // Agent results
-    val selectedAgents = uiState.genericReportsSelectedAgents
-    val totalCost = remember(reportsAgentResults) {
-        reportsAgentResults.entries.sumOf { (agentId, resp) ->
-            resp.tokenUsage?.let {
-                PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
-            } ?: 0.0
-        }
     }
 
     data class DisplayRow(val rowId: String, val displayName: String, val isNew: Boolean)
@@ -1111,15 +1146,6 @@ private fun ColumnScope.GenerationPhase(
             }
         }
 
-        if (reportsAgentResults.isNotEmpty()) {
-            val totalIn = reportsAgentResults.values.sumOf { it.tokenUsage?.inputTokens ?: 0 }
-            val totalOut = reportsAgentResults.values.sumOf { it.tokenUsage?.outputTokens ?: 0 }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Text("Total: $totalIn/$totalOut tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-                Text("${formatCents(totalCost)} \u00A2", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
-            }
-        }
     }
 
     Spacer(modifier = Modifier.height(4.dp))
@@ -1194,6 +1220,19 @@ private fun ColumnScope.GenerationPhase(
             CompactButton(onClick = onModerate, color = AppColors.Orange, text = "Moderation")
         }
     }
+}
+
+/** Aggregated tokens + cost across every persisted secondary result on
+ *  a report (rerank / summarize / compare / moderation / translate),
+ *  loaded alongside the per-row list and summed once so the totals
+ *  banner doesn't have to scan the list on every recomposition. */
+private data class SecondaryTotals(
+    val inputTokens: Int,
+    val outputTokens: Int,
+    val inputCost: Double,
+    val outputCost: Double
+) {
+    companion object { val ZERO = SecondaryTotals(0, 0, 0.0, 0.0) }
 }
 
 /** Compact action button shared across the Reports result page's
