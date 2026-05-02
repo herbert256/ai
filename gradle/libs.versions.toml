@@ -9,7 +9,6 @@ retrofit = "3.0.0"
 okhttp = "5.3.2"
 coroutines = "1.10.2"
 viewmodel = "2.10.0"
-composeMarkdown = "0.7.2"
 navigationCompose = "2.9.8"
 profileinstaller = "1.4.1"
 datastore = "1.2.1"
@@ -43,9 +42,6 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 # Coroutines
 coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
-
-# Markdown
-compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "composeMarkdown" }
 
 # Navigation
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }

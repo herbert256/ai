@@ -130,9 +130,6 @@ dependencies {
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
 
-    // Markdown rendering
-    implementation(libs.compose.markdown)
-
     // Navigation
     implementation(libs.navigation.compose)
 
