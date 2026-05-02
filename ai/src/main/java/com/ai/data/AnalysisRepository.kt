@@ -99,7 +99,7 @@ class AnalysisRepository {
         return result
     }
 
-    private fun mergeParameters(agentParams: AgentParameters, overrideParams: AgentParameters?): AgentParameters {
+    internal fun mergeParameters(agentParams: AgentParameters, overrideParams: AgentParameters?): AgentParameters {
         if (overrideParams == null) return agentParams
         return AgentParameters(
             temperature = overrideParams.temperature ?: agentParams.temperature,

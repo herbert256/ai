@@ -61,7 +61,7 @@ private fun saveStringList(prefs: android.content.SharedPreferences, key: String
     prefs.edit().putString(key, com.ai.data.createAppGson().toJson(list)).apply()
 }
 
-private fun resolveParamsIds(aiSettings: Settings, ids: List<String>): ChatParameters {
+internal fun resolveParamsIds(aiSettings: Settings, ids: List<String>): ChatParameters {
     val merged = aiSettings.mergeParameters(ids) ?: return ChatParameters()
     return ChatParameters(
         temperature = merged.temperature, maxTokens = merged.maxTokens,

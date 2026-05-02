@@ -146,7 +146,7 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
     imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-    val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
+    val responsesUrl = responsesUrlFor(service, baseUrl)
     val input: Any = if (imageBase64 != null) {
         // Responses API accepts an array of input messages whose content is a typed
         // parts array — input_text + input_image (image_url as a data: URL).
@@ -321,7 +321,7 @@ private suspend fun AnalysisRepository.chatResponsesApi(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters, baseUrl: String
 ): String {
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
-    val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
+    val responsesUrl = responsesUrlFor(service, baseUrl)
     val systemPrompt = messages.find { it.role == "system" }?.content
     val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
     val tools = if (params.webSearchTool) responsesWebSearchTool() else null
@@ -339,6 +339,9 @@ private suspend fun AnalysisRepository.chatResponsesApi(
         throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
     }
 }
+
+internal fun responsesUrlFor(service: AppService, baseUrl: String): String =
+    buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses")
 
 private suspend fun AnalysisRepository.chatAnthropic(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters

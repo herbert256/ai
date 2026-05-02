@@ -18,7 +18,10 @@ object EmbeddingsStore {
     private val type = object : TypeToken<List<Double>>() {}.type
 
     private fun dir(context: Context): File =
-        File(context.filesDir, DIR_NAME).also { it.mkdirs() }
+        dir(context.filesDir)
+
+    private fun dir(filesDir: File): File =
+        File(filesDir, DIR_NAME).also { it.mkdirs() }
 
     private fun cacheKey(docId: String, providerId: String, model: String, content: String): String {
         val raw = "$providerId::$model::$docId::${contentHash(content)}"
@@ -34,16 +37,27 @@ object EmbeddingsStore {
         }
 
     private fun fileFor(context: Context, docId: String, providerId: String, model: String, content: String): File =
-        File(dir(context), "${cacheKey(docId, providerId, model, content)}.json")
+        fileFor(context.filesDir, docId, providerId, model, content)
+
+    private fun fileFor(filesDir: File, docId: String, providerId: String, model: String, content: String): File =
+        File(dir(filesDir), "${cacheKey(docId, providerId, model, content)}.json")
 
     fun get(context: Context, docId: String, providerId: String, model: String, content: String): List<Double>? {
-        val f = fileFor(context, docId, providerId, model, content)
+        return get(context.filesDir, docId, providerId, model, content)
+    }
+
+    internal fun get(filesDir: File, docId: String, providerId: String, model: String, content: String): List<Double>? {
+        val f = fileFor(filesDir, docId, providerId, model, content)
         if (!f.exists()) return null
         return try { gson.fromJson(f.readText(), type) } catch (_: Exception) { null }
     }
 
     fun put(context: Context, docId: String, providerId: String, model: String, content: String, vector: List<Double>) {
-        fileFor(context, docId, providerId, model, content).writeTextAtomic(gson.toJson(vector))
+        put(context.filesDir, docId, providerId, model, content, vector)
+    }
+
+    internal fun put(filesDir: File, docId: String, providerId: String, model: String, content: String, vector: List<Double>) {
+        fileFor(filesDir, docId, providerId, model, content).writeTextAtomic(gson.toJson(vector))
     }
 
     fun clearAll(context: Context) {

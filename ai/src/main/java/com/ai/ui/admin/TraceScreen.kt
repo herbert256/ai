@@ -649,13 +649,17 @@ private fun redactSecretsInUrl(url: String): String {
 
 private fun shareTrace(context: Context, content: String, filename: String) {
     try {
-        val dir = File(context.cacheDir, "shared_traces").also { it.mkdirs() }
-        val file = File(dir, filename)
+        val file = sharedTraceCacheFile(context.cacheDir, filename)
         file.writeText(content)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         context.startActivity(Intent.createChooser(intent, "Share Trace"))
     } catch (e: Exception) { Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show() }
+}
+
+internal fun sharedTraceCacheFile(cacheDir: File, filename: String): File {
+    val dir = File(cacheDir, "shared_traces").also { it.mkdirs() }
+    return File(dir, filename)
 }
 
 // ===== JSON Tree View =====

@@ -112,7 +112,7 @@ object BackupManager {
             if (version > MANIFEST_VERSION) {
                 throw IllegalStateException("Backup is from a newer app version ($version). Please update the app.")
             }
-            clearFilesDir(context.filesDir)
+            clearFilesDirForRestore(context.filesDir)
             restoreFromZip(context, tempZip, version)
         } finally {
             tempZip.delete()
@@ -183,7 +183,7 @@ object BackupManager {
         return -1
     }
 
-    private fun clearFilesDir(filesDir: File) {
+    internal fun clearFilesDirForRestore(filesDir: File) {
         if (!filesDir.exists()) {
             filesDir.mkdirs()
             return

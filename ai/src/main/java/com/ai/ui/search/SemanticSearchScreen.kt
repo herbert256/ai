@@ -59,15 +59,7 @@ fun SemanticSearchScreen(
     // Embedding-capable (provider, model) pairs across active providers — read
     // from Settings.modelTypes which is populated by ModelType.infer at fetch
     // time and overridden by the user via Manual model types overrides.
-    val embeddingChoices = remember(aiSettings) {
-        aiSettings.getActiveServices().flatMap { service ->
-            if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) return@flatMap emptyList()
-            val cfg = aiSettings.getProvider(service)
-            cfg.models.mapNotNull { model ->
-                if (aiSettings.getModelType(service, model) == ModelType.EMBEDDING) service to model else null
-            }
-        }
-    }
+    val embeddingChoices = remember(aiSettings) { supportedEmbeddingChoices(aiSettings) }
     var picked by remember { mutableStateOf(embeddingChoices.firstOrNull()) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchHit>>(emptyList()) }
@@ -174,6 +166,16 @@ fun SemanticSearchScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+internal fun supportedEmbeddingChoices(aiSettings: Settings): List<Pair<AppService, String>> {
+    return aiSettings.getActiveServices().flatMap { service ->
+        if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) return@flatMap emptyList()
+        val cfg = aiSettings.getProvider(service)
+        cfg.models.mapNotNull { model ->
+            if (aiSettings.getModelType(service, model) == ModelType.EMBEDDING) service to model else null
         }
     }
 }
