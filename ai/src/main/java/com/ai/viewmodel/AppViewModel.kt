@@ -177,8 +177,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        super.onCleared()
+        settingsPrefs.flushUsageStats()
         ApiTracer.currentReportId = null
+        super.onCleared()
     }
 
     private suspend fun bootstrap(application: Application): Pair<GeneralSettings, Settings> {
