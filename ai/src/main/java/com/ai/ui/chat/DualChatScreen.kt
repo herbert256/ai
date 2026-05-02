@@ -68,7 +68,8 @@ private fun resolveParamsIds(aiSettings: Settings, ids: List<String>): ChatParam
         topP = merged.topP, topK = merged.topK,
         frequencyPenalty = merged.frequencyPenalty, presencePenalty = merged.presencePenalty,
         systemPrompt = merged.systemPrompt ?: "", searchEnabled = merged.searchEnabled,
-        returnCitations = merged.returnCitations, searchRecency = merged.searchRecency
+        returnCitations = merged.returnCitations, searchRecency = merged.searchRecency,
+        webSearchTool = merged.webSearchTool, reasoningEffort = merged.reasoningEffort
     )
 }
 
