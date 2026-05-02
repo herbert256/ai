@@ -7,6 +7,7 @@ import com.ai.data.AppService
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
+import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -702,8 +703,77 @@ private fun tracePartPage(data: HtmlReportData, t: HtmlTraceData, partLabel: Str
     sb.append(breadcrumb(depth, partCrumbs, data))
     sb.append("<main><h1>").append(esc(partLabel)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(t.method)).append(" ").append(esc(t.url)).append("</div>")
-    sb.append("<pre class='code'>").append(esc(body.ifBlank { "(empty)" })).append("</pre>")
+    val display = body.ifBlank { "(empty)" }
+    val colorized = colorizedJsonHtml(display)
+    if (colorized != null) {
+        sb.append("<pre class='code json'>").append(colorized).append("</pre>")
+    } else {
+        sb.append("<pre class='code'>").append(esc(display)).append("</pre>")
+    }
     sb.append("</main></body></html>")
+    return sb.toString()
+}
+
+/** If [text] parses as JSON, return pretty-printed HTML with
+ *  per-token spans for syntax colouring; otherwise return null so
+ *  the caller falls back to plain escaped text. The output is meant
+ *  to live inside a <pre> — newlines + spaces are literal. */
+internal fun colorizedJsonHtml(text: String): String? {
+    val trimmed = text.trim()
+    // Quick reject: anything not starting with { or [ isn't worth parsing.
+    if (trimmed.isEmpty() || (trimmed[0] != '{' && trimmed[0] != '[')) return null
+    val root: JsonElement = try {
+        @Suppress("DEPRECATION") JsonParser().parse(trimmed)
+    } catch (_: Exception) { return null }
+    val sb = StringBuilder()
+    fun renderString(s: String, cls: String) {
+        sb.append("<span class='").append(cls).append("'>\"")
+            .append(esc(s)).append("\"</span>")
+    }
+    fun render(el: JsonElement, indent: Int) {
+        when {
+            el.isJsonNull -> sb.append("<span class='j-null'>null</span>")
+            el.isJsonPrimitive -> {
+                val p = el.asJsonPrimitive
+                when {
+                    p.isString -> renderString(p.asString, "j-str")
+                    p.isBoolean -> sb.append("<span class='j-bool'>").append(p.asBoolean).append("</span>")
+                    p.isNumber -> sb.append("<span class='j-num'>").append(p.asNumber.toString()).append("</span>")
+                    else -> sb.append(esc(p.toString()))
+                }
+            }
+            el.isJsonArray -> {
+                val arr = el.asJsonArray
+                if (arr.size() == 0) { sb.append("[]"); return }
+                sb.append("[\n")
+                val pad = "  ".repeat(indent + 1)
+                arr.forEachIndexed { i, child ->
+                    sb.append(pad)
+                    render(child, indent + 1)
+                    if (i < arr.size() - 1) sb.append(",")
+                    sb.append("\n")
+                }
+                sb.append("  ".repeat(indent)).append("]")
+            }
+            el.isJsonObject -> {
+                val obj = el.asJsonObject
+                if (obj.size() == 0) { sb.append("{}"); return }
+                sb.append("{\n")
+                val entries = obj.entrySet().toList()
+                val pad = "  ".repeat(indent + 1)
+                entries.forEachIndexed { i, (k, v) ->
+                    sb.append(pad)
+                    renderString(k, "j-key")
+                    sb.append(": ")
+                    render(v, indent + 1)
+                    if (i < entries.size - 1) sb.append(",")
+                    sb.append("\n")
+                }
+                sb.append("  ".repeat(indent)).append("}")
+            }
+        }
+    }
+    render(root, 0)
     return sb.toString()
 }
 
@@ -803,6 +873,13 @@ th{background:#252525;color:#9FCFFF}
 pre{background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:10px;color:#ccc;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;overflow-x:auto;line-height:1.4}
 pre.prompt{font-size:13px;color:#e0e0e0}
 pre.code{max-height:none}
+/* JSON syntax colouring for trace request/response bodies */
+pre.json{color:#bbb}
+pre.json .j-key{color:#9FCFFF}
+pre.json .j-str{color:#A5D6A7}
+pre.json .j-num{color:#FFB74D}
+pre.json .j-bool{color:#CE93D8}
+pre.json .j-null{color:#888;font-style:italic}
 .snippet{color:#aaa;font-size:11px;margin-top:2px}
 """.trimIndent()
 
