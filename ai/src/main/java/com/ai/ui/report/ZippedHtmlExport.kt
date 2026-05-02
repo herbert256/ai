@@ -58,16 +58,20 @@ import java.util.zip.ZipOutputStream
  */
 internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
     val data = buildHtmlReportData(context, report)
-    val mainTraceIndex = buildTraceIndex(data, traceJsonRoot = "JSON/")
-    // If this is a translated report, also emit the original report's
-    // HTML tree under Source/ so each Translation page can link back
-    // to both the source page and the result page in the current
-    // report. The source uses its own trace-index pointing into the
-    // main report's JSON/source/ tree (no duplicate trace files).
+    // Each report's traces live alongside its other HTML sections —
+    // /JSON/ for the main report, /Source/JSON/ for the source side
+    // of a translated report. Each side's traceIndex covers (a) its
+    // own traces under that side's JSON tree, and (b) — for the main
+    // side — the source's traces too (under /Source/JSON/), so an
+    // agent page on the main side can still drop a 🐞 link to the
+    // source-inherited trace that produced its response.
     val sourceData = report.sourceReportId?.let { sid ->
         ReportStorage.getReport(context, sid)?.let { buildHtmlReportData(context, it) }
     }
-    val sourceTraceIndex = sourceData?.let { buildTraceIndex(it, traceJsonRoot = "JSON/source/") }
+    val mainOwnTraces = traceLocsForOwn(data, jsonRoot = "JSON/")
+    val sourceOwnTraces = sourceData?.let { traceLocsForOwn(it, jsonRoot = "Source/JSON/") }.orEmpty()
+    val mainTraceIndex = mainOwnTraces + sourceOwnTraces
+    val sourceTraceIndex = sourceOwnTraces
     // Reverse index — lets every trace's per-trace index page link back
     // to the report/secondary page that was built from it (the inverse
     // of the 🐞 ladybug link from agent → trace).
@@ -78,7 +82,7 @@ internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
     ZipOutputStream(baos.buffered()).use { zos ->
         emit(zos, "style.css", sharedCss())
         emitReportSections(zos, data, mainTraceIndex, basePath = "", isMain = true, sourceData = sourceData, reportIndex = combinedReportIndex)
-        if (sourceData != null && sourceTraceIndex != null) {
+        if (sourceData != null) {
             emitReportSections(zos, sourceData, sourceTraceIndex, basePath = "Source/", isMain = false, sourceData = null, reportIndex = combinedReportIndex)
         }
     }
@@ -112,7 +116,9 @@ private fun emitReportSections(
     if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
         emitCosts(zos, data, basePath)
     }
-    if (isMain && data.traces.isNotEmpty()) emitTraces(zos, data, reportIndex)
+    if (data.traces.any { it.origin == "this" }) {
+        emitTraces(zos, data, reportIndex, basePath, hasSourceJson = isMain && sourceData != null)
+    }
 }
 
 // ===== Trace index — looks up the zip path of a matching trace =====
@@ -127,42 +133,27 @@ private data class TraceLoc(
     val zipPath: String
 )
 
-/** Build the same per-category, per-trace directory naming as
- *  emitTraces. [traceJsonRoot] is the zip-root-relative directory the
- *  trace index lives under — "JSON/" for the main report (own traces
- *  flat, source traces under JSON/source/) or "JSON/source/" when
- *  building the source's index (only own traces, all under
- *  JSON/source/). */
-private fun buildTraceIndex(data: HtmlReportData, traceJsonRoot: String): List<TraceLoc> {
+/** Build TraceLocs for [data]'s own (origin="this") traces, addressed
+ *  under [jsonRoot]. Each report side (main / source) owns one tree:
+ *  /JSON/ for main, /Source/JSON/ for source. The combined index
+ *  passed to the main side stitches both together so a translated
+ *  main report can still link agent pages to the source-inherited
+ *  traces. */
+private fun traceLocsForOwn(data: HtmlReportData, jsonRoot: String): List<TraceLoc> {
+    val own = data.traces.filter { it.origin == "this" }
     val out = mutableListOf<TraceLoc>()
-    val ownTraces = data.traces.filter { it.origin == "this" }
-    val sourceTraces = data.traces.filter { it.origin == "source" }
-    val ownGroups = ownTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
-    ownGroups.forEach { (cat, list) ->
-        val catSafe = safeName(cat)
-        list.forEachIndexed { idx, t ->
-            val dir = traceDirName(idx, t)
-            out += TraceLoc(
-                providerLabel = providerLabelFor(t.hostname),
-                model = t.model,
-                category = t.category,
-                zipPath = "$traceJsonRoot$catSafe/$dir/index.html"
-            )
+    own.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
+        .forEach { (cat, list) ->
+            val catSafe = safeName(cat)
+            list.forEachIndexed { idx, t ->
+                out += TraceLoc(
+                    providerLabel = providerLabelFor(t.hostname),
+                    model = t.model,
+                    category = t.category,
+                    zipPath = "$jsonRoot$catSafe/${traceDirName(idx, t)}/index.html"
+                )
+            }
         }
-    }
-    val sourceGroups = sourceTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
-    sourceGroups.forEach { (cat, list) ->
-        val catSafe = safeName(cat)
-        list.forEachIndexed { idx, t ->
-            val dir = traceDirName(idx, t)
-            out += TraceLoc(
-                providerLabel = providerLabelFor(t.hostname),
-                model = t.model,
-                category = t.category,
-                zipPath = "${traceJsonRoot}source/$catSafe/$dir/index.html"
-            )
-        }
-    }
     return out
 }
 
@@ -664,52 +655,43 @@ private fun costSortScript(): String = """
 
 // ===== Traces =====
 
-private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData, reportIndex: List<ReportLoc>) {
+/** Emit the JSON/ tree for one report side. Both the main report and
+ *  the source report (when present) get their own JSON/ section
+ *  under /JSON/ and /Source/JSON/ respectively. [basePath] is "" for
+ *  main or "Source/" for source. [hasSourceJson] adds a link from the
+ *  main JSON index across to /Source/JSON/ for navigability. */
+private fun emitTraces(zos: ZipOutputStream, data: HtmlReportData, reportIndex: List<ReportLoc>, basePath: String, hasSourceJson: Boolean) {
     val ownTraces = data.traces.filter { it.origin == "this" }
-    val sourceTraces = data.traces.filter { it.origin == "source" }
-
-    // JSON/index.html — list of "this" categories + a link to source/ when present
-    val sb = StringBuilder()
-    sb.append(htmlHead("JSON traces - ${data.title}", depth = 1))
-    sb.append(breadcrumb(1, listOf("JSON" to null), data))
-    sb.append("<main><h1>JSON traces</h1>")
     val ownGroups = ownTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
     val ownKeys = ownGroups.keys.sortedWith(compareBy({ it == "Other" }, { it.lowercase() }))
+
+    // JSON/index.html (or Source/JSON/index.html) — list of categories.
+    val sb = StringBuilder()
+    val depth = 1 + basePath.count { it == '/' }
+    sb.append(htmlHead("JSON traces - ${data.title}", depth = 1, basePath = basePath))
+    sb.append(breadcrumb(depth, listOf("JSON" to null), data))
+    sb.append("<main><h1>JSON traces</h1>")
     if (ownKeys.isNotEmpty()) {
         sb.append("<h2>Categories</h2><ul class='item-list'>")
         ownKeys.forEach { k -> sb.append("<li><a href='").append(esc(safeName(k))).append("/index.html'>")
             .append(esc(k)).append(" <span class='count'>(").append(ownGroups[k]!!.size).append(")</span></a></li>") }
         sb.append("</ul>")
     }
-    if (sourceTraces.isNotEmpty()) {
+    // Cross-link from main JSON to source JSON tree (translated reports
+    // mirror the full traces under /Source/JSON/ alongside the source
+    // report's other HTML pages).
+    if (hasSourceJson) {
         sb.append("<h2>Source report</h2><ul class='item-list'>")
-        sb.append("<li><a href='source/index.html'>source/ <span class='count'>(").append(sourceTraces.size).append(")</span></a></li>")
+        sb.append("<li><a href='../Source/JSON/index.html'>Source/JSON/</a></li>")
         sb.append("</ul>")
     }
     sb.append("</main></body></html>")
-    emit(zos, "JSON/index.html", sb.toString())
+    emit(zos, "${basePath}JSON/index.html", sb.toString())
 
     // Own categories
-    ownKeys.forEach { cat -> emitTraceCategory(zos, "JSON/${safeName(cat)}", data, cat, ownGroups[cat]!!, depth = 2,
+    ownKeys.forEach { cat -> emitTraceCategory(zos, "${basePath}JSON/${safeName(cat)}", data, cat, ownGroups[cat]!!,
+        depth = depth + 1,
         crumbs = listOf("JSON" to "../index.html", cat to null), reportIndex = reportIndex) }
-
-    // Source categories — under JSON/source/<category>/...
-    if (sourceTraces.isNotEmpty()) {
-        val sourceGroups = sourceTraces.groupBy { (it.category ?: "Other").trim().ifBlank { "Other" } }
-        val sourceKeys = sourceGroups.keys.sortedWith(compareBy({ it == "Other" }, { it.lowercase() }))
-        // JSON/source/index.html
-        val srcSb = StringBuilder()
-        srcSb.append(htmlHead("JSON traces from source report - ${data.title}", depth = 2))
-        srcSb.append(breadcrumb(2, listOf("JSON" to "../index.html", "source" to null), data))
-        srcSb.append("<main><h1>JSON traces — source report</h1><ul class='item-list'>")
-        sourceKeys.forEach { k -> srcSb.append("<li><a href='").append(esc(safeName(k)))
-            .append("/index.html'>").append(esc(k)).append(" <span class='count'>(").append(sourceGroups[k]!!.size).append(")</span></a></li>") }
-        srcSb.append("</ul></main></body></html>")
-        emit(zos, "JSON/source/index.html", srcSb.toString())
-
-        sourceKeys.forEach { cat -> emitTraceCategory(zos, "JSON/source/${safeName(cat)}", data, cat, sourceGroups[cat]!!,
-            depth = 3, crumbs = listOf("JSON" to "../../index.html", "source" to "../index.html", cat to null), reportIndex = reportIndex) }
-    }
 }
 
 private fun emitTraceCategory(zos: ZipOutputStream, dirPath: String, data: HtmlReportData, category: String, traces: List<HtmlTraceData>, depth: Int, crumbs: List<Pair<String, String?>>, reportIndex: List<ReportLoc>) {
