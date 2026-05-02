@@ -526,14 +526,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  the kind before using the result. */
     private fun resolveTemplate(aiSettings: Settings, generalSettings: GeneralSettings, kind: SecondaryKind): String {
         if (kind == SecondaryKind.MODERATION) return ""
-        val targetName = when (kind) {
-            SecondaryKind.RERANK -> "rerank"
-            SecondaryKind.SUMMARIZE -> "summarize"
-            SecondaryKind.COMPARE -> "compare"
-            SecondaryKind.MODERATION -> "moderation" // unreachable
-        }
-        val internal = aiSettings.prompts.firstOrNull { it.name.equals(targetName, ignoreCase = true) }
-        if (internal != null && internal.promptText.isNotBlank()) return internal.promptText
         val fromGs = when (kind) {
             SecondaryKind.RERANK -> generalSettings.rerankPrompt
             SecondaryKind.SUMMARIZE -> generalSettings.summarizePrompt

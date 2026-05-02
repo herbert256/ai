@@ -210,6 +210,14 @@ Facts, framings, or arguments that only one response raised. Note the source [N]
 
 ## Overall takeaway
 One paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above."""
+
+    const val DEFAULT_INTRO = """Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.
+
+You are: @MODEL@ from @PROVIDER@."""
+
+    const val DEFAULT_MODEL_INFO = """Tell me about yourself as an AI model. Cover: your name and version, who created you, your context window if you know it, your primary strengths, and any notable limitations. Plain prose, 3–6 sentences.
+
+You are: @MODEL@ from @PROVIDER@."""
 }
 
 /** Substitutes placeholders in [template] using the values for the

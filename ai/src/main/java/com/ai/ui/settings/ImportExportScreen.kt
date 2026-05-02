@@ -199,6 +199,8 @@ fun ImportExportScreen(
                     result.rerankPrompt?.let { gs = gs.copy(rerankPrompt = it) }
                     result.summarizePrompt?.let { gs = gs.copy(summarizePrompt = it) }
                     result.comparePrompt?.let { gs = gs.copy(comparePrompt = it) }
+                    result.introPrompt?.let { gs = gs.copy(introPrompt = it) }
+                    result.modelInfoPrompt?.let { gs = gs.copy(modelInfoPrompt = it) }
                     if (gs != generalSettings) onSaveGeneral(gs)
                 }
             }

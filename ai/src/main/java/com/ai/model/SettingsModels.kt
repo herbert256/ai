@@ -157,18 +157,6 @@ data class ModelTypeOverride(
     val supportsWebSearch: Boolean = false
 )
 
-data class Prompt(val id: String, val name: String, val agentId: String, val promptText: String) {
-    fun resolvePrompt(model: String? = null, provider: String? = null, agent: String? = null, swarm: String? = null): String {
-        var resolved = promptText
-        if (model != null) resolved = resolved.replace("@MODEL@", model)
-        if (provider != null) resolved = resolved.replace("@PROVIDER@", provider)
-        if (agent != null) resolved = resolved.replace("@AGENT@", agent)
-        if (swarm != null) resolved = resolved.replace("@SWARM@", swarm)
-        resolved = resolved.replace("@NOW@", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date()))
-        return resolved
-    }
-}
-
 data class Settings(
     val providers: Map<AppService, ProviderConfig> = defaultProvidersMap(),
     val agents: List<Agent> = emptyList(),
@@ -176,7 +164,6 @@ data class Settings(
     val swarms: List<Swarm> = emptyList(),
     val parameters: List<Parameters> = emptyList(),
     val systemPrompts: List<SystemPrompt> = emptyList(),
-    val prompts: List<Prompt> = emptyList(),
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
     val providerStates: Map<String, String> = emptyMap(),
     val modelTypeOverrides: List<ModelTypeOverride> = emptyList()
@@ -413,12 +400,9 @@ data class Settings(
     fun getMembersForSwarm(swarm: Swarm) = swarm.members
     fun getMembersForSwarms(swarmIds: Set<String>) = swarmIds.flatMap { id -> getSwarmById(id)?.members ?: emptyList() }.distinctBy { "${it.provider.id}:${it.model}" }
 
-    fun getPromptByName(name: String) = prompts.find { it.name.equals(name, ignoreCase = true) }
     fun getSystemPromptById(id: String) = systemPrompts.find { it.id == id }
     fun getParametersById(id: String) = parameters.find { it.id == id }
     fun getParametersByName(name: String) = parameters.find { it.name.equals(name, ignoreCase = true) }
-    fun getPromptById(id: String) = prompts.find { it.id == id }
-    fun getAgentForPrompt(prompt: Prompt) = getAgentById(prompt.agentId)
 
     fun getEndpointsForProvider(provider: AppService): List<Endpoint> =
         endpoints[provider]?.ifEmpty { getBuiltInEndpoints(provider) } ?: getBuiltInEndpoints(provider)
@@ -447,8 +431,7 @@ data class Settings(
             providers = providers - service, endpoints = endpoints - service, providerStates = providerStates - service.id,
             agents = agents.filter { it.provider.id != service.id },
             flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id !in removedAgentIds }) },
-            swarms = swarms.map { it.copy(members = it.members.filter { m -> m.provider.id != service.id }) },
-            prompts = prompts.filter { it.agentId !in removedAgentIds }
+            swarms = swarms.map { it.copy(members = it.members.filter { m -> m.provider.id != service.id }) }
         )
     }
 
@@ -469,8 +452,7 @@ data class Settings(
 
     fun removeAgent(agentId: String) = copy(
         agents = agents.filter { it.id != agentId },
-        flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) },
-        prompts = prompts.filter { it.agentId != agentId }
+        flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) }
     )
 
     fun getModelListUrl(service: AppService) = getProvider(service).modelListUrl

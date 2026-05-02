@@ -108,7 +108,9 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         parameters = settings.parameters.ifEmpty { null }?.map { ParametersExport(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) },
         systemPrompts = settings.systemPrompts.ifEmpty { null }?.map { SystemPromptExport(it.id, it.name, it.prompt) },
         huggingFaceApiKey = null,
-        aiPrompts = settings.prompts.ifEmpty { null }?.map { PromptExport(it.id, it.name, it.agentId, it.promptText) },
+        // aiPrompts dropped — Internal Prompts are gone; ConfigExport
+        // keeps the field as deserialization-only for back-compat.
+        aiPrompts = null,
         manualPricing = PricingCache.getAllManualPricing(context).map { (key, pricing) ->
             ManualPricingExport(key, pricing.promptPrice, pricing.completionPrice)
         }.ifEmpty { null },
@@ -120,7 +122,9 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         defaultTypePaths = generalSettings.defaultTypePaths.ifEmpty { null },
         rerankPrompt = generalSettings.rerankPrompt.ifBlank { null },
         summarizePrompt = generalSettings.summarizePrompt.ifBlank { null },
-        comparePrompt = generalSettings.comparePrompt.ifBlank { null }
+        comparePrompt = generalSettings.comparePrompt.ifBlank { null },
+        introPrompt = generalSettings.introPrompt.ifBlank { null },
+        modelInfoPrompt = generalSettings.modelInfoPrompt.ifBlank { null }
     )
 
     return createAppGson(prettyPrint = true).toJson(export)
@@ -153,13 +157,15 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
     val agents = export.agents.mapNotNull { e -> AppService.findById(e.provider)?.let { Agent(e.id, e.name, it, e.model, e.apiKey, e.endpointId, e.parametersIds ?: emptyList(), e.systemPromptId) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped agent ${e.name}: unknown provider ${e.provider}") } }
     val flocks = export.flocks?.map { Flock(it.id, it.name, it.agentIds, it.parametersIds ?: emptyList(), it.systemPromptId) } ?: emptyList()
     val swarms = export.swarms?.mapNotNull { e -> try { Swarm(e.id, e.name, e.members.mapNotNull { m -> AppService.findById(m.provider)?.let { SwarmMember(it, m.model) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped swarm member ${m.provider}/${m.model}: unknown provider") } }, e.parametersIds ?: emptyList(), e.systemPromptId) } catch (ex: Exception) { android.util.Log.w("SettingsExport", "Skipped swarm ${e.name}: ${ex.message}"); null } } ?: emptyList()
-    val prompts = export.aiPrompts?.map { Prompt(it.id, it.name, it.agentId, it.promptText) } ?: emptyList()
     val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) } ?: emptyList()
     val systemPrompts = export.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
+    // export.aiPrompts is intentionally ignored — Internal Prompts feature
+    // is gone. Old export bundles still parse via the nullable field on
+    // ConfigExport.
 
     var settings = currentSettings.copy(
         agents = agents, flocks = flocks, swarms = swarms,
-        parameters = parameters, systemPrompts = systemPrompts, prompts = prompts,
+        parameters = parameters, systemPrompts = systemPrompts,
         providerStates = export.providerStates ?: currentSettings.providerStates,
         modelTypeOverrides = export.modelTypeOverrides ?: currentSettings.modelTypeOverrides
     )
@@ -204,7 +210,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 
-    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths, export.rerankPrompt, export.summarizePrompt, export.comparePrompt)
+    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths, export.rerankPrompt, export.summarizePrompt, export.comparePrompt, export.introPrompt, export.modelInfoPrompt)
 }
 
 /**

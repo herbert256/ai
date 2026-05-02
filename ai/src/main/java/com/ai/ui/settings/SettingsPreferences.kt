@@ -28,7 +28,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listSwarmType: Type = object : TypeToken<List<Swarm>>() {}.type
         val listParametersType: Type = object : TypeToken<List<Parameters>>() {}.type
         val listSystemPromptType: Type = object : TypeToken<List<SystemPrompt>>() {}.type
-        val listPromptType: Type = object : TypeToken<List<Prompt>>() {}.type
         val listModelTypeOverrideType: Type = object : TypeToken<List<ModelTypeOverride>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
@@ -55,7 +54,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultTypePaths = defaultTypePaths,
             rerankPrompt = prefs.getString(KEY_RERANK_PROMPT, "") ?: "",
             summarizePrompt = prefs.getString(KEY_SUMMARIZE_PROMPT, "") ?: "",
-            comparePrompt = prefs.getString(KEY_COMPARE_PROMPT, "") ?: ""
+            comparePrompt = prefs.getString(KEY_COMPARE_PROMPT, "") ?: "",
+            introPrompt = prefs.getString(KEY_INTRO_PROMPT, "") ?: "",
+            modelInfoPrompt = prefs.getString(KEY_MODEL_INFO_PROMPT, "") ?: ""
         )
     }
 
@@ -70,6 +71,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_RERANK_PROMPT, settings.rerankPrompt)
             putString(KEY_SUMMARIZE_PROMPT, settings.summarizePrompt)
             putString(KEY_COMPARE_PROMPT, settings.comparePrompt)
+            putString(KEY_INTRO_PROMPT, settings.introPrompt)
+            putString(KEY_MODEL_INFO_PROMPT, settings.modelInfoPrompt)
         }
     }
 
@@ -83,7 +86,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
-            prompts = loadList(KEY_AI_PROMPTS, TypeTokens.listPromptType),
             endpoints = loadEndpoints(),
             providerStates = loadMap(KEY_PROVIDER_STATES),
             modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType)
@@ -200,7 +202,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
-            putString(KEY_AI_PROMPTS, gson.toJson(settings.prompts))
             putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
             putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
             putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
@@ -410,12 +411,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_RERANK_PROMPT = "rerank_prompt"
         private const val KEY_SUMMARIZE_PROMPT = "summarize_prompt"
         private const val KEY_COMPARE_PROMPT = "compare_prompt"
+        private const val KEY_INTRO_PROMPT = "intro_prompt"
+        private const val KEY_MODEL_INFO_PROMPT = "model_info_prompt"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"
         private const val KEY_AI_PARAMETERS = "ai_parameters"
         private const val KEY_AI_SYSTEM_PROMPTS = "ai_system_prompts"
-        private const val KEY_AI_PROMPTS = "ai_prompts"
         private const val KEY_AI_ENDPOINTS = "ai_endpoints"
         private const val KEY_PROVIDER_STATES = "provider_states"
         private const val KEY_AI_MODEL_TYPE_OVERRIDES = "ai_model_type_overrides"

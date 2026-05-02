@@ -30,6 +30,8 @@ fun SetupScreen(
     rerankPrompt: String = "",
     summarizePrompt: String = "",
     comparePrompt: String = "",
+    introPrompt: String = "",
+    modelInfoPrompt: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
@@ -77,15 +79,15 @@ fun SetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
             SetupNavCard("\uD83D\uDDE8\uFE0F", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            SetupNavCard("\uD83D\uDCDD", "Internal Prompts", "Prompts for agents", "${aiSettings.prompts.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS) })
             SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
                 onClick = onNavigateToCostConfig)
             run {
-                val secondaryCount = (if (rerankPrompt.isNotBlank()) 1 else 0) +
+                val metaCount = (if (rerankPrompt.isNotBlank()) 1 else 0) +
                     (if (summarizePrompt.isNotBlank()) 1 else 0) +
-                    (if (comparePrompt.isNotBlank()) 1 else 0)
-                SetupNavCard("\uD83D\uDD04", "Rerank, Summarize, Compare", "Templates for the report meta-result flows", "$secondaryCount",
+                    (if (comparePrompt.isNotBlank()) 1 else 0) +
+                    (if (introPrompt.isNotBlank()) 1 else 0) +
+                    (if (modelInfoPrompt.isNotBlank()) 1 else 0)
+                SetupNavCard("\uD83D\uDD04", "Meta prompts", "Rerank, Summarize, Compare, Intro, Model info", "$metaCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_SECONDARY_PROMPTS) })
             }
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",

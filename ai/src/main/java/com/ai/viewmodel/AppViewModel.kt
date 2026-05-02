@@ -40,7 +40,15 @@ data class GeneralSettings(
      *  JSON config export. */
     val rerankPrompt: String = "",
     val summarizePrompt: String = "",
-    val comparePrompt: String = ""
+    val comparePrompt: String = "",
+    /** Self-introduction prompt — run by each model in the report when
+     *  generating a Comprehensive PDF. Empty falls back to a built-in
+     *  default. Same template substitution variables as the meta
+     *  prompts plus @MODEL@ / @PROVIDER@. */
+    val introPrompt: String = "",
+    /** Model-info prompt — run on the Model Info screen so a model
+     *  describes itself. Empty falls back to a built-in default. */
+    val modelInfoPrompt: String = ""
 )
 
 // Prompt history entry
@@ -226,7 +234,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths,
                         rerankPrompt = result.rerankPrompt ?: gs.rerankPrompt,
                         summarizePrompt = result.summarizePrompt ?: gs.summarizePrompt,
-                        comparePrompt = result.comparePrompt ?: gs.comparePrompt
+                        comparePrompt = result.comparePrompt ?: gs.comparePrompt,
+                        introPrompt = result.introPrompt ?: gs.introPrompt,
+                        modelInfoPrompt = result.modelInfoPrompt ?: gs.modelInfoPrompt
                     )
                     if (updatedGs != gs) { gs = updatedGs; settingsPrefs.saveGeneralSettings(gs) }
                 }

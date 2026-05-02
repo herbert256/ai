@@ -95,7 +95,13 @@ data class ConfigExport(
      *  default in SecondaryPrompts). */
     val rerankPrompt: String? = null,
     val summarizePrompt: String? = null,
-    val comparePrompt: String? = null
+    val comparePrompt: String? = null,
+    /** Self-introduction template (was an Internal Prompt named "intro";
+     *  Internal Prompts have been removed). Null when unset. */
+    val introPrompt: String? = null,
+    /** Model-info template (was an Internal Prompt named "model_info";
+     *  Internal Prompts have been removed). Null when unset. */
+    val modelInfoPrompt: String? = null
 )
 
 data class ApiKeyEntry(val service: String, val apiKey: String)
@@ -116,5 +122,7 @@ data class ConfigImportResult(
     val defaultTypePaths: Map<String, String>? = null,
     val rerankPrompt: String? = null,
     val summarizePrompt: String? = null,
-    val comparePrompt: String? = null
+    val comparePrompt: String? = null,
+    val introPrompt: String? = null,
+    val modelInfoPrompt: String? = null
 )

@@ -24,7 +24,6 @@ enum class SettingsSubScreen {
     AI_AGENTS, AI_AGENT_EDIT,
     AI_FLOCKS, AI_FLOCK_EDIT,
     AI_SWARMS, AI_SWARM_EDIT,
-    AI_PROMPTS, AI_PROMPT_EDIT,
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
@@ -63,7 +62,6 @@ fun SettingsScreen(
     var editingAgentId by remember { mutableStateOf(initialEditingAgentId) }
     var editingFlockId by remember { mutableStateOf<String?>(null) }
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
-    var editingPromptId by remember { mutableStateOf<String?>(null) }
     var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
@@ -96,14 +94,13 @@ fun SettingsScreen(
             SettingsSubScreen.AI_MANUAL_MODEL_TYPES -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
             SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
-            SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PROMPTS, SettingsSubScreen.AI_PARAMETERS,
+            SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_SECONDARY_PROMPTS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
             SettingsSubScreen.AI_SWARM_EDIT -> { editingSwarmId = null; currentSubScreen = SettingsSubScreen.AI_SWARMS }
-            SettingsSubScreen.AI_PROMPT_EDIT -> { editingPromptId = null; currentSubScreen = SettingsSubScreen.AI_PROMPTS }
             SettingsSubScreen.AI_PARAMETERS_EDIT -> { editingParametersId = null; currentSubScreen = SettingsSubScreen.AI_PARAMETERS }
             SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT -> { editingSystemPromptId = null; currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS }
         }
@@ -126,6 +123,8 @@ fun SettingsScreen(
                 rerankPrompt = generalSettings.rerankPrompt,
                 summarizePrompt = generalSettings.summarizePrompt,
                 comparePrompt = generalSettings.comparePrompt,
+                introPrompt = generalSettings.introPrompt,
+                modelInfoPrompt = generalSettings.modelInfoPrompt,
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
@@ -290,26 +289,6 @@ fun SettingsScreen(
                 onSave = { saved ->
                     val updated = if (swarm != null) aiSettings.copy(swarms = aiSettings.swarms.map { if (it.id == swarm.id) saved else it })
                     else aiSettings.copy(swarms = aiSettings.swarms + saved)
-                    onSaveAi(updated); goBack()
-                },
-                onBack = goBack, onNavigateHome = onNavigateHome
-            )
-        }
-        SettingsSubScreen.AI_PROMPTS -> {
-            PromptsScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddPrompt = { editingPromptId = null; currentSubScreen = SettingsSubScreen.AI_PROMPT_EDIT },
-                onEditPrompt = { editingPromptId = it; currentSubScreen = SettingsSubScreen.AI_PROMPT_EDIT }
-            )
-        }
-        SettingsSubScreen.AI_PROMPT_EDIT -> {
-            val prompt = editingPromptId?.let { aiSettings.getPromptById(it) }
-            PromptEditScreen(
-                prompt = prompt, aiSettings = aiSettings,
-                existingNames = aiSettings.prompts.filter { it.id != (prompt?.id ?: "") }.map { it.name.lowercase() }.toSet(),
-                onSave = { saved ->
-                    val updated = if (prompt != null) aiSettings.copy(prompts = aiSettings.prompts.map { if (it.id == prompt.id) saved else it })
-                    else aiSettings.copy(prompts = aiSettings.prompts + saved)
                     onSaveAi(updated); goBack()
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome

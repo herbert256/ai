@@ -193,10 +193,15 @@ private suspend fun buildComprehensiveHtml(
     // Caches by (resolved-prompt-text, intro::providerId::model) so a re-export
     // doesn't re-spend tokens, but a different model still gets its own intro.
     // Runs concurrently — one launch per unique (provider, model).
-    val introPrompt = aiSettings.prompts.find { it.name.equals("intro", ignoreCase = true) }
-        ?: aiSettings.prompts.find { it.name.lowercase().contains("intro") }
-    val introPromptTemplate = introPrompt?.promptText
-        ?: "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown."
+    // Intro template lives on GeneralSettings.introPrompt now (used to
+    // be a Settings.prompts entry named "intro" with the agentId
+    // intentionally ignored). Empty falls back to SecondaryPrompts
+    // .DEFAULT_INTRO so the existing flow keeps working out of the box.
+    val introPromptTemplate = run {
+        val prefs = context.getSharedPreferences(com.ai.ui.settings.SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+        val gs = com.ai.ui.settings.SettingsPreferences(prefs, context.filesDir).loadGeneralSettings()
+        gs.introPrompt.ifBlank { com.ai.data.SecondaryPrompts.DEFAULT_INTRO }
+    }
 
     coroutineScope {
         uniqueModels.map { (providerId, model) ->
@@ -208,11 +213,13 @@ private suspend fun buildComprehensiveHtml(
                     // Apply @MODEL@/@PROVIDER@/@AGENT@/@SWARM@/@NOW@ to the user's
                     // intro template. @AGENT@ is the synthetic name; @SWARM@ stays
                     // unset since intros are per-model not per-swarm.
-                    val resolvedPrompt = (introPrompt?.resolvePrompt(
-                        model = model,
-                        provider = provider.displayName,
-                        agent = "$model (self-intro)"
-                    ) ?: introPromptTemplate)
+                    // Same @MODEL@ / @PROVIDER@ / @AGENT@ / @SWARM@ / @NOW@
+                    // substitution the old Prompt.resolvePrompt did.
+                    val resolvedPrompt = introPromptTemplate
+                        .replace("@MODEL@", model)
+                        .replace("@PROVIDER@", provider.displayName)
+                        .replace("@AGENT@", "$model (self-intro)")
+                        .replace("@NOW@", java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date()))
                     val cacheKey = PromptCache.keyFor(resolvedPrompt, agentIdForCache)
                     PromptCache.get(cacheKey)?.let { intros[key] = it; return@async }
 

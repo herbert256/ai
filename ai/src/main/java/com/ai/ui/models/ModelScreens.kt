@@ -557,26 +557,32 @@ fun ModelInfoScreen(
     // gets a button. The configured agent's resolved Parameters preset
     // still propagates so the user's temperature / max_tokens carry over.
     val scope = rememberCoroutineScope()
-    val modelInfoPrompt = remember(aiSettings) {
-        aiSettings.prompts.find { it.name.lowercase().contains("model_info") || it.name.lowercase().contains("model info") }
+    // Model-info template lives on GeneralSettings.modelInfoPrompt now
+    // (used to be an Internal Prompt). Empty falls back to
+    // SecondaryPrompts.DEFAULT_MODEL_INFO. Default AgentParameters since
+    // there's no longer an agent binding to inherit a temperature /
+    // max_tokens preset from.
+    val modelInfoPromptTemplate = remember {
+        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val gs = SettingsPreferences(prefs, context.filesDir).loadGeneralSettings()
+        gs.modelInfoPrompt.ifBlank { com.ai.data.SecondaryPrompts.DEFAULT_MODEL_INFO }
     }
     val pageApiKey = aiSettings.getApiKey(provider)
-    val introResolvedPrompt = remember(modelInfoPrompt, provider, modelName) {
-        modelInfoPrompt?.promptText?.replace("@MODEL@", modelName)?.replace("@PROVIDER@", provider.displayName)
-            ?.replace("@AGENT@", "${provider.displayName} / $modelName")
+    val introResolvedPrompt = remember(modelInfoPromptTemplate, provider, modelName) {
+        modelInfoPromptTemplate
+            .replace("@MODEL@", modelName)
+            .replace("@PROVIDER@", provider.displayName)
+            .replace("@AGENT@", "${provider.displayName} / $modelName")
     }
     val introCacheKey = remember(introResolvedPrompt, provider, modelName) {
-        introResolvedPrompt?.let { PromptCache.keyFor(it, "${provider.id}:$modelName") }
+        PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName")
     }
-    val canRequestIntro = modelInfoPrompt != null && pageApiKey.isNotBlank()
+    val canRequestIntro = pageApiKey.isNotBlank()
     LaunchedEffect(introCacheKey) {
-        introCacheKey?.let { PromptCache.get(it) }?.let { aiDescription = it }
+        PromptCache.get(introCacheKey)?.let { aiDescription = it }
     }
     val requestIntroduction: () -> Unit = req@{
         if (!canRequestIntro || isAiLoading) return@req
-        val prompt = introResolvedPrompt ?: return@req
-        val key = introCacheKey ?: return@req
-        val configuredAgent = aiSettings.getAgentById(modelInfoPrompt!!.agentId) ?: return@req
         val selfAgent = Agent(
             id = "model_info_self:${provider.id}:$modelName",
             name = "${provider.displayName} / $modelName",
@@ -587,11 +593,11 @@ fun ModelInfoScreen(
             isAiLoading = true
             try {
                 val response = withContext(Dispatchers.IO) {
-                    repository.analyzePlayerWithAgent(selfAgent, prompt, aiSettings.resolveAgentParameters(configuredAgent))
+                    repository.analyzePlayerWithAgent(selfAgent, introResolvedPrompt, AgentParameters())
                 }
                 if (response.isSuccess) {
                     aiDescription = response.analysis
-                    response.analysis?.let { PromptCache.put(key, it) }
+                    response.analysis?.let { PromptCache.put(introCacheKey, it) }
                 }
             } catch (_: Exception) {} finally { isAiLoading = false }
         }
