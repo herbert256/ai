@@ -218,6 +218,13 @@ You are: @MODEL@ from @PROVIDER@."""
     const val DEFAULT_MODEL_INFO = """Tell me about yourself as an AI model. Cover: your name and version, who created you, your context window if you know it, your primary strengths, and any notable limitations. Plain prose, 3–6 sentences.
 
 You are: @MODEL@ from @PROVIDER@."""
+
+    const val DEFAULT_TRANSLATE = """Translate the following text to @LANGUAGE@.
+
+Preserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.
+
+TEXT TO TRANSLATE:
+@TEXT@"""
 }
 
 /** Substitutes placeholders in [template] using the values for the

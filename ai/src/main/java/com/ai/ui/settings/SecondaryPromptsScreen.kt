@@ -39,11 +39,12 @@ fun SecondaryPromptsScreen(
     var compare by remember { mutableStateOf(generalSettings.comparePrompt) }
     var intro by remember { mutableStateOf(generalSettings.introPrompt) }
     var modelInfo by remember { mutableStateOf(generalSettings.modelInfoPrompt) }
+    var translate by remember { mutableStateOf(generalSettings.translatePrompt) }
 
-    LaunchedEffect(rerank, summarize, compare, intro, modelInfo) {
+    LaunchedEffect(rerank, summarize, compare, intro, modelInfo, translate) {
         val updated = generalSettings.copy(
             rerankPrompt = rerank, summarizePrompt = summarize, comparePrompt = compare,
-            introPrompt = intro, modelInfoPrompt = modelInfo
+            introPrompt = intro, modelInfoPrompt = modelInfo, translatePrompt = translate
         )
         if (updated != generalSettings) onSave(updated)
     }
@@ -114,6 +115,17 @@ fun SecondaryPromptsScreen(
                 onValueChange = { modelInfo = it },
                 onResetToDefault = { modelInfo = SecondaryPrompts.DEFAULT_MODEL_INFO },
                 onClear = { modelInfo = "" }
+            )
+            PromptCard(
+                title = "Translate prompt",
+                summary = "Used by the Translate button on the Report result screen. Variables: @LANGUAGE@, @TEXT@",
+                value = translate,
+                placeholder = SecondaryPrompts.DEFAULT_TRANSLATE,
+                expanded = expanded == "translate",
+                onToggle = { expanded = if (expanded == "translate") null else "translate" },
+                onValueChange = { translate = it },
+                onResetToDefault = { translate = SecondaryPrompts.DEFAULT_TRANSLATE },
+                onClear = { translate = "" }
             )
         }
     }

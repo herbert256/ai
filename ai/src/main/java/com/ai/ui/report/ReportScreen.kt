@@ -44,7 +44,8 @@ fun ReportsScreenNav(
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onOpenReport: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -129,7 +130,14 @@ fun ReportsScreenNav(
         onConsumePendingModels = { reportViewModel.clearPendingReportModels() },
         onExport = { rid, fmt, det, sec, act, onProgress ->
             shareReportAsExport(context, rid, fmt, det, act, uiState.aiSettings, viewModel.repository, onProgress, sec)
-        }
+        },
+        translationRun = reportViewModel.translationRun.collectAsState().value,
+        onStartTranslation = { sourceId, langName, langNative, prov, model ->
+            reportViewModel.startTranslation(scope, context, sourceId, langName, langNative, prov, model)
+        },
+        onCancelTranslation = { reportViewModel.cancelTranslation() },
+        onConsumeTranslation = { reportViewModel.consumeTranslationRun() },
+        onOpenTranslatedReport = { newId -> onOpenReport(newId) }
     )
 }
 
@@ -205,7 +213,12 @@ fun ReportsScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
-    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportSections, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> }
+    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportSections, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
+    translationRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
+    onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
+    onCancelTranslation: () -> Unit = {},
+    onConsumeTranslation: () -> Unit = {},
+    onOpenTranslatedReport: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -227,6 +240,10 @@ fun ReportsScreen(
     var showEditPrompt by remember { mutableStateOf(false) }
     var showEditParameters by remember { mutableStateOf(false) }
     var showAdvancedParameters by remember { mutableStateOf(false) }
+    // Translate flow state.
+    var showTranslateLanguagePicker by remember { mutableStateOf(false) }
+    var showTranslateModelPicker by remember { mutableStateOf<TargetLanguage?>(null) }
+    var showTranslateProgress by remember { mutableStateOf(false) }
 
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -487,6 +504,51 @@ fun ReportsScreen(
         return
     }
 
+    // Translate overlays. Order: language picker → model picker →
+    // progress screen. The first two close the picker once a choice is
+    // made; the progress screen sticks around until the run finishes
+    // and the user taps "To translated report" (or Cancel).
+    if (showTranslateLanguagePicker) {
+        LanguageSelectionScreen(
+            onConfirm = { lang ->
+                showTranslateLanguagePicker = false
+                showTranslateModelPicker = lang
+            },
+            onBack = { showTranslateLanguagePicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    val pickingTranslateModelFor = showTranslateModelPicker
+    if (pickingTranslateModelFor != null && currentReportId != null) {
+        ReportSelectModelsScreen(
+            aiSettings = aiSettings,
+            titleText = "Pick translation model",
+            onConfirm = { (prov, m) ->
+                onStartTranslation(currentReportId, pickingTranslateModelFor.name, pickingTranslateModelFor.native, prov, m)
+                showTranslateModelPicker = null
+                showTranslateProgress = true
+            },
+            onBack = { showTranslateModelPicker = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (showTranslateProgress) {
+        TranslationProgressScreen(
+            runState = translationRun,
+            onCancel = onCancelTranslation,
+            onConsume = onConsumeTranslation,
+            onBack = { showTranslateProgress = false },
+            onNavigateHome = onNavigateHome,
+            onOpenTranslatedReport = { newId ->
+                showTranslateProgress = false
+                onOpenTranslatedReport(newId)
+            }
+        )
+        return
+    }
+
     if (showMetaScreen && currentReportId != null) {
         val rid = currentReportId
         ReportMetaScreen(
@@ -628,7 +690,8 @@ fun ReportsScreen(
                 onEditParameters = { showEditParameters = true },
                 onRegenerate = { currentReportId?.let(onRegenerate) },
                 onDelete = { showDeleteConfirm = true },
-                onMeta = { showMetaScreen = true }
+                onMeta = { showMetaScreen = true },
+                onTranslate = { showTranslateLanguagePicker = true }
             )
         }
     }
@@ -762,7 +825,8 @@ private fun ColumnScope.GenerationPhase(
     onEditParameters: () -> Unit,
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
-    onMeta: () -> Unit = {}
+    onMeta: () -> Unit = {},
+    onTranslate: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -944,6 +1008,18 @@ private fun ColumnScope.GenerationPhase(
                 Spacer(modifier = Modifier.width(6.dp))
             }
             Text("Meta", fontSize = 13.sp, maxLines = 1, softWrap = false)
+        }
+        // Translate launcher — copies the report (prompt, agent
+        // responses, summaries, compares) to a new report with each
+        // item passed through the chosen translation model. Picks
+        // language → model → progress screen, all overlay screens.
+        Spacer(modifier = Modifier.height(6.dp))
+        Button(
+            onClick = onTranslate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+        ) {
+            Text("🌐 Translate to another language", fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
     }
 }

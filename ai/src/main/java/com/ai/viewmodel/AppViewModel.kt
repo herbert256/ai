@@ -48,7 +48,12 @@ data class GeneralSettings(
     val introPrompt: String = "",
     /** Model-info prompt — run on the Model Info screen so a model
      *  describes itself. Empty falls back to a built-in default. */
-    val modelInfoPrompt: String = ""
+    val modelInfoPrompt: String = "",
+    /** Translation prompt — used by the Translate button on the Report
+     *  result screen. Variables: @LANGUAGE@ (the chosen target name) and
+     *  @TEXT@ (the source text). Empty falls back to
+     *  [com.ai.data.SecondaryPrompts.DEFAULT_TRANSLATE]. */
+    val translatePrompt: String = ""
 )
 
 // Prompt history entry

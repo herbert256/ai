@@ -56,7 +56,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             summarizePrompt = prefs.getString(KEY_SUMMARIZE_PROMPT, "") ?: "",
             comparePrompt = prefs.getString(KEY_COMPARE_PROMPT, "") ?: "",
             introPrompt = prefs.getString(KEY_INTRO_PROMPT, "") ?: "",
-            modelInfoPrompt = prefs.getString(KEY_MODEL_INFO_PROMPT, "") ?: ""
+            modelInfoPrompt = prefs.getString(KEY_MODEL_INFO_PROMPT, "") ?: "",
+            translatePrompt = prefs.getString(KEY_TRANSLATE_PROMPT, "") ?: ""
         )
     }
 
@@ -73,6 +74,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_COMPARE_PROMPT, settings.comparePrompt)
             putString(KEY_INTRO_PROMPT, settings.introPrompt)
             putString(KEY_MODEL_INFO_PROMPT, settings.modelInfoPrompt)
+            putString(KEY_TRANSLATE_PROMPT, settings.translatePrompt)
         }
     }
 
@@ -413,6 +415,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_COMPARE_PROMPT = "compare_prompt"
         private const val KEY_INTRO_PROMPT = "intro_prompt"
         private const val KEY_MODEL_INFO_PROMPT = "model_info_prompt"
+        private const val KEY_TRANSLATE_PROMPT = "translate_prompt"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

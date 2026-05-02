@@ -807,4 +807,267 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             )
         }
     }
+
+    // ===== Translate =====
+
+    enum class TranslationStatus { PENDING, RUNNING, DONE, ERROR }
+    enum class TranslationKind { PROMPT, AGENT_RESPONSE, SUMMARY, COMPARE }
+
+    /** One row on the translation progress screen. [sourceText] is what
+     *  gets fed to the model; [translatedText] is filled in on DONE.
+     *  [costCents] is the per-call cost in cents (input + output) for
+     *  the running tally. [target] is the SecondaryResult.id when the
+     *  source is a SUMMARY / COMPARE — used so the new report can
+     *  recreate that meta result with translated content. */
+    data class TranslationItem(
+        val id: String,
+        val label: String,
+        val kind: TranslationKind,
+        val sourceText: String,
+        val target: String? = null,
+        val status: TranslationStatus = TranslationStatus.PENDING,
+        val translatedText: String? = null,
+        val errorMessage: String? = null,
+        val costCents: Double = 0.0
+    )
+
+    data class TranslationRunState(
+        val sourceReportId: String,
+        val targetLanguageName: String,
+        val targetLanguageNative: String,
+        val items: List<TranslationItem>,
+        val totalCostCents: Double = 0.0,
+        val newReportId: String? = null,
+        val cancelled: Boolean = false
+    ) {
+        val total: Int get() = items.size
+        val completed: Int get() = items.count { it.status == TranslationStatus.DONE || it.status == TranslationStatus.ERROR }
+        val isRunning: Boolean get() = newReportId == null && !cancelled && completed < total
+        val isFinished: Boolean get() = newReportId != null
+    }
+
+    private val _translationRun = MutableStateFlow<TranslationRunState?>(null)
+    val translationRun: StateFlow<TranslationRunState?> = _translationRun.asStateFlow()
+    private var translationJob: Job? = null
+
+    /** Snapshot the report's translatable items, kick off the runner.
+     *  Concurrency capped at 3 — translations are often the slowest
+     *  operation in the app and respecting provider rate limits is
+     *  more important than maximum throughput. The new report is
+     *  created at the end with translated bodies; structured-JSON
+     *  meta results (rerank, moderation) are skipped. */
+    fun startTranslation(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        sourceReportId: String,
+        targetLanguageName: String,
+        targetLanguageNative: String,
+        provider: AppService,
+        model: String
+    ) {
+        translationJob?.cancel()
+        translationJob = scope.launch(Dispatchers.IO) {
+            val state = appViewModel.uiState.value
+            val aiSettings = state.aiSettings
+            val generalSettings = state.generalSettings
+            val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
+                _translationRun.value = null
+                return@launch
+            }
+            val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
+
+            // Build the work list. Order: prompt → agent responses (in
+            // success order) → summaries → compares. Reranks and
+            // moderation results are skipped (structured JSON, no
+            // human-language content to translate).
+            val items = mutableListOf<TranslationItem>()
+            items += TranslationItem(
+                id = "prompt",
+                label = "Report prompt",
+                kind = TranslationKind.PROMPT,
+                sourceText = sourceReport.prompt
+            )
+            sourceReport.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .forEach { agent ->
+                    val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                    items += TranslationItem(
+                        id = "agent:${agent.agentId}",
+                        label = "$provDisplay / ${agent.model}",
+                        kind = TranslationKind.AGENT_RESPONSE,
+                        sourceText = agent.responseBody!!,
+                        target = agent.agentId
+                    )
+                }
+            secondaries.filter { it.kind == SecondaryKind.SUMMARIZE && !it.content.isNullOrBlank() }
+                .forEachIndexed { idx, s ->
+                    val provDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
+                    items += TranslationItem(
+                        id = "summary:${s.id}",
+                        label = "Summary ${idx + 1}: $provDisplay / ${s.model}",
+                        kind = TranslationKind.SUMMARY,
+                        sourceText = s.content!!,
+                        target = s.id
+                    )
+                }
+            secondaries.filter { it.kind == SecondaryKind.COMPARE && !it.content.isNullOrBlank() }
+                .forEachIndexed { idx, s ->
+                    val provDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
+                    items += TranslationItem(
+                        id = "compare:${s.id}",
+                        label = "Compare ${idx + 1}: $provDisplay / ${s.model}",
+                        kind = TranslationKind.COMPARE,
+                        sourceText = s.content!!,
+                        target = s.id
+                    )
+                }
+
+            _translationRun.value = TranslationRunState(
+                sourceReportId = sourceReportId,
+                targetLanguageName = targetLanguageName,
+                targetLanguageNative = targetLanguageNative,
+                items = items
+            )
+
+            val template = generalSettings.translatePrompt.ifBlank { SecondaryPrompts.DEFAULT_TRANSLATE }
+            val apiKey = aiSettings.getApiKey(provider)
+            val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
+            val pricing = PricingCache.getPricing(context, provider, model)
+
+            // Concurrency 3: translation calls are typically the slowest
+            // I/O in the app; cap so a 30-item report doesn't blow past
+            // provider rate limits.
+            val sem = Semaphore(3)
+            coroutineScope {
+                items.map { item ->
+                    async {
+                        sem.withPermit { runOneTranslation(context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing) }
+                    }
+                }.awaitAll()
+            }
+
+            // All done — assemble the translated report.
+            val finalState = _translationRun.value ?: return@launch
+            if (finalState.cancelled) return@launch
+            val newId = createTranslatedReport(context, sourceReport, secondaries, finalState, targetLanguageName)
+            _translationRun.update { it?.copy(newReportId = newId) }
+        }
+    }
+
+    private suspend fun runOneTranslation(
+        context: Context,
+        provider: AppService,
+        apiKey: String,
+        model: String,
+        baseUrl: String,
+        template: String,
+        targetLanguageName: String,
+        item: TranslationItem,
+        pricing: PricingCache.ModelPricing
+    ) {
+        _translationRun.update { state ->
+            state?.copy(items = state.items.map { if (it.id == item.id) it.copy(status = TranslationStatus.RUNNING) else it })
+        }
+        val resolved = template
+            .replace("@LANGUAGE@", targetLanguageName)
+            .replace("@TEXT@", item.sourceText)
+        val agent = Agent(
+            id = "translate:${provider.id}:$model",
+            name = "Translate / ${provider.displayName} / $model",
+            provider = provider, model = model, apiKey = apiKey
+        )
+        val response = try {
+            appViewModel.repository.analyzeWithAgent(
+                agent, "", resolved, AgentParameters(), null, context, baseUrl
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agent.name)
+        }
+        val tu = response.tokenUsage
+        val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
+        val costCents = costDollars * 100
+        _translationRun.update { state ->
+            if (state == null) return@update null
+            val updated = state.items.map {
+                if (it.id != item.id) it
+                else if (response.isSuccess) it.copy(
+                    status = TranslationStatus.DONE,
+                    translatedText = response.analysis,
+                    costCents = costCents
+                )
+                else it.copy(
+                    status = TranslationStatus.ERROR,
+                    errorMessage = response.error ?: "Empty response",
+                    costCents = costCents
+                )
+            }
+            state.copy(items = updated, totalCostCents = updated.sumOf { it.costCents })
+        }
+    }
+
+    private fun createTranslatedReport(
+        context: Context,
+        source: Report,
+        secondaries: List<SecondaryResult>,
+        run: TranslationRunState,
+        targetLanguageName: String
+    ): String {
+        val itemById = run.items.associateBy { it.id }
+        val translatedPrompt = itemById["prompt"]?.translatedText ?: source.prompt
+
+        // Map agent responses by agentId; only successful translations
+        // overwrite the body, anything else carries the original through
+        // unchanged so partial failure still produces a usable report.
+        val newAgents = source.agents.map { agent ->
+            val key = "agent:${agent.agentId}"
+            val tx = itemById[key]?.translatedText
+            if (tx != null) agent.copy(responseBody = tx) else agent
+        }.toMutableList()
+
+        val newReport = ReportStorage.createReport(
+            context = context,
+            title = "[$targetLanguageName] ${source.title}",
+            prompt = translatedPrompt,
+            agents = newAgents,
+            rapportText = source.rapportText,
+            reportType = source.reportType,
+            closeText = source.closeText,
+            imageBase64 = source.imageBase64,
+            imageMime = source.imageMime,
+            webSearchTool = source.webSearchTool
+        )
+
+        // Recreate summary/compare meta results on the new report with
+        // translated content. Reranks and moderation results are
+        // copied as-is (structured JSON, language-agnostic) so the
+        // translated report still carries the user's earlier analysis.
+        for (s in secondaries) {
+            val newContent = when (s.kind) {
+                SecondaryKind.SUMMARIZE -> itemById["summary:${s.id}"]?.translatedText ?: s.content
+                SecondaryKind.COMPARE -> itemById["compare:${s.id}"]?.translatedText ?: s.content
+                SecondaryKind.RERANK, SecondaryKind.MODERATION -> s.content
+            }
+            SecondaryResultStorage.save(
+                context,
+                s.copy(
+                    id = java.util.UUID.randomUUID().toString(),
+                    reportId = newReport.id,
+                    timestamp = System.currentTimeMillis(),
+                    content = newContent
+                )
+            )
+        }
+        return newReport.id
+    }
+
+    fun cancelTranslation() {
+        translationJob?.cancel()
+        _translationRun.update { it?.copy(cancelled = true) }
+    }
+
+    fun consumeTranslationRun() {
+        _translationRun.value = null
+    }
 }
