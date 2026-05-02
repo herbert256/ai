@@ -161,6 +161,8 @@ private fun bugLink(loc: TraceLoc?, pageDepth: Int): String {
 
 private fun rootSections(data: HtmlReportData): List<Pair<String, String>> {
     val out = mutableListOf<Pair<String, String>>()
+    if (data.prompt.isNotBlank()) out += "Prompt" to "Prompt/"
+    if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) out += "Costs" to "Costs/"
     if (data.agents.isNotEmpty()) out += "Reports" to "Reports/"
     val byKind: (SecondaryKind, String) -> Unit = { kind, label ->
         if (data.secondary.any { it.kind == kind }) out += label to "$label/"
@@ -170,8 +172,6 @@ private fun rootSections(data: HtmlReportData): List<Pair<String, String>> {
     byKind(SecondaryKind.RERANK, "Reranks")
     byKind(SecondaryKind.MODERATION, "Moderations")
     if (data.secondary.any { it.kind == SecondaryKind.TRANSLATE }) out += "Translations" to "Translations/"
-    if (data.prompt.isNotBlank()) out += "Prompt" to "Prompt/"
-    if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) out += "Costs" to "Costs/"
     if (data.traces.isNotEmpty()) out += "JSON" to "JSON/"
     return out
 }
