@@ -733,14 +733,23 @@ private fun renderRerankContent(content: String, maxAnchor: Int): String {
 
 internal fun processThinkSections(text: String, agentId: String): String {
     val pattern = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
+    val matches = pattern.findAll(text).toList()
+    if (matches.isEmpty()) return convertMarkdownToHtmlForExport(text)
+
     var idx = 0
-    val result = pattern.replace(text) { m ->
+    var lastEnd = 0
+    val out = StringBuilder()
+    matches.forEach { m ->
+        val before = text.substring(lastEnd, m.range.first)
+        if (before.isNotEmpty()) out.append(convertMarkdownToHtmlForExport(before))
         val content = esc(m.groupValues[1])
         val id = "${escId(agentId)}-${idx++}"
-        """<button id="think-btn-$id" class="think-btn" onclick="toggleThink('$id')">Think</button><div id="think-$id" class="think-content">$content</div>"""
+        out.append("""<button id="think-btn-$id" class="think-btn" onclick="toggleThink('$id')">Think</button><div id="think-$id" class="think-content">$content</div>""")
+        lastEnd = m.range.last + 1
     }
-    val parts = result.split(Regex("(<button.*?</button><div.*?</div>)"))
-    return parts.mapIndexed { i, p -> if (i % 2 == 0) convertMarkdownToHtmlForExport(p) else p }.joinToString("")
+    val after = text.substring(lastEnd)
+    if (after.isNotEmpty()) out.append(convertMarkdownToHtmlForExport(after))
+    return out.toString()
 }
 
 internal fun convertMarkdownToHtmlForExport(markdown: String): String {
