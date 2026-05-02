@@ -391,6 +391,31 @@ fun TraceDetailScreen(
     val statusCode = t?.response?.statusCode ?: 0
     val bgColor = if (statusCode >= 300) Color(0xFF4A1515) else MaterialTheme.colorScheme.background
 
+    // Translation traces (category == "Translation") get an extra
+    // "Translation result" button that opens a top/bottom split
+    // showing the original prompt body and the model's translated
+    // output. Extraction is best-effort across the three API
+    // formats; null when either side can't be parsed (the button
+    // hides itself in that case).
+    val translationParts = remember(t?.category, t?.request?.body, t?.response?.body) {
+        if (t?.category != "Translation") null
+        else extractTranslationParts(t.request.body, t.response.body)
+    }
+    var showTranslationCompare by remember { mutableStateOf(false) }
+
+    if (showTranslationCompare && translationParts != null) {
+        com.ai.ui.report.TranslationCompareScreen(
+            title = "Translation result",
+            originalLabel = "Original",
+            originalContent = translationParts.first,
+            translatedLabel = "Translation",
+            translatedContent = translationParts.second,
+            onBack = { showTranslationCompare = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     // Parse JSON trees
     val requestTreeNodes = remember(t?.request?.body) { t?.request?.body?.let { parseJsonTree(it) } }
     val responseTreeNodes = remember(t?.response?.body) { t?.response?.body?.let { parseJsonTree(it) } }
@@ -452,6 +477,14 @@ fun TraceDetailScreen(
                     ) { Text("Agent", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                 }
             }
+        }
+        if (translationParts != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(
+                onClick = { showTranslationCompare = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Translation result", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -643,4 +676,118 @@ private fun JsonTreeNodeView(node: JsonTreeNode, depth: Int) {
     if (hasChildren && expanded) {
         node.children.forEach { child -> JsonTreeNodeView(node = child, depth = depth + 1) }
     }
+}
+
+// ===== Translation extraction =====
+
+/** Best-effort extraction of (original, translation) from a translation
+ *  trace's request + response bodies. The translation prompt always
+ *  embeds the source text after the literal "TEXT TO TRANSLATE:"
+ *  marker; the response carries the model's reply in a format-specific
+ *  shape. Returns null when either side can't be parsed — the caller
+ *  hides the "Translation result" button in that case. */
+private fun extractTranslationParts(requestBody: String?, responseBody: String?): Pair<String, String>? {
+    if (requestBody.isNullOrBlank() || responseBody.isNullOrBlank()) return null
+    val userPrompt = extractUserPrompt(requestBody) ?: return null
+    val marker = "TEXT TO TRANSLATE:"
+    val idx = userPrompt.indexOf(marker)
+    val original = (if (idx < 0) userPrompt else userPrompt.substring(idx + marker.length)).trim()
+    if (original.isBlank()) return null
+    val translation = extractAssistantContent(responseBody)?.trim() ?: return null
+    if (translation.isBlank()) return null
+    return original to translation
+}
+
+/** Walk the request JSON looking for the user's prompt text. Tries
+ *  three shapes: OpenAI-compatible / Anthropic messages[] arrays
+ *  (with content as either a plain string or a content-parts array)
+ *  and Gemini's contents[].parts[].text. */
+private fun extractUserPrompt(json: String): String? {
+    return try {
+        @Suppress("DEPRECATION")
+        val root = JsonParser().parse(json)
+        if (!root.isJsonObject) return null
+        val obj = root.asJsonObject
+        var found: String? = null
+        // OpenAI / Anthropic messages array — last user message wins.
+        obj.get("messages")?.takeIf { it.isJsonArray }?.asJsonArray?.let { arr ->
+            for (i in arr.size() - 1 downTo 0) {
+                val el = arr[i]
+                if (!el.isJsonObject) continue
+                val m = el.asJsonObject
+                if (m.get("role")?.takeIf { it.isJsonPrimitive }?.asString != "user") continue
+                val content = m.get("content") ?: continue
+                if (content.isJsonPrimitive) { found = content.asString; break }
+                if (content.isJsonArray) {
+                    for (part in content.asJsonArray) {
+                        if (!part.isJsonObject) continue
+                        val text = part.asJsonObject.get("text")?.takeIf { it.isJsonPrimitive }?.asString
+                        if (text != null) { found = text; break }
+                    }
+                    if (found != null) break
+                }
+            }
+        }
+        if (found != null) return found
+        // Gemini contents array.
+        obj.get("contents")?.takeIf { it.isJsonArray }?.asJsonArray?.let { arr ->
+            for (i in arr.size() - 1 downTo 0) {
+                val el = arr[i]
+                if (!el.isJsonObject) continue
+                val m = el.asJsonObject
+                val role = m.get("role")?.takeIf { it.isJsonPrimitive }?.asString
+                if (role != null && role != "user") continue
+                val parts = m.get("parts")?.takeIf { it.isJsonArray }?.asJsonArray ?: continue
+                for (p in parts) {
+                    if (!p.isJsonObject) continue
+                    val text = p.asJsonObject.get("text")?.takeIf { it.isJsonPrimitive }?.asString
+                    if (text != null) { found = text; break }
+                }
+                if (found != null) break
+            }
+        }
+        found
+    } catch (_: Exception) { null }
+}
+
+/** Walk the response JSON looking for the assistant's reply text.
+ *  Tries OpenAI choices[0].message.content, Anthropic content[].text,
+ *  Gemini candidates[0].content.parts[0].text — the first non-blank
+ *  text wins. */
+private fun extractAssistantContent(json: String): String? {
+    return try {
+        @Suppress("DEPRECATION")
+        val root = JsonParser().parse(json)
+        if (!root.isJsonObject) return null
+        val obj = root.asJsonObject
+        // OpenAI: choices[0].message.content
+        obj.get("choices")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.firstOrNull { it.isJsonObject }
+            ?.asJsonObject?.get("message")
+            ?.takeIf { it.isJsonObject }?.asJsonObject?.get("content")
+            ?.takeIf { it.isJsonPrimitive }?.asString
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+        // Anthropic: content[].text — pick the first non-blank text.
+        obj.get("content")?.takeIf { it.isJsonArray }?.asJsonArray?.let { arr ->
+            for (el in arr) {
+                if (!el.isJsonObject) continue
+                val text = el.asJsonObject.get("text")?.takeIf { it.isJsonPrimitive }?.asString
+                if (!text.isNullOrBlank()) return text
+            }
+        }
+        // Gemini: candidates[0].content.parts[].text
+        obj.get("candidates")?.takeIf { it.isJsonArray }?.asJsonArray
+            ?.firstOrNull { it.isJsonObject }
+            ?.asJsonObject?.get("content")
+            ?.takeIf { it.isJsonObject }?.asJsonObject?.get("parts")
+            ?.takeIf { it.isJsonArray }?.asJsonArray?.let { parts ->
+                for (p in parts) {
+                    if (!p.isJsonObject) continue
+                    val text = p.asJsonObject.get("text")?.takeIf { it.isJsonPrimitive }?.asString
+                    if (!text.isNullOrBlank()) return text
+                }
+            }
+        null
+    } catch (_: Exception) { null }
 }
