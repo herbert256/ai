@@ -69,6 +69,11 @@ data class UiState(
     // Per-report web-search toggle. ORs with each agent's pinned default; the
     // dispatch layer also auto-falls-back to no-tool on a 400 tool-rejection.
     val reportWebSearchTool: Boolean = false,
+    // Per-report reasoning-effort hint (low / medium / high). Set on the
+    // New AI Report screen by the 🧠 pulldown, applied on top of any
+    // preset reasoningEffort. Non-reasoning models silently ignore the
+    // field at dispatch time.
+    val reportReasoningEffort: String? = null,
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),

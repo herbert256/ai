@@ -158,7 +158,8 @@ fun AppNavHost(
         composable(NavRoutes.AI_NEW_REPORT) {
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToReports = { navController.navigate(NavRoutes.AI_REPORTS) })
+                onNavigateToReports = { navController.navigate(NavRoutes.AI_REPORTS) },
+                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
         composable(NavRoutes.AI_NEW_REPORT_WITH_PARAMS) { entry ->
             val title = try { java.net.URLDecoder.decode(entry.arguments?.getString("title") ?: "", "UTF-8") } catch (_: Exception) { "" }
@@ -166,6 +167,7 @@ fun AppNavHost(
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.AI_REPORTS) },
+                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                 initialTitle = title, initialPrompt = prompt)
         }
         composable(NavRoutes.AI_REPORTS) {

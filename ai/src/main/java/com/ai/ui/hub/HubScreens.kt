@@ -31,6 +31,7 @@ import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -162,6 +163,7 @@ fun NewReportScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToReports: () -> Unit = {},
+    onNavigateToTraceFile: (String) -> Unit = {},
     initialTitle: String = "",
     initialPrompt: String = ""
 ) {
@@ -180,6 +182,20 @@ fun NewReportScreen(
     var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
     var attachError by remember { mutableStateOf<String?>(null) }
     var useWebSearch by remember { mutableStateOf(false) }
+    // Per-report reasoning level. "" = none; one of low/medium/high
+    // gets OR'd onto every agent's params at dispatch (non-thinking
+    // models drop the field).
+    var reasoningEffort by remember { mutableStateOf("") }
+    var reasoningMenuExpanded by remember { mutableStateOf(false) }
+    // Optional moderation pre-check — when set, the prompt runs through
+    // the chosen moderation model before any agent fires. Mirrors the
+    // chat session screen.
+    var moderationModel by remember { mutableStateOf<Pair<com.ai.data.AppService, String>?>(null) }
+    var showModerationPicker by remember { mutableStateOf(false) }
+    var pendingFlagged by remember { mutableStateOf<Triple<String, com.ai.data.ModerationInputResult, String?>?>(null) }
+    var moderationError by remember { mutableStateOf<String?>(null) }
+    var isModerating by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val pickImageLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -215,28 +231,66 @@ fun NewReportScreen(
                 Text("📎", fontSize = 16.sp, maxLines = 1, softWrap = false)
             }
             Button(
-                onClick = {
-                    if (title.isNotBlank() && prompt.isNotBlank()) {
-                        val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
-                        prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
-                            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt).apply()
-                        SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, fullPrompt)
+                onClick = next@{
+                    if (title.isBlank() || prompt.isBlank() || isModerating) return@next
+                    val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
+                    prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
+                        .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt).apply()
+                    SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, fullPrompt)
+
+                    fun proceed() {
                         reportViewModel.showGenericAgentSelection(
                             title, fullPrompt,
                             imageBase64 = attachedImage?.second,
                             imageMime = attachedImage?.first,
-                            webSearchTool = useWebSearch
+                            webSearchTool = useWebSearch,
+                            reasoningEffort = reasoningEffort.ifBlank { null }
                         )
                     }
+
+                    val mod = moderationModel
+                    if (mod == null) { proceed(); return@next }
+                    coroutineScope.launch {
+                        isModerating = true
+                        try {
+                            val (modProvider, modModelId) = mod
+                            val apiKey = uiState.aiSettings.getApiKey(modProvider)
+                            val callStart = System.currentTimeMillis()
+                            val (results, apiResult) = com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(fullPrompt))
+                            val r = results?.firstOrNull()
+                            if (apiResult.errorMessage != null || r == null) {
+                                moderationError = apiResult.errorMessage ?: "No moderation result"
+                                proceed()
+                            } else if (r.flagged) {
+                                val traceFn = withContext(Dispatchers.IO) {
+                                    ApiTracer.getTraceFiles()
+                                        .filter { it.reportId == null && it.model == modModelId && it.timestamp >= callStart }
+                                        .minByOrNull { it.timestamp }?.filename
+                                }
+                                pendingFlagged = Triple(fullPrompt, r, traceFn)
+                            } else {
+                                proceed()
+                            }
+                        } finally {
+                            isModerating = false
+                        }
+                    }
                 },
-                enabled = title.isNotBlank() && prompt.isNotBlank(),
+                enabled = title.isNotBlank() && prompt.isNotBlank() && !isModerating,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-            ) { Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false) }
+            ) {
+                if (isModerating) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false)
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(
                 selected = useWebSearch,
                 onClick = { useWebSearch = !useWebSearch },
@@ -246,6 +300,61 @@ fun NewReportScreen(
                     selectedLabelColor = AppColors.Blue
                 )
             )
+            // 🧠 Thinking pulldown — same low/medium/high set as chat.
+            // Always shown on the report screen since the report fans out
+            // to many models with mixed reasoning support; the dispatch
+            // layer's per-format helper drops the field on non-thinking
+            // models so showing the chip universally is harmless.
+            Box {
+                val levelLabel = if (reasoningEffort.isBlank()) "none"
+                    else reasoningEffort.replaceFirstChar { it.uppercase() }
+                FilterChip(
+                    selected = reasoningEffort.isNotBlank(),
+                    onClick = { reasoningMenuExpanded = true },
+                    label = { Text("🧠 $levelLabel", fontSize = 12.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = AppColors.Purple.copy(alpha = 0.2f),
+                        selectedLabelColor = AppColors.Purple
+                    )
+                )
+                DropdownMenu(
+                    expanded = reasoningMenuExpanded,
+                    onDismissRequest = { reasoningMenuExpanded = false },
+                    modifier = Modifier.background(Color(0xFF2D2D2D))
+                ) {
+                    listOf("" to "None", "low" to "Low", "medium" to "Medium", "high" to "High").forEach { (value, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(label, fontSize = 13.sp,
+                                    color = if (reasoningEffort == value) AppColors.Blue else Color.White)
+                            },
+                            onClick = { reasoningEffort = value; reasoningMenuExpanded = false }
+                        )
+                    }
+                }
+            }
+            // 🛡 Moderation chip — tap when off opens the model picker;
+            // tap when on clears the selection. With a model set, the
+            // prompt is validated before generation kicks off.
+            FilterChip(
+                selected = moderationModel != null,
+                onClick = {
+                    if (moderationModel == null) showModerationPicker = true
+                    else moderationModel = null
+                },
+                label = {
+                    val label = moderationModel?.let { (_, m) -> "🛡 $m" } ?: "🛡 Validate prompt"
+                    Text(label, fontSize = 12.sp, maxLines = 1)
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AppColors.Orange.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.Orange
+                )
+            )
+        }
+        if (moderationError != null) {
+            Text("Moderation: ${moderationError}", fontSize = 11.sp, color = AppColors.Orange,
+                modifier = Modifier.padding(top = 4.dp))
         }
 
         attachError?.let {
@@ -285,6 +394,77 @@ fun NewReportScreen(
             value = prompt, onValueChange = { prompt = it }, label = { Text("AI Prompt") },
             placeholder = { Text("Enter your prompt for the AI...") },
             modifier = Modifier.fillMaxWidth().weight(1f), minLines = 10, colors = AppColors.outlinedFieldColors()
+        )
+    }
+
+    // Moderation model picker — overlay. Single-select; tap → set the
+    // session's moderation model and close.
+    if (showModerationPicker) {
+        com.ai.ui.report.ReportSelectModelsScreen(
+            aiSettings = uiState.aiSettings,
+            titleText = "Pick moderation model",
+            modelTypeFilter = com.ai.data.ModelType.MODERATION,
+            onConfirm = { pick ->
+                moderationModel = pick
+                showModerationPicker = false
+            },
+            onBack = { showModerationPicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
+    // Flagged-prompt dialog — same Proceed-anyway / Cancel choices the
+    // chat screen offers, with a 🐞 trace icon when the call left a
+    // recording. Proceed continues to model selection; Cancel drops the
+    // pending state and the user stays on the entry screen.
+    val flagged = pendingFlagged
+    if (flagged != null) {
+        val (input, result, traceFn) = flagged
+        AlertDialog(
+            onDismissRequest = { pendingFlagged = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Prompt flagged by moderation", modifier = Modifier.weight(1f))
+                    if (traceFn != null) {
+                        Text("🐞", fontSize = 18.sp,
+                            modifier = Modifier
+                                .clickable { onNavigateToTraceFile(traceFn) }
+                                .padding(start = 8.dp, end = 4.dp))
+                    }
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        "The chosen moderation model flagged this prompt under: " +
+                            result.firedCategories.joinToString(", "),
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Sending it to the report's models anyway may produce unsafe output or violate provider policies.",
+                        fontSize = 12.sp, color = AppColors.TextTertiary
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingFlagged = null
+                    reportViewModel.showGenericAgentSelection(
+                        title, input,
+                        imageBase64 = attachedImage?.second,
+                        imageMime = attachedImage?.first,
+                        webSearchTool = useWebSearch,
+                        reasoningEffort = reasoningEffort.ifBlank { null }
+                    )
+                }) { Text("Proceed anyway", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingFlagged = null }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
         )
     }
 }
