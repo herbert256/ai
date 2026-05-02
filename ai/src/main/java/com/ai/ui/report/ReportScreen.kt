@@ -992,34 +992,33 @@ private fun ColumnScope.GenerationPhase(
             Button(onClick = onShare, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Export", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             Button(onClick = onDelete, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), contentPadding = PaddingValues(horizontal = 2.dp)) { Text("Delete", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
-        // Single Meta launcher — full-width row below the standard Actions
-        // buttons. Replaces the prior Rerank / Summarize / Compare trio
-        // and the per-kind running-state indicators; a small spinning ⏳
-        // glyph appears on the button while a batch is in flight so the
-        // user has a top-level signal without leaving the report.
+        // Meta + Translate share a row below the standard Actions
+        // buttons. Meta opens the Rerank/Summarize/Compare/Moderation
+        // hub (with a small spinning ⏳ when a batch is in flight);
+        // Translate opens the language picker → model picker → progress
+        // screen pipeline.
         Spacer(modifier = Modifier.height(6.dp))
-        Button(
-            onClick = onMeta,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
-        ) {
-            if (secondaryRunning) {
-                AnimatedHourglass()
-                Spacer(modifier = Modifier.width(6.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(
+                onClick = onMeta,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
+                contentPadding = PaddingValues(horizontal = 2.dp)
+            ) {
+                if (secondaryRunning) {
+                    AnimatedHourglass()
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text("Meta", fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
-            Text("Meta", fontSize = 13.sp, maxLines = 1, softWrap = false)
-        }
-        // Translate launcher — copies the report (prompt, agent
-        // responses, summaries, compares) to a new report with each
-        // item passed through the chosen translation model. Picks
-        // language → model → progress screen, all overlay screens.
-        Spacer(modifier = Modifier.height(6.dp))
-        Button(
-            onClick = onTranslate,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) {
-            Text("🌐 Translate to another language", fontSize = 13.sp, maxLines = 1, softWrap = false)
+            Button(
+                onClick = onTranslate,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                contentPadding = PaddingValues(horizontal = 2.dp)
+            ) {
+                Text("Translate", fontSize = 13.sp, maxLines = 1, softWrap = false)
+            }
         }
     }
 }
