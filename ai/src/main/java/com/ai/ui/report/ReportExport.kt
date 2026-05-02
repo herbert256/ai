@@ -69,14 +69,60 @@ internal data class HtmlSecondaryData(
 
 // ===== Public Functions =====
 
-internal fun shareReportAsJson(context: android.content.Context, reportId: String) {
+/** JSON export — emits a zip of every captured API trace tagged with
+ *  the report's id, organized into one directory per category (with
+ *  "Other" for traces that have no category). For translated reports
+ *  the source report's traces ride along under a top-level "source/"
+ *  prefix so consumers can tell them apart. Each entry is the raw
+ *  trace JSON, unmodified — no redaction applied (callers who want
+ *  redacted bodies should use the Complete HTML/PDF export instead). */
+internal fun shareReportAsJson(context: android.content.Context, reportId: String, action: ReportExportAction = ReportExportAction.SHARE) {
     val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
     try {
-        val json = createAppGson(prettyPrint = true).toJson(report)
-        val file = writeToCache(context, "ai_report_${timestamp()}.json", json)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        context.startActivity(Intent.createChooser(intent, "Share AI Report (JSON)"))
+        val ownTraces = ApiTracer.getTraceFilesForReport(reportId)
+        val sourceTraces = report.sourceReportId?.let { ApiTracer.getTraceFilesForReport(it) }.orEmpty()
+        if (ownTraces.isEmpty() && sourceTraces.isEmpty()) {
+            Toast.makeText(context, "No traces for this report", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+        val outFile = File(File(context.cacheDir, "ai_analysis").also { it.mkdirs() },
+            "ai_report_${safeTitle}_traces_${timestamp()}.zip")
+
+        java.util.zip.ZipOutputStream(outFile.outputStream().buffered()).use { zos ->
+            fun writeTrace(t: com.ai.data.TraceFileInfo, prefix: String) {
+                val cat = (t.category ?: "Other").trim().ifBlank { "Other" }
+                // Filesystem-safe category name (slashes / colons / etc. would
+                // otherwise create unintended subdirectories).
+                val safeCat = cat.replace(Regex("[^A-Za-z0-9 _.-]+"), "_")
+                val raw = ApiTracer.readTraceFileRaw(t.filename) ?: return
+                val entry = java.util.zip.ZipEntry("$prefix$safeCat/${t.filename}")
+                entry.time = t.timestamp
+                zos.putNextEntry(entry)
+                zos.write(raw.toByteArray(Charsets.UTF_8))
+                zos.closeEntry()
+            }
+            ownTraces.forEach { writeTrace(it, "") }
+            sourceTraces.forEach { writeTrace(it, "source/") }
+        }
+
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+        val intent = when (action) {
+            ReportExportAction.SHARE -> Intent(Intent.ACTION_SEND).apply {
+                type = "application/zip"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "AI Report traces - ${report.title}")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            ReportExportAction.VIEW -> Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/zip")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        val chooser = if (action == ReportExportAction.SHARE)
+            Intent.createChooser(intent, "Share AI Report traces (zip)") else intent
+        context.startActivity(chooser)
     } catch (e: Exception) { Toast.makeText(context, "Error sharing: ${e.message}", Toast.LENGTH_SHORT).show() }
 }
 

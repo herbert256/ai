@@ -65,10 +65,12 @@ suspend fun shareReportAsExport(
 
     if (format == ReportExportFormat.JSON) {
         onProgress(0, 1)
-        when (action) {
-            ReportExportAction.SHARE -> shareReportAsJson(context, reportId)
-            ReportExportAction.VIEW -> openReportAsJson(context, report)
-        }
+        // JSON export = zip of every trace file tagged with this
+        // report (and the source report's traces too, when this is a
+        // translated copy), organized into one directory per trace
+        // category. Same code path for SHARE and VIEW — only the
+        // intent type differs.
+        shareReportAsJson(context, reportId, action)
         onProgress(1, 1)
         return true
     }
@@ -305,19 +307,6 @@ private suspend fun dispatchPdf(context: Context, html: String, fileName: String
         }
     }
 }
-
-private fun openReportAsJson(context: Context, report: Report) {
-    val json = com.ai.data.createAppGson(prettyPrint = true).toJson(report)
-    val file = File(exportsDir(context), "ai_report_${pdfTimestamp()}.json")
-    file.writeText(json)
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    val intent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, "application/json")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    context.startActivity(intent)
-}
-
 
 // ===== Redaction helpers (PDF only — runtime traces stay unredacted) =====
 
