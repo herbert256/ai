@@ -628,7 +628,9 @@ fun ReportsScreen(
             kind = openListKind,
             onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
             onBack = { listKind = null },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo
         )
         return
     }

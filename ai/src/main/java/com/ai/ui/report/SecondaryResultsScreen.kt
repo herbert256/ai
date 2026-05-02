@@ -43,7 +43,9 @@ internal fun SecondaryResultsScreen(
     kind: SecondaryKind,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -126,6 +128,22 @@ internal fun SecondaryResultsScreen(
             return@Column
         }
 
+        // SUMMARIZE / COMPARE: mirror the Reports viewer — a row of
+        // picker buttons (one per filtered result) followed by the
+        // selected result's body inline. RERANK / MODERATION / TRANSLATE
+        // keep the row-list-and-drill-in flow since each item is a
+        // distinct table or per-input classification.
+        if (kind == SecondaryKind.SUMMARIZE || kind == SecondaryKind.COMPARE) {
+            SummariesComparesPickerView(
+                results = filteredResults,
+                reportId = reportId,
+                onDelete = { id -> onDelete(id); refreshTick++ },
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo
+            )
+            return@Column
+        }
+
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(filteredResults, key = { it.id }) { r ->
                 SecondaryRow(
@@ -136,6 +154,149 @@ internal fun SecondaryResultsScreen(
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
         }
+    }
+}
+
+/** Reports-viewer-style screen for Summaries / Compares: a FlowRow of
+ *  picker buttons (one per result) plus the selected result's content
+ *  inline. Picker labels show the result's provider · model. Content
+ *  is rendered with [annotateBracketRefs] so per-agent [N] references
+ *  stay readable. The trailing action row mirrors
+ *  [SecondaryResultDetailScreen]: Delete / Model Info / Trace. */
+@Composable
+private fun ColumnScope.SummariesComparesPickerView(
+    results: List<SecondaryResult>,
+    reportId: String,
+    onDelete: (String) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit
+) {
+    val context = LocalContext.current
+    var selectedId by remember(results) { mutableStateOf(results.firstOrNull()?.id) }
+    LaunchedEffect(results) {
+        if (results.none { it.id == selectedId }) selectedId = results.firstOrNull()?.id
+    }
+    val selected = results.firstOrNull { it.id == selectedId } ?: results.firstOrNull() ?: return
+
+    // Picker buttons — one per result, FlowRow so wide rows wrap
+    // gracefully on narrow viewports.
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        results.forEach { r ->
+            val isSelected = r.id == selectedId
+            val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
+            Button(
+                onClick = { selectedId = r.id },
+                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Orange else Color(0xFF3A3A4A)),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 36.dp)
+            ) {
+                Text(
+                    "$provider · ${r.model}",
+                    fontSize = 12.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1, softWrap = false
+                )
+            }
+        }
+    }
+
+    // Provider / model / timestamp header for the selected item.
+    val providerService = AppService.findById(selected.providerId)
+    val provider = providerService?.displayName ?: selected.providerId
+    Text("$provider — ${selected.model}", fontSize = 16.sp, color = AppColors.Blue,
+        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+    Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(selected.timestamp)),
+        fontSize = 11.sp, color = AppColors.TextTertiary)
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Build the same agent-label map the inline content rendering uses
+    // to annotate bracketed [N] references. Loaded once per report id
+    // (recomputed cheaply on the IO dispatcher).
+    val agentLabels by produceState(initialValue = emptyMap<Int, String>(), reportId) {
+        value = withContext(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@withContext emptyMap()
+            report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .mapIndexed { idx, agent ->
+                    val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                    (idx + 1) to "$provDisplay / ${agent.model}"
+                }.toMap()
+        }
+    }
+    // Trace lookup mirrors SecondaryResultDetailScreen — pick the
+    // closest-timestamped trace tagged with the same (reportId, model).
+    val traceFilename by produceState<String?>(initialValue = null, selected.id) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == selected.reportId && it.model == selected.model }
+                .minByOrNull { kotlin.math.abs(it.timestamp - selected.timestamp) }?.filename
+        }
+    }
+
+    // Selected item body (scrolls independently of the picker row).
+    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+        when {
+            selected.errorMessage != null -> {
+                Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                Text(selected.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            selected.content.isNullOrBlank() -> {
+                Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+            }
+            else -> {
+                val annotated = remember(selected.content, agentLabels) {
+                    annotateBracketRefs(selected.content, agentLabels)
+                }
+                ContentWithThinkSections(analysis = annotated)
+            }
+        }
+    }
+
+    // Bottom action row — Delete / Model Info / Trace, same trio
+    // SecondaryResultDetailScreen exposes.
+    var confirmDelete by remember { mutableStateOf(false) }
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(
+            onClick = { confirmDelete = true },
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        Button(
+            onClick = { providerService?.let { onNavigateToModelInfo(it, selected.model) } },
+            enabled = providerService != null,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) { Text("Model", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        Button(
+            onClick = { traceFilename?.let(onNavigateToTraceFile) },
+            enabled = traceFilename != null,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this ${if (selected.kind == SecondaryKind.SUMMARIZE) "summary" else "compare"}?") },
+            text = { Text("$provider · ${selected.model}") },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDelete(selected.id) }) {
+                    Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
     }
 }
 
