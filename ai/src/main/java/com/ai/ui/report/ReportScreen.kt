@@ -259,12 +259,23 @@ fun ReportsScreen(
     var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
     var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
+    // Bumped from every overlay-driven delete so the parent screen's
+    // counts / row list re-read from disk on the way back. Without
+    // this the LaunchedEffect below has no reason to refire (the user
+    // didn't change report id, completion state, or batch count) and
+    // the deleted row keeps showing in the inline meta-runs list and
+    // the View counters above it.
+    var secondaryRefreshTick by remember { mutableStateOf(0) }
+    val onDeleteSecondaryWithRefresh: (String, String) -> Unit = { rid, sid ->
+        onDeleteSecondary(rid, sid)
+        secondaryRefreshTick++
+    }
     // Recompute when any translation run finishes — the persisted
     // summary appears in translationRunSummaries on the next reload,
     // which is what flips the live row to the static one.
     val anyTranslationFinished = translationRuns.any { it.isFinished }
     val finishedSignature = translationRuns.filter { it.isFinished }.map { it.runId }.toSet()
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature) {
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0)
             secondaryRuns = emptyList()
@@ -656,7 +667,7 @@ fun ReportsScreen(
         SecondaryResultDetailScreen(
             result = openMetaResult,
             onDelete = {
-                onDeleteSecondary(rid, openMetaResult.id)
+                onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
                 openMetaResultId = null
             },
             onBack = { openMetaResultId = null },
@@ -673,7 +684,7 @@ fun ReportsScreen(
         TranslationRunDetailScreen(
             reportId = rid,
             runId = openRunId,
-            onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
+            onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBack = { openTranslationRunId = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -689,7 +700,7 @@ fun ReportsScreen(
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
-            onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
+            onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBack = { listKind = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -714,7 +725,7 @@ fun ReportsScreen(
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 secondaryPickerKind = SecondaryKind.MODERATION
             },
-            onDelete = { resultId -> onDeleteSecondary(rid, resultId) },
+            onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBack = { showMetaScreen = false },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
