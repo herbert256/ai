@@ -215,21 +215,21 @@ fun TraceListScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    if (showProvider) {
-                        FilterDropdown(
-                            label = "Provider",
-                            value = selectedProvider,
-                            options = providers,
-                            onPick = { selectedProvider = it; currentPage = 0 },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
                     if (showHostname) {
                         FilterDropdown(
                             label = "Hostname",
                             value = selectedHostname,
                             options = hostnames,
                             onPick = { selectedHostname = it; currentPage = 0 },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (showProvider) {
+                        FilterDropdown(
+                            label = "Provider",
+                            value = selectedProvider,
+                            options = providers,
+                            onPick = { selectedProvider = it; currentPage = 0 },
                             modifier = Modifier.weight(1f)
                         )
                     }
