@@ -597,13 +597,14 @@ fun ReportsScreen(
                 else -> null
             },
             onConfirm = { pick ->
-                onRunSecondary(rid, pickerKind, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
-                secondaryPickerKind = null
-                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            },
-            onLocalConfirm = { modelName ->
-                onRunLocalRerank(rid, modelName)
+                val (provider, model) = pick
+                if (provider.id == "LOCAL" && pickerKind == SecondaryKind.RERANK) {
+                    // Rerank locally via MediaPipe TextEmbedder
+                    // cosine — see ReportViewModel.runLocalRerank.
+                    onRunLocalRerank(rid, model)
+                } else {
+                    onRunSecondary(rid, pickerKind, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
+                }
                 secondaryPickerKind = null
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
@@ -812,7 +813,6 @@ fun ReportsScreen(
                 onAddModel = { showSelectProvider = true },
                 onAddAllModels = { showSelectAllModels = true },
                 onAddFromReport = { showSelectFromReport = true },
-                onAddLocal = { name -> models = deduplicateModels(models + toReportModel(AppService.LOCAL, name)) },
                 onRemoveModel = { i -> models = models.filterIndexed { idx, _ -> idx != i } },
                 onClearAll = { models = emptyList() },
                 onAdvancedParams = { showAdvancedParameters = true },
@@ -886,7 +886,6 @@ private fun ColumnScope.SelectionPhase(
     onAddModel: () -> Unit,
     onAddAllModels: () -> Unit,
     onAddFromReport: () -> Unit,
-    onAddLocal: (String) -> Unit,
     onRemoveModel: (Int) -> Unit,
     onClearAll: () -> Unit,
     onAdvancedParams: () -> Unit,
@@ -895,13 +894,13 @@ private fun ColumnScope.SelectionPhase(
     onUpdateModelList: () -> Unit
 ) {
     val context = LocalContext.current
-    val installedLocalLlms = remember { com.ai.data.LocalLlm.availableLlms(context) }
-    var localPickerOpen by remember { mutableStateOf(false) }
 
     // Add buttons. The all-models picker (+Model) supersedes the
     // provider-then-model two-step, so the +Provider variant has been
     // dropped from the row. The unused onAddModel callback stays in
-    // the signature for now but is ignored here.
+    // the signature for now but is ignored here. Local LLMs surface
+    // inside +Model under the "Local" provider when installed —
+    // there's no separate +Local button.
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf(
@@ -913,30 +912,6 @@ private fun ColumnScope.SelectionPhase(
         ).forEach { (label, action) ->
             OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp), colors = AppColors.outlinedButtonColors()) {
                 Text("+$label", fontSize = 12.sp, maxLines = 1, softWrap = false)
-            }
-        }
-        // +Local — only when at least one .task LLM is installed.
-        // Single installed → tap adds it directly. Multiple installed
-        // → opens a dropdown to pick which one to add.
-        if (installedLocalLlms.isNotEmpty()) {
-            Box {
-                OutlinedButton(
-                    onClick = {
-                        if (installedLocalLlms.size == 1) onAddLocal(installedLocalLlms.first())
-                        else localPickerOpen = true
-                    },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    modifier = Modifier.heightIn(min = 40.dp),
-                    colors = AppColors.outlinedButtonColors()
-                ) { Text("+Local", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                DropdownMenu(expanded = localPickerOpen, onDismissRequest = { localPickerOpen = false }) {
-                    installedLocalLlms.forEach { name ->
-                        DropdownMenuItem(
-                            text = { Text(name) },
-                            onClick = { localPickerOpen = false; onAddLocal(name) }
-                        )
-                    }
-                }
             }
         }
     }

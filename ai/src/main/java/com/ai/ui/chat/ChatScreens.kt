@@ -57,9 +57,16 @@ fun ChatSelectProviderScreen(
     onSelectProvider: (AppService) -> Unit
 ) {
     BackHandler { onNavigateBack() }
+    val context = LocalContext.current
 
-    val activeProviders = remember(aiSettings) {
-        aiSettings.getActiveServices().sortedBy { it.displayName }
+    val installedLocalLlms = remember { com.ai.data.LocalLlm.availableLlms(context) }
+    val activeProviders = remember(aiSettings, installedLocalLlms) {
+        val remote = aiSettings.getActiveServices()
+        // LOCAL surfaces here only when at least one .task model is
+        // installed — otherwise picking it would land on an empty
+        // model list with no way forward.
+        val withLocal = if (installedLocalLlms.isNotEmpty()) remote + AppService.LOCAL else remote
+        withLocal.sortedBy { it.displayName }
     }
 
     Column(

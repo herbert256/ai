@@ -346,7 +346,11 @@ fun AppNavHost(
                 onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) },
                 onResumeSession = { sessionId -> navController.navigate(NavRoutes.aiChatContinue(sessionId)) },
                 onNavigateToManage = { navController.navigate(NavRoutes.AI_CHAT_MANAGE) },
-                onNavigateToLocalLlmChat = { model -> navController.navigate(NavRoutes.aiLocalLlmChat(model)) },
+                // Hub card "Chat with a local LLM" — same destination
+                // as a configure-on-the-fly chat that picked the
+                // synthetic LOCAL provider, so the standard
+                // AI_CHAT_SESSION composable handles routing.
+                onNavigateToLocalLlmChat = { model -> navController.navigate(NavRoutes.aiChatSession("LOCAL", model)) },
                 onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) })
         }
         composable(NavRoutes.AI_CHAT_AGENT_SELECT) {
@@ -423,40 +427,36 @@ fun AppNavHost(
             }
         }
         composable(NavRoutes.AI_CHAT_SESSION) { entry ->
+            val context = LocalContext.current
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
             val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
             val uiState by appViewModel.uiState.collectAsState()
             if (provider != null) {
                 val apiKey = uiState.aiSettings.getApiKey(provider)
+                val isLocal = provider.id == "LOCAL"
                 ChatSessionScreen(
                     provider = provider, model = model, parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch, reasoningEffort = reasoning) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) },
+                    // LOCAL routes through MediaPipe LLM Inference; the
+                    // remote streaming protocol (web-search / reasoning
+                    // params) doesn't apply, so we just forward the
+                    // turn list to LocalLlm.generate via
+                    // ChatViewModel.sendLocalLlmStream.
+                    onSendMessageStream = if (isLocal) {
+                        { messages, _, _ -> chatViewModel.sendLocalLlmStream(context, model, messages) }
+                    } else {
+                        { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch, reasoningEffort = reasoning) }
+                    },
+                    onRecordStatistics = if (isLocal) {
+                        { _, _ -> /* no remote billing for local */ }
+                    } else {
+                        { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) }
+                    },
                     aiSettings = uiState.aiSettings,
-                    isVisionCapable = uiState.aiSettings.isVisionCapable(provider, model),
+                    isVisionCapable = !isLocal && uiState.aiSettings.isVisionCapable(provider, model),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
                 )
             }
-        }
-        composable(NavRoutes.AI_LOCAL_LLM_CHAT) { entry ->
-            val context = LocalContext.current
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
-            val uiState by appViewModel.uiState.collectAsState()
-            ChatSessionScreen(
-                provider = AppService.LOCAL, model = model, parameters = uiState.chatParameters,
-                userName = uiState.generalSettings.userName,
-                onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                // Local LLM doesn't speak the SSE / web-search /
-                // reasoning protocol — wrap the synchronous
-                // generate call as a one-emit Flow. Tracing happens
-                // inside LocalLlm.generate.
-                onSendMessageStream = { messages, _, _ -> chatViewModel.sendLocalLlmStream(context, model, messages) },
-                onRecordStatistics = { _, _ -> /* no remote billing for local */ },
-                aiSettings = uiState.aiSettings,
-                isVisionCapable = false,
-                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
-            )
         }
         composable(NavRoutes.AI_CHAT_HISTORY) {
             ChatHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,

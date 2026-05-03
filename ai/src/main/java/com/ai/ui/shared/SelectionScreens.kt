@@ -81,7 +81,11 @@ fun SelectModelScreen(
         }
     }
 
-    val allModels = aiSettings.getModels(provider)
+    // For the synthetic LOCAL provider the model list lives on disk
+    // in filesDir/local_llms/, not in ProviderConfig.models — query
+    // LocalLlm directly so installed .task bundles show up here just
+    // like any remote provider's models.
+    val allModels = if (provider.id == "LOCAL") com.ai.data.LocalLlm.availableLlms(context) else aiSettings.getModels(provider)
     val filteredModels = remember(searchQuery, allModels) {
         if (searchQuery.isBlank()) allModels
         else { val lq = searchQuery.lowercase(); allModels.filter { it.lowercase().contains(lq) } }
