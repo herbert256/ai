@@ -287,6 +287,26 @@ fun ReportsScreen(
             }
         }
     }
+
+    // While a translation is in flight, repoll the live state so the
+    // "n / N" prefix and the running cost stay current. (The
+    // translationRun StateFlow itself triggers recomposition on each
+    // _translationRun.update, but we also force a periodic poke so the
+    // cost cell formats reactively even when the parent recomposition
+    // would otherwise skip equal snapshots.)
+    LaunchedEffect(translationRun?.isRunning ?: false, currentReportId) {
+        // Once the run flips to finished, fold its rows into the
+        // persisted summary and clear the live state so the live row
+        // gives way to the static one.
+        if (translationRun?.isFinished == true) {
+            // Allow the LaunchedEffect above (keyed on `translationRun?.finished`)
+            // to reload and append the persisted secondary first;
+            // 200ms is long enough for the IO read to publish the new
+            // translationRunSummaries before we drop the live row.
+            delay(200)
+            onConsumeTranslation()
+        }
+    }
     // Overlay state for any flow that can hand off to a Compose
     // Navigation destination (trace detail, model info, …) needs to
     // be saveable: the AI_REPORTS Composable is removed from
@@ -310,8 +330,6 @@ fun ReportsScreen(
     // Translate flow state.
     var showTranslateLanguagePicker by remember { mutableStateOf(false) }
     var showTranslateModelPicker by remember { mutableStateOf<TargetLanguage?>(null) }
-    var showTranslateProgress by remember { mutableStateOf(false) }
-
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -599,19 +617,8 @@ fun ReportsScreen(
             onConfirm = { (prov, m) ->
                 onStartTranslation(currentReportId, pickingTranslateModelFor.name, pickingTranslateModelFor.native, prov, m)
                 showTranslateModelPicker = null
-                showTranslateProgress = true
             },
             onBack = { showTranslateModelPicker = null },
-            onNavigateHome = onNavigateHome
-        )
-        return
-    }
-    if (showTranslateProgress) {
-        TranslationProgressScreen(
-            runState = translationRun,
-            onCancel = onCancelTranslation,
-            onConsume = onConsumeTranslation,
-            onBack = { showTranslateProgress = false },
             onNavigateHome = onNavigateHome
         )
         return
@@ -814,6 +821,8 @@ fun ReportsScreen(
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
+                translationRun = translationRun,
+                onCancelTranslation = onCancelTranslation,
                 translationRunSummaries = translationRunSummaries,
                 onViewSecondaryKind = { kind -> listKind = kind },
                 onOpenSecondaryRun = { id -> openMetaResultId = id },
@@ -980,6 +989,8 @@ private fun ColumnScope.GenerationPhase(
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
+    translationRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
+    onCancelTranslation: () -> Unit = {},
     translationRunSummaries: List<TranslationRunSummary> = emptyList(),
     onViewSecondaryKind: (SecondaryKind) -> Unit = {},
     onOpenSecondaryRun: (String) -> Unit = {},
@@ -1187,6 +1198,44 @@ private fun ColumnScope.GenerationPhase(
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
+        }
+
+        // Live translation row — appears the moment the user fires off
+        // a translate and disappears once the persisted summary takes
+        // its place. Hourglass spins while items are in flight; the
+        // text leads with "n / N" so the user can watch progress, and
+        // the cost cell on the right ticks up as each call returns.
+        // Tap-to-cancel: the same Cancel button TranslationProgressScreen
+        // used to host now lives next to the cost.
+        if (isComplete && translationRun != null && !translationRun.isFinished && !translationRun.cancelled) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
+                    AnimatedHourglass(fontSize = 16.sp)
+                }
+                RowTypeCell("translate")
+                val progress = "${translationRun.completed} / ${translationRun.total}"
+                val info = listOf(translationRun.targetLanguageName).joinToString(" · ")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "$progress · ${info.ifBlank { "Translate" }}",
+                        fontSize = 13.sp, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (translationRun.totalCostCents > 0.0) {
+                    Text(formatCents(translationRun.totalCostCents), fontSize = 10.sp,
+                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(end = 6.dp))
+                }
+                Text(
+                    "Cancel", fontSize = 11.sp, color = AppColors.Red,
+                    modifier = Modifier.clickable { onCancelTranslation() }.padding(horizontal = 4.dp)
+                )
+            }
+            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
 
         // Translation runs — one row per Translate invocation. Each
