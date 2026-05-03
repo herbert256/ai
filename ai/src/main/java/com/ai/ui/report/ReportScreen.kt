@@ -11,6 +11,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -283,8 +284,15 @@ fun ReportsScreen(
             }
         }
     }
-    var openMetaResultId by remember { mutableStateOf<String?>(null) }
-    var openTranslationRunId by remember { mutableStateOf<String?>(null) }
+    // Overlay state for any flow that can hand off to a Compose
+    // Navigation destination (trace detail, model info, …) needs to
+    // be saveable: the AI_REPORTS Composable is removed from
+    // composition while the user is on the destination, so plain
+    // remember{} state would reset on back-pop and the user would
+    // land back at the report root instead of the overlay they came
+    // from. rememberSaveable persists through the back-stack.
+    var openMetaResultId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openTranslationRunId by rememberSaveable { mutableStateOf<String?>(null) }
 
     var showViewer by remember { mutableStateOf(false) }
     var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }

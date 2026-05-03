@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,7 +56,10 @@ internal fun TranslationRunDetailScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
-    var openId by remember { mutableStateOf<String?>(null) }
+    // Saveable so that back-popping from a Compose Navigation
+    // destination (e.g. trace file detail) lands the user back on
+    // the call detail screen instead of resetting to the run list.
+    var openId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, runId, refreshTick) {
         value = withContext(Dispatchers.IO) {
