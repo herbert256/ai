@@ -304,6 +304,8 @@ fun HousekeepingScreen(
 
             LocalModelsCard()
 
+            LocalLlmsCard()
+
             CollapsibleCard("Full reset") {
                     Button(
                         onClick = { showClearAllConfirm = true },
@@ -470,6 +472,113 @@ private fun importTfliteModel(context: Context, uri: android.net.Uri): String? {
         target.nameWithoutExtension
     } catch (e: Exception) {
         android.util.Log.e("Housekeeping", "import failed: ${e.message}", e)
+        null
+    }
+}
+
+/** Maintenance card for on-device LLMs (MediaPipe Tasks GenAI / .task
+ *  bundles). Most worthwhile small LLMs are licence-gated, so the
+ *  card leads with hand-off links the user can open in a browser to
+ *  do the gating dance, then a SAF picker brings the downloaded
+ *  .task file into `<filesDir>/local_llms/`. Per-row Remove deletes. */
+@Composable
+private fun LocalLlmsCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var installed by remember { mutableStateOf(LocalLlm.availableLlms(context)) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            working = true
+            status = "Importing…"
+            val name = withContext(Dispatchers.IO) { importTaskModel(context, uri) }
+            working = false
+            if (name != null) {
+                installed = LocalLlm.availableLlms(context)
+                status = "Imported $name"
+            } else status = "Could not import model"
+        }
+    }
+
+    CollapsibleCard("Local LLMs") {
+        Text(
+            "On-device LLMs via MediaPipe Tasks GenAI. Most useful models (Gemma, Phi, Llama) require accepting a licence on the model's web page before download — open one of the links below in a browser, accept the terms, download the .task file (typically 0.5 - 2.5 GB), then come back and tap \"Add LLM from file\" to import it.",
+            fontSize = 12.sp, color = AppColors.TextTertiary
+        )
+
+        Text("Download links", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
+        LocalLlm.recommendedLinks.forEach { link ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Button(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link.url)))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) {
+                    Text(
+                        text = if (link.sizeHint != null) "${link.name} (${link.sizeHint})" else link.name,
+                        fontSize = 12.sp, maxLines = 1, softWrap = false
+                    )
+                }
+                Text(link.description, fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
+        }
+
+        Button(
+            onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
+            enabled = !working,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+        ) { Text("Add LLM from file…", maxLines = 1, softWrap = false) }
+
+        if (installed.isNotEmpty()) {
+            Text("Installed", fontSize = 12.sp, color = AppColors.TextTertiary)
+            installed.forEach { name ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = name,
+                        fontSize = 13.sp, color = Color.White,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = {
+                        LocalLlm.release(name)
+                        java.io.File(LocalLlm.localLlmsDir(context), "$name.task").delete()
+                        installed = LocalLlm.availableLlms(context)
+                        status = "Removed $name"
+                    }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+                }
+            }
+        }
+
+        status?.let { Text(it, fontSize = 11.sp, color = AppColors.TextTertiary) }
+    }
+}
+
+/** SAF copy for a .task file into local_llms/. The .task bundles
+ *  ship with their tokenizer and weights inside, so a single file
+ *  is the whole model — no companion files to track. */
+private fun importTaskModel(context: Context, uri: android.net.Uri): String? {
+    return try {
+        val name = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (c.moveToFirst() && nameIdx >= 0) c.getString(nameIdx) else null
+        }?.takeIf { it.isNotBlank() } ?: "llm_${System.currentTimeMillis()}.task"
+        val sanitized = name.replace(Regex("[^A-Za-z0-9._-]+"), "_")
+            .let { if (it.endsWith(".task", ignoreCase = true)) it else "$it.task" }
+        val target = java.io.File(LocalLlm.localLlmsDir(context), sanitized)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
+        target.nameWithoutExtension
+    } catch (e: Exception) {
+        android.util.Log.e("Housekeeping", "LLM import failed: ${e.message}", e)
         null
     }
 }

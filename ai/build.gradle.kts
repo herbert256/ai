@@ -146,6 +146,13 @@ dependencies {
     // user-supplied .tflite files under filesDir/local_models/.
     implementation("com.google.mediapipe:tasks-text:0.10.14")
 
+    // MediaPipe Tasks GenAI — LLM Inference API. Runs Gemma / Phi /
+    // Llama / Falcon / StableLM in MediaPipe's .task bundle format
+    // entirely on-device. Models are user-supplied .task files
+    // (mostly licence-gated downloads) imported via the SAF picker
+    // on the Housekeeping → Local LLMs card.
+    implementation("com.google.mediapipe:tasks-genai:0.10.16")
+
     debugImplementation(libs.androidx.ui.tooling)
 
     // Unit tests
