@@ -356,8 +356,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * and parameter selections.
      */
     fun regenerateReport(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
-        scope.launch {
-            val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return@launch
+        scope.launch(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val state = appViewModel.uiState.value
             val ai = state.aiSettings
             val staged = state.stagedReportModels
@@ -366,21 +366,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
             val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
             val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-
-            // Additive fast path: when the only change is the model
-            // list, we add new agents onto the existing report and skip
-            // the API call for unchanged ones. Pre-conditions:
-            //   * no meta runs / translations attached (they're tied to
-            //     the existing agent set and would be invalidated)
-            //   * prompt + title match what's persisted
-            //   * parameters not flagged dirty
-            //   * the staged set differs from the persisted set
-            val secondaries = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, reportId) }
-            val noSecondaries = secondaries.isEmpty()
-            val promptUnchanged = !state.hasPendingPromptChange &&
-                state.genericPromptTitle == report.title &&
-                state.genericPromptText == report.prompt
-            val paramsUnchanged = !state.hasPendingParametersChange
             val agents = agentIds.mapNotNull { ai.getAgentById(it) }
             val swarmMembers = ai.getMembersForSwarms(swarmIds)
             val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
@@ -394,54 +379,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val existingIds = report.agents.map { it.agentId }.toSet()
             val newTasks = tasks.filter { it.resultId !in existingIds }
             val removedIds = existingIds - tasks.map { it.resultId }.toSet()
-            val modelListChanged = staged.isNotEmpty() && (newTasks.isNotEmpty() || removedIds.isNotEmpty())
 
-            if (noSecondaries && promptUnchanged && paramsUnchanged && modelListChanged) {
-                additiveRegenerate(context, scope, report, newTasks, removedIds, state)
-                return@launch
-            }
+            // Decide what gets refreshed:
+            //  - prompt or parameters changed → cascade everything: every
+            //    agent, then every existing meta, then every translation.
+            //  - only the model list changed → additive: add the new
+            //    agents, drop the removed ones, leave everything else
+            //    alone. Existing meta runs and translations still
+            //    reference the old agent set; the user can re-pick
+            //    individually if they want them refreshed.
+            //  - nothing changed → no-op.
+            val cascadeAll = state.hasPendingPromptChange || state.hasPendingParametersChange
+            val tasksToRun = if (cascadeAll) tasks else newTasks
+            if (tasksToRun.isEmpty() && removedIds.isEmpty() && !cascadeAll) return@launch
 
-            // Full regenerate path — create a new report and run every model.
-            // Re-seed the image fields and the web-search toggle from the saved report so a
-            // regenerate carries the same attachment + tool flag without the user having
-            // to re-attach or re-tick.
-            _agentResults.value = emptyMap()
-            appViewModel.updateUiState { it.copy(
-                showGenericReportsDialog = false, currentReportId = null,
-                genericReportsProgress = 0, genericReportsTotal = 0,
-                genericReportsSelectedAgents = emptySet(),
-                genericPromptTitle = report.title, genericPromptText = report.prompt,
-                reportImageBase64 = report.imageBase64, reportImageMime = report.imageMime,
-                reportWebSearchTool = report.webSearchTool,
-                reportReasoningEffort = report.reasoningEffort,
-                pendingReportModels = emptyList(),
-                stagedReportModels = emptyList(),
-                hasPendingPromptChange = false,
-                hasPendingParametersChange = false
-            ) }
-            generateGenericReports(
-                scope = scope, context = context, selectedAgentIds = agentIds,
-                selectedSwarmIds = swarmIds, directModelIds = directIds,
-                parametersIds = emptyList(), reportType = report.reportType
-            )
-        }
-    }
-
-    /** Mutate the existing report in place: drop agents the user
-     *  removed, append new agents (PENDING), and run [executeReportTask]
-     *  only on [newTasks]. Existing successful results stay untouched
-     *  on disk and on screen. */
-    private fun additiveRegenerate(
-        context: Context, scope: kotlinx.coroutines.CoroutineScope,
-        report: Report, newTasks: List<ReportTask>, removedIds: Set<String>,
-        state: UiState
-    ) {
-        scope.launch(Dispatchers.IO) {
-            withTracerTags(reportId = report.id, category = "Report regenerate (additive)") {
-                for (id in removedIds) ReportStorage.removeAgent(context, report.id, id)
-                if (newTasks.isNotEmpty()) ReportStorage.appendAgents(context, report.id, newTasks.map { it.reportAgent })
-                if (removedIds.isNotEmpty()) _agentResults.update { existing -> existing.filterKeys { it !in removedIds } }
-                ReportStorage.bumpReportTimestamp(context, report.id)
+            withTracerTags(reportId = reportId, category = "Report regenerate") {
+                for (id in removedIds) ReportStorage.removeAgent(context, reportId, id)
+                if (newTasks.isNotEmpty()) ReportStorage.appendAgents(context, reportId, newTasks.map { it.reportAgent })
+                // Reset existing-but-rerunning agents to PENDING so the
+                // result row shows the spinning hourglass while the new
+                // call is in flight. New agents are PENDING already via
+                // appendAgents.
+                for (task in tasksToRun) {
+                    if (task.resultId in existingIds) ReportStorage.resetAgentToPending(context, reportId, task.resultId)
+                }
+                _agentResults.update { existing ->
+                    existing.filterKeys { k -> k !in removedIds && k !in tasksToRun.map { it.resultId }.toSet() }
+                }
+                ReportStorage.bumpReportTimestamp(context, reportId)
                 appViewModel.updateUiState { s -> s.copy(
                     stagedReportModels = emptyList(),
                     pendingReportModels = emptyList(),
@@ -449,26 +414,81 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     hasPendingParametersChange = false
                 ) }
 
-                if (newTasks.isEmpty()) return@withTracerTags
-
-                // Mirror generateGenericReports' overlay logic so the new
-                // agents see the same per-report toggles (web-search,
-                // reasoning) the original run did.
-                val baseOverride = state.reportAdvancedParameters
-                val withWeb = if (report.webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
-                val overrideParams = if (report.reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort) else withWeb
-
-                val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
-                coroutineScope {
-                    newTasks.map { task ->
-                        async {
-                            sem.withPermit {
-                                executeReportTask(context, report.id, report.prompt, overrideParams, task,
-                                    report.imageBase64, report.imageMime, isRegeneration = true)
+                if (tasksToRun.isNotEmpty()) {
+                    val finalReport = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    val baseOverride = state.reportAdvancedParameters
+                    val withWeb = if (finalReport.webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
+                    val overrideParams = if (finalReport.reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = finalReport.reasoningEffort) else withWeb
+                    val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
+                    coroutineScope {
+                        tasksToRun.map { task ->
+                            async {
+                                sem.withPermit {
+                                    executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
+                                        finalReport.imageBase64, finalReport.imageMime, isRegeneration = true)
+                                }
                             }
-                        }
-                    }.awaitAll()
+                        }.awaitAll()
+                    }
                 }
+
+                // Cascade: prompt / params change invalidates every meta
+                // result and every translation. Re-fire each meta kind
+                // with its original picks (RERANK first because
+                // SUMMARIZE / COMPARE may consume it as scope), then
+                // re-fire translations sequentially (translation jobs
+                // are mutually exclusive — startTranslation cancels the
+                // previous one). Picks come from the persisted rows so
+                // the user gets the same coverage they had before.
+                if (cascadeAll) cascadeMetasAndTranslations(context, scope, reportId)
+            }
+        }
+    }
+
+    private suspend fun cascadeMetasAndTranslations(
+        context: Context, scope: kotlinx.coroutines.CoroutineScope, reportId: String
+    ) {
+        val all = SecondaryResultStorage.listForReport(context, reportId)
+        if (all.isEmpty()) return
+        val byKind = all.groupBy { it.kind }
+
+        suspend fun rerunMetaKind(kind: SecondaryKind) {
+            val metas = byKind[kind].orEmpty()
+            if (metas.isEmpty()) return
+            val picks = metas
+                .mapNotNull { meta ->
+                    val provider = AppService.findById(meta.providerId) ?: return@mapNotNull null
+                    provider to meta.model
+                }
+                .distinct()
+            if (picks.isEmpty()) return
+            for (m in metas) SecondaryResultStorage.delete(context, reportId, m.id)
+            // Original scope (AllReports vs TopRanked) isn't persisted on
+            // the row, so we default to AllReports — the safe answer
+            // when the rerank we'd reference might itself be in the
+            // process of being re-run.
+            runSecondary(scope, context, reportId, kind, picks, SecondaryScope.AllReports)?.join()
+        }
+
+        rerunMetaKind(SecondaryKind.RERANK)
+        rerunMetaKind(SecondaryKind.SUMMARIZE)
+        rerunMetaKind(SecondaryKind.COMPARE)
+        rerunMetaKind(SecondaryKind.MODERATION)
+
+        val translates = byKind[SecondaryKind.TRANSLATE].orEmpty()
+        if (translates.isNotEmpty()) {
+            data class TranslateRun(val lang: String, val native: String, val provider: AppService, val model: String)
+            val translateRuns = translates
+                .mapNotNull { meta ->
+                    val lang = meta.targetLanguage ?: return@mapNotNull null
+                    val native = meta.targetLanguageNative ?: lang
+                    val provider = AppService.findById(meta.providerId) ?: return@mapNotNull null
+                    TranslateRun(lang, native, provider, meta.model)
+                }
+                .distinct()
+            for (t in translates) SecondaryResultStorage.delete(context, reportId, t.id)
+            for (run in translateRuns) {
+                startTranslation(scope, context, reportId, run.lang, run.native, run.provider, run.model).join()
             }
         }
     }
@@ -671,11 +691,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         kind: SecondaryKind,
         picks: List<Pair<AppService, String>>,
         scopeChoice: SecondaryScope = SecondaryScope.AllReports
-    ) {
-        if (picks.isEmpty()) return
+    ): Job? {
+        if (picks.isEmpty()) return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
-        scope.launch(Dispatchers.IO) {
+        return scope.launch(Dispatchers.IO) {
             // Tag every API call this batch makes with the parent
             // report's id and a kind-specific category. Without the
             // reportId tag the resulting trace files would land with
@@ -1117,9 +1137,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         targetLanguageNative: String,
         provider: AppService,
         model: String
-    ) {
+    ): Job {
         translationJob?.cancel()
-        translationJob = scope.launch(Dispatchers.IO) {
+        val job = scope.launch(Dispatchers.IO) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val generalSettings = state.generalSettings
@@ -1212,6 +1232,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 _translationRun.update { it?.copy(finished = true) }
             }
         }
+        translationJob = job
+        return job
     }
 
     private suspend fun runOneTranslation(

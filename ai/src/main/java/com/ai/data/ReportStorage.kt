@@ -344,6 +344,36 @@ object ReportStorage {
         }
     }
 
+    /** Reset an existing agent row to PENDING and clear every result-
+     *  related field so the next API call writes a fresh outcome rather
+     *  than overwriting on top of stale data. Used by the in-place
+     *  Regenerate path: prompt / parameter changes mark every agent as
+     *  PENDING again before the new fan-out runs. */
+    fun resetAgentToPending(context: Context, reportId: String, agentId: String) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            val agent = report.agents.find { it.agentId == agentId } ?: return
+            agent.reportStatus = ReportStatus.PENDING
+            agent.httpStatus = null
+            agent.requestHeaders = null
+            agent.requestBody = null
+            agent.responseHeaders = null
+            agent.responseBody = null
+            agent.errorMessage = null
+            agent.tokenUsage = null
+            agent.cost = null
+            agent.citations = null
+            agent.searchResults = null
+            agent.relatedQuestions = null
+            agent.rawUsageJson = null
+            agent.durationMs = null
+            report.totalCost = report.agents.mapNotNull { it.cost }.sum()
+            report.completedAt = null
+            saveReport(report)
+        }
+    }
+
     /** Duplicate [reportId]: new UUID, fresh timestamp, "(Copy)" title
      *  suffix, every agent row + result preserved. Secondaries are not
      *  cloned — they're tied to the original by reportId and copying
