@@ -47,6 +47,15 @@ fun ChatsHubScreen(
     }
     val pinnedSessions = allSessionsForHub.filter { it.pinned }
     val recentSessions = allSessionsForHub.filter { !it.pinned }.take(3)
+    // "Unfinished" chats — the user-visible last message is from the
+    // user, no assistant response landed. Happens when the user
+    // navigates away mid-stream: the user message was already saved
+    // before the stream started, the cancellation re-throws before the
+    // assistant message is appended.
+    val unfinishedSessions = allSessionsForHub.filter { s ->
+        val lastUserVisible = s.messages.lastOrNull { it.role != "system" }
+        lastUserVisible?.role == "user"
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -54,6 +63,13 @@ fun ChatsHubScreen(
         TitleBar(title = "AI Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(24.dp))
 
+        if (unfinishedSessions.isNotEmpty()) {
+            UnfinishedChatPill(
+                count = unfinishedSessions.size,
+                onResume = { onResumeSession(unfinishedSessions.first().id) }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
         StartChatGroup(
             hasAgents = hasAgents,
             onAgentChat = onNavigateToAgentSelect,
@@ -129,6 +145,31 @@ private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.dat
                     }
                 }
             }
+        }
+    }
+}
+
+/** Surfaces a pill at the top of the hub when at least one chat
+ *  ended on a user message with no assistant reply (the user
+ *  navigated away mid-stream, structured cancellation cut the
+ *  response before it could be appended). Tap resumes the most recent
+ *  such session so the user can continue from where they left off. */
+@Composable
+private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onResume() },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F3340))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("✉️", fontSize = 18.sp)
+            Spacer(modifier = Modifier.width(10.dp))
+            val label = if (count == 1) "1 chat awaiting reply" else "$count chats awaiting reply"
+            Text(label, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f))
+            Text("Resume", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold)
         }
     }
 }
