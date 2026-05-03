@@ -135,15 +135,22 @@ fun ReportsHubScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToLocalSearch: () -> Unit,
-    onNavigateToQuickLocalSearch: () -> Unit
+    onNavigateToQuickLocalSearch: () -> Unit,
+    onOpenReport: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val hasPromptHistory = remember {
         SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir).loadPromptHistory().isNotEmpty()
     }
-    val hasPreviousReports = remember { ReportStorage.getAllReports(context).isNotEmpty() }
+    val allReports = remember { ReportStorage.getAllReports(context) }
+    val hasPreviousReports = allReports.isNotEmpty()
+    val recentReports = remember(allReports) { allReports.take(3) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)
+        .verticalScroll(rememberScrollState())
+        .padding(16.dp)) {
         TitleBar(title = "AI Reports", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(24.dp))
         StartHubGroup(
@@ -153,6 +160,10 @@ fun ReportsHubScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory, enabled = hasPreviousReports)
+        if (recentReports.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            RecentReportsCard(reports = recentReports, onOpen = onOpenReport)
+        }
         Spacer(modifier = Modifier.height(12.dp))
         SearchHubGroup(
             enabled = hasPreviousReports,
@@ -160,6 +171,45 @@ fun ReportsHubScreen(
             onExtendedLocal = onNavigateToLocalSearch,
             onSemantic = onNavigateToSearch
         )
+    }
+}
+
+/** Inline preview of the 3 most recent reports. The full list lives
+ *  behind "View previous reports"; this is a one-tap shortcut for the
+ *  common "open the one I was just working on" case. */
+@Composable
+private fun RecentReportsCard(reports: List<com.ai.data.Report>, onOpen: (String) -> Unit) {
+    val df = remember { java.text.SimpleDateFormat("MMM d HH:mm", java.util.Locale.US) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text("Recent", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 4.dp))
+            reports.forEach { r ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpen(r.id) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = r.title.ifBlank { "(untitled)" },
+                            fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = df.format(java.util.Date(r.timestamp)),
+                            fontSize = 11.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

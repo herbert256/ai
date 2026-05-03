@@ -132,13 +132,21 @@ fun AppNavHost(
 
         // ===== Reports =====
         composable(NavRoutes.AI_REPORTS_HUB) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
             ReportsHubScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
                 onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
                 onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
                 onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
                 onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
-                onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) })
+                onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
+                onOpenReport = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.AI_REPORTS)
+                    }
+                })
         }
         composable(NavRoutes.AI_SEARCH) {
             val context = LocalContext.current
