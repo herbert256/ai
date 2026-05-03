@@ -23,11 +23,15 @@ object ModelType {
     const val STT = "stt"
     const val MODERATION = "moderation"
     const val CLASSIFY = "classify"
+    /** Mistral surfaces an `ocr` capability flag on its mistral-ocr-*
+     *  entries; the dispatcher tags those with this constant so the
+     *  picker can group / surface them as a distinct model kind. */
+    const val OCR = "ocr"
     const val UNKNOWN = "unknown"
 
     /** Every type the user can configure paths for, in display order. UNKNOWN is
      *  intentionally excluded — it's a runtime fallback, not a configurable kind. */
-    val ALL: List<String> = listOf(CHAT, RESPONSES, EMBEDDING, RERANK, IMAGE, TTS, STT, MODERATION, CLASSIFY)
+    val ALL: List<String> = listOf(CHAT, RESPONSES, EMBEDDING, RERANK, IMAGE, TTS, STT, MODERATION, CLASSIFY, OCR)
 
     /** User-supplied global defaults from AI Setup → Model Types. Sits between the
      *  per-provider override and the hardcoded DEFAULT_PATHS. AppViewModel keeps

@@ -496,7 +496,25 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         } catch (_: Exception) { emptyMap() }
     } else emptyMap()
 
-    val types = ids.associateWith { id -> cohereByName[id]?.type ?: ModelType.infer(id) }
+    val types = ids.associateWith { id ->
+        cohereByName[id]?.type
+            // Mistral capabilities are per-modality booleans; pick the
+            // non-chat one when set so the picker auto-tags the right
+            // ModelType. Order matters — moderation > stt > tts > ocr
+            // > classification > chat (chat is the default; if multiple
+            // flags are true we prefer the more specific one).
+            ?: rawModels.firstOrNull { it.id == id }?.capabilities?.let { c ->
+                when {
+                    c.moderation == true -> ModelType.MODERATION
+                    c.audio_transcription == true -> ModelType.STT
+                    c.audio_speech == true -> ModelType.TTS
+                    c.ocr == true -> ModelType.OCR
+                    c.classification == true -> ModelType.CLASSIFY
+                    else -> null
+                }
+            }
+            ?: ModelType.infer(id)
+    }
     val caps = mutableMapOf<String, ModelCapabilities>()
     for (id in ids) {
         val info = rawModels.firstOrNull { it.id == id }

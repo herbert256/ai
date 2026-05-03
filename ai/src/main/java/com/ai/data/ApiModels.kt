@@ -398,7 +398,15 @@ data class MistralCapabilities(
     val vision: Boolean? = null,
     val classification: Boolean? = null,
     /** Mistral's per-model thinking flag (true on `magistral-*`). */
-    val reasoning: Boolean? = null
+    val reasoning: Boolean? = null,
+    /** Per-modality flags Mistral exposes per entry — used to
+     *  auto-tag the model's `type` instead of guessing from the id.
+     *  See `MistralCapabilities.inferType()` and the ModelType
+     *  dispatch in ApiDispatch.fetchModelsOpenAiCompat. */
+    val moderation: Boolean? = null,
+    val ocr: Boolean? = null,
+    val audio_transcription: Boolean? = null,
+    val audio_speech: Boolean? = null
 )
 
 data class CohereModelsResponse(val models: List<CohereModelInfo>?)
