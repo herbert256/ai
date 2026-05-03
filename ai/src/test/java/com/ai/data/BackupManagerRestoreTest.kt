@@ -34,4 +34,29 @@ class BackupManagerRestoreTest {
         assertThat(filesDir.exists()).isTrue()
         assertThat(filesDir.isDirectory).isTrue()
     }
+
+    @Test fun clearFilesDirForRestore_preserves_local_model_dirs() {
+        val filesDir = tmp.newFolder("files")
+        // User has on-device LLM + embedder model bundles installed; both excluded
+        // from backup, so the restore wipe must keep them in place.
+        File(filesDir, "local_llms/gemma-3-1b.task").apply {
+            parentFile!!.mkdirs()
+            writeText("multi-GB llm bundle stand-in")
+        }
+        File(filesDir, "local_models/embed.tflite").apply {
+            parentFile!!.mkdirs()
+            writeText("embedder bundle stand-in")
+        }
+        // Plus some real backed-up content that should still be wiped:
+        File(filesDir, "reports/old.json").apply {
+            parentFile!!.mkdirs()
+            writeText("stale report")
+        }
+
+        BackupManager.clearFilesDirForRestore(filesDir)
+
+        assertThat(File(filesDir, "local_llms/gemma-3-1b.task").exists()).isTrue()
+        assertThat(File(filesDir, "local_models/embed.tflite").exists()).isTrue()
+        assertThat(File(filesDir, "reports").exists()).isFalse()
+    }
 }

@@ -19,10 +19,24 @@ import java.util.zip.ZipOutputStream
  *
  * Backup payload (single .zip):
  *   manifest.json                     — version, timestamp, app version
- *   prefs/eval_prefs.json             — main SharedPreferences (typed)
- *   prefs/provider_registry.json      — provider catalog SharedPreferences
- *   files/<mirror of filesDir>/...    — reports, chats, traces, prompt cache,
- *                                       prompt history, datastore — everything
+ *   prefs/<name>.json                 — every entry of [PREFS_TO_BACKUP]
+ *                                       (typed, see serializePrefs)
+ *   files/<mirror of filesDir>/...    — reports, chats, traces, KBs,
+ *                                       prompt cache, prompt history,
+ *                                       pricing tier blobs, datastore,
+ *                                       embeddings cache, model lists.
+ *                                       Excludes [FILES_DIR_BACKUP_EXCLUDES]
+ *                                       (local_llms / local_models — see
+ *                                       comment on that constant).
+ *
+ * Things deliberately NOT in the backup:
+ *   - Anything under cacheDir (exports, shared traces, restore temp) —
+ *     regeneratable and non-portable.
+ *   - filesDir/local_llms — multi-GB user-supplied .task model bundles.
+ *   - filesDir/local_models — hundreds-of-MB MediaPipe TextEmbedder
+ *     .tflite files. Both are user-supplied via SAF / direct download
+ *     and re-importing them is independent of settings restore.
+ *   - WebViewChromiumPrefs and any prefs not in PREFS_TO_BACKUP.
  *
  * SharedPreferences entries are serialized with a type discriminator so values
  * round-trip through JSON without ambiguity (otherwise an Int would come back
@@ -42,7 +56,9 @@ object BackupManager {
     /** Cached pricing tables (OpenRouter + LiteLLM downloads + manual overrides).
      *  Including these in the backup means a restore preserves the user's
      *  freshly-fetched pricing snapshot and any manual overrides without forcing
-     *  a re-download. */
+     *  a re-download. The bulk of pricing data now lives as files under
+     *  filesDir/pricing/ (picked up by the files/ mirror); this prefs file
+     *  carries timestamps + the manual-override map. */
     private const val PRICING_CACHE_PREFS = "pricing_cache"
     /** Last-used Dual Chat configuration (the two picked models, their params,
      *  system prompts, subject, and two prompts). User-meaningful state worth
@@ -60,6 +76,20 @@ object BackupManager {
     private val PREFS_TO_BACKUP = listOf(
         MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS, HUGGINGFACE_CACHE_PREFS
     )
+
+    /** Top-level filesDir subdirs we never copy into a backup zip and never
+     *  delete during a restore wipe. Both hold user-supplied on-device model
+     *  bundles — Gemma / Phi / Llama .task files (hundreds of MB to several
+     *  GB each) under local_llms/, MediaPipe TextEmbedder .tflite files
+     *  (~50–500 MB each) under local_models/. They're sourced via SAF or
+     *  direct hand-off from Kaggle / HuggingFace, so:
+     *    - Excluding from backup keeps zip sizes sane and avoids shipping
+     *      potentially gigabytes of redistributable-but-user-installed
+     *      model weights.
+     *    - Preserving across the restore wipe means a user who has local
+     *      models installed on the target device doesn't lose them when
+     *      restoring an unrelated settings/data backup. */
+    internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models")
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
@@ -90,8 +120,9 @@ object BackupManager {
                 zip.write("prefs/$name.json", serializePrefs(context, name))
             }
 
-            // Mirror the entire filesDir (reports, chats, traces, prompt cache,
-            // prompt history, DataStore proto files, exports cache subdir excluded).
+            // Mirror the entire filesDir, minus FILES_DIR_BACKUP_EXCLUDES at the
+            // top level. Exports live under cacheDir/exports/ and are excluded
+            // simply because cacheDir isn't part of this mirror.
             val filesRoot = context.filesDir
             if (filesRoot.exists()) {
                 addDirectoryRecursive(zip, filesRoot, "files")
@@ -236,7 +267,12 @@ object BackupManager {
             filesDir.mkdirs()
             return
         }
-        filesDir.listFiles()?.forEach { it.deleteRecursively() }
+        // Wipe everything except the local-model dirs — see FILES_DIR_BACKUP_EXCLUDES.
+        // The backup never contained those, so deleting them here would silently
+        // destroy gigabytes of unrelated user data on the target device.
+        filesDir.listFiles()?.forEach {
+            if (it.name !in FILES_DIR_BACKUP_EXCLUDES) it.deleteRecursively()
+        }
     }
 
     data class RestoreSummary(
@@ -348,6 +384,10 @@ object BackupManager {
     private fun addDirectoryRecursive(zip: ZipOutputStream, dir: File, prefix: String) {
         val children = dir.listFiles() ?: return
         for (child in children) {
+            // Top-level filesDir excludes — local model bundles, see
+            // FILES_DIR_BACKUP_EXCLUDES. Only applied at depth 0 (prefix == "files")
+            // so a deeper directory that happens to share the name still gets backed up.
+            if (prefix == "files" && child.name in FILES_DIR_BACKUP_EXCLUDES) continue
             val entryName = "$prefix/${child.name}"
             if (child.isDirectory) {
                 addDirectoryRecursive(zip, child, entryName)
