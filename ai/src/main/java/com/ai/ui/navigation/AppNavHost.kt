@@ -329,6 +329,7 @@ fun AppNavHost(
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
                 onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) },
+                onResumeSession = { sessionId -> navController.navigate(NavRoutes.aiChatContinue(sessionId)) },
                 onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) })
         }
         composable(NavRoutes.AI_CHAT_AGENT_SELECT) {
