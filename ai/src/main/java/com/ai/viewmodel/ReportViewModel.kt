@@ -83,8 +83,36 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val externalSystemPrompt = state.externalSystemPrompt
             val imageBase64 = state.reportImageBase64
             val imageMime = state.reportImageMime
+            // Layer the per-report advanced overlay on top of any preset
+            // merge — "later non-null wins" (matches Settings.mergeParameters
+            // semantics for the preset chain). Either layer alone produces
+            // the right result; together the user's explicit per-report
+            // tweaks win over preset defaults instead of being shadowed by
+            // them. Bool fields OR upward.
             val mergedParams = aiSettings.mergeParameters(parametersIds)
-            val baseOverride = mergedParams ?: state.reportAdvancedParameters
+            val advanced = state.reportAdvancedParameters
+            val baseOverride = when {
+                mergedParams == null && advanced == null -> null
+                mergedParams == null -> advanced
+                advanced == null -> mergedParams
+                else -> AgentParameters(
+                    temperature = advanced.temperature ?: mergedParams.temperature,
+                    maxTokens = advanced.maxTokens ?: mergedParams.maxTokens,
+                    topP = advanced.topP ?: mergedParams.topP,
+                    topK = advanced.topK ?: mergedParams.topK,
+                    frequencyPenalty = advanced.frequencyPenalty ?: mergedParams.frequencyPenalty,
+                    presencePenalty = advanced.presencePenalty ?: mergedParams.presencePenalty,
+                    systemPrompt = advanced.systemPrompt ?: mergedParams.systemPrompt,
+                    stopSequences = advanced.stopSequences ?: mergedParams.stopSequences,
+                    seed = advanced.seed ?: mergedParams.seed,
+                    responseFormatJson = advanced.responseFormatJson || mergedParams.responseFormatJson,
+                    searchEnabled = advanced.searchEnabled || mergedParams.searchEnabled,
+                    returnCitations = advanced.returnCitations,
+                    searchRecency = advanced.searchRecency ?: mergedParams.searchRecency,
+                    webSearchTool = advanced.webSearchTool || mergedParams.webSearchTool,
+                    reasoningEffort = advanced.reasoningEffort ?: mergedParams.reasoningEffort
+                )
+            }
             // The per-report 🌐 toggle adds webSearchTool=true on top of any
             // existing override so it ORs onto each agent's pinned default.
             // Same overlay for the per-report 🧠 reasoning level — non-
