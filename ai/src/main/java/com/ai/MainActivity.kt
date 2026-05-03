@@ -28,7 +28,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        handleIntent(intent)
+        // Only process the launch intent on a fresh start. After a configuration change
+        // (rotation, locale switch, etc.) onCreate runs again with the same launch intent
+        // — handling it a second time re-imports the shared content the user already
+        // consumed, which surfaces as the chat composer suddenly re-populating with a
+        // shared file or text the user just dismissed.
+        if (savedInstanceState == null) handleIntent(intent)
 
         setContent {
             val viewModel: AppViewModel = viewModel()
