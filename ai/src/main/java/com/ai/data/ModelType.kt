@@ -242,6 +242,19 @@ object ModelType {
             }
         }
     }
+
+    /** Known-bad set: providers whose external metadata (LiteLLM /
+     *  models.dev) flags a model as reasoning-capable, but whose own
+     *  /v1/chat/completions endpoint rejects `reasoning_effort` for
+     *  that model. We've observed this for a slice of xAI Grok 4.x
+     *  variants — e.g. `grok-4.3` returns "Model X does not support
+     *  parameter reasoningEffort" despite models.dev marking it
+     *  `reasoning: true`. For this provider class we treat
+     *  [inferReasoning]'s answer as authoritative when negative —
+     *  bypassing the LiteLLM / models.dev / precomputed-snapshot
+     *  layers that would otherwise flip it positive. */
+    fun externalReasoningSignalUntrusted(provider: AppService): Boolean =
+        provider.id == "XAI"
 }
 
 /** Result type for model-list fetches: ids in their native order, a type

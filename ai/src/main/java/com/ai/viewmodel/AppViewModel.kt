@@ -482,6 +482,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // reasoningCapableComputed so falsely-positive grok-4.x rows
         // (e.g. grok-4.3) drop their 🧠 badge and stop sending
         // reasoning_effort.
-        internal const val CAPS_PRECOMPUTED_VERSION = 2
+        // v3 — distrust LiteLLM/models.dev reasoning flags for xAI
+        // (models.dev marks grok-4.3 reasoning=true, but xAI's API
+        // rejects the reasoning_effort parameter for it). Heuristic is
+        // now authoritative-when-negative for xAI; recompute drops the
+        // remaining false positives from the precomputed snapshot.
+        internal const val CAPS_PRECOMPUTED_VERSION = 3
     }
 }

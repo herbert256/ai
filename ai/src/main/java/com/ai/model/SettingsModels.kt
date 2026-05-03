@@ -328,13 +328,26 @@ data class Settings(
      *  (separate change). */
     fun isReasoningCapable(service: AppService, modelId: String): Boolean {
         val cfg = getProvider(service)
+        // User overrides (pin or manual override) still beat everything —
+        // they're the user explicitly saying "trust me, this works."
         if (modelId in cfg.reasoningModels) return true
         if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsReasoning }) return true
+        // Providers whose external metadata is known to misreport
+        // reasoning support (xAI: see ModelType.externalReasoningSignalUntrusted)
+        // get the heuristic-only answer when it's negative, so a stale
+        // models.dev row can't push them past the gate.
+        if (com.ai.data.ModelType.externalReasoningSignalUntrusted(service)
+            && !com.ai.data.ModelType.inferReasoning(service, modelId)) return false
         if (modelId in cfg.reasoningCapableComputed) return true
         return computeReasoningCapableSlow(service, modelId)
     }
 
     private fun computeReasoningCapableSlow(service: AppService, modelId: String): Boolean {
+        // Same negative gate as isReasoningCapable, applied here so the
+        // precomputed snapshot (recomputeCapabilities folds this) also
+        // omits these models.
+        if (com.ai.data.ModelType.externalReasoningSignalUntrusted(service)
+            && !com.ai.data.ModelType.inferReasoning(service, modelId)) return false
         // Tier 4: provider's own /models self-report (Anthropic
         // capabilities.thinking.supported, Gemini top-level thinking,
         // Mistral capabilities.reasoning, xAI/OpenRouter
