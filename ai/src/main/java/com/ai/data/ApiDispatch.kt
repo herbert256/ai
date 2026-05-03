@@ -531,26 +531,45 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
 }
 
 private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService, apiKey: String): FetchedModels {
-    return try {
-        val api = ApiFactory.createClaudeApi(service.baseUrl)
-        val response = api.listModels(apiKey)
-        val entries = if (response.isSuccessful)
-            response.body()?.data?.filter { it.id?.startsWith("claude") == true }.orEmpty()
-        else emptyList()
-        val ids = entries.mapNotNull { it.id }.sorted()
-        // Pull `capabilities.thinking.supported` per model — Anthropic
-        // reports it on Claude 3.7 / 4.x extended-thinking entries.
-        val caps = entries.mapNotNull { info ->
-            val id = info.id ?: return@mapNotNull null
-            val thinking = info.capabilities?.thinking?.supported ?: return@mapNotNull null
-            id to ModelCapabilities(supportsReasoning = thinking)
-        }.toMap()
-        val rawJson = ApiFactory.fetchUrlAsString(
-            normalizeUrl(service.baseUrl) + "v1/models",
-            mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01")
-        )
-        FetchedModels(ids, ids.associateWith { ModelType.CHAT }, capabilities = caps, rawResponse = rawJson)
-    } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }
+    val response = try {
+        ApiFactory.createClaudeApi(service.baseUrl).listModels(apiKey)
+    } catch (e: Exception) {
+        // Network / parse failure — log so the user / Trace screen can
+        // see why Anthropic fell through to its hardcodedModels fallback
+        // instead of silently returning an empty list. Without this the
+        // model picker shows only the setup.json predefines and the
+        // user has no clue an API call even happened.
+        android.util.Log.w("ApiDispatch", "Anthropic listModels threw: ${e.javaClass.simpleName}: ${e.message}")
+        return FetchedModels(emptyList(), emptyMap())
+    }
+    if (!response.isSuccessful) {
+        val body = runCatching { response.errorBody()?.string()?.take(300) }.getOrNull()
+        android.util.Log.w("ApiDispatch", "Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
+        return FetchedModels(emptyList(), emptyMap())
+    }
+    val entries = response.body()?.data?.filter { it.id?.startsWith("claude") == true }.orEmpty()
+    if (entries.isEmpty()) {
+        android.util.Log.w("ApiDispatch", "Anthropic listModels returned 200 but no claude-* entries (data size=${response.body()?.data?.size ?: 0})")
+    }
+    val ids = entries.mapNotNull { it.id }.sorted()
+    // Pull `capabilities.thinking.supported` per model — Anthropic
+    // reports it on Claude 3.7 / 4.x extended-thinking entries.
+    val caps = entries.mapNotNull { info ->
+        val id = info.id ?: return@mapNotNull null
+        val thinking = info.capabilities?.thinking?.supported ?: return@mapNotNull null
+        id to ModelCapabilities(supportsReasoning = thinking)
+    }.toMap()
+    // Best-effort raw-JSON snapshot for future parser revisions.
+    // fetchUrlAsString already swallows its own exceptions and returns
+    // null on failure, so it can't poison the success path here — but
+    // it's a second HTTP roundtrip that adds latency and another way
+    // to fail silently. If it hands back null we just store null;
+    // ModelListCache treats that as "no snapshot this run".
+    val rawJson = ApiFactory.fetchUrlAsString(
+        normalizeUrl(service.baseUrl) + "v1/models",
+        mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01")
+    )
+    return FetchedModels(ids, ids.associateWith { ModelType.CHAT }, capabilities = caps, rawResponse = rawJson)
 }
 
 private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, apiKey: String): FetchedModels {
