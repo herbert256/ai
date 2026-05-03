@@ -398,8 +398,18 @@ fun ChatSessionScreen(
     val availableKbs = remember { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
 
     fun saveSession(msgs: List<ChatMessage>) {
+        // Persist the current chip state alongside the original
+        // params object — the screen's local useWebSearch and
+        // reasoningEffort vars are what the user sees and what the
+        // dispatch layer actually used; saving the pristine
+        // `parameters` would silently revert those toggles when the
+        // user reopens the session.
+        val persistedParams = parameters.copy(
+            webSearchTool = useWebSearch,
+            reasoningEffort = reasoningEffort.ifBlank { null }
+        )
         ChatHistoryManager.saveSession(
-            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = parameters, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds)
+            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds)
         )
     }
 
