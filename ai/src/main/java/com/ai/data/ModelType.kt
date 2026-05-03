@@ -183,6 +183,12 @@ object ModelType {
      *  Anthropic doesn't accidentally hit the OpenAI-style branch. */
     fun inferReasoning(provider: AppService, modelId: String): Boolean {
         val id = modelId.lowercase()
+        // Hard negatives win first — providers (notably xAI) ship
+        // explicit "-non-reasoning" variants that share their family
+        // prefix with reasoning siblings. Without this gate the
+        // generic "reasoning" / "grok-4" matches below would flip
+        // them positive.
+        if ("non-reasoning" in id || "non_reasoning" in id || "no-reasoning" in id) return false
         // Family markers — apply across providers (open-source models ride
         // through OpenRouter, Together, SiliconFlow, Groq with the same
         // base name).
@@ -216,10 +222,18 @@ object ModelType {
                         id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")
                 }
                 "XAI" -> {
-                    // grok-3 / grok-4 / grok-4.x; explicit -mini-fast variants
-                    // also expose reasoning. Conservative on grok-2 and below.
-                    id.startsWith("grok-3") || id.startsWith("grok-4") ||
-                        id.startsWith("grok-5")
+                    // Grok 3 family is always reasoning-capable; grok-4
+                    // and its dated -0709 build ship reasoning on by
+                    // default. Newer variants (grok-4.1, grok-4.3,
+                    // grok-4.20-…) are mixed: some are explicit
+                    // non-reasoning text models and we shouldn't
+                    // claim them. The "-reasoning" / "-non-reasoning"
+                    // suffix variants are already handled by the
+                    // generic checks above (positive on "reasoning",
+                    // hard negative on "non-reasoning"); fall through
+                    // to false for un-suffixed 4.x.
+                    id.startsWith("grok-3") || id == "grok-4" ||
+                        id.startsWith("grok-4-0")
                 }
                 "MOONSHOT" -> id.startsWith("kimi-k1.5") || id.startsWith("kimi-k2") || "thinking" in id
                 "DEEPSEEK" -> "r1" in id || "reasoner" in id

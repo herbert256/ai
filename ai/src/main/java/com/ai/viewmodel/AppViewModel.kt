@@ -213,12 +213,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // and the migration needs to re-run on existing installs.
         val storedVersion = prefs.getInt(KEY_CAPS_PRECOMPUTED_VERSION, 0)
         if (storedVersion < CAPS_PRECOMPUTED_VERSION) {
-            // Only recompute providers that actually need it — skip ones
-            // that already have populated precomputed data.
+            // Heuristic / capability layer changed — recompute every
+            // provider with models so the precomputed reasoning /
+            // vision / web-search snapshots reflect the new logic.
+            // Cheap relative to fetching, but skipped on subsequent
+            // boots via the version key.
             val needsRecompute = ai.providers.entries
-                .filter { (_, cfg) ->
-                    cfg.models.isNotEmpty() && cfg.modelPricing.isEmpty()
-                }
+                .filter { (_, cfg) -> cfg.models.isNotEmpty() }
                 .map { it.key }
             if (needsRecompute.isNotEmpty()) {
                 PricingCache.ensureLoadedBlocking(application)
@@ -476,6 +477,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // bump the version when the precompute logic changes and the
         // existing data on disk is no longer good enough.
         internal const val KEY_CAPS_PRECOMPUTED_VERSION = "caps_precomputed_version"
-        internal const val CAPS_PRECOMPUTED_VERSION = 1
+        // v2 — added supportsReasoning + tightened the xAI grok
+        // reasoning heuristic; existing installs need to reset
+        // reasoningCapableComputed so falsely-positive grok-4.x rows
+        // (e.g. grok-4.3) drop their 🧠 badge and stop sending
+        // reasoning_effort.
+        internal const val CAPS_PRECOMPUTED_VERSION = 2
     }
 }
