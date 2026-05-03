@@ -912,6 +912,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             } else withWeb?.copy(reasoningEffort = null) ?: withWeb
             val effectiveImage = if (canVision) report.imageBase64 else null
             val effectiveImageMime = if (canVision) report.imageMime else null
+            // Bump the parent report's timestamp so it sorts to the top
+            // of the History list — re-running an agent is a real
+            // update, not a passive read. Mirrors what the meta-run /
+            // translate flows already do.
+            ReportStorage.bumpReportTimestamp(context, reportId)
             executeReportTask(
                 context, reportId, report.prompt, overrideParams, task,
                 effectiveImage, effectiveImageMime, isRegeneration = true
