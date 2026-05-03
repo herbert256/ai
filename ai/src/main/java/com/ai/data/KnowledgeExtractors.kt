@@ -277,44 +277,56 @@ internal object KnowledgeExtractors {
         return sb.toString()
     }
 
-    /** Walk an .xlsx (Office Open XML spreadsheet). Two-pass:
-     *  1. Read xl/sharedStrings.xml into an indexed list — strings
-     *     are deduped across the workbook; cells reference them by
-     *     index rather than embedding.
-     *  2. For each xl/worksheets/sheet*.xml, walk cells (<c>);
-     *     resolve t="s" via the shared-strings table, fall through
-     *     to inline values for everything else. Each row becomes a
-     *     tab-separated line; sheets are separated by a blank line
-     *     and a "[sheet N]" header so the chunker preserves
-     *     boundaries. */
+    /** Walk an .xlsx (Office Open XML spreadsheet) in a single pass:
+     *  1. xl/sharedStrings.xml → indexed list (strings are deduped
+     *     across the workbook; cells reference them by index).
+     *  2. xl/worksheets/sheet*.xml → walk cells (<c>), resolve t="s"
+     *     via the shared-strings table, fall through to inline
+     *     values for everything else. Each row becomes a tab-separated
+     *     line; sheets are separated by a blank line and a "[sheet N]"
+     *     header so the chunker preserves boundaries.
+     *
+     *  Office writes sharedStrings.xml before the worksheets in zip
+     *  order, so the typical path parses each sheet's bytes inline
+     *  and discards them — never holding more than one sheet at a
+     *  time. The rare worksheets-first variant (some non-Office tools)
+     *  buffers the early sheets until shared strings arrive, then
+     *  drains the backlog. Sheet ordering is zip-encounter order,
+     *  which matches the workbook's tab order for files written by
+     *  Excel / LibreOffice / Google Sheets. */
     private fun readUriXlsx(context: Context, uri: Uri): String {
         return context.contentResolver.openInputStream(uri).use { inp ->
             requireNotNull(inp) { "Could not open $uri" }
-            // First pass: pull every relevant entry into memory so we
-            // can two-pass the workbook (shared strings → sheets) without
-            // having to re-open the SAF stream (zip entries are
-            // forward-only). Phone-sized spreadsheets are small enough
-            // that holding them is cheap.
             val sharedStrings = mutableListOf<String>()
-            val sheetXmls = mutableListOf<Pair<String, ByteArray>>()
+            var sharedStringsReady = false
+            val pendingSheets = mutableListOf<ByteArray>()
+            val sb = StringBuilder()
+            var sheetIndex = 0
+            fun emitSheet(bytes: ByteArray) {
+                sheetIndex++
+                if (sb.isNotEmpty()) sb.append("\n\n")
+                sb.append("[sheet ").append(sheetIndex).append("]\n")
+                sb.append(parseXlsxSheet(bytes.inputStream(), sharedStrings))
+            }
             ZipInputStream(inp).use { zin ->
                 var entry = zin.nextEntry
                 while (entry != null) {
                     val name = entry.name
                     if (name == "xl/sharedStrings.xml") {
                         sharedStrings += parseXlsxSharedStrings(zin.readBytes().inputStream())
+                        sharedStringsReady = true
+                        pendingSheets.forEach(::emitSheet)
+                        pendingSheets.clear()
                     } else if (name.startsWith("xl/worksheets/") && name.endsWith(".xml")) {
-                        sheetXmls += name to zin.readBytes()
+                        val bytes = zin.readBytes()
+                        if (sharedStringsReady) emitSheet(bytes) else pendingSheets += bytes
                     }
                     entry = zin.nextEntry
                 }
             }
-            val sb = StringBuilder()
-            sheetXmls.sortedBy { it.first }.forEachIndexed { idx, (_, bytes) ->
-                if (sb.isNotEmpty()) sb.append("\n\n")
-                sb.append("[sheet ").append(idx + 1).append("]\n")
-                sb.append(parseXlsxSheet(bytes.inputStream(), sharedStrings))
-            }
+            // sharedStrings.xml absent (rare — workbook with only inline / numeric cells):
+            // drain whatever sheets we buffered with the empty sharedStrings list.
+            pendingSheets.forEach(::emitSheet)
             sb.toString()
         }.normalised()
     }
@@ -478,27 +490,47 @@ internal object KnowledgeExtractors {
      *  10-row block so RAG retrieval lands on chunks that still know
      *  what the columns mean. */
     private fun readUriCsv(context: Context, uri: Uri): String {
-        val raw = context.contentResolver.openInputStream(uri).use { inp ->
-            requireNotNull(inp) { "Could not open $uri" }.bufferedReader().readText()
-        }
-        val rows = parseCsv(raw)
-        if (rows.isEmpty()) return ""
-        val firstRow = rows.first()
-        val hasHeader = firstRow.isNotEmpty() &&
-            firstRow.all { it.isNotBlank() } &&
-            firstRow.any { it.toDoubleOrNull() == null }
-        val header = if (hasHeader) firstRow else null
-        val dataRows = if (hasHeader) rows.drop(1) else rows
         val sb = StringBuilder()
+        var firstRow: List<String>? = null
+        var header: List<String>? = null
+        val dataBuffer = mutableListOf<List<String>>()
         // Block size of 10 keeps each block under ~1.5 KB for typical
         // wide-column CSVs, well below the 2 KB chunker cap so the
         // chunker treats blocks as paragraphs and never has to split
         // mid-row.
-        dataRows.chunked(10).forEach { block ->
+        fun flushBlock() {
+            if (dataBuffer.isEmpty()) return
             if (sb.isNotEmpty()) sb.append("\n\n")
-            if (header != null) sb.append(joinRow(header)).append('\n')
-            block.forEach { row -> sb.append(joinRow(row)).append('\n') }
+            header?.let { sb.append(joinRow(it)).append('\n') }
+            dataBuffer.forEach { sb.append(joinRow(it)).append('\n') }
+            dataBuffer.clear()
         }
+        context.contentResolver.openInputStream(uri).use { inp ->
+            requireNotNull(inp) { "Could not open $uri" }.bufferedReader().use { br ->
+                // Mark + 1 KB sample for delimiter sniff, then reset and stream-parse the
+                // whole file. Default BufferedReader buffer is 8 KB, so a 2 KB readahead is
+                // safe. Avoids the original readText() that materialised the entire CSV.
+                br.mark(2048)
+                val sample = CharArray(1024)
+                val sampleLen = br.read(sample, 0, sample.size).coerceAtLeast(0)
+                val sampleStr = String(sample, 0, sampleLen)
+                val delim = if (sampleStr.count { it == ';' } > sampleStr.count { it == ',' }) ';' else ','
+                br.reset()
+                parseCsvStream(br, delim) { row ->
+                    if (firstRow == null) {
+                        firstRow = row
+                        val hasHeader = row.isNotEmpty() &&
+                            row.all { it.isNotBlank() } &&
+                            row.any { it.toDoubleOrNull() == null }
+                        if (hasHeader) header = row else dataBuffer += row
+                    } else {
+                        dataBuffer += row
+                    }
+                    if (dataBuffer.size >= 10) flushBlock()
+                }
+            }
+        }
+        flushBlock()
         return sb.toString().normalised()
     }
 
@@ -507,63 +539,63 @@ internal object KnowledgeExtractors {
     private fun joinRow(row: List<String>): String =
         row.joinToString("\t") { it.replace('\n', ' ').replace('\r', ' ').trim() }
 
-    /** RFC 4180-style CSV tokenizer. Sniffs the delimiter from the
-     *  first kilobyte (`;` wins if it outnumbers `,`, e.g. European
-     *  exports), respects quoted fields with embedded delimiters /
-     *  newlines / `""` escaped quotes, and drops fully-empty rows. */
-    private fun parseCsv(text: String): List<List<String>> {
-        if (text.isBlank()) return emptyList()
-        val sample = text.take(1024)
-        val delim = if (sample.count { it == ';' } > sample.count { it == ',' }) ';' else ','
-        val rows = mutableListOf<List<String>>()
+    /** RFC 4180-style CSV tokenizer that streams rows out of a Reader
+     *  via [onRow] instead of materialising the whole row list. The
+     *  caller has already sniffed [delim]. Respects quoted fields with
+     *  embedded delimiters / newlines / `""` escaped quotes, treats
+     *  CR / LF / CRLF as row terminators (CR-only for legacy Mac
+     *  exports), and drops fully-empty rows.
+     *
+     *  PushbackReader gives us a 1-char lookahead which keeps the
+     *  tokenizer single-pass (no random-access into a String). */
+    private fun parseCsvStream(
+        reader: java.io.Reader,
+        delim: Char,
+        onRow: (List<String>) -> Unit
+    ) {
+        val pb = java.io.PushbackReader(reader, 1)
         val cell = StringBuilder()
         val row = mutableListOf<String>()
         var inQuote = false
-        var i = 0
-        val n = text.length
-        while (i < n) {
-            val c = text[i]
+        fun finishRow() {
+            row.add(cell.toString()); cell.clear()
+            if (row.any { it.isNotBlank() }) onRow(row.toList())
+            row.clear()
+        }
+        while (true) {
+            val r = pb.read()
+            if (r == -1) break
+            val c = r.toChar()
             if (inQuote) {
                 if (c == '"') {
-                    if (i + 1 < n && text[i + 1] == '"') {
-                        cell.append('"'); i++ // escaped quote inside quoted field
-                    } else {
+                    val next = pb.read()
+                    if (next == '"'.code) cell.append('"')
+                    else {
                         inQuote = false
+                        if (next != -1) pb.unread(next)
                     }
-                } else {
-                    cell.append(c)
-                }
+                } else cell.append(c)
             } else {
                 when (c) {
                     '"' -> inQuote = true
                     delim -> { row.add(cell.toString()); cell.clear() }
-                    '\n' -> {
-                        row.add(cell.toString()); cell.clear()
-                        if (row.any { it.isNotBlank() }) rows.add(row.toList())
-                        row.clear()
-                    }
+                    '\n' -> finishRow()
                     '\r' -> {
-                        // CRLF: defer to the trailing \n. CR-only (legacy Mac OS classic
-                        // exports, plus a surprising number of older spreadsheet apps that
-                        // still emit them): treat the bare \r as the row terminator instead
-                        // of dropping it, otherwise the whole file collapses into one row.
-                        if (i + 1 < n && text[i + 1] == '\n') Unit
-                        else {
-                            row.add(cell.toString()); cell.clear()
-                            if (row.any { it.isNotBlank() }) rows.add(row.toList())
-                            row.clear()
+                        val next = pb.read()
+                        if (next == '\n'.code) {
+                            // CRLF: defer to the trailing \n.
+                            pb.unread(next)
+                        } else {
+                            if (next != -1) pb.unread(next)
+                            // Bare CR (legacy Mac): terminate row.
+                            finishRow()
                         }
                     }
                     else -> cell.append(c)
                 }
             }
-            i++
         }
-        if (cell.isNotEmpty() || row.isNotEmpty()) {
-            row.add(cell.toString())
-            if (row.any { it.isNotBlank() }) rows.add(row.toList())
-        }
-        return rows
+        if (cell.isNotEmpty() || row.isNotEmpty()) finishRow()
     }
 
     private fun fetchUrlAsText(url: String): String {
