@@ -477,12 +477,17 @@ data class ClaudeModelCapabilities(
     val thinking: ClaudeModelThinking? = null
 )
 data class ClaudeModelThinking(
-    val supported: Boolean? = null,
-    /** "enabled" / "adaptive" — Claude 3.7 only exposes "enabled";
-     *  Claude 4.x adds "adaptive" with a different request shape. Not
-     *  consumed yet; captured so a later parser revision can pick the
-     *  right thinking-block variant without re-fetching. */
-    val types: List<String>? = null
+    val supported: Boolean? = null
+    // The `types` field used to be declared here as List<String>?
+    // for forward-compat. Anthropic changed its shape to an object
+    // (was an array of "enabled"/"adaptive" strings, now nested
+    // metadata) and Gson started throwing JsonSyntaxException on
+    // every Claude 3.7 / 4.x entry, killing the whole list parse
+    // and blanking the model picker. We don't actually consume the
+    // field; the rawResponse snapshot preserves whatever shape
+    // Anthropic ships for a future parser revision to pull out, so
+    // dropping the typed declaration here lets Gson silently skip
+    // it regardless of shape.
 )
 
 data class GeminiModelsResponse(val models: List<GeminiModel>?)
