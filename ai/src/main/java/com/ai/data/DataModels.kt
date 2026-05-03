@@ -80,7 +80,13 @@ data class ChatSession(
     val updatedAt: Long = System.currentTimeMillis(),
     /** User-pinned flag. Pinned sessions appear as their own section
      *  above Recent on the AI Chat hub. */
-    val pinned: Boolean = false
+    val pinned: Boolean = false,
+    /** Knowledge bases attached to this chat. Every user turn, before
+     *  the call, the dispatcher retrieves top-K chunks for that
+     *  message and prepends a context block to the system message
+     *  (see KnowledgeService.retrieve / formatContextBlock). Empty
+     *  when RAG isn't wired for this session. */
+    val knowledgeBaseIds: List<String> = emptyList()
 ) {
     val preview: String
         get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"

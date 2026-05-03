@@ -379,11 +379,12 @@ fun AppNavHost(
                 val customBaseUrl = if (endpointUrl != agent.provider.baseUrl) endpointUrl else null
                 val effectiveApiKey = uiState.aiSettings.getEffectiveApiKeyForAgent(agent)
                 val effectiveModel = uiState.aiSettings.getEffectiveModelForAgent(agent)
+                val agentChatContext = LocalContext.current
 
                 ChatSessionScreen(
                     provider = agent.provider, model = effectiveModel, parameters = chatParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch, reasoning) },
+                    onSendMessageStream = { messages, webSearch, reasoning, kbs -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch, reasoning, context = agentChatContext, knowledgeBaseIds = kbs) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
                     aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
@@ -473,11 +474,18 @@ fun AppNavHost(
                     // remote streaming protocol (web-search / reasoning
                     // params) doesn't apply, so we just forward the
                     // turn list to LocalLlm.generate via
-                    // ChatViewModel.sendLocalLlmStream.
+                    // ChatViewModel.sendLocalLlmStream. The chat screen
+                    // calls this with its current ChatSession.knowledgeBaseIds
+                    // attached as the trailing argument (4th
+                    // parameter) — see ChatScreens.kt for the wiring.
                     onSendMessageStream = if (isLocal) {
-                        { messages, _, _ -> chatViewModel.sendLocalLlmStream(context, model, messages) }
+                        { messages, _, _, kbs -> chatViewModel.sendLocalLlmStream(context, model, messages, kbs) }
                     } else {
-                        { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(provider, apiKey, model, messages, webSearchTool = webSearch, reasoningEffort = reasoning) }
+                        { messages, webSearch, reasoning, kbs ->
+                            chatViewModel.sendChatMessageStream(provider, apiKey, model, messages,
+                                webSearchTool = webSearch, reasoningEffort = reasoning,
+                                context = context, knowledgeBaseIds = kbs)
+                        }
                     },
                     onRecordStatistics = if (isLocal) {
                         { _, _ -> /* no remote billing for local */ }
@@ -500,14 +508,28 @@ fun AppNavHost(
             val session = remember(sessionId) { ChatHistoryManager.loadSession(sessionId) }
             if (session != null) {
                 val apiKey = uiState.aiSettings.getApiKey(session.provider)
+                val sessionContext = LocalContext.current
+                val isLocalSession = session.provider.id == "LOCAL"
                 ChatSessionScreen(
                     provider = session.provider, model = session.model, parameters = session.parameters,
                     userName = uiState.generalSettings.userName, initialMessages = session.messages, sessionId = session.id,
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch, reasoning -> chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages, webSearchTool = webSearch, reasoningEffort = reasoning) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) },
+                    onSendMessageStream = if (isLocalSession) {
+                        { messages, _, _, kbs -> chatViewModel.sendLocalLlmStream(sessionContext, session.model, messages, kbs) }
+                    } else {
+                        { messages, webSearch, reasoning, kbs ->
+                            chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages,
+                                webSearchTool = webSearch, reasoningEffort = reasoning,
+                                context = sessionContext, knowledgeBaseIds = kbs)
+                        }
+                    },
+                    onRecordStatistics = if (isLocalSession) {
+                        { _, _ -> /* no remote billing for local */ }
+                    } else {
+                        { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) }
+                    },
                     aiSettings = uiState.aiSettings,
-                    isVisionCapable = uiState.aiSettings.isVisionCapable(session.provider, session.model),
+                    isVisionCapable = !isLocalSession && uiState.aiSettings.isVisionCapable(session.provider, session.model),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
                 )
             } else {

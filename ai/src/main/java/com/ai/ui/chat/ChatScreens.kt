@@ -279,7 +279,7 @@ fun ChatSessionScreen(
     userName: String,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSendMessageStream: (List<ChatMessage>, Boolean, String?) -> Flow<String>,
+    onSendMessageStream: (List<ChatMessage>, Boolean, String?, List<String>) -> Flow<String>,
     onRecordStatistics: suspend (Int, Int) -> Unit,
     aiSettings: Settings,
     initialMessages: List<ChatMessage> = emptyList(),
@@ -364,10 +364,18 @@ fun ChatSessionScreen(
     var pinned by remember(currentSessionId) {
         mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.pinned == true)
     }
+    // Knowledge bases attached to this session — read once on entry,
+    // toggled by the 📚 chip below the model line. Persisted with
+    // every saveSession so resume keeps the attachment.
+    var attachedKnowledgeBaseIds by remember(currentSessionId) {
+        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.knowledgeBaseIds.orEmpty())
+    }
+    var showKbDialog by remember { mutableStateOf(false) }
+    val availableKbs = remember { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
 
     fun saveSession(msgs: List<ChatMessage>) {
         ChatHistoryManager.saveSession(
-            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = parameters, updatedAt = System.currentTimeMillis(), pinned = pinned)
+            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = parameters, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds)
         )
     }
 
@@ -426,7 +434,7 @@ fun ChatSessionScreen(
             val previousCategory = com.ai.data.ApiTracer.currentCategory
             com.ai.data.ApiTracer.currentCategory = "Chat"
             try {
-                onSendMessageStream(messages, useWebSearch, reasoningEffort).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
+                onSendMessageStream(messages, useWebSearch, reasoningEffort, attachedKnowledgeBaseIds).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
                 val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
                 messages = messages + assistantMsg
                 saveSession(messages)
@@ -513,6 +521,19 @@ fun ChatSessionScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${provider.displayName} / $model", fontSize = 12.sp, color = AppColors.TextTertiary,
                 modifier = Modifier.weight(1f))
+            // Knowledge attach chip — tap opens a multi-select
+            // dialog over saved KBs. Shown only when at least one
+            // KB exists. Per-turn injection happens in
+            // ChatViewModel.{sendChatMessageStream,sendLocalLlmStream}.
+            if (availableKbs.isNotEmpty()) {
+                val kbLabel = if (attachedKnowledgeBaseIds.isEmpty()) "📚 Knowledge"
+                    else "📚 ${attachedKnowledgeBaseIds.size}"
+                Text(kbLabel, fontSize = 11.sp,
+                    color = if (attachedKnowledgeBaseIds.isNotEmpty()) AppColors.Green else AppColors.TextTertiary,
+                    modifier = Modifier
+                        .clickable { showKbDialog = true }
+                        .padding(horizontal = 8.dp, vertical = 2.dp))
+            }
             Text(
                 if (pinned) "📌 Pinned" else "📌 Pin",
                 fontSize = 11.sp,
@@ -526,6 +547,18 @@ fun ChatSessionScreen(
                         ChatHistoryManager.setSessionPinned(currentSessionId, pinned)
                     }
                     .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
+        if (showKbDialog) {
+            com.ai.ui.knowledge.KnowledgeAttachDialog(
+                knowledgeBases = availableKbs,
+                initialSelectedIds = attachedKnowledgeBaseIds.toSet(),
+                onDismiss = { showKbDialog = false },
+                onConfirm = { selected ->
+                    attachedKnowledgeBaseIds = selected.toList()
+                    saveSession(messages)
+                    showKbDialog = false
+                }
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

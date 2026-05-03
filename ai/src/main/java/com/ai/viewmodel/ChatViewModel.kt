@@ -24,7 +24,9 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         messages: List<ChatMessage>,
         baseUrl: String? = null,
         webSearchTool: Boolean = false,
-        reasoningEffort: String? = null
+        reasoningEffort: String? = null,
+        context: android.content.Context? = null,
+        knowledgeBaseIds: List<String> = emptyList()
     ): Flow<String> {
         val base = appViewModel.uiState.value.chatParameters
         val withWeb = if (webSearchTool && !base.webSearchTool) base.copy(webSearchTool = true) else base
@@ -33,11 +35,45 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         // sent last time (which is also its initial value from the
         // configure-on-the-fly Parameters preset).
         val params = if (reasoningEffort != null) withWeb.copy(reasoningEffort = reasoningEffort.ifBlank { null }) else withWeb
+        val withRag = if (knowledgeBaseIds.isNotEmpty() && context != null)
+            messagesWithRag(context, knowledgeBaseIds, messages) else messages
         return appViewModel.repository.sendChatStream(
             service = service, apiKey = apiKey, model = model,
-            messages = messages, params = params,
+            messages = withRag, params = params,
             baseUrl = baseUrl
         )
+    }
+
+    /** Build a copy of [messages] with a system-message RAG context
+     *  block prepended (or merged into an existing system message)
+     *  when retrieval finds matches for the latest user turn. The
+     *  retrieve() call is synchronous-blocking inside the calling
+     *  thread; for chat that thread is already a coroutine, fine. */
+    private fun messagesWithRag(
+        context: android.content.Context,
+        knowledgeBaseIds: List<String>,
+        messages: List<ChatMessage>
+    ): List<ChatMessage> {
+        val lastUser = messages.lastOrNull { it.role == "user" }?.content?.takeIf { it.isNotBlank() } ?: return messages
+        val hits = kotlinx.coroutines.runBlocking {
+            runCatching {
+                KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
+                    knowledgeBaseIds, lastUser)
+            }.getOrDefault(emptyList())
+        }
+        if (hits.isEmpty()) return messages
+        val ctx = KnowledgeService.formatContextBlock(hits)
+        // Merge into the existing system message (preserve user's
+        // original system prompt) or insert a new one at the head.
+        val existingSystemIndex = messages.indexOfFirst { it.role == "system" }
+        return if (existingSystemIndex >= 0) {
+            val existing = messages[existingSystemIndex]
+            messages.toMutableList().also {
+                it[existingSystemIndex] = existing.copy(content = existing.content + "\n\n" + ctx)
+            }
+        } else {
+            listOf(ChatMessage(role = "system", content = ctx)) + messages
+        }
     }
 
     /**
@@ -72,14 +108,21 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
     fun sendLocalLlmStream(
         context: Context,
         modelName: String,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        knowledgeBaseIds: List<String> = emptyList()
     ): Flow<String> = flow {
-        // Skip system messages on Local LLM for now — most models we
-        // care about (Gemma, Phi, Llama) accept a system prefix but
-        // require the chat-template wrapper, which is model-specific.
-        // Plain user/assistant transcript is the safest fallback.
+        val withRag = if (knowledgeBaseIds.isNotEmpty()) messagesWithRag(context, knowledgeBaseIds, messages) else messages
+        // Most chat-tuned local models (Gemma, Phi, Llama) accept a
+        // system prefix but require the chat-template wrapper, which
+        // is model-specific. Plain user/assistant transcript is the
+        // safest fallback. RAG context, when present, comes through
+        // as an injected system message and we surface it as a
+        // single Context: prefix.
         val prompt = buildString {
-            messages.filter { it.role != "system" }.forEach { msg ->
+            withRag.firstOrNull { it.role == "system" }?.let {
+                append(it.content).append("\n\n")
+            }
+            withRag.filter { it.role != "system" }.forEach { msg ->
                 append(when (msg.role) {
                     "user" -> "User: "
                     "assistant" -> "Assistant: "
