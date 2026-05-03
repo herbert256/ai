@@ -4,6 +4,7 @@ import android.content.Context
 import com.ai.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 
@@ -35,20 +36,33 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         // sent last time (which is also its initial value from the
         // configure-on-the-fly Parameters preset).
         val params = if (reasoningEffort != null) withWeb.copy(reasoningEffort = reasoningEffort.ifBlank { null }) else withWeb
-        val withRag = if (knowledgeBaseIds.isNotEmpty() && context != null)
-            messagesWithRag(context, knowledgeBaseIds, messages) else messages
-        return appViewModel.repository.sendChatStream(
-            service = service, apiKey = apiKey, model = model,
-            messages = withRag, params = params,
-            baseUrl = baseUrl
-        )
+        // RAG retrieval lives inside the cold flow (on Dispatchers.IO)
+        // so the embedding call doesn't run on the caller's main-scope
+        // coroutine. Pre-RAG path stays a direct passthrough.
+        return if (knowledgeBaseIds.isNotEmpty() && context != null) {
+            flow {
+                val withRag = messagesWithRag(context, knowledgeBaseIds, messages)
+                emitAll(appViewModel.repository.sendChatStream(
+                    service = service, apiKey = apiKey, model = model,
+                    messages = withRag, params = params,
+                    baseUrl = baseUrl
+                ))
+            }.flowOn(Dispatchers.IO)
+        } else {
+            appViewModel.repository.sendChatStream(
+                service = service, apiKey = apiKey, model = model,
+                messages = messages, params = params,
+                baseUrl = baseUrl
+            )
+        }
     }
 
     /** Build a copy of [messages] with a system-message RAG context
      *  block prepended (or merged into an existing system message)
      *  when retrieval finds matches for the latest user turn. The
-     *  retrieve() call is synchronous-blocking inside the calling
-     *  thread; for chat that thread is already a coroutine, fine. */
+     *  retrieve() call is synchronous-blocking; callers must invoke
+     *  this off the main thread (every current call site does, via
+     *  flowOn(Dispatchers.IO)). */
     private fun messagesWithRag(
         context: android.content.Context,
         knowledgeBaseIds: List<String>,
