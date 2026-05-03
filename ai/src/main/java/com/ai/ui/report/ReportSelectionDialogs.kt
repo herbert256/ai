@@ -270,7 +270,14 @@ internal fun ReportSelectModelsScreen(
     }
     val providerFiltered = if (providerFilter != null) all.filter { it.first == providerFilter } else all
     val typeFiltered = if (typeOnly && modelTypeFilter != null) {
-        providerFiltered.filter { (prov, model) -> aiSettings.getModelType(prov, model) == modelTypeFilter }
+        providerFiltered.filter { (prov, model) ->
+            // LOCAL is not in Settings.providers so getModelType returns
+            // null; but localModelsForFilter was already populated by
+            // modelTypeFilter, so any (LOCAL, model) pair already matches
+            // by construction. Pass it through unconditionally to keep
+            // the local rerank / LLM rows visible with the type filter on.
+            prov.id == "LOCAL" || aiSettings.getModelType(prov, model) == modelTypeFilter
+        }
     } else providerFiltered
     val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
         prov.displayName.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
