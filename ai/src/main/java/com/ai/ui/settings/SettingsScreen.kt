@@ -21,6 +21,7 @@ enum class SettingsSubScreen {
     AI_MODELS, AI_MODEL_EDIT,
     AI_MODEL_TYPES,
     AI_MANUAL_MODEL_TYPES,
+    AI_WORKERS_SETUP,
     AI_AGENTS, AI_AGENT_EDIT,
     AI_FLOCKS, AI_FLOCK_EDIT,
     AI_SWARMS, AI_SWARM_EDIT,
@@ -94,9 +95,11 @@ fun SettingsScreen(
             }
             SettingsSubScreen.AI_MODELS, SettingsSubScreen.AI_MODEL_TYPES,
             SettingsSubScreen.AI_MANUAL_MODEL_TYPES -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
-            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
-            SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PARAMETERS,
+            SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
+            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS_SETUP,
+            SettingsSubScreen.AI_WORKERS_SETUP,
+            SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_SECONDARY_PROMPTS,
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS, SettingsSubScreen.AI_LOCAL_LLMS,
@@ -210,6 +213,14 @@ fun SettingsScreen(
             ModelsSetupScreen(
                 aiSettings = aiSettings,
                 hasActiveProvider = aiSettings.getActiveServices().isNotEmpty(),
+                onBack = goBack, onBackToHome = onNavigateHome,
+                onNavigate = { currentSubScreen = it }
+            )
+        }
+        SettingsSubScreen.AI_WORKERS_SETUP -> {
+            WorkersSetupScreen(
+                aiSettings = aiSettings,
+                hasApiKey = aiSettings.hasAnyApiKey(),
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }
             )

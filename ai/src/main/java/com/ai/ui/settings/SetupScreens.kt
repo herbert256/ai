@@ -74,12 +74,11 @@ fun SetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
             SetupNavCard("\uD83E\uDDE0", "Models", "Models, types, and manual overrides", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS_SETUP) })
-            SetupNavCard("\uD83E\uDD16", "Agents", "Named AI model configurations", "$agentCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
-            SetupNavCard("\uD83E\uDD86", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) }, enabled = hasApiKey)
-            SetupNavCard("\uD83D\uDC1D", "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }, enabled = hasApiKey)
+            run {
+                val workersCount = agentCount + aiSettings.flocks.size + aiSettings.swarms.size
+                SetupNavCard("\uD83D\uDC65", "Workers", "Agents, Flocks, and Swarms", "$workersCount",
+                    onClick = { onNavigate(SettingsSubScreen.AI_WORKERS_SETUP) }, enabled = hasApiKey)
+            }
             SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
             SetupNavCard("\uD83D\uDDE8\uFE0F", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
@@ -158,6 +157,38 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
             ModelsSetupNavCard("✍️", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
+        }
+    }
+}
+
+// ===== Workers Setup hub =====
+
+/** Sub-hub under AI Setup that groups the three "worker" entry
+ *  points (Agents, Flocks, Swarms). Mirrors [ModelsSetupScreen]'s
+ *  pattern so the AI Setup landing page stays compact. */
+@Composable
+fun WorkersSetupScreen(
+    aiSettings: Settings,
+    hasApiKey: Boolean,
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
+    onNavigate: (SettingsSubScreen) -> Unit
+) {
+    BackHandler { onBack() }
+    val agentCount = remember(aiSettings.agents) { aiSettings.agents.count { aiSettings.isProviderActive(it.provider) } }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "AI Workers", onBackClick = onBack, onAiClick = onBackToHome)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("🤖", "Agents", "Named AI model configurations", "$agentCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
+            ModelsSetupNavCard("🦆", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) }, enabled = hasApiKey)
+            ModelsSetupNavCard("🐝", "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }, enabled = hasApiKey)
         }
     }
 }
