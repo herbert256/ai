@@ -59,9 +59,10 @@ fun TraceListScreen(
     initialCategory: String? = null
 ) {
     BackHandler { onBack() }
-    // getTraceFiles parses every trace JSON to extract 4 summary fields;
-    // with hundreds of traces this is tens of ms. Off the UI thread so
-    // opening the trace list doesn't stall.
+    // First call of the session populates ApiTracer's cache via a
+    // streaming parse over the trace dir; subsequent calls are O(1) off
+    // the cache. Kept on Dispatchers.IO so the cold load can't stall
+    // the first open.
     var allTraceFiles by remember { mutableStateOf(emptyList<TraceFileInfo>()) }
     LaunchedEffect(reportId, modelFilter) {
         allTraceFiles = withContext(Dispatchers.IO) {
@@ -484,7 +485,8 @@ fun TraceDetailScreen(
 
     var traceFiles by remember { mutableStateOf(emptyList<String>()) }
     LaunchedEffect(Unit) {
-        // Off the UI thread — same parse-every-JSON cost as the list screen.
+        // Cheap once the list screen has primed ApiTracer's cache; cold path falls back
+        // to a streaming-parse scan, so still off the UI thread to be safe.
         traceFiles = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().map { it.filename } }
     }
     val currentIndex = traceFiles.indexOf(currentFilename)

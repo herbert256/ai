@@ -54,6 +54,13 @@ object ApiTracer {
      *  per-flow, not per-call. */
     @Volatile var currentCategory: String? = null
 
+    /** In-memory mirror of the trace dir's [TraceFileInfo] list, sorted
+     *  newest-first. `null` means "not yet built" — the next
+     *  [getTraceFiles] populates it via a streaming parse over every
+     *  file. Mutations (save / clear / deleteOlderThan) keep it in sync
+     *  so subsequent reads stay O(1). All access goes through [lock]. */
+    @Volatile private var cachedTraceFiles: List<TraceFileInfo>? = null
+
     fun init(context: Context) = lock.withLock {
         traceDir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
     }
@@ -65,21 +72,83 @@ object ApiTracer {
             if (!dir.exists()) dir.mkdirs()
             val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
             val seq = fileSequence.incrementAndGet().toString(36)
-            try { File(dir, "${trace.hostname}_${ts}_${seq}.json").writeText(gson.toJson(trace)) }
+            val filename = "${trace.hostname}_${ts}_${seq}.json"
+            try {
+                File(dir, filename).writeText(gson.toJson(trace))
+                cachedTraceFiles?.let { current ->
+                    val info = TraceFileInfo(
+                        filename, trace.hostname, trace.timestamp,
+                        trace.response.statusCode, trace.reportId, trace.model, trace.category
+                    )
+                    // Re-sort rather than prepend: trace.timestamp is set at request-issue
+                    // time but saveTrace runs at response-complete time, so concurrent
+                    // calls can land out of order.
+                    cachedTraceFiles = (current + info).sortedByDescending { it.timestamp }
+                }
+            }
             catch (e: Exception) { android.util.Log.e("ApiTracer", "Failed to save trace: ${e.message}") }
         }
     }
 
     fun getTraceFiles(): List<TraceFileInfo> = lock.withLock {
+        cachedTraceFiles?.let { return it }
         val dir = traceDir ?: return emptyList()
         if (!dir.exists()) return emptyList()
-        dir.listFiles()?.filter { it.extension == "json" }?.mapNotNull { file ->
-            try {
-                val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
-                TraceFileInfo(file.name, trace.hostname, trace.timestamp, trace.response.statusCode, trace.reportId, trace.model, trace.category)
-            } catch (_: Exception) { null }
-        }?.sortedByDescending { it.timestamp } ?: emptyList()
+        val list = dir.listFiles()
+            ?.filter { it.extension == "json" }
+            ?.mapNotNull { parseTraceFileInfoStreaming(it) }
+            ?.sortedByDescending { it.timestamp }
+            ?: emptyList()
+        cachedTraceFiles = list
+        list
     }
+
+    /** Streaming-reader variant of the metadata extract used by
+     *  [getTraceFiles]. Pulls only the seven [TraceFileInfo] fields out
+     *  of the trace JSON via Gson's [com.google.gson.stream.JsonReader],
+     *  skipping the request body entirely and stopping the response read
+     *  once `statusCode` is captured. Avoids reflective deserialisation
+     *  of the full [ApiTrace] graph plus the headers maps and body
+     *  strings, which is what made the trace list slow with a dense
+     *  trace dir. */
+    private fun parseTraceFileInfoStreaming(file: File): TraceFileInfo? {
+        return try {
+            com.google.gson.stream.JsonReader(file.bufferedReader()).use { reader ->
+                var timestamp = 0L
+                var hostname = ""
+                var reportId: String? = null
+                var model: String? = null
+                var category: String? = null
+                var statusCode = 0
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    when (reader.nextName()) {
+                        "timestamp" -> timestamp = reader.nextLong()
+                        "hostname" -> hostname = reader.nextString()
+                        "reportId" -> reportId = readNullableString(reader)
+                        "model" -> model = readNullableString(reader)
+                        "category" -> category = readNullableString(reader)
+                        "response" -> {
+                            reader.beginObject()
+                            while (reader.hasNext()) {
+                                if (reader.nextName() == "statusCode") statusCode = reader.nextInt()
+                                else reader.skipValue()
+                            }
+                            reader.endObject()
+                        }
+                        else -> reader.skipValue()
+                    }
+                }
+                reader.endObject()
+                TraceFileInfo(file.name, hostname, timestamp, statusCode, reportId, model, category)
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun readNullableString(reader: com.google.gson.stream.JsonReader): String? =
+        if (reader.peek() == com.google.gson.stream.JsonToken.NULL) {
+            reader.nextNull(); null
+        } else reader.nextString()
 
     /** Cheap existence check for the Hub "AI API Traces" card. Avoids the
      *  parse-every-file cost of [getTraceFiles] on a hot path that just
@@ -106,24 +175,33 @@ object ApiTracer {
 
     fun clearTraces() = lock.withLock {
         traceDir?.listFiles()?.forEach { if (it.extension == "json") it.delete() }
+        cachedTraceFiles = emptyList()
     }
 
     fun deleteTracesOlderThan(cutoffTimestamp: Long): Int = lock.withLock {
         val dir = traceDir ?: return 0
         if (!dir.exists()) return 0
         var count = 0
+        val deletedNames = mutableSetOf<String>()
         dir.listFiles()?.forEach { file ->
             if (file.extension == "json") {
                 try {
-                    val trace = gson.fromJson(file.readText(), ApiTrace::class.java)
-                    if (trace.timestamp < cutoffTimestamp && file.delete()) count++
+                    val info = parseTraceFileInfoStreaming(file)
+                    if (info != null && info.timestamp < cutoffTimestamp && file.delete()) {
+                        count++
+                        deletedNames += file.name
+                    }
                 } catch (_: Exception) {}
             }
+        }
+        cachedTraceFiles?.let { current ->
+            cachedTraceFiles = current.filterNot { it.filename in deletedNames }
         }
         count
     }
 
     fun getTraceCount(): Int = lock.withLock {
+        cachedTraceFiles?.let { return it.size }
         traceDir?.listFiles()?.count { it.extension == "json" } ?: 0
     }
 
