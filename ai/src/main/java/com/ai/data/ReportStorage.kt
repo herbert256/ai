@@ -61,7 +61,11 @@ data class Report(
     /** Set when this report is a translated copy of another report. Lets
      *  the HTML export pull the source's API traces into the JSON view
      *  alongside the translation traces. Null on regular reports. */
-    val sourceReportId: String? = null
+    val sourceReportId: String? = null,
+    /** User-pinned flag. Pinned reports surface as their own group
+     *  above the recent rows on the AI Reports hub. Persisted on the
+     *  Report file so it survives across launches. */
+    var pinned: Boolean = false
 )
 
 /**
@@ -295,6 +299,18 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(title = newTitle))
             true
+        }
+    }
+
+    /** Toggle (or set) the user's pinned flag on [reportId]. Pinning
+     *  doesn't change the report's body — it's strictly a hub-level
+     *  promotion signal. */
+    fun setReportPinned(context: Context, reportId: String, pinned: Boolean) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            report.pinned = pinned
+            saveReport(report)
         }
     }
 

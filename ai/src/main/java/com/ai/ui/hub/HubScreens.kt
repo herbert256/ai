@@ -144,7 +144,8 @@ fun ReportsHubScreen(
     }
     val allReports = remember { ReportStorage.getAllReports(context) }
     val hasPreviousReports = allReports.isNotEmpty()
-    val recentReports = remember(allReports) { allReports.take(3) }
+    val pinnedReports = remember(allReports) { allReports.filter { it.pinned } }
+    val recentReports = remember(allReports) { allReports.filter { !it.pinned }.take(3) }
     // A report is "in flight" when it hasn't been marked completed AND
     // at least one of its agents is still PENDING / RUNNING. Reports
     // that were cancelled or errored on every agent have completedAt
@@ -179,9 +180,13 @@ fun ReportsHubScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory, enabled = hasPreviousReports)
+        if (pinnedReports.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            ReportListCard(title = "Pinned", icon = "\uD83D\uDCCC", reports = pinnedReports, onOpen = onOpenReport)
+        }
         if (recentReports.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            RecentReportsCard(reports = recentReports, onOpen = onOpenReport)
+            ReportListCard(title = "Recent", icon = null, reports = recentReports, onOpen = onOpenReport)
         }
         Spacer(modifier = Modifier.height(12.dp))
         SearchHubGroup(
@@ -218,20 +223,23 @@ private fun InFlightPill(count: Int, onResume: () -> Unit) {
     }
 }
 
-/** Inline preview of the 3 most recent reports. The full list lives
- *  behind "View previous reports"; this is a one-tap shortcut for the
- *  common "open the one I was just working on" case. */
+/** Card listing a small set of reports — used by both the Recent
+ *  rows and the Pinned section. Each row opens the report on tap. */
 @Composable
-private fun RecentReportsCard(reports: List<com.ai.data.Report>, onOpen: (String) -> Unit) {
+private fun ReportListCard(title: String, icon: String?, reports: List<com.ai.data.Report>, onOpen: (String) -> Unit) {
     val df = remember { java.text.SimpleDateFormat("MMM d HH:mm", java.util.Locale.US) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text("Recent", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = AppColors.TextSecondary,
-                modifier = Modifier.padding(bottom = 4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                if (icon != null) {
+                    Text(icon, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextSecondary)
+            }
             reports.forEach { r ->
                 Row(
                     modifier = Modifier

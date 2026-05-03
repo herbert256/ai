@@ -502,6 +502,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (cleared) dismissGenericReportsDialog()
     }
 
+    /** Toggle the persisted pinned flag for [reportId]. Pinned reports
+     *  surface as their own section on the AI Reports hub. */
+    fun toggleReportPinned(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
+        scope.launch(Dispatchers.IO) {
+            val r = ReportStorage.getReport(context, reportId) ?: return@launch
+            ReportStorage.setReportPinned(context, reportId, !r.pinned)
+        }
+    }
+
     /** Duplicate [reportId] (new id, " (Copy)" title suffix, every agent
      *  result preserved) and open the copy on the result screen so the
      *  user lands on the duplicate ready to edit / regenerate without

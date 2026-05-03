@@ -133,6 +133,7 @@ fun ReportsScreenNav(
             onNavigateBack()
         },
         onCopyReport = { rid -> reportViewModel.copyReport(context, rid, scope) },
+        onTogglePinReport = { rid -> reportViewModel.toggleReportPinned(context, rid, scope) },
         onConsumePendingModels = { reportViewModel.clearPendingReportModels() },
         onExport = { rid, fmt, det, act, onProgress ->
             shareReportAsExport(context, rid, fmt, det, act, uiState.aiSettings, viewModel.repository, onProgress)
@@ -218,6 +219,7 @@ fun ReportsScreen(
     onUpdateTitle: (String, String) -> Unit = { _, _ -> },
     onDeleteReport: (String) -> Unit = {},
     onCopyReport: (String) -> Unit = {},
+    onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, SecondaryKind, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
@@ -831,6 +833,7 @@ fun ReportsScreen(
                 onRegenerate = { currentReportId?.let(onRegenerate) },
                 onDelete = { showDeleteConfirm = true },
                 onCopy = { currentReportId?.let(onCopyReport) },
+                onTogglePin = { currentReportId?.let(onTogglePinReport) },
                 onTranslate = { showTranslateLanguagePicker = true },
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
@@ -987,6 +990,7 @@ private fun ColumnScope.GenerationPhase(
     onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onCopy: () -> Unit = {},
+    onTogglePin: () -> Unit = {},
     onTranslate: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
@@ -1330,10 +1334,25 @@ private fun ColumnScope.GenerationPhase(
         }
 
         SectionLabel("Actions")
+        // Read the persisted pinned flag so the button toggles between
+        // "Pin" and "Unpin" rather than always saying the same thing.
+        // Re-keyed when the user taps the button (currentReportId
+        // doesn't change but the report file does).
+        var pinTick by remember(currentReportId) { mutableStateOf(0) }
+        val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
+            value = currentReportId?.let { rid ->
+                withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
+            } ?: false
+        }
         ActionRow {
             CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
             CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
             CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
+            CompactButton(
+                onClick = { onTogglePin(); pinTick++ },
+                color = AppColors.Orange,
+                text = if (isPinned) "Unpin" else "Pin"
+            )
             CompactButton(onClick = onDelete, color = AppColors.Red, text = "Delete")
             CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
             // Meta launchers folded directly into the Actions row.
