@@ -329,5 +329,22 @@ data class ModelCapabilities(
      *  page text + embedded images server-side, no client-side OCR
      *  needed. Currently populated from Anthropic
      *  `capabilities.pdf_input.supported`. */
-    val supportsPdfInput: Boolean? = null
+    val supportsPdfInput: Boolean? = null,
+    /** Friendly version-alias ids the provider's model list mapped
+     *  to this real id. Currently populated from Mistral's
+     *  `aliases: [...]` field — `mistral-large-2407` reports
+     *  `["mistral-large-latest"]`. The picker search filter
+     *  matches against these too so a query for "latest" still
+     *  finds the dated model. */
+    val aliases: List<String>? = null,
+    /** ISO-8601 deprecation date the provider published for this
+     *  model. Null when active. Currently populated from Mistral's
+     *  per-entry `deprecation` field; pickers can render a small
+     *  ⚠ badge when set. */
+    val deprecationDate: String? = null,
+    /** Provider-recommended successor when [deprecationDate] is set.
+     *  Mistral's `deprecation_replacement_model` field — pickers
+     *  can show "→ use $deprecationReplacement" alongside the
+     *  badge. */
+    val deprecationReplacement: String? = null
 )

@@ -176,7 +176,17 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
     val context = LocalContext.current
     var search by remember { mutableStateOf("") }
     val all = aiSettings.getModels(provider)
-    val filtered = if (search.isBlank()) all else all.filter { it.lowercase().contains(search.lowercase()) }
+    // Match against the model id and any aliases the provider's
+    // /models endpoint declared (Mistral exposes mistral-large-latest
+    // → mistral-large-2407 this way; without alias matching a search
+    // for "latest" misses the dated id). Aliases live on
+    // ModelCapabilities.aliases.
+    val capsByModel = aiSettings.getProvider(provider).modelCapabilities
+    val filtered = if (search.isBlank()) all else all.filter { id ->
+        val q = search.lowercase()
+        id.lowercase().contains(q) ||
+            capsByModel[id]?.aliases?.any { it.lowercase().contains(q) } == true
+    }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {

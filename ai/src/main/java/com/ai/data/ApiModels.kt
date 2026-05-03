@@ -395,7 +395,21 @@ data class OpenAiModel(
      *  parameter names the model honors (e.g. ["reasoning",
      *  "include_reasoning", "max_tokens", …]). Used to detect thinking-
      *  capable models without forcing a bespoke parser. */
-    val supported_parameters: List<String>? = null
+    val supported_parameters: List<String>? = null,
+    /** Mistral exposes friendly version-aliases on every model entry
+     *  — `mistral-large-2407` carries `aliases: ["mistral-large-latest"]`,
+     *  for instance — so a user who searches "latest" can still hit
+     *  the dated id. The picker's search filter unions the aliases
+     *  with the model id. */
+    val aliases: List<String>? = null,
+    /** Mistral's deprecation date (ISO-8601) when present. The
+     *  picker can flag deprecated entries with a small ⚠ badge so
+     *  the user knows to migrate. Null = active. */
+    val deprecation: String? = null,
+    /** Mistral's recommended replacement when an entry has been
+     *  deprecated. Pairs with [deprecation] — picker badge can read
+     *  "deprecated → use $deprecation_replacement_model". */
+    val deprecation_replacement_model: String? = null
 )
 
 data class MistralCapabilities(

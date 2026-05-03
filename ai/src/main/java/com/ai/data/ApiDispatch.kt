@@ -538,16 +538,23 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                 it.any { p -> p.equals("reasoning", true) || p.equals("include_reasoning", true) }
             }
         val cohereCap = cohereByName[id]?.cap
+        val aliases = info?.aliases?.takeIf { it.isNotEmpty() }
+        val deprecationDate = info?.deprecation
+        val deprecationReplacement = info?.deprecation_replacement_model
         val merged = ModelCapabilities(
             supportsVision = supportsVision ?: cohereCap?.supportsVision,
             supportsFunctionCalling = supportsFn,
             contextLength = ctx ?: cohereCap?.contextLength,
             maxOutputTokens = null,
-            supportsReasoning = supportsReasoning
+            supportsReasoning = supportsReasoning,
+            aliases = aliases,
+            deprecationDate = deprecationDate,
+            deprecationReplacement = deprecationReplacement
         )
         if (merged.supportsVision != null || merged.supportsFunctionCalling != null
             || merged.contextLength != null || merged.maxOutputTokens != null
-            || merged.supportsReasoning != null) {
+            || merged.supportsReasoning != null || merged.aliases != null
+            || merged.deprecationDate != null) {
             caps[id] = merged
         }
     }
