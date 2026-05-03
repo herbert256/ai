@@ -152,10 +152,28 @@ private fun AnalysisRepository.streamOpenAi(
     if (usesResponsesApi(service, model)) {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
         val responsesUrl = buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses", service.knownEndpointPaths())
-        val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
+        val nonSystem = messages.filter { it.role != "system" }
         val systemPrompt = messages.find { it.role == "system" }?.content
+        // Image-bearing turns need the typed content-block shape;
+        // string-only turns can take the simpler OpenAiResponsesInputMessage
+        // form. See chatResponsesApi for the matching non-streaming path.
+        val anyImage = nonSystem.any { !it.imageBase64.isNullOrBlank() }
+        val input: Any = if (anyImage) {
+            nonSystem.map { msg ->
+                val mime = msg.imageMime ?: "image/png"
+                val parts = buildList {
+                    if (msg.content.isNotBlank()) add(mapOf("type" to "input_text", "text" to msg.content))
+                    if (!msg.imageBase64.isNullOrBlank()) {
+                        add(mapOf("type" to "input_image", "image_url" to "data:$mime;base64,${msg.imageBase64}"))
+                    }
+                }
+                mapOf("role" to msg.role, "content" to parts)
+            }
+        } else {
+            nonSystem.map { OpenAiResponsesInputMessage(it.role, it.content) }
+        }
         val request = OpenAiResponsesRequest(
-            model = model, input = inputMessages, instructions = systemPrompt, stream = true,
+            model = model, input = input, instructions = systemPrompt, stream = true,
             tools = if (params.webSearchTool) responsesWebSearchTool() else null,
             reasoning = reasoningField(service, model, params.reasoningEffort)
         )

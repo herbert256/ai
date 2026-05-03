@@ -325,13 +325,34 @@ private suspend fun AnalysisRepository.chatResponsesApi(
     val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
     val responsesUrl = responsesUrlFor(service, baseUrl)
     val systemPrompt = messages.find { it.role == "system" }?.content
-    val inputMessages = messages.filter { it.role != "system" }.map { OpenAiResponsesInputMessage(it.role, it.content) }
+    val nonSystem = messages.filter { it.role != "system" }
+    val anyImage = nonSystem.any { !it.imageBase64.isNullOrBlank() }
     val tools = if (params.webSearchTool) responsesWebSearchTool() else null
     val reasoning = reasoningField(service, model, params.reasoningEffort)
-    val request = if (inputMessages.size == 1 && inputMessages.first().role == "user") {
-        OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools, reasoning = reasoning)
+    // Mirrors analyzeResponsesApi's content-block construction when a
+    // turn carries an attached image. Without this, OpenAiResponsesInputMessage(role, content)
+    // is text-only and any imageBase64 on a chat turn (📎 picker, share-target, camera capture)
+    // gets silently dropped on gpt-5 / o3 / gpt-4.1 etc. — the model replies "I can't see the
+    // image you're referring to" with no signal that the bytes never reached it.
+    val request = if (anyImage) {
+        val inputItems: List<Map<String, Any?>> = nonSystem.map { msg ->
+            val mime = msg.imageMime ?: "image/png"
+            val parts = buildList {
+                if (msg.content.isNotBlank()) add(mapOf("type" to "input_text", "text" to msg.content))
+                if (!msg.imageBase64.isNullOrBlank()) {
+                    add(mapOf("type" to "input_image", "image_url" to "data:$mime;base64,${msg.imageBase64}"))
+                }
+            }
+            mapOf("role" to msg.role, "content" to parts)
+        }
+        OpenAiResponsesRequest(model = model, input = inputItems, instructions = systemPrompt, tools = tools, reasoning = reasoning)
     } else {
-        OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools, reasoning = reasoning)
+        val inputMessages = nonSystem.map { OpenAiResponsesInputMessage(it.role, it.content) }
+        if (inputMessages.size == 1 && inputMessages.first().role == "user") {
+            OpenAiResponsesRequest(model = model, input = inputMessages.first().content, instructions = systemPrompt, tools = tools, reasoning = reasoning)
+        } else {
+            OpenAiResponsesRequest(model = model, input = inputMessages, instructions = systemPrompt, tools = tools, reasoning = reasoning)
+        }
     }
     val response = api.responses(responsesUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
