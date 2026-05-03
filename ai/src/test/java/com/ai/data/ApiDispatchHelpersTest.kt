@@ -149,11 +149,17 @@ class ApiDispatchHelpersTest {
             defaultModel = "model"
         )
 
-        assertThat(reasoningField(service, "unknown-model", "high")).containsEntry("effort", "high")
-        assertThat(reasoningField(service, "unknown-model", "")).isNull()
-        assertThat(anthropicThinkingField(service, "unknown-model", "medium"))
+        // Use a model id that the inferReasoning heuristic recognises
+        // ("thinking" matches the cross-provider generic branch) so the
+        // capability gate passes — we're testing the wire shape these
+        // helpers emit, not the gate itself.
+        assertThat(reasoningField(service, "thinking-model", "high")).containsEntry("effort", "high")
+        assertThat(reasoningField(service, "thinking-model", "")).isNull()
+        // Non-reasoning model: the gate strips the parameter regardless of effort.
+        assertThat(reasoningField(service, "regular-chat", "high")).isNull()
+        assertThat(anthropicThinkingField(service, "thinking-model", "medium"))
             .containsExactly("type", "enabled", "budget_tokens", 4096)
-        assertThat(geminiThinkingConfigField(service, "unknown-model", "low"))
+        assertThat(geminiThinkingConfigField(service, "thinking-model", "low"))
             .containsExactly("thinkingBudget", 1024)
         assertThat(responsesWebSearchTool().first().toString()).contains("web_search_preview")
         assertThat(anthropicWebSearchTool().first().toString()).contains("web_search_20250305")

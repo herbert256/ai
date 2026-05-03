@@ -442,6 +442,7 @@ fun ReportCostTable(report: Report) {
 private sealed class ContentSegment {
     data class Text(val content: String) : ContentSegment()
     data class Think(val content: String) : ContentSegment()
+    data class Table(val table: MarkdownTable) : ContentSegment()
 }
 
 private fun parseContentWithThinkSections(text: String): List<ContentSegment> {
@@ -451,7 +452,7 @@ private fun parseContentWithThinkSections(text: String): List<ContentSegment> {
     thinkPattern.findAll(text).forEach { match ->
         if (match.range.first > lastEnd) {
             val before = text.substring(lastEnd, match.range.first).trim()
-            if (before.isNotEmpty()) segments.add(ContentSegment.Text(before))
+            if (before.isNotEmpty()) appendTextWithTables(segments, before)
         }
         val thinkContent = match.groupValues[1].trim()
         if (thinkContent.isNotEmpty()) segments.add(ContentSegment.Think(thinkContent))
@@ -459,10 +460,36 @@ private fun parseContentWithThinkSections(text: String): List<ContentSegment> {
     }
     if (lastEnd < text.length) {
         val remaining = text.substring(lastEnd).trim()
-        if (remaining.isNotEmpty()) segments.add(ContentSegment.Text(remaining))
+        if (remaining.isNotEmpty()) appendTextWithTables(segments, remaining)
     }
-    if (segments.isEmpty() && text.isNotBlank()) segments.add(ContentSegment.Text(text))
+    if (segments.isEmpty() && text.isNotBlank()) appendTextWithTables(segments, text)
     return segments
+}
+
+/** Split a Text chunk further on GFM table blocks. Each table becomes
+ *  its own segment so it can render via a Compose Row/Column grid
+ *  rather than getting flattened to AnnotatedString (which has no
+ *  table primitive). */
+private fun appendTextWithTables(segments: MutableList<ContentSegment>, text: String) {
+    val (placeheld, tables) = parseGfmTables(text)
+    if (tables.isEmpty()) {
+        segments.add(ContentSegment.Text(text))
+        return
+    }
+    var pos = 0
+    MD_TABLE_PLACEHOLDER_REGEX.findAll(placeheld).forEach { match ->
+        if (match.range.first > pos) {
+            val chunk = placeheld.substring(pos, match.range.first).trim()
+            if (chunk.isNotEmpty()) segments.add(ContentSegment.Text(chunk))
+        }
+        val idx = match.groupValues[1].toInt()
+        segments.add(ContentSegment.Table(tables[idx]))
+        pos = match.range.last + 1
+    }
+    if (pos < placeheld.length) {
+        val tail = placeheld.substring(pos).trim()
+        if (tail.isNotEmpty()) segments.add(ContentSegment.Text(tail))
+    }
 }
 
 @Composable
@@ -475,8 +502,61 @@ internal fun ContentWithThinkSections(analysis: String) {
                 HtmlContentDisplay(htmlContent = html)
             }
             is ContentSegment.Think -> ThinkSection(content = segment.content)
+            is ContentSegment.Table -> MarkdownTableSection(segment.table)
         }
     }
+}
+
+@Composable
+private fun MarkdownTableSection(table: MarkdownTable) {
+    val divider = Color(0xFF3A3A3A)
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 8.dp)
+        .background(Color(0xFF222222), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+        .border(1.dp, divider, androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+    ) {
+        Row(modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF2A2A3A), androidx.compose.foundation.shape.RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+            .padding(8.dp)
+        ) {
+            for ((i, h) in table.headers.withIndex()) {
+                Text(
+                    text = stripInlineMarkdown(h),
+                    color = Color(0xFF9FCFFF),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    textAlign = textAlignFor(table.alignments.getOrNull(i))
+                )
+            }
+        }
+        for ((rowIdx, row) in table.rows.withIndex()) {
+            HorizontalDivider(color = divider, thickness = 1.dp)
+            Row(modifier = Modifier
+                .fillMaxWidth()
+                .background(if (rowIdx % 2 == 1) Color(0xFF262626) else Color(0xFF222222))
+                .padding(8.dp)
+            ) {
+                for (i in 0 until table.headers.size) {
+                    Text(
+                        text = stripInlineMarkdown(row.getOrNull(i) ?: ""),
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                        textAlign = textAlignFor(table.alignments.getOrNull(i))
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun textAlignFor(a: TableAlign?) = when (a) {
+    TableAlign.CENTER -> androidx.compose.ui.text.style.TextAlign.Center
+    TableAlign.RIGHT -> androidx.compose.ui.text.style.TextAlign.End
+    else -> androidx.compose.ui.text.style.TextAlign.Start
 }
 
 @Composable

@@ -854,7 +854,13 @@ internal fun processThinkSections(text: String, agentId: String): String {
 }
 
 internal fun convertMarkdownToHtmlForExport(markdown: String): String {
-    var html = markdown.replace("\r\n", "\n").replace(Regex("\n{3,}"), "\n\n")
+    // Pull GFM tables out first so the placeholder survives the
+    // inline/heading/list regex passes below — re-inserted as real
+    // <table> HTML at the end. Tables can't be expressed via the
+    // inline regex chain since they're multi-line and the \n→<br>
+    // step would shred them.
+    val (preProcessed, tables) = parseGfmTables(markdown)
+    var html = preProcessed.replace("\r\n", "\n").replace(Regex("\n{3,}"), "\n\n")
     html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         .replace(Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL), "<pre><code>$1</code></pre>")
         .replace(Regex("`([^`]+)`"), "<code>$1</code>")
@@ -874,6 +880,16 @@ internal fun convertMarkdownToHtmlForExport(markdown: String): String {
         .replace(Regex("<br>\\s*(<pre>)"), "$1").replace(Regex("(</pre>)\\s*<br>"), "$1")
         .replace(Regex("<p>\\s*</p>"), "")
     if (html.isNotBlank()) html = "<p>$html</p>"
+    if (tables.isNotEmpty()) {
+        // Replace the placeholder + any leftover <p>/<br> wrapping
+        // around it with the real <table>. Browsers tolerate <p>
+        // around <table> (auto-close), but stripping keeps the source
+        // clean and lets the table style take effect cleanly.
+        html = html.replace(Regex("(?:<p>\\s*)?(?:<br>\\s*)*${MD_TABLE_PLACEHOLDER_REGEX.pattern}(?:\\s*<br>)*(?:\\s*</p>)?")) { m ->
+            val idx = m.groupValues[1].toInt()
+            buildExportTableHtml(tables[idx])
+        }
+    }
     return html
 }
 
@@ -941,6 +957,10 @@ strong{font-weight:bold}em{color:#ccc;font-style:italic}
 code{background:#333;padding:2px 6px;border-radius:3px;font-family:monospace;font-size:13px}
 pre code{display:block;background:#252525;padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap}
 ul{padding-left:20px}li{margin:4px 0}
+.md-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;background:#222}
+.md-table th{background:#2a2a3a;color:#9FCFFF;font-weight:600;text-align:left;padding:8px 12px;border:1px solid #3a3a3a}
+.md-table td{padding:8px 12px;border:1px solid #333;vertical-align:top}
+.md-table tbody tr:nth-child(even){background:#262626}
 .table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:16px}
 .table-card{background:#252525;border-radius:8px;padding:16px;overflow:hidden}
 .card-header{color:#6B9BFF;font-weight:600;font-size:14px}.card-model{color:#999;font-size:12px;margin-bottom:8px}

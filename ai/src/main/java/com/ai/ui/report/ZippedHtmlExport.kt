@@ -826,6 +826,10 @@ th{background:#252525;color:#9FCFFF}
 .cost-table{white-space:nowrap}
 .cost-table th, .cost-table td{white-space:nowrap}
 .cost-table th[data-sort]:hover{background:#2c2c2c}
+.md-table{width:auto;border-collapse:collapse;margin:12px 0;font-size:14px;background:#222}
+.md-table th{background:#2a2a3a;color:#9FCFFF;font-weight:600;text-align:left;padding:8px 12px;border:1px solid #3a3a3a}
+.md-table td{padding:8px 12px;border:1px solid #333;vertical-align:top}
+.md-table tbody tr:nth-child(even){background:#262626}
 .kv th{width:160px;background:#252525}
 pre{background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:10px;color:#ccc;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;overflow-x:auto;line-height:1.4}
 pre.prompt{font-size:13px;color:#e0e0e0}
