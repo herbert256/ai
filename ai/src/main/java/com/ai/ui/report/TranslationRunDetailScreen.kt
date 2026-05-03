@@ -51,6 +51,7 @@ internal fun TranslationRunDetailScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToTraceList: () -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
@@ -95,15 +96,16 @@ internal fun TranslationRunDetailScreen(
     val providerDisplay = providerService?.displayName ?: first?.providerId.orEmpty()
     val modelName = first?.model.orEmpty()
 
-    // Trace lookup for the bottom Trace button — pick the most recent
-    // trace tagged with this report id + the run's model. All calls in
-    // the run share that model so any single match is representative.
-    val traceFilename by produceState<String?>(initialValue = null, reportId, modelName) {
-        if (modelName.isBlank()) return@produceState
+    // Tally of how many translation traces exist for this report so
+    // the bottom Trace button can be disabled when there's nothing to
+    // navigate to. The button itself opens the report's trace list
+    // pre-filtered to category="Translation" — that yields one row
+    // per call in this run (and any other Translate runs on the
+    // report, which is acceptable since the list lets the user filter
+    // further).
+    val translationTraceCount by produceState(initialValue = 0, reportId) {
         value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.model == modelName }
-                .maxByOrNull { it.timestamp }?.filename
+            ApiTracer.getTraceFiles().count { it.reportId == reportId && it.category == "Translation" }
         }
     }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -175,8 +177,8 @@ internal fun TranslationRunDetailScreen(
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Button(
-                onClick = { traceFilename?.let(onNavigateToTraceFile) },
-                enabled = traceFilename != null,
+                onClick = onNavigateToTraceList,
+                enabled = translationTraceCount > 0,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
                 contentPadding = PaddingValues(horizontal = 4.dp)

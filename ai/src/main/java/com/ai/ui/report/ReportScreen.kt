@@ -45,6 +45,7 @@ fun ReportsScreenNav(
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -108,6 +109,7 @@ fun ReportsScreenNav(
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToTraceFile = onNavigateToTraceFile,
+        onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onRemoveAgent = { rid, aid -> reportViewModel.removeAgentFromReport(context, rid, aid) },
         onRegenerateAgent = { rid, aid -> reportViewModel.regenerateAgent(scope, context, rid, aid) },
@@ -202,6 +204,7 @@ fun ReportsScreen(
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     onClearExternalInstructions: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
@@ -644,6 +647,7 @@ fun ReportsScreen(
             onBack = { openTranslationRunId = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToTraceList = { onNavigateToTraceListFiltered(rid, "Translation") },
             onNavigateToModelInfo = onNavigateToModelInfo
         )
         return

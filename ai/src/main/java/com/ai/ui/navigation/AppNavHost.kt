@@ -175,6 +175,9 @@ fun AppNavHost(
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToTraceListFiltered = { rid, cat ->
+                    navController.navigate(NavRoutes.traceListForReportCategory(rid, cat))
+                },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
@@ -453,6 +456,16 @@ fun AppNavHost(
             TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, reportId = reportId)
+        }
+        composable(NavRoutes.TRACE_LIST_FOR_REPORT_CATEGORY) { entry ->
+            val reportId = entry.arguments?.getString("reportId") ?: ""
+            val category = try {
+                java.net.URLDecoder.decode(entry.arguments?.getString("category") ?: "", "UTF-8")
+            } catch (_: Exception) { "" }
+            TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+                onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onClearTraces = { appViewModel.clearTraces() },
+                reportId = reportId, initialCategory = category)
         }
         composable(NavRoutes.TRACE_LIST_FOR_MODEL) { entry ->
             val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }

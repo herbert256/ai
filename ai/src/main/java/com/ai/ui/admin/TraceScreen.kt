@@ -50,7 +50,13 @@ fun TraceListScreen(
     onSelectTrace: (String) -> Unit,
     onClearTraces: () -> Unit,
     reportId: String? = null,
-    modelFilter: String? = null
+    modelFilter: String? = null,
+    /** Initial category-dropdown selection. The user can still
+     *  change it via the dropdown; this just biases the first
+     *  render so a caller can land on a pre-filtered slice (the
+     *  Translation run's Trace button opens the list pre-filtered
+     *  to category="Translation"). */
+    initialCategory: String? = null
 ) {
     BackHandler { onBack() }
     // getTraceFiles parses every trace JSON to extract 4 summary fields;
@@ -75,7 +81,7 @@ fun TraceListScreen(
         val hasUncategorised = present.contains(null)
         listOf("(All)") + labelled + (if (hasUncategorised) listOf("(uncategorised)") else emptyList())
     }
-    var selectedCategory by rememberSaveable { mutableStateOf("(All)") }
+    var selectedCategory by rememberSaveable { mutableStateOf(initialCategory ?: "(All)") }
 
     // Provider distinct list, derived from the trace hostname matched
     // against each AppService's baseUrl. Hostnames we can't resolve get

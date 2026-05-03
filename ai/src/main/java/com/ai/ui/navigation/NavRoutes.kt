@@ -10,6 +10,7 @@ object NavRoutes {
     const val HELP = "help"
     const val TRACE_LIST = "trace_list"
     const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
+    const val TRACE_LIST_FOR_REPORT_CATEGORY = "trace_list/{reportId}/category/{category}"
     const val TRACE_LIST_FOR_MODEL = "trace_list_for_model/{provider}/{model}"
     const val TRACE_DETAIL = "trace_detail/{filename}"
     const val AI_HISTORY = "ai_history"
@@ -50,6 +51,8 @@ object NavRoutes {
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
+    fun traceListForReportCategory(reportId: String, category: String) =
+        "trace_list/$reportId/category/${encode(category)}"
     fun settingsProviderEdit(providerId: String) = "settings_provider_edit/$providerId"
     fun settingsAgentEdit(agentId: String) = "settings_agent_edit/$agentId"
     fun traceListForModel(provider: String, model: String) = "trace_list_for_model/$provider/${encode(model)}"
