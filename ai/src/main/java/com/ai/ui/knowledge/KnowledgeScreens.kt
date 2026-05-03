@@ -45,7 +45,13 @@ fun KnowledgeListScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenKb: (String) -> Unit,
-    onCreateKb: () -> Unit
+    onCreateKb: () -> Unit,
+    /** SAF Uris (file:// / content://) or http(s) URLs the user
+     *  shared into the app. The screen surfaces a banner that lets
+     *  them dump these into an existing KB or create a new one
+     *  pre-populated. Cleared via [onConsumePending] once handled. */
+    pendingUris: List<String> = emptyList(),
+    onConsumePending: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -60,6 +66,27 @@ fun KnowledgeListScreen(
         Text("Attach PDFs, text files, markdown, or web pages here. Knowledge bases can be linked to a Report or a Chat to inject relevant excerpts before each call.",
             fontSize = 12.sp, color = AppColors.TextTertiary)
         Spacer(modifier = Modifier.height(12.dp))
+
+        if (pendingUris.isNotEmpty()) {
+            // Sticky banner — user came from the share-target chooser
+            // and we owe them a place to dump the payload. Tapping
+            // an existing KB ingests there; "+ New knowledge base"
+            // creates one and the detail screen consumes the queue.
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = if (pendingUris.size == 1) "1 shared item ready to import" else "${pendingUris.size} shared items ready to import",
+                        fontSize = 13.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold
+                    )
+                    Text("Pick a knowledge base below — or create a new one — to ingest the shared file(s) or URL(s).",
+                        fontSize = 11.sp, color = AppColors.TextTertiary)
+                    TextButton(onClick = onConsumePending) {
+                        Text("Discard share", fontSize = 11.sp, color = AppColors.Red)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         Button(
             onClick = onCreateKb,
@@ -196,7 +223,12 @@ fun KnowledgeDetailScreen(
     repository: AnalysisRepository,
     kbId: String,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** Shared-content URIs queued by the share-target chooser. When
+     *  non-empty on first composition we auto-ingest each one through
+     *  the same indexFile / indexUrl path the manual buttons use. */
+    pendingUris: List<String> = emptyList(),
+    onConsumePending: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -209,6 +241,53 @@ fun KnowledgeDetailScreen(
     var working by remember { mutableStateOf(false) }
     var urlInput by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    // Auto-ingest the share-target queue once the KB loads. Keyed on
+    // pendingUris so a re-share into the same screen re-runs; we
+    // clear the queue at the end so a screen recompose / back-and-
+    // forward doesn't re-import the same payload.
+    LaunchedEffect(kbId, pendingUris, kb?.id) {
+        val loaded = kb ?: return@LaunchedEffect
+        if (pendingUris.isEmpty()) return@LaunchedEffect
+        working = true
+        try {
+            for (raw in pendingUris) {
+                val trimmed = raw.trim()
+                if (trimmed.isBlank()) continue
+                val isHttp = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
+                if (isHttp) {
+                    status = "Fetching $trimmed…"
+                    val result = withContext(Dispatchers.IO) {
+                        KnowledgeService.indexUrl(context, repository, aiSettings, loaded.id, trimmed) { msg, _, _ ->
+                            scope.launch(Dispatchers.Main) { status = "$trimmed: $msg" }
+                        }
+                    }
+                    status = result.fold(
+                        onSuccess = { src -> "Indexed ${src.name} (${src.chunkCount} chunks)" },
+                        onFailure = { e -> "Failed: ${e.message ?: e.javaClass.simpleName}" }
+                    )
+                } else {
+                    val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: continue
+                    val type = pickTypeForUri(context, uri)
+                    val displayName = displayNameForUri(context, uri) ?: "shared_${System.currentTimeMillis()}"
+                    status = "Reading $displayName…"
+                    val result = withContext(Dispatchers.IO) {
+                        KnowledgeService.indexFile(context, repository, aiSettings, loaded.id, type, uri, displayName) { msg, _, _ ->
+                            scope.launch(Dispatchers.Main) { status = "$displayName: $msg" }
+                        }
+                    }
+                    status = result.fold(
+                        onSuccess = { src -> "Indexed ${src.name} (${src.chunkCount} chunks)" },
+                        onFailure = { e -> "Failed: ${e.message ?: e.javaClass.simpleName}" }
+                    )
+                }
+                refreshTick++
+            }
+        } finally {
+            working = false
+            onConsumePending()
+        }
+    }
 
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult

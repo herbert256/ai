@@ -36,7 +36,9 @@ fun AppNavHost(
     externalSystem: String? = null,
     externalPrompt: String? = null,
     externalInstructions: String? = null,
-    onExternalIntentHandled: () -> Unit = {}
+    onExternalIntentHandled: () -> Unit = {},
+    sharedContent: com.ai.data.SharedContent? = null,
+    onSharedContentHandled: () -> Unit = {}
 ) {
     val safePopBack: () -> Unit = {
         if (navController.previousBackStackEntry != null) navController.popBackStack()
@@ -96,6 +98,52 @@ fun AppNavHost(
             }
             onExternalIntentHandled()
         }
+    }
+
+    // Share-target overlay — when the launching Intent was an
+    // ACTION_SEND / ACTION_SEND_MULTIPLE the user picks a destination
+    // here before the standard nav graph takes over. Renders on top
+    // of the back-stack until consumed.
+    if (sharedContent != null && !sharedContent.isEmpty) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        com.ai.ui.share.ShareChooserScreen(
+            shared = sharedContent,
+            onCancel = onSharedContentHandled,
+            onSendToReport = {
+                scope.launch {
+                    routeShareToReport(context, appViewModel, navController, sharedContent)
+                    onSharedContentHandled()
+                }
+            },
+            onSendToChat = {
+                appViewModel.updateUiState { it.copy(chatStarterText = sharedContent.text) }
+                // Land on the configure-on-the-fly provider picker so
+                // the user picks model/parameters; the staged starter
+                // text follows them into ChatSessionScreen via UiState.
+                navController.navigate(NavRoutes.AI_CHAT_PROVIDER) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
+                }
+                onSharedContentHandled()
+            },
+            onSendToKnowledge = {
+                appViewModel.updateUiState { it.copy(pendingKnowledgeUris = sharedContent.uris) }
+                // URLs land in the AI_KNOWLEDGE list screen as the
+                // "type a URL" path on a new KB; the URL itself
+                // travels via chatStarterText? No — keep that for
+                // chat. URLs go through pendingKnowledgeUris too;
+                // the Knowledge screen branches on `content://` vs
+                // `http://` schemes when it consumes the queue.
+                if (sharedContent.isUrl && sharedContent.uris.isEmpty()) {
+                    appViewModel.updateUiState { it.copy(pendingKnowledgeUris = listOf(sharedContent.text!!.trim())) }
+                }
+                navController.navigate(NavRoutes.AI_KNOWLEDGE) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
+                }
+                onSharedContentHandled()
+            }
+        )
+        return
     }
 
     NavHost(navController = navController, startDestination = NavRoutes.AI, modifier = modifier) {
@@ -388,18 +436,23 @@ fun AppNavHost(
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
                     aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
-                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
+                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
+                    initialUserInput = uiState.chatStarterText,
+                    onConsumeStarter = { appViewModel.updateUiState { it.copy(chatStarterText = null) } }
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
             }
         }
         composable(NavRoutes.AI_KNOWLEDGE) {
+            val uiState by appViewModel.uiState.collectAsState()
             com.ai.ui.knowledge.KnowledgeListScreen(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenKb = { kbId -> navController.navigate(NavRoutes.aiKnowledgeDetail(kbId)) },
-                onCreateKb = { navController.navigate(NavRoutes.AI_KNOWLEDGE_NEW) }
+                onCreateKb = { navController.navigate(NavRoutes.AI_KNOWLEDGE_NEW) },
+                pendingUris = uiState.pendingKnowledgeUris,
+                onConsumePending = { appViewModel.updateUiState { it.copy(pendingKnowledgeUris = emptyList()) } }
             )
         }
         composable(NavRoutes.AI_KNOWLEDGE_NEW) {
@@ -422,7 +475,9 @@ fun AppNavHost(
                 repository = appViewModel.repository,
                 kbId = kbId,
                 onBack = safePopBack,
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                pendingUris = uiState.pendingKnowledgeUris,
+                onConsumePending = { appViewModel.updateUiState { it.copy(pendingKnowledgeUris = emptyList()) } }
             )
         }
         composable(NavRoutes.AI_CHAT_MANAGE) {
@@ -494,7 +549,9 @@ fun AppNavHost(
                     },
                     aiSettings = uiState.aiSettings,
                     isVisionCapable = !isLocal && uiState.aiSettings.isVisionCapable(provider, model),
-                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
+                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
+                    initialUserInput = uiState.chatStarterText,
+                    onConsumeStarter = { appViewModel.updateUiState { it.copy(chatStarterText = null) } }
                 )
             }
         }
@@ -720,4 +777,44 @@ fun HousekeepingScreenNav(
         onNavigateToRefresh = onNavigateToRefresh,
         onNavigateToProviderAdmin = onNavigateToProviderAdmin
     )
+}
+
+/** Route a SharedContent payload onto the New Report flow. Text /
+ *  subject become title + prompt; the first image attachment (if
+ *  any) becomes the report's vision attachment via base64; non-image
+ *  attachments don't have a per-report home (Knowledge handles
+ *  documents) so they're dropped quietly here — the user can still
+ *  send the same payload to Knowledge separately. */
+private suspend fun routeShareToReport(
+    context: android.content.Context,
+    appViewModel: AppViewModel,
+    navController: androidx.navigation.NavHostController,
+    shared: com.ai.data.SharedContent
+) {
+    val title = shared.subject?.takeIf { it.isNotBlank() } ?: ""
+    val prompt = shared.text?.takeIf { it.isNotBlank() } ?: ""
+    // First image-typed attachment goes onto reportImageBase64 so
+    // the New Report screen surfaces it like any other vision pick.
+    val firstImageUri = shared.uris.firstOrNull { uri ->
+        val mime = runCatching { context.contentResolver.getType(android.net.Uri.parse(uri)) }.getOrNull()
+        (mime ?: shared.mime)?.startsWith("image/") == true
+    }
+    if (firstImageUri != null) {
+        val pair: Pair<String, ByteArray?> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val u = android.net.Uri.parse(firstImageUri)
+            val resolved = context.contentResolver.getType(u) ?: "image/png"
+            val bytes: ByteArray? = context.contentResolver.openInputStream(u)?.use { it.readBytes() }
+            resolved to bytes
+        }
+        val (mime, bytes) = pair
+        if (bytes != null) {
+            appViewModel.updateUiState {
+                it.copy(reportImageBase64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP),
+                        reportImageMime = mime)
+            }
+        }
+    }
+    navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt)) {
+        popUpTo(NavRoutes.AI) { inclusive = false }
+    }
 }

@@ -93,6 +93,17 @@ data class UiState(
      *  AnalysisRepository.analyzeWithAgent reads it via the per-call
      *  Report it loads to inject the context block. */
     val attachedKnowledgeBaseIds: List<String> = emptyList(),
+    /** Initial user-input text staged by the share-target chooser
+     *  so a freshly-opened chat session pre-fills its input box.
+     *  ChatSessionScreen consumes this once on first composition
+     *  and clears it via clearChatStarterText() so navigating
+     *  away and back doesn't re-stuff the box. */
+    val chatStarterText: String? = null,
+    /** SAF Uri strings staged for ingestion by the AI Knowledge
+     *  screen. The list screen drops them into the active KB
+     *  after the user picks one (or creates a new KB) and clears
+     *  the queue. */
+    val pendingKnowledgeUris: List<String> = emptyList(),
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),

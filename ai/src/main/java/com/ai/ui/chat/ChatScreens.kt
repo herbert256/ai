@@ -285,7 +285,13 @@ fun ChatSessionScreen(
     initialMessages: List<ChatMessage> = emptyList(),
     sessionId: String? = null,
     isVisionCapable: Boolean = false,
-    onNavigateToTraceFile: (String) -> Unit = {}
+    onNavigateToTraceFile: (String) -> Unit = {},
+    /** Optional pre-fill for the input box, threaded through from
+     *  the share-target chooser when the user picked "New Chat". */
+    initialUserInput: String? = null,
+    /** Fires once when [initialUserInput] has been consumed so the
+     *  staged value can be cleared from UiState. */
+    onConsumeStarter: () -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
 
@@ -296,7 +302,12 @@ fun ChatSessionScreen(
     val currentSessionId = remember { sessionId ?: java.util.UUID.randomUUID().toString() }
 
     var messages by remember { mutableStateOf(initialMessages) }
-    var userInput by remember { mutableStateOf("") }
+    // Pre-fill the input box with text staged by the share-target
+    // chooser, then drop the staged value so leaving + returning
+    // doesn't re-stuff it.
+    val starter = remember { initialUserInput }
+    LaunchedEffect(Unit) { onConsumeStarter() }
+    var userInput by remember { mutableStateOf(starter ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
     val streamingContentState = remember { mutableStateOf("") }
