@@ -153,6 +153,12 @@ dependencies {
     // on the Housekeeping → Local LLMs card.
     implementation("com.google.mediapipe:tasks-genai:0.10.16")
 
+    // Apache Commons Compress — used by the Local LLM import flow to
+    // unwrap a .task file from a downloaded .zip / .tar / .tar.gz /
+    // .tgz archive. Kaggle ships some Gemma bundles as .tgz; this
+    // saves the user a round-trip through a desktop unzipper.
+    implementation("org.apache.commons:commons-compress:1.27.1")
+
     debugImplementation(libs.androidx.ui.tooling)
 
     // Unit tests

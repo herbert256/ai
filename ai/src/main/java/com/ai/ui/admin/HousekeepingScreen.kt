@@ -536,6 +536,10 @@ private fun LocalLlmsCard() {
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
         ) { Text("Add LLM from file…", maxLines = 1, softWrap = false) }
+        Text(
+            "Accepts .task, .zip, .tar.gz, .tgz, .tar — the first .task entry inside an archive is extracted automatically.",
+            fontSize = 11.sp, color = AppColors.TextTertiary
+        )
 
         if (installed.isNotEmpty()) {
             Text("Installed", fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -561,24 +565,112 @@ private fun LocalLlmsCard() {
     }
 }
 
-/** SAF copy for a .task file into local_llms/. The .task bundles
- *  ship with their tokenizer and weights inside, so a single file
- *  is the whole model — no companion files to track. */
+/** SAF copy for a Local LLM source. Accepts:
+ *
+ *   - `.task` — copied straight into local_llms/
+ *   - `.zip`           — first .task entry extracted
+ *   - `.tar`, `.tar.gz`, `.tgz` — same
+ *
+ *  The .task bundles ship with their tokenizer + weights inside, so
+ *  a single file is the whole model. Many Kaggle/HF downloads wrap
+ *  it in an archive; this saves the user a desktop round-trip.
+ *  Returns the imported model name (no extension), or null on
+ *  failure. */
 private fun importTaskModel(context: Context, uri: android.net.Uri): String? {
     return try {
-        val name = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+        val displayName = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
             val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             if (c.moveToFirst() && nameIdx >= 0) c.getString(nameIdx) else null
         }?.takeIf { it.isNotBlank() } ?: "llm_${System.currentTimeMillis()}.task"
-        val sanitized = name.replace(Regex("[^A-Za-z0-9._-]+"), "_")
-            .let { if (it.endsWith(".task", ignoreCase = true)) it else "$it.task" }
-        val target = java.io.File(LocalLlm.localLlmsDir(context), sanitized)
+        val lower = displayName.lowercase()
+        val outDir = LocalLlm.localLlmsDir(context)
+        val outName = when {
+            lower.endsWith(".task") -> sanitizeFileName(displayName, ".task")
+            lower.endsWith(".zip") -> stemFromArchive(displayName, listOf(".zip")) + ".task"
+            lower.endsWith(".tar.gz") -> stemFromArchive(displayName, listOf(".tar.gz")) + ".task"
+            lower.endsWith(".tgz") -> stemFromArchive(displayName, listOf(".tgz")) + ".task"
+            lower.endsWith(".tar") -> stemFromArchive(displayName, listOf(".tar")) + ".task"
+            else -> sanitizeFileName(displayName, ".task")
+        }
+        val target = java.io.File(outDir, outName)
+
         context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
+            when {
+                lower.endsWith(".task") -> target.outputStream().use { input.copyTo(it) }
+                lower.endsWith(".zip") -> {
+                    val entry = extractFirstTaskFromZip(input, target)
+                        ?: throw java.io.IOException("No .task entry inside ${displayName}")
+                    android.util.Log.i("Housekeeping", "Extracted $entry from $displayName")
+                }
+                lower.endsWith(".tar.gz") || lower.endsWith(".tgz") -> {
+                    val entry = extractFirstTaskFromTar(java.util.zip.GZIPInputStream(input), target)
+                        ?: throw java.io.IOException("No .task entry inside ${displayName}")
+                    android.util.Log.i("Housekeeping", "Extracted $entry from $displayName")
+                }
+                lower.endsWith(".tar") -> {
+                    val entry = extractFirstTaskFromTar(input, target)
+                        ?: throw java.io.IOException("No .task entry inside ${displayName}")
+                    android.util.Log.i("Housekeeping", "Extracted $entry from $displayName")
+                }
+                else -> target.outputStream().use { input.copyTo(it) }
+            }
+        }
+        if (!target.exists() || target.length() == 0L) {
+            target.delete()
+            return null
         }
         target.nameWithoutExtension
     } catch (e: Exception) {
         android.util.Log.e("Housekeeping", "LLM import failed: ${e.message}", e)
         null
     }
+}
+
+private fun sanitizeFileName(name: String, ensuredSuffix: String): String {
+    val cleaned = name.replace(Regex("[^A-Za-z0-9._-]+"), "_")
+    return if (cleaned.endsWith(ensuredSuffix, ignoreCase = true)) cleaned else "$cleaned$ensuredSuffix"
+}
+
+/** Strip the archive extension(s), then sanitize. Used as the .task
+ *  filename stem when the archive only contains one model. */
+private fun stemFromArchive(name: String, suffixes: List<String>): String {
+    var stem = name
+    for (s in suffixes) if (stem.endsWith(s, ignoreCase = true)) {
+        stem = stem.substring(0, stem.length - s.length)
+        break
+    }
+    return stem.replace(Regex("[^A-Za-z0-9._-]+"), "_")
+}
+
+/** Stream the first `*.task` entry out of a .zip into [target].
+ *  Returns the entry name if extracted, null when no .task is found. */
+private fun extractFirstTaskFromZip(input: java.io.InputStream, target: java.io.File): String? {
+    java.util.zip.ZipInputStream(input).use { zin ->
+        var entry = zin.nextEntry
+        while (entry != null) {
+            if (!entry.isDirectory && entry.name.endsWith(".task", ignoreCase = true)) {
+                target.outputStream().use { zin.copyTo(it) }
+                return entry.name
+            }
+            entry = zin.nextEntry
+        }
+    }
+    return null
+}
+
+/** Stream the first `*.task` entry out of a tar (or already-gunzipped
+ *  tar.gz) stream into [target]. Uses Apache Commons Compress's
+ *  TarArchiveInputStream — same API for both. */
+private fun extractFirstTaskFromTar(input: java.io.InputStream, target: java.io.File): String? {
+    org.apache.commons.compress.archivers.tar.TarArchiveInputStream(input).use { tin ->
+        var entry = tin.nextEntry
+        while (entry != null) {
+            if (entry.isFile && entry.name.endsWith(".task", ignoreCase = true)) {
+                target.outputStream().use { tin.copyTo(it) }
+                return entry.name
+            }
+            entry = tin.nextEntry
+        }
+    }
+    return null
 }
