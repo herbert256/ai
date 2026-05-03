@@ -87,6 +87,9 @@ fun ReportsScreenNav(
         onRunSecondary = { reportId, kind, picks, scopeChoice, languageScope ->
             reportViewModel.runSecondary(scope, context, reportId, kind, picks, scopeChoice, languageScope)
         },
+        onRunLocalRerank = { reportId, modelName ->
+            reportViewModel.runLocalRerank(scope, context, reportId, modelName)
+        },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
         },
@@ -222,6 +225,7 @@ fun ReportsScreen(
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, SecondaryKind, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
+    onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
@@ -594,6 +598,12 @@ fun ReportsScreen(
             },
             onConfirm = { pick ->
                 onRunSecondary(rid, pickerKind, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
+                secondaryPickerKind = null
+                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            },
+            onLocalConfirm = { modelName ->
+                onRunLocalRerank(rid, modelName)
                 secondaryPickerKind = null
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent

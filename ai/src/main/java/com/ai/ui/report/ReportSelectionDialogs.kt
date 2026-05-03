@@ -234,7 +234,11 @@ internal fun ReportSelectModelsScreen(
      *  the catalog to that ModelType. Defaults to ON when shown — Rerank
      *  / Moderation flows almost always want the typed catalog; the user
      *  can untick to widen. Pass one of the ModelType.* string constants. */
-    modelTypeFilter: String? = null
+    modelTypeFilter: String? = null,
+    /** Optional callback for "Local model" selection. Currently fires
+     *  from the Rerank picker only — local moderation requires a
+     *  separate MediaPipe TextClassifier model and isn't wired yet. */
+    onLocalConfirm: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -294,6 +298,45 @@ internal fun ReportSelectModelsScreen(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                 Checkbox(checked = typeOnly, onCheckedChange = { typeOnly = it })
                 Text(label, fontSize = 12.sp, color = AppColors.TextTertiary)
+            }
+        }
+
+        // Local model shortcut — only on the Rerank picker for now.
+        // Tap opens a small dropdown of installed MediaPipe TextEmbedder
+        // .tflite files; selecting one routes the rerank through cosine
+        // similarity instead of a remote API call.
+        if (modelTypeFilter == com.ai.data.ModelType.RERANK) {
+            val installed = remember { com.ai.data.LocalEmbedder.availableModels(context) }
+            var localOpen by remember { mutableStateOf(false) }
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { localOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) {
+                    Text(
+                        if (installed.isEmpty()) "Local model — none installed"
+                        else "Local model (${installed.size} installed)",
+                        fontSize = 13.sp, maxLines = 1, softWrap = false
+                    )
+                }
+                DropdownMenu(
+                    expanded = localOpen, onDismissRequest = { localOpen = false },
+                    modifier = Modifier.background(Color(0xFF2D2D2D))
+                ) {
+                    if (installed.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("Install one in Housekeeping → Local LiteRT models", fontSize = 12.sp, color = AppColors.TextTertiary) },
+                            onClick = { localOpen = false }
+                        )
+                    } else installed.forEach { m ->
+                        DropdownMenuItem(
+                            text = { Text(m, color = Color.White, fontSize = 13.sp) },
+                            onClick = { localOpen = false; onLocalConfirm(m) }
+                        )
+                    }
+                }
             }
         }
 
