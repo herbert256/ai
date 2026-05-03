@@ -47,16 +47,11 @@ fun ChatsHubScreen(
         TitleBar(title = "AI Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(24.dp))
 
-        ChatHubCard(
-            icon = "\uD83E\uDD16", title = "New Chat with Agent",
-            description = "Start a chat using a configured agent",
-            onClick = onNavigateToAgentSelect, enabled = hasAgents
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        ChatHubCard(
-            icon = "\uD83D\uDCAC", title = "New Chat \u2013 Configure On The Fly",
-            description = "Choose provider, model and parameters",
-            onClick = onNavigateToNewChat
+        StartChatGroup(
+            hasAgents = hasAgents,
+            onAgentChat = onNavigateToAgentSelect,
+            onNewChat = onNavigateToNewChat,
+            onDualChat = onNavigateToDualChat
         )
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
@@ -70,12 +65,48 @@ fun ChatsHubScreen(
             description = "Search across all chat messages",
             onClick = onNavigateToChatSearch, enabled = hasChatHistory
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        ChatHubCard(
-            icon = "\uD83E\uDD1C\uD83E\uDD1B", title = "Dual AI Chat",
-            description = "Two AI models discuss a topic",
-            onClick = onNavigateToDualChat
-        )
+    }
+}
+
+/** Folds the three "begin a chat" entry points (agent-driven, configure
+ *  on the fly, and dual-AI) into a single Start card so the hub
+ *  doesn't show three loose creation rows for variants of the same
+ *  step. Mirrors the Start card on the AI Reports hub. */
+@Composable
+private fun StartChatGroup(
+    hasAgents: Boolean,
+    onAgentChat: () -> Unit,
+    onNewChat: () -> Unit,
+    onDualChat: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text("Start", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 4.dp))
+            ChatStartRow(icon = "\uD83E\uDD16", title = "New Chat with Agent", enabled = hasAgents, onClick = onAgentChat)
+            ChatStartRow(icon = "\uD83D\uDCAC", title = "New Chat \u2013 Configure On The Fly", enabled = true, onClick = onNewChat)
+            ChatStartRow(icon = "\uD83E\uDD1C\uD83E\uDD1B", title = "Dual AI Chat", enabled = true, onClick = onDualChat)
+        }
+    }
+}
+
+@Composable
+private fun ChatStartRow(icon: String, title: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+            color = if (enabled) Color.White else AppColors.TextDim)
     }
 }
 
