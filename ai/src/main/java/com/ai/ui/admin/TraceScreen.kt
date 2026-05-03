@@ -97,8 +97,13 @@ fun TraceListScreen(
     // Model filter — chosen via the Model picker overlay. null = no filter.
     var selectedModel by rememberSaveable { mutableStateOf<String?>(null) }
     var showModelPicker by remember { mutableStateOf(false) }
+    // Errors-only toggle — narrows the list to traces with a non-2xx
+    // response (HTTP 4xx/5xx and the rare 0 we record on transport-
+    // level failures). Off by default; the user opts in to triage a
+    // failed run.
+    var errorsOnly by rememberSaveable { mutableStateOf(false) }
 
-    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedModel) {
+    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedModel, errorsOnly) {
         allTraceFiles
             .filter { t -> when (selectedCategory) {
                 "(All)" -> true
@@ -110,6 +115,10 @@ fun TraceListScreen(
                 else -> providerLabelForHost(t.hostname) == selectedProvider
             } }
             .filter { t -> selectedModel == null || t.model == selectedModel }
+            .filter { t -> !errorsOnly || t.statusCode == 0 || t.statusCode >= 400 }
+    }
+    val errorCount = remember(allTraceFiles) {
+        allTraceFiles.count { it.statusCode == 0 || it.statusCode >= 400 }
     }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
@@ -205,7 +214,24 @@ fun TraceListScreen(
                     }
                 }
             }
-            if (categories.size > 1 || providers.size > 1 || pickableModels.isNotEmpty()) {
+            if (errorCount > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { errorsOnly = !errorsOnly; currentPage = 0 },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = errorsOnly,
+                        onCheckedChange = { errorsOnly = it; currentPage = 0 }
+                    )
+                    Text(
+                        "Only errors ($errorCount)",
+                        fontSize = 12.sp, color = AppColors.TextSecondary,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            if (categories.size > 1 || providers.size > 1 || pickableModels.isNotEmpty() || errorCount > 0) {
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
