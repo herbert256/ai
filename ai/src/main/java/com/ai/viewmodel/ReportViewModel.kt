@@ -725,14 +725,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .map { it.responseBody!! }
             val (_, r) = com.ai.data.callModerationApi(provider, apiKey, model, responses)
+            // Persist Mistral's reported token usage + per-token cost
+            // so the result row shows cents like the other meta runs.
+            // Falls through to no-cost when the API didn't report usage.
+            val tu = r.tokenUsage
+            val pricing = PricingCache.getPricing(context, provider, model)
+            val inCost = tu?.let { it.inputTokens * pricing.promptPrice }
+            val outCost = tu?.let { it.outputTokens * pricing.completionPrice }
             SecondaryResultStorage.save(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
+                tokenUsage = tu,
+                inputCost = inCost,
+                outputCost = outCost,
                 durationMs = r.durationMs
             ))
             if (r.errorMessage == null) {
+                val inT = tu?.inputTokens ?: 0
+                val outT = tu?.outputTokens ?: 0
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, 0, 0, 0, kind = "moderation"
+                    provider, model, inT, outT, inT + outT, kind = "moderation"
                 )
             }
             return

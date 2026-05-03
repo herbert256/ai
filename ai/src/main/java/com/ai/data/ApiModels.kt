@@ -429,10 +429,21 @@ data class MistralModerationResult(
     val category_scores: Map<String, Double>? = null
 )
 
+/** Token-usage block Mistral returns on a successful moderation
+ *  call. Same prompt/completion/total trio the chat endpoints use,
+ *  so it can be lifted straight into [TokenUsage] for cost
+ *  computation. */
+data class MistralModerationUsage(
+    val prompt_tokens: Int? = null,
+    val completion_tokens: Int? = null,
+    val total_tokens: Int? = null
+)
+
 data class MistralModerationResponse(
     val id: String? = null,
     val model: String? = null,
     val results: List<MistralModerationResult>? = null,
+    val usage: MistralModerationUsage? = null,
     /** Populated only on error envelopes — Mistral returns `message` on
      *  4xx/5xx, just like the rerank shape. */
     val message: String? = null

@@ -350,12 +350,16 @@ suspend fun callRerankApi(
 /** Outcome of a single moderation call. [content] is structured JSON of
  *  the form `[{id: N, flagged: bool, categories: {…}, scores: {…}}, …]`
  *  — one object per input. The renderer parses this in the detail
- *  screen and tabulates flags. */
+ *  screen and tabulates flags. [tokenUsage] mirrors the chat token
+ *  trio so the caller can attribute cost the same way other meta runs
+ *  do — Mistral's /v1/moderations response includes prompt_tokens /
+ *  completion_tokens / total_tokens just like the chat endpoints. */
 data class ModerationApiResult(
     val content: String?,
     val errorMessage: String?,
     val httpStatusCode: Int? = null,
-    val durationMs: Long
+    val durationMs: Long,
+    val tokenUsage: TokenUsage? = null
 )
 
 /** Per-input moderation classification. Used by both the chat-input
@@ -428,11 +432,22 @@ private suspend fun callMistralModeration(
             )
         }
         val json = moderationResultsToJson(results)
+        // Mistral returns token usage on a successful moderation call —
+        // lift it into TokenUsage so cost attribution matches the
+        // chat-driven meta runs. Falls through to null when the field
+        // is missing (older API versions or local proxies).
+        val tu = body.usage?.let { u ->
+            val inT = u.prompt_tokens ?: 0
+            val outT = u.completion_tokens ?: 0
+            if (inT == 0 && outT == 0) null
+            else TokenUsage(inputTokens = inT, outputTokens = outT)
+        }
         results to ModerationApiResult(
             content = json,
             errorMessage = null,
             httpStatusCode = response.code(),
-            durationMs = duration
+            durationMs = duration,
+            tokenUsage = tu
         )
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
