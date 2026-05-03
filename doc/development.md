@@ -238,9 +238,16 @@ correctness here.
   explicit `Looper.myLooper() == getMainLooper()` guard. Don't
   remove it.
 - **Backup zip** mirrors `filesDir` (incl. `knowledge/`,
-  `local_models/`, `local_llms/`, `embeddings/`, `secondary/`,
-  `trace/`) and 5 SharedPreferences files; new prefs files won't
-  survive a restore unless added to `BackupManager.PREFS_TO_BACKUP`.
+  `embeddings/`, `secondary/`, `trace/`, `pricing/`) and 5
+  SharedPreferences files. Two top-level subdirs are explicitly
+  excluded via `BackupManager.FILES_DIR_BACKUP_EXCLUDES` —
+  `local_llms/` and `local_models/`, holding user-supplied
+  multi-GB on-device model bundles. The same set is **also**
+  preserved through `clearFilesDirForRestore`, so a settings
+  restore on a device with local models installed doesn't destroy
+  them. New prefs files won't survive a restore unless added to
+  `BackupManager.PREFS_TO_BACKUP`. See
+  [backup-restore.md](backup-restore.md).
 - **Export version is `21`.** Import accepts `11..21`. Bump the
   version only when adding/removing a top-level field; new optional
   fields don't require a bump if old importers can ignore them

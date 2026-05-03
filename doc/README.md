@@ -52,6 +52,10 @@ provider's `/v1/embeddings`.
 - **[share-target.md](share-target.md)** — `ACTION_SEND` /
   `ACTION_SEND_MULTIPLE` plumbing, the chooser, and the three landing
   routes (Report, Chat, Knowledge).
+- **[backup-restore.md](backup-restore.md)** — Full-app zip backup
+  format, two-pass validate-then-write restore, the
+  local-models exclude/preserve set, and the post-restore provider
+  catalog merge.
 
 ### Reference data
 - **[providers.md](providers.md)** — All 39 cloud providers from
@@ -87,7 +91,12 @@ truth. When in doubt, the relevant files are:
 - `assets/setup.json` — provider definitions
 - `data/AppService.kt` — provider runtime model + the synthetic LOCAL sentinel
 - `data/ApiFormat.kt` + `data/ApiDispatch.kt` — dispatch routing
-- `data/PricingCache.kt` — six tiers of pricing + capability lookup
+- `data/PricingCache.kt` — layered pricing + capability lookup
+  (LiteLLM, models.dev, llm-prices, Artificial Analysis, manual
+  override, OpenRouter, Helicone) plus provider self-report
+  (OpenRouter / Together) and `DEFAULT_PRICING`. Tier blobs live
+  under `<filesDir>/pricing/`; `pricing_cache.xml` keeps only
+  timestamps and the manual-override map
 - `data/SecondaryResult.kt` — Rerank / Summarize / Compare / Moderate / Translate data + prompts
 - `data/Knowledge.kt` + `data/KnowledgeService.kt` + `data/KnowledgeExtractors.kt` — RAG layer
 - `data/LocalLlm.kt` + `data/LocalEmbedder.kt` — on-device runtime

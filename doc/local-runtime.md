@@ -18,6 +18,17 @@ so on-device traffic shows up on the Trace screen alongside HTTP
 calls. Tracing respects the same global flag every other call site
 uses.
 
+**Backup behaviour:** `<filesDir>/local_llms/` and
+`<filesDir>/local_models/` are listed in
+`BackupManager.FILES_DIR_BACKUP_EXCLUDES`. The contents are skipped
+by the backup zip (multi-GB user-supplied bundles don't belong in a
+settings-and-data round-trip) and preserved through the restore
+wipe (a backup taken on Device A restored to Device B keeps Device
+B's local models intact). See
+[backup-restore.md](backup-restore.md) and the
+"What's NOT in the backup zip" section in
+[persistent.md](persistent.md).
+
 ## LocalLlm
 
 `com.ai.data.LocalLlm` (file: `LocalLlm.kt`).
@@ -48,8 +59,8 @@ runtime without re-initialisation.
 
 Most worthwhile `.task` LLMs (Gemma, Phi, Llama …) require the user
 to accept the model card terms in a browser before download. The
-**Housekeeping → Local LLMs** card therefore leads with hand-off
-links rather than direct downloads:
+**AI Setup → Local Models → Local LLMs** card therefore leads with
+hand-off links rather than direct downloads:
 
 ```kotlin
 val recommendedLinks: List<RecommendedLlm> = listOf(
@@ -65,7 +76,7 @@ downloads the file, and then comes back to import via SAF.
 
 ### Importing
 
-The SAF picker on the same Housekeeping card accepts:
+The SAF picker on the same Local LLMs card accepts:
 
 - Bare `.task` files
 - `.zip`, `.tar.gz`, `.tgz`, `.tar` archives — Apache Commons
@@ -125,10 +136,10 @@ Semantic Search screen or creates a Local-embedder Knowledge base.
 
 ### Importing
 
-The SAF picker on **Housekeeping → Local Models** accepts any
-`.tflite` file with stamped MediaPipe Tasks metadata. The user can
-stamp metadata via MediaPipe Model Maker for arbitrary HuggingFace
-sentence-transformer models.
+The SAF picker on **AI Setup → Local Models → Local LiteRT models**
+accepts any `.tflite` file with stamped MediaPipe Tasks metadata.
+The user can stamp metadata via MediaPipe Model Maker for arbitrary
+HuggingFace sentence-transformer models.
 
 ### Use sites
 
@@ -141,7 +152,8 @@ sentence-transformer models.
 
 `LocalEmbedder.downloadable` is just a list literal — append a new
 `DownloadableModel(name, displayName, url, sizeMbHint, description)`
-and the curated buttons on Housekeeping pick it up.
+and the curated buttons on **AI Setup → Local Models → Local LiteRT
+models** pick it up.
 
 `LocalLlm.recommendedLinks` is the equivalent for `.task` LLMs but
 ships **hand-off links only** (no in-app downloads); users are

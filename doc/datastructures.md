@@ -297,7 +297,7 @@ A single ingested document inside a KB.
 | sourceId | `String` |
 | ordinal | `Int` |
 | text | `String` |
-| embedding | `List<Double>` |
+| embedding | `FloatArray` (primitive — boxed `List<Double>` was ~6× heavier per dim; JSON storage on disk is unchanged because Gson serialises both to the same array of numbers, so existing chunk files keep working) |
 
 ### `KnowledgeSourceType` (enum)
 `TEXT`, `MARKDOWN`, `PDF`, `DOCX`, `ODT`, `XLSX`, `ODS`, `CSV`,

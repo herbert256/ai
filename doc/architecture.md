@@ -45,8 +45,10 @@ usage stats).
 │  ├── ApiStreaming        — SSE parser + Flow emission               │
 │  ├── ApiClient           — Retrofit interfaces, ApiFactory          │
 │  ├── ApiTracer           — OkHttp interceptor + JSON file storage   │
+│  │                         + in-memory metadata cache               │
 │  ├── ProviderRegistry    — runtime registry of AppService instances │
-│  ├── PricingCache        — six-tier pricing + capability lookup     │
+│  ├── PricingCache        — seven-tier pricing + capability lookup   │
+│  │                         (tier blobs in filesDir/pricing/)        │
 │  ├── ReportStorage       — per-report JSON file persistence         │
 │  ├── SecondaryResultStorage — rerank/summarize/compare/moderate/    │
 │  │                            translate persistence                 │
@@ -132,8 +134,17 @@ and lets back-navigation be a single state mutation.
 Two of the most important data flows are layered in fixed order:
 
 - **Pricing** for `(provider, model)`:
-  manual override → LiteLLM → models.dev → Helicone → llm-prices →
-  Artificial Analysis → OpenRouter → default.
+  provider-self-report (OpenRouter when the caller is OpenRouter,
+  Together AI native when the caller is Together) → LiteLLM →
+  models.dev → llm-prices → Artificial Analysis → manual override
+  → OpenRouter cross-provider fallback → Helicone → default. The
+  large tier blobs live as files under `filesDir/pricing/` (one
+  per tier); only timestamps and the small manual-override map
+  stay in `pricing_cache.xml`. `ensureLoaded` short-circuits on
+  the main thread before the preload completes — UI callers get
+  `DEFAULT_PRICING` during the cold window and pick up real values
+  on the next state-driven recompose, instead of blocking Compose
+  on the synchronized 1.2 MB LiteLLM parse.
 - **Capabilities** (`isVisionCapable`, `isWebSearchCapable`):
   user override (per-provider visionModels / webSearchModels) →
   manual ModelTypeOverride → provider's own `/models` capabilities →
@@ -161,10 +172,39 @@ generation pipeline:
   (any provider's `/v1/embeddings`). Per-content cache lives in
   `EmbeddingsStore`.
 - **Retrieval** is cosine-similarity top-K across every chunk in
-  every attached KB; the prompt or user message gets a `[KNOWLEDGE]…
-  [/KNOWLEDGE]` context block prepended at dispatch time.
+  every attached KB. The query is embedded once and converted to
+  `FloatArray`; chunks are streamed per source via
+  `KnowledgeStore.forEachChunk` into a bounded
+  `PriorityQueue<Scored>` of size `topK*2`, so peak heap is the
+  heap itself plus one chunk in flight, regardless of total KB
+  size. Survivors are sorted descending and walked under the
+  `maxContextChars` budget. The prompt or user message gets a
+  `<context>…</context>` block prepended at dispatch time.
 
 See [knowledge.md](knowledge.md) for the full pipeline.
+
+### Trace storage
+
+`ApiTracer` writes one JSON file per outbound API call under
+`<filesDir>/trace/<hostname>_<timestamp>_<seq>.json`. The Trace
+list screen needs a `(hostname, timestamp, statusCode, reportId,
+model, category)` summary per file but the file itself contains
+the full request and response bodies — often tens of KB each.
+Two optimisations keep the screen responsive on a populated trace
+dir:
+
+- A streaming-parse helper (`parseTraceFileInfoStreaming`) uses
+  Gson's `JsonReader` to read only the seven `TraceFileInfo`
+  fields, skipping the request body and stopping inside the
+  response object once `statusCode` is captured. No reflective
+  full-graph deserialise, no headers map allocation, no body
+  string allocation.
+- An in-memory `cachedTraceFiles` list is populated on the first
+  `getTraceFiles()` call (off the UI thread, via the streaming
+  parse) and kept in sync by `saveTrace` (re-sort after append),
+  `clearTraces` (empty), and `deleteTracesOlderThan` (filter).
+  Subsequent reads — including the Trace detail screen's prev /
+  next nav — are O(1).
 
 ### On-device runtime
 

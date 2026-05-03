@@ -82,29 +82,27 @@ JSON. Read by `ProviderRegistry` at startup; merges with the bundled
 `assets/setup.json` definitions.
 
 ### `pricing_cache`
-Six tiers of pricing data plus manual overrides.
+Bookkeeping (timestamps) plus the small manual-override map. The
+large tier blobs themselves used to live here but were moved to
+`<filesDir>/pricing/` (see below) — SharedPreferences loads its
+entire map into memory at process start and keeps it there for
+the lifetime of the process, so a multi-MB JSON string in a prefs
+file pays that cost forever even though it's only consulted on
+demand.
 
 | Key | Type | Notes |
 |---|---|---|
-| `litellm_pricing` | JSON Map<String, ModelPricing> | LiteLLM tier |
-| `litellm_meta` | JSON Map<String, …> | capabilities + context length harvested from the same payload |
-| `litellm_timestamp` | Long | last fetch ms |
-| `openrouter_pricing` | JSON Map<String, ModelPricing> | OpenRouter tier |
-| `openrouter_timestamp` | Long | |
-| `modelsdev_pricing` | JSON Map<String, ModelPricing> | models.dev tier |
-| `modelsdev_meta` | JSON Map<String, …> | tool/vision flags from models.dev |
-| `modelsdev_timestamp` | Long | |
-| `helicone_pricing` | JSON List<HeliconeRule> | Helicone tier (kept as rules to honour startsWith/includes operators) |
-| `helicone_timestamp` | Long | |
-| `llmprices_pricing` | JSON Map<String, ModelPricing> | llm-prices tier |
-| `llmprices_timestamp` | Long | |
-| `aa_pricing_v2` | JSON Map<String, ModelPricing> | Artificial Analysis tier |
-| `aa_meta_v2` | JSON Map<String, …> | intelligence + speed scores |
-| `aa_timestamp_v2` | Long | |
+| `litellm_timestamp` | Long | last LiteLLM fetch ms |
+| `openrouter_timestamp` | Long | last OpenRouter fetch ms |
+| `together_timestamp` | Long | last Together native fetch ms |
+| `models_dev_timestamp` | Long | last models.dev fetch ms |
+| `helicone_timestamp` | Long | last Helicone fetch ms |
+| `llmprices_timestamp` | Long | last llm-prices.com fetch ms |
+| `aa_timestamp_v2` | Long | last Artificial Analysis fetch ms |
 | `manual_pricing` | JSON Map<String, ModelPricing> | per-(provider, model) user overrides |
 
-The `_v2` keys on the AA tier exist to invalidate older UUID-keyed
-entries from a previous parser revision.
+The `_v2` suffix on the AA timestamp exists to invalidate older
+UUID-keyed entries from a previous parser revision.
 
 ### `dual_chat_prefs`
 Last-used Dual Chat configuration.
@@ -128,8 +126,36 @@ network call until the TTL expires.
 
 ## Files (under `<filesDir>`)
 
-The app's `filesDir` is `/data/data/com.ai/files/`. The full tree is
-captured wholesale by the backup zip.
+The app's `filesDir` is `/data/data/com.ai/files/`. The tree is
+captured by the backup zip with two top-level exceptions —
+`local_llms/` and `local_models/`, which hold user-supplied
+multi-GB on-device model bundles. See
+[backup-restore.md](backup-restore.md) for the exclude-and-preserve
+contract.
+
+### `pricing/<key>.json`
+Tier blobs for `PricingCache`. One file per (tier, payload):
+
+| File | Tier |
+|---|---|
+| `openrouter_pricing.json` | OpenRouter |
+| `together_pricing.json` | Together AI native |
+| `litellm_pricing.json` | LiteLLM (BerriAI) |
+| `litellm_meta.json` | LiteLLM capabilities sidecar |
+| `models_dev_pricing.json` | models.dev |
+| `models_dev_meta.json` | models.dev capabilities sidecar |
+| `helicone_pricing.json` | Helicone exact-match prices |
+| `helicone_patterns.json` | Helicone pattern rules (`startsWith` / `includes`) |
+| `llmprices_pricing.json` | llm-prices.com |
+| `aa_pricing_v2.json` | Artificial Analysis |
+| `aa_meta_v2.json` | Artificial Analysis intelligence/speed scores |
+
+Reads go through `PricingCache.loadBlob`, which falls back to the
+legacy `pricing_cache` SharedPreferences key once on the first
+read after the upgrade, copies the JSON to the file, and removes
+the prefs entry. Subsequent reads hit the file directly. Saves
+go straight to disk via `writeTextAtomic` and clear the legacy
+prefs key as a belt-and-braces guard.
 
 ### `reports/<reportId>.json`
 One file per generated report. Holds the prompt, every agent's
@@ -207,14 +233,22 @@ On-device text-embedder models for `LocalEmbedder`. The default
 Universal Sentence Encoder is downloaded on first use of the Local
 Semantic Search screen. Custom user-supplied `.tflite` files (with
 proper MediaPipe Tasks metadata) can be added via the SAF picker on
-**Housekeeping → Local Models**.
+**AI Setup → Local Models → Local LiteRT models**.
+
+**Backup behaviour:** this directory is in
+`BackupManager.FILES_DIR_BACKUP_EXCLUDES` — its contents are
+skipped by the backup zip and preserved through the restore wipe.
+See [backup-restore.md](backup-restore.md).
 
 ### `local_llms/<name>.task`
 On-device LLM bundles for `LocalLlm`. User-supplied — most models
 require accepting model-card terms in a browser before download. The
-**Housekeeping → Local LLMs** card carries hand-off links and a SAF
-picker that accepts `.task`, `.zip`, `.tar.gz`, `.tgz`, and `.tar`
-archives.
+**AI Setup → Local Models → Local LLMs** card carries hand-off
+links and a SAF picker that accepts `.task`, `.zip`, `.tar.gz`,
+`.tgz`, and `.tar` archives.
+
+**Backup behaviour:** same as `local_models/` above — excluded
+from the backup zip, preserved through the restore wipe.
 
 ### `datastore/*` (Jetpack DataStore proto files)
 Used for atomic flags like `setup_imported`. See
@@ -229,7 +263,22 @@ Used for atomic flags like `setup_imported`. See
   different device.
 - The `assets/setup.json` provider catalog — this ships in the APK
   and is consumed once at first run; the merged result lives in
-  `provider_registry` prefs from then on.
+  `provider_registry` prefs from then on. Restore re-reads the
+  asset and grafts in any provider id missing from the restored
+  prefs (handles "old backup, new app version, new provider").
+
+## What's NOT in the backup zip
+
+- `local_llms/<name>.task` and `local_models/<name>.tflite` —
+  user-supplied multi-GB on-device model bundles. Listed in
+  `BackupManager.FILES_DIR_BACKUP_EXCLUDES`; skipped on backup,
+  preserved through the restore wipe so a settings/data restore
+  doesn't destroy them.
+- Anything under `cacheDir` (exports, shared traces, the restore
+  temp file) — regeneratable and non-portable.
+
+See [backup-restore.md](backup-restore.md) for the full backup
+format and restore semantics.
 
 ## Cleanup paths
 

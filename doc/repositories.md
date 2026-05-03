@@ -5,17 +5,40 @@ capabilities. They are layered — when one source is silent, the next is
 consulted. All seven round-trip through the backup zip so a restored
 device picks up where it left off without needing fresh network calls.
 
-The lookup precedence used at runtime when the app needs a price for a
-`(provider, model)` pair is:
+The lookup precedence in `PricingCache.getPricing` for a
+`(provider, model)` pair is (top → bottom — first hit wins):
 
 ```
-manual override  →  LiteLLM  →  models.dev  →  Helicone  →
-llm-prices  →  Artificial Analysis  →  OpenRouter  →  default ($0/$0)
+1. Provider self-report:
+   - OpenRouter native (only when caller's provider is OPENROUTER)
+   - Together AI native (only when caller's provider is TOGETHER)
+2. LiteLLM (curated bulk)
+3. models.dev (curated bulk)
+4. llm-prices.com (curated bulk)
+5. Artificial Analysis (curated bulk)
+6. Manual override (user-set per (provider, model))
+7. OpenRouter cross-provider fallback
+8. Helicone (last resort — known data-quality issues, kept only
+   so we have *some* answer before falling to default)
+9. DEFAULT ($0 / $0)
 ```
+
+Together AI's native pricing is read out of its `/v1/models` payload
+and persists alongside the OpenRouter snapshot under the same
+file/blob layout (see `together_pricing.json` below).
 
 Capabilities (`supportsVision`, `supportsWebSearch`, `supportsFunctionCalling`)
 follow a similar layered order, with the per-provider `/models` response
 winning when it surfaces the field directly.
+
+**Storage:** the large tier blobs all live as files under
+`<filesDir>/pricing/<key>.json` (one per tier — see
+[persistent.md](persistent.md) for the full file list). Only the
+small `*_timestamp` longs and the user's `manual_pricing` map stay
+in `pricing_cache.xml`. `PricingCache.loadBlob` falls back to the
+legacy prefs key once on first read after the upgrade, copies the
+JSON to the file, and removes the prefs entry — old installs
+migrate transparently.
 
 ---
 
@@ -36,8 +59,9 @@ winning when it surfaces the field directly.
   until the user runs Refresh once. The layered lookup just falls
   through to the next tier (models.dev / Helicone / …) for any model
   whose pricing the user hasn't fetched yet.
-- **Cache key:** `pricing_cache` SharedPreferences, blobs `litellm_pricing`
-  + `litellm_meta` + `litellm_timestamp`.
+- **Cache:** `<filesDir>/pricing/litellm_pricing.json` and
+  `litellm_meta.json` (the catalog + capability sidecar);
+  `litellm_timestamp` long in `pricing_cache.xml`.
 
 ## 2. OpenRouter
 
@@ -56,8 +80,8 @@ winning when it surfaces the field directly.
 - **Cross-pollination:** OpenRouter's per-model `mode` label is mirrored
   to every other provider's stored model-types map under
   `<openRouterName>/<modelId>`, giving every catalog free type tags.
-- **Cache key:** `pricing_cache` SharedPreferences, blobs `openrouter_pricing`
-  + `openrouter_timestamp`.
+- **Cache:** `<filesDir>/pricing/openrouter_pricing.json`;
+  `openrouter_timestamp` long in `pricing_cache.xml`.
 
 ## 3. models.dev
 
@@ -66,8 +90,9 @@ winning when it surfaces the field directly.
 - **Provides:**
   - Per-vendor model catalog with input/output prices, vision/tool
     capabilities, context length
-- **Cache key:** `pricing_cache` SharedPreferences, blobs `modelsdev_pricing`
-  + `modelsdev_timestamp`.
+- **Cache:** `<filesDir>/pricing/models_dev_pricing.json` and
+  `models_dev_meta.json` (capabilities sidecar);
+  `models_dev_timestamp` long in `pricing_cache.xml`.
 - **When fetched:** Refresh screen → "models.dev"; Refresh All.
 - **Note:** fetched via `ApiFactory.fetchUrlAsString` so the call flows
   through `TracingInterceptor` and `RateLimitRetryInterceptor` (a previous
@@ -80,8 +105,9 @@ winning when it surfaces the field directly.
 - **Provides:** input/output cost per token. Match operators are
   `equals` / `startsWith` / `includes` — `findHeliconePricing` honours
   all three so a model id matched by any operator picks up the price.
-- **Cache key:** `pricing_cache` SharedPreferences, blobs `helicone_pricing`
-  + `helicone_timestamp`.
+- **Cache:** `<filesDir>/pricing/helicone_pricing.json` (exact-match
+  rules) and `helicone_patterns.json` (`startsWith` / `includes`
+  rules); `helicone_timestamp` long in `pricing_cache.xml`.
 
 ## 5. llm-prices
 
@@ -89,8 +115,8 @@ winning when it surfaces the field directly.
 - **Auth:** none (public)
 - **Provides:** pricing snapshot maintained by Simon Willison; multiple
   per-vendor JSON files fetched concurrently and merged.
-- **Cache key:** `pricing_cache` SharedPreferences, blobs `llmprices_pricing`
-  + `llmprices_timestamp`.
+- **Cache:** `<filesDir>/pricing/llmprices_pricing.json`;
+  `llmprices_timestamp` long in `pricing_cache.xml`.
 
 ## 6. Artificial Analysis
 
@@ -104,8 +130,9 @@ winning when it surfaces the field directly.
 - **Composite key:** `<model_creator.slug>/<slug>` (lowercased), e.g.
   `google/gemini-2-5-pro`. Bumped to `_v2` keys to invalidate older
   UUID-keyed entries from the previous parser revision.
-- **Cache key:** `pricing_cache` SharedPreferences, blobs `aa_pricing_v2`
-  + `aa_meta_v2` + `aa_timestamp_v2`.
+- **Cache:** `<filesDir>/pricing/aa_pricing_v2.json` and
+  `aa_meta_v2.json` (intelligence + speed scores);
+  `aa_timestamp_v2` long in `pricing_cache.xml`.
 
 ## 7. HuggingFace
 

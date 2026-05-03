@@ -78,6 +78,7 @@ order:
 | [doc/local-runtime.md](doc/local-runtime.md) | On-device LLM (`LocalLlm`) + on-device embeddings (`LocalEmbedder`) |
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
 | [doc/share-target.md](doc/share-target.md) | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` flow |
+| [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass restore, exclude/preserve list for on-device model bundles |
 | [doc/providers.md](doc/providers.md) | All 39 cloud providers from `setup.json` plus the synthetic LOCAL provider |
 | [doc/repositories.md](doc/repositories.md) | The seven external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
