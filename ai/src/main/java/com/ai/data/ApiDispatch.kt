@@ -193,10 +193,11 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
 ): AnalysisResponse {
     val api = ApiFactory.createClaudeApi(service.baseUrl)
     val userMessage = ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toClaudeMessage()
+    val bundle = claudeReasoningBundle(service, model, params?.reasoningEffort, params?.maxTokens)
     val request = ClaudeRequest(
         model = model,
         messages = listOf(userMessage),
-        max_tokens = params?.maxTokens ?: defaultClaudeMaxTokens(model),
+        max_tokens = bundle.maxTokens,
         temperature = params?.temperature, top_p = params?.topP, top_k = params?.topK,
         system = params?.systemPrompt?.takeIf { it.isNotBlank() },
         stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() },
@@ -204,7 +205,8 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
         seed = params?.seed,
         search = if (params?.searchEnabled == true) true else null,
         tools = if (params?.webSearchTool == true) anthropicWebSearchTool() else null,
-        thinking = anthropicThinkingField(service, model, params?.reasoningEffort)
+        thinking = bundle.thinking,
+        output_config = bundle.outputConfig
     )
     val response = api.createMessage(apiKey, request = request)
     val headers = formatHeaders(response.headers())
@@ -305,7 +307,7 @@ private suspend fun AnalysisRepository.chatOpenAi(
         search = if (params.searchEnabled) true else null,
         tools = if (params.webSearchTool) openAiChatWebSearchTool() else null,
         reasoning_effort = params.reasoningEffort?.takeIf {
-            it.isNotBlank() && PricingCache.liteLLMSupportsReasoning(service, model) != false
+            it.isNotBlank() && isReasoningCapableForDispatch(service, model)
         }
     )
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
@@ -349,12 +351,14 @@ private suspend fun AnalysisRepository.chatAnthropic(
     val api = ApiFactory.createClaudeApi(service.baseUrl)
     val claudeMessages = messages.filter { it.role != "system" }.map { it.toClaudeMessage() }
     val systemPrompt = messages.find { it.role == "system" }?.content
+    val bundle = claudeReasoningBundle(service, model, params.reasoningEffort, params.maxTokens)
     val request = ClaudeRequest(
-        model = model, messages = claudeMessages, max_tokens = params.maxTokens ?: defaultClaudeMaxTokens(model),
+        model = model, messages = claudeMessages, max_tokens = bundle.maxTokens,
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
         system = systemPrompt, search = if (params.searchEnabled) true else null,
         tools = if (params.webSearchTool) anthropicWebSearchTool() else null,
-        thinking = anthropicThinkingField(service, model, params.reasoningEffort)
+        thinking = bundle.thinking,
+        output_config = bundle.outputConfig
     )
     val response = api.createMessage(apiKey, request = request)
     if (response.isSuccessful) {
@@ -694,12 +698,12 @@ internal fun buildOpenAiRequest(service: AppService, model: String, messages: Li
         search_recency_filter = if (service.supportsSearchRecency) params?.searchRecency else null,
         search = if (params?.searchEnabled == true) true else null,
         tools = if (params?.webSearchTool == true) openAiChatWebSearchTool() else null,
-        // Same supports-reasoning guard the Responses-API path uses —
-        // when LiteLLM definitively says the model isn't reasoning-
-        // capable, the field is dropped to avoid unknown-field errors
-        // from strict providers.
+        // Same capability gate the Responses-API path uses — drop the
+        // field when the layered lookup says this model doesn't expose
+        // reasoning_effort, so strict providers (Groq, Cohere, xAI's
+        // grok-4.x non-thinking, etc.) don't 400 the whole request.
         reasoning_effort = params?.reasoningEffort?.takeIf {
-            it.isNotBlank() && PricingCache.liteLLMSupportsReasoning(service, model) != false
+            it.isNotBlank() && isReasoningCapableForDispatch(service, model)
         }
     )
 }
@@ -824,47 +828,108 @@ internal fun ChatMessage.toClaudeMessage(): ClaudeMessage {
     return ClaudeMessage(role, blocks)
 }
 
+/** Definitive "should this dispatch attach a thinking / reasoning_effort
+ *  block?" check used by every dispatcher helper. Walks the same
+ *  layered chain [com.ai.model.Settings.isReasoningCapable] uses when a
+ *  Settings reference is published in [com.ai.model.SettingsHolder]
+ *  (user override → manual override → precomputed snapshot → provider
+ *  /models → LiteLLM → models.dev → name heuristic). Falls back to the
+ *  catalog-only chain when no Settings reference is available (early
+ *  startup, unit tests). */
+internal fun isReasoningCapableForDispatch(service: AppService, model: String): Boolean {
+    com.ai.model.SettingsHolder.current?.let { return it.isReasoningCapable(service, model) }
+    PricingCache.liteLLMSupportsReasoning(service, model)?.let { return it }
+    PricingCache.modelsDevSupportsReasoning(service, model)?.let { return it }
+    return ModelType.inferReasoning(service, model)
+}
+
+/** True when [model] is a Claude Opus 4.7+ build that requires the
+ *  newer thinking shape (`thinking.type:"adaptive"` +
+ *  `output_config.effort`). Older 3.7 / 4.x models still use the
+ *  budget_tokens shape. */
+private fun claudeUsesAdaptiveThinking(model: String): Boolean {
+    val id = model.lowercase()
+    return "claude-opus-4-7" in id || "opus-4-7" in id
+}
+
 /** Build the OpenAI Responses-API `reasoning` field — `{effort: <value>}` —
- *  or null when the agent didn't set an effort, OR LiteLLM reports the
- *  model isn't reasoning-capable. Null on LiteLLM (unknown model) leaves
- *  the field in so providers we don't have catalog data for still get
- *  the user's preference. */
+ *  or null when the agent didn't set an effort, OR the layered
+ *  capability lookup says the model doesn't accept it. */
 internal fun reasoningField(service: AppService, model: String, effort: String?): Map<String, Any>? {
     if (effort.isNullOrBlank()) return null
-    if (PricingCache.liteLLMSupportsReasoning(service, model) == false) return null
+    if (!isReasoningCapableForDispatch(service, model)) return null
     return mapOf("effort" to effort)
 }
 
 /** Map low/medium/high to a token budget Anthropic + Gemini both
  *  consume. Round numbers — exact ceiling depends on the model, but
  *  these are well within every current Claude / Gemini cap. */
-private fun budgetForEffort(effort: String?): Int? = when (effort?.lowercase()) {
+internal fun budgetForEffort(effort: String?): Int? = when (effort?.lowercase()) {
     "low" -> 1024
     "medium" -> 4096
     "high" -> 16384
     else -> null
 }
 
-/** Anthropic extended-thinking block. Only attached when LiteLLM
- *  / models.dev say the model supports reasoning (or doesn't have an
- *  opinion), and never on the Anthropic 2.x family which doesn't
- *  understand the field. Returns null otherwise. */
+/** Anthropic extended-thinking block. Only attached when the layered
+ *  capability lookup confirms the model accepts thinking. Two shapes:
+ *  Claude 3.7 / 4.x (pre-4.7) take `{type:"enabled", budget_tokens:N}`;
+ *  Claude Opus 4.7+ takes `{type:"adaptive"}` and reads effort from
+ *  the request's top-level `output_config` instead — see
+ *  [anthropicOutputConfigField]. Returns null otherwise. */
 internal fun anthropicThinkingField(service: AppService, model: String, effort: String?): Map<String, Any>? {
+    if (effort.isNullOrBlank()) return null
+    if (!isReasoningCapableForDispatch(service, model)) return null
+    if (claudeUsesAdaptiveThinking(model)) return mapOf("type" to "adaptive")
     val budget = budgetForEffort(effort) ?: return null
-    if (PricingCache.liteLLMSupportsReasoning(service, model) == false) return null
-    if (PricingCache.modelsDevSupportsReasoning(service, model) == false) return null
     return mapOf("type" to "enabled", "budget_tokens" to budget)
 }
 
-/** Gemini 2.5 thinking config block. Same supports-reasoning guard as
- *  the Anthropic equivalent. includeThoughts surfaces the model's
+/** Top-level `output_config.effort` companion to [anthropicThinkingField]
+ *  for Claude Opus 4.7+. Returns null on older Claude builds (which
+ *  carry the budget on the thinking block instead) and on non-thinking
+ *  models. */
+internal fun anthropicOutputConfigField(service: AppService, model: String, effort: String?): Map<String, Any>? {
+    if (effort.isNullOrBlank()) return null
+    if (!isReasoningCapableForDispatch(service, model)) return null
+    if (!claudeUsesAdaptiveThinking(model)) return null
+    return mapOf("effort" to effort)
+}
+
+/** Bundle [anthropicThinkingField] / [anthropicOutputConfigField] /
+ *  the matching `max_tokens` value into one helper so every Claude
+ *  dispatch site (analyze, chat, stream) ends up with consistent
+ *  values. Anthropic rejects requests where `max_tokens <=
+ *  thinking.budget_tokens` — when the user-supplied max isn't large
+ *  enough, bump it past the budget plus a slack so the actual
+ *  response has room. */
+internal data class ClaudeReasoningBundle(
+    val maxTokens: Int,
+    val thinking: Map<String, Any>?,
+    val outputConfig: Map<String, Any>?
+)
+
+internal fun claudeReasoningBundle(
+    service: AppService, model: String, effort: String?, requestedMax: Int?
+): ClaudeReasoningBundle {
+    val thinking = anthropicThinkingField(service, model, effort)
+    val outputConfig = anthropicOutputConfigField(service, model, effort)
+    val baseMax = requestedMax ?: defaultClaudeMaxTokens(model)
+    val budget = (thinking?.get("budget_tokens") as? Int) ?: 0
+    // Anthropic 400s when max_tokens <= budget_tokens — give the
+    // response some additional headroom on top of the thinking budget.
+    val effectiveMax = if (budget > 0 && baseMax <= budget) budget + 4096 else baseMax
+    return ClaudeReasoningBundle(effectiveMax, thinking, outputConfig)
+}
+
+/** Gemini 2.5 thinking config block. Same capability guard as the
+ *  Anthropic equivalent. includeThoughts surfaces the model's
  *  internal reasoning summary in the response — left off by default
  *  to avoid bloating the response body for callers that just want the
  *  final answer. */
 internal fun geminiThinkingConfigField(service: AppService, model: String, effort: String?): Map<String, Any>? {
     val budget = budgetForEffort(effort) ?: return null
-    if (PricingCache.liteLLMSupportsReasoning(service, model) == false) return null
-    if (PricingCache.modelsDevSupportsReasoning(service, model) == false) return null
+    if (!isReasoningCapableForDispatch(service, model)) return null
     return mapOf("thinkingBudget" to budget)
 }
 

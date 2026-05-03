@@ -174,6 +174,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             refreshAllModelLists(bs.second)
         }
+        // Mirror the latest aiSettings to a static holder so the
+        // dispatcher helpers (which can't easily thread Settings
+        // through their call stack) can consult capability lookups
+        // like Settings.isReasoningCapable. Updated on every uiState
+        // emission — the cost is one volatile write per state change.
+        viewModelScope.launch {
+            uiState.collect { SettingsHolder.current = it.aiSettings }
+        }
     }
 
     override fun onCleared() {

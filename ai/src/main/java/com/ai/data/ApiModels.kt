@@ -217,10 +217,16 @@ data class ClaudeRequest(
     val search: Boolean? = null,
     val tools: List<Any>? = null,
     /** Anthropic extended-thinking block: `{type: "enabled",
-     *  budget_tokens: N}`. Only attached when the chosen model supports
-     *  it; mapped from the unified low/medium/high effort levels by
-     *  [com.ai.data.anthropicThinkingField]. */
-    val thinking: Map<String, Any>? = null
+     *  budget_tokens: N}` for Claude 3.7 / 4.x (pre-4.7), or
+     *  `{type: "adaptive"}` for Claude Opus 4.7+ (which carries effort
+     *  on the [output_config] field instead). Only attached when the
+     *  chosen model supports it; mapped from the unified low/medium/
+     *  high effort levels by [com.ai.data.anthropicThinkingField]. */
+    val thinking: Map<String, Any>? = null,
+    /** Top-level effort companion to [thinking] for Claude Opus 4.7+:
+     *  `{effort: "low|medium|high"}`. Older Claude builds ignore this
+     *  field — the budget rides on the thinking block. */
+    val output_config: Map<String, Any>? = null
 )
 
 data class ClaudeContentBlock(

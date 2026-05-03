@@ -168,7 +168,7 @@ private fun AnalysisRepository.streamOpenAi(
             search_recency_filter = if (service.supportsSearchRecency) params.searchRecency else null,
             tools = if (params.webSearchTool) openAiChatWebSearchTool() else null,
             reasoning_effort = params.reasoningEffort?.takeIf {
-                it.isNotBlank() && com.ai.data.PricingCache.liteLLMSupportsReasoning(service, model) != false
+                it.isNotBlank() && isReasoningCapableForDispatch(service, model)
             }
         )
         val response = withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) }
@@ -187,15 +187,17 @@ private fun AnalysisRepository.streamAnthropic(
     val api = ApiFactory.createClaudeApi(baseUrl)
     val claudeMessages = messages.filter { it.role != "system" }.map { it.toClaudeMessage() }
     val systemPrompt = messages.find { it.role == "system" }?.content
+    val bundle = claudeReasoningBundle(service, model, params.reasoningEffort, params.maxTokens)
     val request = ClaudeRequest(
         model = model, messages = claudeMessages, stream = true,
-        max_tokens = params.maxTokens ?: defaultClaudeMaxTokens(model),
+        max_tokens = bundle.maxTokens,
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
         system = systemPrompt,
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
         search = if (params.searchEnabled) true else null,
         tools = if (params.webSearchTool) anthropicWebSearchTool() else null,
-        thinking = anthropicThinkingField(service, model, params.reasoningEffort)
+        thinking = bundle.thinking,
+        output_config = bundle.outputConfig
     )
     val response = withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) }
     if (response.isSuccessful) {
