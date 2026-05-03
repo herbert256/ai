@@ -37,6 +37,9 @@ class HousekeepingScreenTest {
     @Test fun clear_all_runtime_data_dialog_states_usage_stats_are_kept() {
         rule.setContent { MaterialTheme { HousekeepingScreen(onBackToHome = {}) } }
 
+        // Cards are collapsed by default — expand "Full reset" first
+        // so the Clear-all-runtime-data button enters composition.
+        rule.onNodeWithText("Full reset").performScrollTo().performClick()
         // Bottom of the screen — scroll the button into view first.
         rule.onAllNodesWithText("Clear all runtime data").onFirst().performScrollTo().performClick()
 

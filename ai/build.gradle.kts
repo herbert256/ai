@@ -176,6 +176,18 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
 
+    // Pin Guava to a Truth-compatible version. MediaPipe transitively
+    // pulls Guava 27.0.1-android and AGP's consistent-resolution
+    // downgrades the test classpath to match, which breaks Truth 1.4.5
+    // at runtime (VerifyError on Subject because Subject's bytecode
+    // calls Guava 33+ APIs missing from 27). Forcing 33+ on both
+    // classpaths keeps Truth working without affecting MediaPipe.
+    constraints {
+        implementation("com.google.guava:guava:33.4.3-android") {
+            because("Truth 1.4.5 requires Guava 33+; MediaPipe's transitive 27 breaks tests")
+        }
+    }
+
     // Unit tests
     testImplementation(libs.junit)
     testImplementation(libs.truth)

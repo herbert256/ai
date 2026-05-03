@@ -30,7 +30,9 @@ class ReportsHubScreenTest {
                     onNavigateToNewReport = {},
                     onNavigateToPromptHistory = {},
                     onNavigateToHistory = {},
-                    onNavigateToSearch = {}
+                    onNavigateToSearch = {},
+                    onNavigateToLocalSearch = {},
+                    onNavigateToQuickLocalSearch = {}
                 )
             }
         }
@@ -38,7 +40,7 @@ class ReportsHubScreenTest {
         rule.onNodeWithText("New AI Report").assertIsDisplayed()
         rule.onNodeWithText("Start with a previous prompt").assertIsDisplayed()
         rule.onNodeWithText("View previous reports").assertIsDisplayed()
-        rule.onNodeWithText("Semantic search").assertIsDisplayed()
+        rule.onNodeWithText("Remote semantic search").assertIsDisplayed()
     }
 
     @Test fun new_report_card_click_invokes_callback() {
@@ -50,7 +52,9 @@ class ReportsHubScreenTest {
                     onNavigateToNewReport = { newReport.intValue++ },
                     onNavigateToPromptHistory = {},
                     onNavigateToHistory = {},
-                    onNavigateToSearch = {}
+                    onNavigateToSearch = {},
+                    onNavigateToLocalSearch = {},
+                    onNavigateToQuickLocalSearch = {}
                 )
             }
         }
@@ -68,7 +72,9 @@ class ReportsHubScreenTest {
                     onNavigateToNewReport = {},
                     onNavigateToPromptHistory = {},
                     onNavigateToHistory = {},
-                    onNavigateToSearch = {}
+                    onNavigateToSearch = {},
+                    onNavigateToLocalSearch = {},
+                    onNavigateToQuickLocalSearch = {}
                 )
             }
         }
