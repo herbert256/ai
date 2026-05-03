@@ -469,7 +469,12 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         val response = api.listModels(modelsUrl, "Bearer $apiKey")
         if (response.isSuccessful) response.body()?.data.orEmpty() else emptyList()
     }
-    val modelIds = rawModels.mapNotNull { it.id }
+    // Drop entries the provider has explicitly marked inactive. Groq
+    // ships `active=false` for models its fleet has temporarily
+    // unloaded — they round-trip through the listing but return 401
+    // on chat calls. Treat null as active (every other provider).
+    val activeOnly = rawModels.filter { it.active != false }
+    val modelIds = activeOnly.mapNotNull { it.id }
     val filtered = service.modelFilterRegex?.let { regex -> modelIds.filter { regex.containsMatchIn(it) } } ?: modelIds
     val ids = filtered.sorted()
 

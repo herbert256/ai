@@ -383,6 +383,14 @@ data class OpenAiModel(
      *  `supports_image_input` is null so we don't silently miss every
      *  Moonshot vision-capable model. */
     val supports_image_in: Boolean? = null,
+    /** Groq's /v1/models flags entries the provider has temporarily
+     *  disabled with `active=false`. Kept-but-disabled is meaningful
+     *  on Groq because their fleet rotates models in and out by
+     *  utilisation; an `active=false` model returns 401 on any chat
+     *  call. The dispatcher drops these so the picker doesn't
+     *  promise something the provider won't serve. Other providers
+     *  don't ship the field — null falls through to "active". */
+    val active: Boolean? = null,
     /** xAI and some other OpenAI-compat providers expose this array of
      *  parameter names the model honors (e.g. ["reasoning",
      *  "include_reasoning", "max_tokens", …]). Used to detect thinking-
