@@ -1112,6 +1112,7 @@ private fun ColumnScope.GenerationPhase(
                         fontSize = 16.sp, modifier = Modifier.width(24.dp)
                     )
                 }
+                RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
                     Text(displayName, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -1150,17 +1151,18 @@ private fun ColumnScope.GenerationPhase(
                         }
                         else -> Text("\u2705", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
-                    val kindLabel = when (run.kind) {
-                        SecondaryKind.RERANK -> "Rerank"
-                        SecondaryKind.SUMMARIZE -> "Summarize"
-                        SecondaryKind.COMPARE -> "Compare"
-                        SecondaryKind.MODERATION -> "Moderate"
-                        SecondaryKind.TRANSLATE -> "Translate"
+                    val typeLabel = when (run.kind) {
+                        SecondaryKind.RERANK -> "rerank"
+                        SecondaryKind.SUMMARIZE -> "summarize"
+                        SecondaryKind.COMPARE -> "compare"
+                        SecondaryKind.MODERATION -> "moderate"
+                        SecondaryKind.TRANSLATE -> "translate"
                     }
+                    RowTypeCell(typeLabel)
                     val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "$kindLabel \u00B7 ${run.model}$langSuffix",
+                            "${run.model}$langSuffix",
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
@@ -1188,10 +1190,11 @@ private fun ColumnScope.GenerationPhase(
                 ) {
                     val statusEmoji = if (run.errorCount > 0) "❌" else "✅"
                     Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                    val langLabel = run.targetLanguage ?: "Translate"
+                    RowTypeCell("translate")
+                    val info = listOfNotNull(run.targetLanguage, run.model).joinToString(" · ")
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Translate · $langLabel",
+                            info.ifBlank { "Translate" },
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
@@ -1306,6 +1309,11 @@ private data class TranslationRunSummary(
     val runId: String,
     val targetLanguage: String?,
     val targetLanguageNative: String?,
+    /** Model used for every call in the run (a single Translate
+     *  invocation always picks one model). Surfaced on the run row
+     *  so the user can see which model produced the translation
+     *  without drilling in. */
+    val model: String?,
     val callCount: Int,
     val errorCount: Int,
     val totalCost: Double,
@@ -1324,6 +1332,7 @@ private fun buildTranslationRunSummaries(rows: List<com.ai.data.SecondaryResult>
                 runId = runId,
                 targetLanguage = first.targetLanguage,
                 targetLanguageNative = first.targetLanguageNative,
+                model = first.model.takeIf { it.isNotBlank() },
                 callCount = items.size,
                 errorCount = items.count { it.errorMessage != null },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
@@ -1331,6 +1340,23 @@ private fun buildTranslationRunSummaries(rows: List<com.ai.data.SecondaryResult>
             )
         }
         .sortedByDescending { it.timestamp }
+}
+
+/** Fixed-width "type" cell used by every row in the result list:
+ *  agent rows show "report", secondary rows show their kind, the
+ *  translation-run summary shows "translate". Lowercase to match the
+ *  user-facing convention. Constant width so the model column to its
+ *  right lines up across rows. */
+@Composable
+private fun RowTypeCell(text: String) {
+    Text(
+        text,
+        fontSize = 11.sp,
+        color = AppColors.TextTertiary,
+        fontFamily = FontFamily.Monospace,
+        maxLines = 1,
+        modifier = Modifier.width(72.dp).padding(end = 6.dp)
+    )
 }
 
 /** Compact action button shared across the Reports result page's
