@@ -43,7 +43,13 @@ fun ReportSingleResultScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
     onRemoveAgent: (String, String) -> Unit,
-    onRegenerateAgent: (String, String) -> Unit = { _, _ -> }
+    onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
+    /** Open a fresh chat session pre-seeded with the report prompt
+     *  as the user turn and this agent's response as the assistant
+     *  turn, then drop the user into ChatSessionScreen against the
+     *  same provider/model so they can keep going. Caller persists
+     *  the session and navigates. */
+    onContinueInChat: (String, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -212,6 +218,18 @@ fun ReportSingleResultScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("Call model API again", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            // Continue in chat — open a fresh chat session against
+            // the same provider/model with the report's prompt and
+            // this agent's response pre-seeded as the first two
+            // turns. Disabled when the response is empty / errored
+            // since there's nothing to seed the assistant turn with.
+            val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
+            Button(
+                onClick = { onContinueInChat(reportId, agentId) },
+                enabled = canContinueInChat,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("💬 Continue in chat", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }
 

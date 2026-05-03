@@ -280,6 +280,8 @@ fun AppNavHost(
                 initialTitle = title, initialPrompt = prompt)
         }
         composable(NavRoutes.AI_REPORTS) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
@@ -287,7 +289,13 @@ fun AppNavHost(
                 onNavigateToTraceListFiltered = { rid, cat ->
                     navController.navigate(NavRoutes.traceListForReportCategory(rid, cat))
                 },
-                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onContinueInChat = { rid, aid ->
+                    scope.launch {
+                        val sessionId = continueReportInChat(context, rid, aid) ?: return@launch
+                        navController.navigate(NavRoutes.aiChatContinue(sessionId))
+                    }
+                })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
@@ -826,4 +834,50 @@ private suspend fun routeShareToReport(
     navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt)) {
         popUpTo(NavRoutes.AI) { inclusive = false }
     }
+}
+
+/** Build a fresh ChatSession seeded with the report's prompt as the
+ *  user turn and the chosen agent's response as the assistant turn,
+ *  persist it via [com.ai.data.ChatHistoryManager], and return the
+ *  session id so the caller can navigate to AI_CHAT_CONTINUE. The
+ *  new session is independent of the source report — editing or
+ *  deleting either one does not affect the other.
+ *
+ *  Uses the agent's actual provider/model so the user keeps talking
+ *  to the same model that produced the report response. The first
+ *  user turn carries the report's vision attachment if there was
+ *  one. ChatParameters defaults are used for the new session — the
+ *  user can adjust them per-turn from the chat screen. */
+private suspend fun continueReportInChat(
+    context: android.content.Context,
+    reportId: String,
+    agentId: String
+): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
+    val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
+    val provider = AppService.findById(agent.provider) ?: return@withContext null
+    val responseBody = agent.responseBody?.takeIf { it.isNotBlank() } ?: return@withContext null
+    val now = System.currentTimeMillis()
+    val session = com.ai.data.ChatSession(
+        provider = provider,
+        model = agent.model,
+        messages = listOf(
+            com.ai.data.ChatMessage(
+                role = "user",
+                content = report.prompt,
+                timestamp = report.timestamp,
+                imageBase64 = report.imageBase64,
+                imageMime = report.imageMime
+            ),
+            com.ai.data.ChatMessage(
+                role = "assistant",
+                content = responseBody,
+                timestamp = (agent.durationMs ?: 0L).let { d -> if (d > 0) report.timestamp + d else now }
+            )
+        ),
+        parameters = com.ai.data.ChatParameters(),
+        createdAt = now,
+        updatedAt = now
+    )
+    if (com.ai.data.ChatHistoryManager.saveSession(session)) session.id else null
 }
