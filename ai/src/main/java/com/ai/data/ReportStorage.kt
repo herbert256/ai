@@ -325,4 +325,40 @@ object ReportStorage {
             saveReport(report)
         }
     }
+
+    /** Duplicate [reportId]: new UUID, fresh timestamp, "(Copy)" title
+     *  suffix, every agent row + result preserved. Secondaries are not
+     *  cloned — they're tied to the original by reportId and copying
+     *  them would double-count metas / translations on history /
+     *  totals. Returns the new id, or null when [reportId] can't be
+     *  loaded. */
+    fun copyReport(context: Context, reportId: String): String? {
+        init(context)
+        return lock.withLock {
+            val src = loadReport(reportId) ?: return@withLock null
+            val newId = UUID.randomUUID().toString()
+            val copy = Report(
+                id = newId,
+                timestamp = System.currentTimeMillis(),
+                title = if (src.title.endsWith("(Copy)")) src.title else "${src.title} (Copy)",
+                prompt = src.prompt,
+                // Deep-copy each agent so further mutations on the
+                // original don't leak into the copy through the shared
+                // ReportAgent reference.
+                agents = src.agents.map { it.copy() }.toMutableList(),
+                totalCost = src.totalCost,
+                completedAt = src.completedAt,
+                rapportText = src.rapportText,
+                reportType = src.reportType,
+                closeText = src.closeText,
+                imageBase64 = src.imageBase64,
+                imageMime = src.imageMime,
+                webSearchTool = src.webSearchTool,
+                reasoningEffort = src.reasoningEffort,
+                sourceReportId = src.sourceReportId
+            )
+            saveReport(copy)
+            newId
+        }
+    }
 }

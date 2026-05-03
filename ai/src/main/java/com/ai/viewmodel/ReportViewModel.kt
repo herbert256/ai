@@ -467,6 +467,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (cleared) dismissGenericReportsDialog()
     }
 
+    /** Duplicate [reportId] (new id, " (Copy)" title suffix, every agent
+     *  result preserved) and open the copy on the result screen so the
+     *  user lands on the duplicate ready to edit / regenerate without
+     *  losing the original. Returns false (silently) when the source
+     *  report can't be loaded. */
+    fun copyReport(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
+        scope.launch {
+            val newId = withContext(Dispatchers.IO) { ReportStorage.copyReport(context, reportId) } ?: return@launch
+            restoreCompletedReport(context, newId)
+        }
+    }
+
     fun clearPendingReportModels() {
         val cur = appViewModel.uiState.value
         if (cur.pendingReportModels.isEmpty()) return
