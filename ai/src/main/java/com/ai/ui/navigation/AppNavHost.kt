@@ -346,6 +346,7 @@ fun AppNavHost(
                 onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) },
                 onResumeSession = { sessionId -> navController.navigate(NavRoutes.aiChatContinue(sessionId)) },
                 onNavigateToManage = { navController.navigate(NavRoutes.AI_CHAT_MANAGE) },
+                onNavigateToLocalLlmChat = { model -> navController.navigate(NavRoutes.aiLocalLlmChat(model)) },
                 onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) })
         }
         composable(NavRoutes.AI_CHAT_AGENT_SELECT) {
@@ -437,6 +438,25 @@ fun AppNavHost(
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
                 )
             }
+        }
+        composable(NavRoutes.AI_LOCAL_LLM_CHAT) { entry ->
+            val context = LocalContext.current
+            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val uiState by appViewModel.uiState.collectAsState()
+            ChatSessionScreen(
+                provider = AppService.LOCAL, model = model, parameters = uiState.chatParameters,
+                userName = uiState.generalSettings.userName,
+                onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                // Local LLM doesn't speak the SSE / web-search /
+                // reasoning protocol — wrap the synchronous
+                // generate call as a one-emit Flow. Tracing happens
+                // inside LocalLlm.generate.
+                onSendMessageStream = { messages, _, _ -> chatViewModel.sendLocalLlmStream(context, model, messages) },
+                onRecordStatistics = { _, _ -> /* no remote billing for local */ },
+                aiSettings = uiState.aiSettings,
+                isVisionCapable = false,
+                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
+            )
         }
         composable(NavRoutes.AI_CHAT_HISTORY) {
             ChatHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,

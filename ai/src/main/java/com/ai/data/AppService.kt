@@ -57,8 +57,22 @@ class AppService(
     override fun toString(): String = id
 
     companion object {
+        /** Sentinel AppService used to route chat / report flows
+         *  through the on-device MediaPipe LLM Inference runtime
+         *  ([com.ai.data.LocalLlm]). Not registered in
+         *  [ProviderRegistry] so it doesn't show up in provider
+         *  lists / pickers / settings; surfaces only by id "LOCAL"
+         *  through [findById] so persisted ChatSessions whose
+         *  provider was Local can be reloaded after restart. */
+        val LOCAL = AppService(
+            id = "LOCAL",
+            displayName = "Local",
+            baseUrl = "local://",
+            adminUrl = "",
+            defaultModel = ""
+        )
         val entries: List<AppService> get() = ProviderRegistry.getAll()
-        fun findById(id: String): AppService? = ProviderRegistry.findById(id)
+        fun findById(id: String): AppService? = if (id == "LOCAL") LOCAL else ProviderRegistry.findById(id)
         fun valueOf(id: String): AppService = findById(id)
             ?: throw IllegalArgumentException("Unknown AppService: $id")
     }

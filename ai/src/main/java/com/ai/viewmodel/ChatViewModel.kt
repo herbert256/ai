@@ -1,7 +1,11 @@
 package com.ai.viewmodel
 
+import android.content.Context
 import com.ai.data.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 
 /**
  * ViewModel for chat operations: send messages, streaming, dual chat, usage statistics.
@@ -56,6 +60,39 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         appViewModel.settingsPrefs.updateUsageStatsAsync(service, model, inputTokens, outputTokens, inputTokens + outputTokens)
         return response
     }
+
+    /**
+     * Send a chat turn to an on-device MediaPipe LLM. The whole
+     * conversation is flattened into a single prompt (LlmInference
+     * has no built-in turn memory) and the response is emitted as
+     * one big chunk — the simple TextEmbedder-grade Tasks API
+     * doesn't expose the streaming-token callback. Recompute fits
+     * the existing chat-screen flow which collects a Flow<String>.
+     */
+    fun sendLocalLlmStream(
+        context: Context,
+        modelName: String,
+        messages: List<ChatMessage>
+    ): Flow<String> = flow {
+        // Skip system messages on Local LLM for now — most models we
+        // care about (Gemma, Phi, Llama) accept a system prefix but
+        // require the chat-template wrapper, which is model-specific.
+        // Plain user/assistant transcript is the safest fallback.
+        val prompt = buildString {
+            messages.filter { it.role != "system" }.forEach { msg ->
+                append(when (msg.role) {
+                    "user" -> "User: "
+                    "assistant" -> "Assistant: "
+                    else -> ""
+                })
+                append(msg.content).append("\n\n")
+            }
+            append("Assistant: ")
+        }
+        val out = LocalLlm.generate(context, modelName, prompt)
+            ?: throw IllegalStateException("Local LLM \"$modelName\" failed — verify it loaded in Housekeeping → Local LLMs.")
+        emit(out)
+    }.flowOn(Dispatchers.IO)
 
     /**
      * Record usage statistics for streaming chat (call after stream completes).
