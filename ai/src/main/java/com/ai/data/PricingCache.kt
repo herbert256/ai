@@ -45,6 +45,11 @@ object PricingCache {
     private const val KEY_AA_META = "aa_meta_v2"
     private const val KEY_AA_TIMESTAMP = "aa_timestamp_v2"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
+    /** Together AI native pricing — extracted from each model entry's
+     *  `pricing.{input, output, cached_input}` block during a Together
+     *  /v1/models refresh. Per-token prices keyed by raw model id. */
+    private const val KEY_TOGETHER_PRICING = "together_pricing"
+    private const val KEY_TOGETHER_TIMESTAMP = "together_timestamp"
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000
 
     private val gson = createAppGson()
@@ -56,6 +61,8 @@ object PricingCache {
 
     @Volatile private var manualPricing: MutableMap<String, ModelPricing>? = null
     @Volatile private var openRouterPricing: Map<String, ModelPricing>? = null
+    @Volatile private var togetherPricing: Map<String, ModelPricing>? = null
+    @Volatile private var togetherTimestamp: Long = 0
     @Volatile private var litellmPricing: Map<String, ModelPricing>? = null
     /** Capability sidecar to litellmPricing — populated alongside it from the
      *  same parse pass. Lets vision/web-search/mode lookups consult LiteLLM
@@ -152,6 +159,24 @@ object PricingCache {
             putString(KEY_OPENROUTER_PRICING, gson.toJson(pricing))
             putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp)
         }
+    }
+
+    /** Persist Together AI native pricing — populated as a side
+     *  effect of fetchModelsOpenAiCompat when the provider is
+     *  Together. Keyed by raw model id (no provider prefix; this map
+     *  is only consulted when the caller's provider is Together). */
+    fun saveTogetherPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(lock) {
+        togetherPricing = pricing
+        togetherTimestamp = System.currentTimeMillis()
+        getPrefs(context).edit {
+            putString(KEY_TOGETHER_PRICING, gson.toJson(pricing))
+            putLong(KEY_TOGETHER_TIMESTAMP, togetherTimestamp)
+        }
+    }
+
+    private fun findTogetherPricing(provider: AppService, model: String): ModelPricing? {
+        if (provider.id != "TOGETHER") return null
+        return togetherPricing?.get(model)
     }
 
     // Manual pricing overrides
@@ -287,7 +312,14 @@ object PricingCache {
         if (!preloadCompleted && isMainThread()) return DEFAULT_PRICING
         ensureLoaded(context)
         val isOpenRouter = provider.id == "OPENROUTER"
+        val isTogether = provider.id == "TOGETHER"
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
+        // Together's native pricing tier — same provider-self-report
+        // logic as OpenRouter: when the caller's provider is Together,
+        // its own /v1/models pricing block is the authoritative
+        // billing rate, more accurate than LiteLLM's community
+        // mirror.
+        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
         // Curated bulk sources first, then user OVERRIDE, then OPENROUTER
         // fallback, then Helicone as last resort before DEFAULT. Order:
         // LITELLM → MODELSDEV → LLMPRICES → AA → OVERRIDE → OPENROUTER →
@@ -312,6 +344,7 @@ object PricingCache {
 
     fun getPricingWithoutOverride(context: Context, provider: AppService, model: String): ModelPricing {
         ensureLoaded(context)
+        findTogetherPricing(provider, model)?.let { return it }
         findOpenRouterPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
@@ -329,7 +362,9 @@ object PricingCache {
      *  blocks. Returns DEFAULT_PRICING when catalogs aren't loaded. */
     fun lookupPricing(provider: AppService, model: String): ModelPricing {
         val isOpenRouter = provider.id == "OPENROUTER"
+        val isTogether = provider.id == "TOGETHER"
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
+        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
         findLLMPricesPricing(provider, model)?.let { return it }
@@ -557,6 +592,7 @@ object PricingCache {
         val artificialAnalysis: ModelPricing?,
         val override: ModelPricing?,
         val openrouter: ModelPricing?,
+        val together: ModelPricing?,
         val default: ModelPricing
     )
 
@@ -569,7 +605,8 @@ object PricingCache {
         val aa = findArtificialAnalysisPricing(provider, model)
         val override = manualPricing?.get("${provider.id}:$model")
         val openrouter = findOpenRouterPricing(provider, model)
-        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, override, openrouter, DEFAULT_PRICING)
+        val together = findTogetherPricing(provider, model)
+        return TierBreakdown(litellm, modelsDev, helicone, llmPrices, aa, override, openrouter, together, DEFAULT_PRICING)
     }
 
     /** True when two or more catalog tiers have pricing for this
@@ -1303,6 +1340,11 @@ object PricingCache {
         openRouterTimestamp = prefs.getLong(KEY_OPENROUTER_TIMESTAMP, 0)
         openRouterPricing = if (json != null) {
             try { gson.fromJson(json, mapModelPricingType) } catch (_: Exception) { emptyMap() }
+        } else emptyMap()
+        val tj = prefs.getString(KEY_TOGETHER_PRICING, null)
+        togetherTimestamp = prefs.getLong(KEY_TOGETHER_TIMESTAMP, 0)
+        togetherPricing = if (tj != null) {
+            try { gson.fromJson(tj, mapModelPricingType) } catch (_: Exception) { emptyMap() }
         } else emptyMap()
     }
 

@@ -402,6 +402,12 @@ data class OpenAiModel(
      *  the dated id. The picker's search filter unions the aliases
      *  with the model id. */
     val aliases: List<String>? = null,
+    /** Together AI exposes a per-model pricing block on its
+     *  /v1/models response (USD per 1M tokens). Used to seed the
+     *  TOGETHER pricing tier so Together-hosted runs don't have to
+     *  fall through to LiteLLM / models.dev / Helicone for prices
+     *  the provider already published. Other providers ship null. */
+    val pricing: TogetherPricing? = null,
     /** Mistral's deprecation date (ISO-8601) when present. The
      *  picker can flag deprecated entries with a small ⚠ badge so
      *  the user knows to migrate. Null = active. */
@@ -410,6 +416,24 @@ data class OpenAiModel(
      *  deprecated. Pairs with [deprecation] — picker badge can read
      *  "deprecated → use $deprecation_replacement_model". */
     val deprecation_replacement_model: String? = null
+)
+
+/** Together AI's per-model pricing block. Values are USD per 1M
+ *  tokens; the dispatcher divides by 1_000_000 to land the
+ *  per-token price [com.ai.data.PricingCache.ModelPricing] expects.
+ *  Multi-modal fields (image / video / transcribe) are out of scope
+ *  for the chat tier — captured here for completeness so a future
+ *  per-modality cost feature can read them without re-fetching. */
+data class TogetherPricing(
+    val input: Double? = null,
+    val output: Double? = null,
+    val cached_input: Double? = null,
+    val image: Double? = null,
+    val video: Double? = null,
+    val transcribe: Double? = null,
+    val hourly: Double? = null,
+    val finetune: Double? = null,
+    val base: Double? = null
 )
 
 data class MistralCapabilities(

@@ -295,7 +295,14 @@ data class FetchedModels(
      *  time. Persisted to eval_prefs alongside the parsed model list so a
      *  later parser revision can extract additional fields without
      *  re-hitting the provider. */
-    val rawResponse: String? = null
+    val rawResponse: String? = null,
+    /** Native pricing harvested from the provider's /models response —
+     *  currently only Together AI ships per-model prices in its
+     *  /v1/models payload. Per-token (already divided from the
+     *  per-million USD figures Together reports). The AppViewModel
+     *  fetcher passes this to PricingCache.saveTogetherPricing so it
+     *  feeds the TOGETHER pricing tier alongside the cached model list. */
+    val nativePricing: Map<String, com.ai.data.PricingCache.ModelPricing> = emptyMap()
 )
 
 /** Per-model capability bundle derived from a provider's own /models

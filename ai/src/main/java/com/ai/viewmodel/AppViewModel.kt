@@ -348,6 +348,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // settings update so a subsequent crash still leaves a
                 // valid snapshot on disk.
                 ModelListCache.save(getApplication(), service, fetched.rawResponse)
+                // Together AI ships per-model pricing inside the
+                // /v1/models response itself; the dispatcher harvests
+                // it into FetchedModels.nativePricing and we pump it
+                // straight into the TOGETHER pricing tier here so a
+                // model-list refresh doubles as a pricing refresh.
+                if (fetched.nativePricing.isNotEmpty()) {
+                    com.ai.data.PricingCache.saveTogetherPricing(getApplication(), fetched.nativePricing)
+                }
                 _uiState.update { state ->
                     val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)
                     // Cross-pollinate OpenRouter labels — covers two flows:

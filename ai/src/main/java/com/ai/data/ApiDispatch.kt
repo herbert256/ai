@@ -559,7 +559,21 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         }
     }
     val visionFromList = caps.filterValues { it.supportsVision == true }.keys
-    return FetchedModels(ids, types, visionFromList, caps, rawJson)
+    // Together AI ships its own pricing block on every model entry.
+    // Harvest it here and hand it back through FetchedModels.nativePricing
+    // so the AppViewModel fetcher (which has Context) can persist it
+    // into the PricingCache TOGETHER tier. Values arrive as USD per 1M
+    // tokens; divide for the per-token rate ModelPricing expects.
+    val nativePricing = if (service.id == "TOGETHER") {
+        activeOnly.mapNotNull { m ->
+            val id = m.id ?: return@mapNotNull null
+            val p = m.pricing ?: return@mapNotNull null
+            val pp = p.input?.let { it / 1_000_000.0 } ?: return@mapNotNull null
+            val cp = p.output?.let { it / 1_000_000.0 } ?: return@mapNotNull null
+            id to PricingCache.ModelPricing(id, pp, cp, "TOGETHER")
+        }.toMap()
+    } else emptyMap()
+    return FetchedModels(ids, types, visionFromList, caps, rawJson, nativePricing = nativePricing)
 }
 
 private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService, apiKey: String): FetchedModels {
