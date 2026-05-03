@@ -1023,6 +1023,18 @@ fun ModelInfoScreen(
                                 p.prompt?.toDoubleOrNull()?.let { ModelInfoRow("Input", formatTokenPricePerMillion(it)) }
                                 p.completion?.toDoubleOrNull()?.let { ModelInfoRow("Output", formatTokenPricePerMillion(it)) }
                                 p.image?.toDoubleOrNull()?.let { ModelInfoRow("Image", formatTokenPricePerMillion(it)) }
+                                // Per-query surcharge when the web-search
+                                // tool fires alongside the chat call.
+                                // OpenRouter publishes this in dollars
+                                // per call (not per token), so render it
+                                // with a /call suffix instead of the
+                                // per-million-token formatter.
+                                p.web_search?.toDoubleOrNull()?.let {
+                                    ModelInfoRow("Web Search", "$" + String.format(java.util.Locale.US, "%.4f", it) + " / call")
+                                }
+                                p.input_cache_read?.toDoubleOrNull()?.let {
+                                    ModelInfoRow("Input (cached)", formatTokenPricePerMillion(it))
+                                }
                             }
                         }
                     }

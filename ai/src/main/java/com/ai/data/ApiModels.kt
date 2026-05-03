@@ -639,7 +639,25 @@ data class OpenRouterModelInfo(
     val expiration_date: String? = null
 )
 
-data class OpenRouterPricing(val prompt: String? = null, val completion: String? = null, val image: String? = null, val request: String? = null)
+data class OpenRouterPricing(
+    val prompt: String? = null,
+    val completion: String? = null,
+    val image: String? = null,
+    val request: String? = null,
+    /** Per-query cost when the OpenAI-Responses-style web-search
+     *  tool is invoked on top of the chat call. OpenRouter
+     *  publishes this on every model that supports the tool;
+     *  surfaces in the per-call cost when the user has the 🌐
+     *  toggle on. Strings here mirror the prompt/completion shape
+     *  (USD per token / per call). */
+    val web_search: String? = null,
+    /** Discounted rate for cached-prompt re-reads. OpenAI bills
+     *  cached input at ~50% of normal; OpenRouter exposes the
+     *  exact figure per model. Surfaces in TierBreakdown so the
+     *  Costs page can show the cache rate alongside prompt /
+     *  completion. */
+    val input_cache_read: String? = null
+)
 data class OpenRouterTopProvider(val context_length: Int? = null, val max_completion_tokens: Int? = null, val is_moderated: Boolean? = null)
 data class OpenRouterArchitecture(
     val modality: String? = null,
