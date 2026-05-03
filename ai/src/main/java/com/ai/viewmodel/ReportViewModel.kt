@@ -323,19 +323,32 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /**
-     * Update the saved report's title + prompt (and the matching UiState) without
+     * Update the saved report's prompt (and the matching UiState) without
      * triggering generation. Used by the Edit-prompt overlay — the user reviews the new
      * prompt on the result screen and re-runs via the Actions / Regenerate button when
      * they're ready. The model list and parameter set on disk are untouched.
      */
-    suspend fun updateReportPrompt(context: Context, reportId: String, newTitle: String, newPrompt: String) {
+    suspend fun updateReportPrompt(context: Context, reportId: String, newPrompt: String) {
         withContext(Dispatchers.IO) {
-            ReportStorage.updateReportPromptAndTitle(context, reportId, newTitle, newPrompt)
+            ReportStorage.updateReportPromptText(context, reportId, newPrompt)
         }
         appViewModel.updateUiState { it.copy(
-            genericPromptTitle = newTitle, genericPromptText = newPrompt,
+            genericPromptText = newPrompt,
             hasPendingPromptChange = true
         ) }
+    }
+
+    /**
+     * Update the report's title in place. Title is metadata only — no
+     * outbound API call references it — so this never sets
+     * [com.ai.model.UiState.hasPendingPromptChange] and the user does
+     * not need to regenerate to see the new title applied.
+     */
+    suspend fun updateReportTitle(context: Context, reportId: String, newTitle: String) {
+        withContext(Dispatchers.IO) {
+            ReportStorage.updateReportTitle(context, reportId, newTitle)
+        }
+        appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle) }
     }
 
     /**

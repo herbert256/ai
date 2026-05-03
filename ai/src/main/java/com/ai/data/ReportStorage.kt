@@ -289,6 +289,24 @@ object ReportStorage {
         }
     }
 
+    fun updateReportTitle(context: Context, reportId: String, newTitle: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(title = newTitle))
+            true
+        }
+    }
+
+    fun updateReportPromptText(context: Context, reportId: String, newPrompt: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(prompt = newPrompt))
+            true
+        }
+    }
+
     /** Drop a single ReportAgent row from the report, recompute totalCost,
      *  and persist. Used by the per-model viewer's "Remove model from
      *  report" button so the user can prune dud responses without

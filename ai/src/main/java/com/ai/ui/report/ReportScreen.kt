@@ -122,8 +122,11 @@ fun ReportsScreenNav(
             viewModel.updateUiState { it.copy(hasPendingParametersChange = true) }
         },
         onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid, scope) },
-        onUpdatePrompt = { rid, title, prompt ->
-            scope.launch { reportViewModel.updateReportPrompt(context, rid, title, prompt) }
+        onUpdatePrompt = { rid, prompt ->
+            scope.launch { reportViewModel.updateReportPrompt(context, rid, prompt) }
+        },
+        onUpdateTitle = { rid, title ->
+            scope.launch { reportViewModel.updateReportTitle(context, rid, title) }
         },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)
@@ -211,7 +214,8 @@ fun ReportsScreen(
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
     onMarkParametersChanged: () -> Unit = {},
     onRegenerate: (String) -> Unit = {},
-    onUpdatePrompt: (String, String, String) -> Unit = { _, _, _ -> },
+    onUpdatePrompt: (String, String) -> Unit = { _, _ -> },
+    onUpdateTitle: (String, String) -> Unit = { _, _ -> },
     onDeleteReport: (String) -> Unit = {},
     onCopyReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
@@ -327,6 +331,7 @@ fun ReportsScreen(
     var singleResultAgentId by remember { mutableStateOf<String?>(null) }
     var showExport by remember { mutableStateOf(false) }
     var showEditPrompt by remember { mutableStateOf(false) }
+    var showEditTitle by remember { mutableStateOf(false) }
     var showEditParameters by remember { mutableStateOf(false) }
     var showAdvancedParameters by remember { mutableStateOf(false) }
     // Translate flow state.
@@ -754,13 +759,25 @@ fun ReportsScreen(
     if (showEditPrompt && currentReportId != null) {
         val rid = currentReportId
         ReportEditPromptScreen(
-            initialTitle = uiState.genericPromptTitle,
             initialPrompt = uiState.genericPromptText,
             onBack = { showEditPrompt = false },
             onNavigateHome = onNavigateHome,
-            onUpdate = { newTitle, newPrompt ->
+            onUpdate = { newPrompt ->
                 showEditPrompt = false
-                onUpdatePrompt(rid, newTitle, newPrompt)
+                onUpdatePrompt(rid, newPrompt)
+            }
+        )
+        return
+    }
+    if (showEditTitle && currentReportId != null) {
+        val rid = currentReportId
+        ReportEditTitleScreen(
+            initialTitle = uiState.genericPromptTitle,
+            onBack = { showEditTitle = false },
+            onNavigateHome = onNavigateHome,
+            onUpdate = { newTitle ->
+                showEditTitle = false
+                onUpdateTitle(rid, newTitle)
             }
         )
         return
@@ -815,6 +832,7 @@ fun ReportsScreen(
                 onShare = { showExport = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
                 onEditPrompt = { showEditPrompt = true },
+                onEditTitle = { showEditTitle = true },
                 onEditModels = { currentReportId?.let(onEditModels) },
                 onEditParameters = { showEditParameters = true },
                 onRegenerate = { currentReportId?.let(onRegenerate) },
@@ -984,6 +1002,7 @@ private fun ColumnScope.GenerationPhase(
     onShare: () -> Unit,
     onTrace: () -> Unit,
     onEditPrompt: () -> Unit,
+    onEditTitle: () -> Unit = {},
     onEditModels: () -> Unit,
     onEditParameters: () -> Unit,
     onRegenerate: () -> Unit,
@@ -1326,6 +1345,7 @@ private fun ColumnScope.GenerationPhase(
         SectionLabel("Edit")
         ActionRow {
             CompactButton(onClick = onEditPrompt, color = AppColors.Indigo, text = "Prompt")
+            CompactButton(onClick = onEditTitle, color = AppColors.Indigo, text = "Title")
             CompactButton(onClick = onEditModels, color = AppColors.Purple, text = "Models")
             CompactButton(onClick = onEditParameters, color = AppColors.Blue, text = "Parameters")
         }
