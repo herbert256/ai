@@ -982,6 +982,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     fun deleteSecondaryResult(context: Context, reportId: String, resultId: String) {
         SecondaryResultStorage.delete(context, reportId, resultId)
+        // Bump the parent report's timestamp — removing a meta /
+        // translation row is a real change to what the report contains
+        // and should sort the report to the top of History, same as an
+        // additive change does.
+        ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
     /** Re-run the API call for a single agent on a finished report,
@@ -1078,6 +1083,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  "Remove model from report" button — that's this. */
     fun removeAgentFromReport(context: Context, reportId: String, agentId: String) {
         ReportStorage.removeAgent(context, reportId, agentId)
+        ReportStorage.bumpReportTimestamp(context, reportId)
         _agentResults.update { it - agentId }
         appViewModel.updateUiState { state ->
             if (state.currentReportId != reportId) state
