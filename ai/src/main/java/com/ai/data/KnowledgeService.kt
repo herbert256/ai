@@ -207,28 +207,36 @@ object KnowledgeService {
             repository.embed(service, apiKey, first.embedderModel, listOf(query))?.firstOrNull()
         } ?: return emptyList()
 
-        // Single-pass cosine over every chunk in every selected KB
+        // Streaming cosine over every chunk in every selected KB
         // that shares the embedder. Mis-matched KBs are dropped to
-        // avoid garbage rankings.
+        // avoid garbage rankings. Bounded min-heap of size topK*2
+        // keeps the top candidates without ever materialising all
+        // chunks — peak heap is just the heap itself plus one chunk
+        // mid-iteration, regardless of total KB size.
         data class Scored(val hit: Hit, val score: Double)
-        val scored = mutableListOf<Scored>()
+        val cap = topK * 2
+        val heap = java.util.PriorityQueue<Scored>(cap + 1, compareBy { it.score })
         for (kb in kbs) {
             if (kb.embedderProviderId != first.embedderProviderId || kb.embedderModel != first.embedderModel) continue
             val sourceById = kb.sources.associateBy { it.id }
-            val chunks = KnowledgeStore.loadAllChunks(context, kb.id)
-            for (c in chunks) {
+            KnowledgeStore.forEachChunk(context, kb.id) { c ->
                 val sim = EmbeddingsStore.cosine(queryVec, c.embedding)
                 val src = sourceById[c.sourceId]?.name ?: "?"
-                scored += Scored(Hit(kb.id, kb.name, src, c.text, sim), sim)
+                val candidate = Scored(Hit(kb.id, kb.name, src, c.text, sim), sim)
+                if (heap.size < cap) heap.offer(candidate)
+                else if (sim > heap.peek().score) {
+                    heap.poll(); heap.offer(candidate)
+                }
             }
         }
-        // Top-K + token budget. We sort by score, then walk taking
-        // chunks until we'd exceed maxContextChars. That way a
-        // single huge chunk can't blow the LLM's context window.
-        scored.sortByDescending { it.score }
+        // Top-K + token budget. Heap iteration order is undefined, so
+        // sort the survivors descending, then walk taking chunks until
+        // we'd exceed maxContextChars. That way a single huge chunk
+        // can't blow the LLM's context window.
+        val sorted = heap.sortedByDescending { it.score }
         val out = mutableListOf<Hit>()
         var charsSoFar = 0
-        for (s in scored.take(topK * 2)) {
+        for (s in sorted) {
             if (s.score <= 0.0) break
             if (charsSoFar + s.hit.text.length > maxContextChars) continue
             out += s.hit

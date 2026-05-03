@@ -163,22 +163,23 @@ object KnowledgeStore {
         }
     }
 
-    /** Load every chunk for [kbId] across all its sources. Used by
-     *  retrieval — embeddings dimension is uniform within a KB so a
-     *  single sweep with cosine works. */
-    fun loadAllChunks(context: Context, kbId: String): List<KnowledgeChunk> {
+    /** Stream every chunk for [kbId] across all its sources through
+     *  [block]. Per-source files are parsed one at a time and the
+     *  decoded array goes out of scope between files, so peak heap is
+     *  bounded by the largest source's chunks rather than the whole
+     *  KB. Retrieval uses this to do a bounded-heap top-K cosine
+     *  sweep without ever materialising the full chunk list. */
+    fun forEachChunk(context: Context, kbId: String, block: (KnowledgeChunk) -> Unit) {
         init(context)
-        val kbDir = kbDirOrNull(kbId) ?: return emptyList()
+        val kbDir = kbDirOrNull(kbId) ?: return
         val chunksDir = File(kbDir, CHUNKS_DIR)
-        if (!chunksDir.exists()) return emptyList()
-        return chunksDir.listFiles { f -> f.extension == "json" }
-            ?.flatMap { f ->
-                runCatching {
-                    val arr = gson.fromJson(f.readText(), Array<KnowledgeChunk>::class.java)
-                    arr.toList()
-                }.getOrDefault(emptyList())
+        if (!chunksDir.exists()) return
+        chunksDir.listFiles { f -> f.extension == "json" }?.forEach { f ->
+            runCatching {
+                val arr = gson.fromJson(f.readText(), Array<KnowledgeChunk>::class.java)
+                arr.forEach(block)
             }
-            .orEmpty()
+        }
     }
 
     private fun kbDirOrNull(kbId: String): File? {
