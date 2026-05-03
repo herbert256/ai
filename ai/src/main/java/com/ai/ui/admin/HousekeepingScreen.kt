@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -187,9 +188,7 @@ fun HousekeepingScreen(
 
             // Configuration shortcuts — moved here from AI Setup so all the
             // "manage app data" actions live together.
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Configuration", fontWeight = FontWeight.Bold, color = Color.White)
+            CollapsibleCard("Configuration") {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = onNavigateToImportExport,
@@ -207,7 +206,6 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                     ) { Text("Provider administration", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                }
             }
 
             // Backup / restore — uses Android's Storage Access Framework so the
@@ -215,9 +213,7 @@ fun HousekeepingScreen(
             // file, etc., all show up as choices when the corresponding app is
             // installed) and the source on restore. We never see the underlying
             // location; SAF gives us a Uri to write to / read from.
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Backup & Restore", fontWeight = FontWeight.Bold, color = Color.White)
+            CollapsibleCard("Backup & Restore") {
                     Text(
                         "Saves a single .zip with everything: configuration, API keys, reports, chats, traces, and prompt cache. The Android picker lets you pick Google Drive (or any other cloud storage app you have installed) as the destination.",
                         fontSize = 12.sp, color = AppColors.TextTertiary
@@ -240,12 +236,9 @@ fun HousekeepingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                         ) { Text("Restore", maxLines = 1, softWrap = false) }
                     }
-                }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Trim by age", fontWeight = FontWeight.Bold, color = Color.White)
+            CollapsibleCard("Trim by age") {
                     OutlinedTextField(
                         value = daysToKeepText,
                         onValueChange = { v -> daysToKeepText = v.filter { it.isDigit() }.take(4) },
@@ -275,12 +268,9 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
                     ) { Text("Clear Reports/Chats/Traces", maxLines = 1, softWrap = false) }
-                }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Usage statistics", fontWeight = FontWeight.Bold, color = Color.White)
+            CollapsibleCard("Usage statistics") {
                     Button(
                         onClick = {
                             val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
@@ -291,12 +281,9 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                     ) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
-                }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Manual cost overrides", fontWeight = FontWeight.Bold, color = Color.White)
+            CollapsibleCard("Manual cost overrides") {
                     Text(
                         "Drops every manual price override that is dormant or redundant: covered by LiteLLM, covered by OpenRouter, equal to the built-in default, or equal to what the lookup would return without it.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
@@ -313,14 +300,11 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
                     ) { Text("Cleanup manual cost overrides", maxLines = 1, softWrap = false) }
-                }
             }
 
             LocalModelsCard()
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Full reset", fontWeight = FontWeight.Bold, color = Color.White)
+            CollapsibleCard("Full reset") {
                     Button(
                         onClick = { showClearAllConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
@@ -332,24 +316,20 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                     ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
-                }
             }
         }
     }
 }
 
 /** Maintenance card for the on-device LiteRT models that back the
- *  Local Semantic Search screen. Three actions:
+ *  Local Semantic Search screen. Lists every curated MediaPipe-Tasks
+ *  text-embedder as its own download button, plus a SAF "Add model
+ *  from file…" path for user-supplied .tflite files, plus per-row
+ *  Remove on the Installed list.
  *
- *   - Download Universal Sentence Encoder Lite (~25 MB) from
- *     MediaPipe's public gallery into filesDir/local_models/. Gated
- *     on the user explicitly tapping the button — no implicit
- *     downloads.
- *   - Add a model — SAF file picker that copies a user-supplied
- *     .tflite into the same directory.
- *   - Per-row Remove — releases the in-memory TextEmbedder and
- *     deletes the .tflite file.
- */
+ *  Note: only models with proper MediaPipe metadata baked in load
+ *  successfully — that's why the curated list is short. The SAF flow
+ *  exists for users who've stamped metadata via Model Maker. */
 @Composable
 private fun LocalModelsCard() {
     val context = LocalContext.current
@@ -369,79 +349,104 @@ private fun LocalModelsCard() {
         }
     }
 
-    val defaultInstalled = LocalEmbedder.DEFAULT_MODEL_NAME in installed
+    CollapsibleCard("Local LiteRT models") {
+        Text(
+            "On-device text embedders for the Local Semantic Search screen. Models live in app storage; nothing leaves the device once installed. Only models with MediaPipe Tasks metadata can load — the curated list below is the verified set.",
+            fontSize = 12.sp, color = AppColors.TextTertiary
+        )
 
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Local LiteRT models", fontWeight = FontWeight.Bold, color = Color.White)
-            Text(
-                "On-device text embedders for the Local Semantic Search screen. Models live in app storage; nothing leaves the device once installed.",
-                fontSize = 12.sp, color = AppColors.TextTertiary
-            )
-
-            Button(
-                onClick = {
-                    if (defaultInstalled) {
-                        status = "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} is already installed."
-                        return@Button
-                    }
-                    working = true
-                    status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…"
-                    scope.launch {
-                        val ok = withContext(Dispatchers.IO) {
-                            LocalEmbedder.downloadDefaultModel(context) { soFar, total ->
-                                val pct = if (total > 0) " ${(soFar * 100 / total)}%" else ""
-                                scope.launch(Dispatchers.Main) {
-                                    status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…$pct"
+        LocalEmbedder.downloadable.forEach { spec ->
+            val isInstalled = spec.name in installed
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Button(
+                    onClick = {
+                        if (isInstalled) {
+                            status = "${spec.displayName} is already installed."
+                            return@Button
+                        }
+                        working = true
+                        status = "Downloading ${spec.displayName}…"
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                LocalEmbedder.download(context, spec) { soFar, total ->
+                                    val pct = if (total > 0) " ${(soFar * 100 / total)}%" else ""
+                                    scope.launch(Dispatchers.Main) {
+                                        status = "Downloading ${spec.displayName}…$pct"
+                                    }
                                 }
                             }
+                            working = false
+                            if (ok) {
+                                installed = LocalEmbedder.availableModels(context)
+                                status = "Installed ${spec.displayName}"
+                            } else status = "Download failed."
                         }
-                        working = false
-                        if (ok) {
-                            installed = LocalEmbedder.availableModels(context)
-                            status = "Installed ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}"
-                        } else status = "Download failed."
-                    }
-                },
-                enabled = !working && !defaultInstalled,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) {
-                Text(
-                    if (defaultInstalled) "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} ✓"
-                    else "Download ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} (~25 MB)",
-                    maxLines = 1, softWrap = false
-                )
+                    },
+                    enabled = !working && !isInstalled,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) {
+                    Text(
+                        if (isInstalled) "${spec.displayName} ✓"
+                        else "Download ${spec.displayName} (~${spec.sizeMbHint} MB)",
+                        maxLines = 1, softWrap = false
+                    )
+                }
+                Text(spec.description, fontSize = 11.sp, color = AppColors.TextTertiary)
             }
+        }
 
-            Button(
-                onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
-                enabled = !working,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) { Text("Add model from file…", maxLines = 1, softWrap = false) }
+        Button(
+            onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
+            enabled = !working,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+        ) { Text("Add model from file…", maxLines = 1, softWrap = false) }
 
-            if (installed.isNotEmpty()) {
-                Text("Installed", fontSize = 12.sp, color = AppColors.TextTertiary)
-                installed.forEach { name ->
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text(
-                            text = name,
-                            fontSize = 13.sp, color = Color.White,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = {
-                            LocalEmbedder.release(name)
-                            java.io.File(LocalEmbedder.localModelsDir(context), "$name.tflite").delete()
-                            installed = LocalEmbedder.availableModels(context)
-                            status = "Removed $name"
-                        }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
-                    }
+        if (installed.isNotEmpty()) {
+            Text("Installed", fontSize = 12.sp, color = AppColors.TextTertiary)
+            installed.forEach { name ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = name,
+                        fontSize = 13.sp, color = Color.White,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = {
+                        LocalEmbedder.release(name)
+                        java.io.File(LocalEmbedder.localModelsDir(context), "$name.tflite").delete()
+                        installed = LocalEmbedder.availableModels(context)
+                        status = "Removed $name"
+                    }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
                 }
             }
+        }
 
-            status?.let { Text(it, fontSize = 11.sp, color = AppColors.TextTertiary) }
+        status?.let { Text(it, fontSize = 11.sp, color = AppColors.TextTertiary) }
+    }
+}
+
+/** Card that starts collapsed — the title row is always visible and
+ *  acts as a click target; tapping reveals [content]. Lets the
+ *  Housekeeping screen present six cards as a compact list-of-titles
+ *  rather than a long scroll of fully-expanded sections. */
+@Composable
+private fun CollapsibleCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
+            }
+            if (expanded) content()
         }
     }
 }

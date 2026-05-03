@@ -23,34 +23,65 @@ object LocalEmbedder {
     private const val LOCAL_MODELS_DIR = "local_models"
     private val instances = ConcurrentHashMap<String, TextEmbedder>()
 
-    /** Universal Sentence Encoder, MediaPipe's recommended general-
-     *  purpose multilingual text embedder. ~25 MB, Apache 2.0. The
-     *  download URL is MediaPipe's public model gallery — same source
-     *  the official sample apps pull from. */
+    /** A model that can be downloaded directly into [localModelsDir].
+     *  Only models with proper MediaPipe Tasks metadata baked into the
+     *  .tflite belong here — the runtime refuses to load otherwise. */
+    data class DownloadableModel(
+        /** Filename stem (no extension) used as the on-disk name and
+         *  the picker entry. */
+        val name: String,
+        val displayName: String,
+        val url: String,
+        val sizeMbHint: Int,
+        val description: String
+    )
+
+    /** MediaPipe Tasks officially publishes only two text-embedder
+     *  models with the metadata the runtime needs. Anything more
+     *  exotic has to come through the SAF "Add model from file" path
+     *  with its metadata stamped via MediaPipe Model Maker. */
+    val downloadable: List<DownloadableModel> = listOf(
+        DownloadableModel(
+            name = "universal_sentence_encoder_lite",
+            displayName = "Universal Sentence Encoder Lite",
+            url = "https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/latest/universal_sentence_encoder.tflite",
+            sizeMbHint = 25,
+            description = "Multilingual general-purpose. Best default for most text."
+        ),
+        DownloadableModel(
+            name = "average_word_embedder",
+            displayName = "Average Word Embedder",
+            url = "https://storage.googleapis.com/mediapipe-models/text_embedder/average_word_embedder/float32/latest/average_word_embedder.tflite",
+            sizeMbHint = 5,
+            description = "Tiny + fast English embedder. Lower quality, near-instant."
+        )
+    )
+
+    /** Default points at the first entry in [downloadable]. */
     const val DEFAULT_MODEL_NAME = "universal_sentence_encoder_lite"
-    const val DEFAULT_MODEL_DISPLAY_NAME = "Universal Sentence Encoder Lite"
-    const val DEFAULT_MODEL_URL =
-        "https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/latest/universal_sentence_encoder.tflite"
+    val DEFAULT_MODEL_DISPLAY_NAME: String
+        get() = downloadable.first { it.name == DEFAULT_MODEL_NAME }.displayName
 
-    fun isDefaultModelInstalled(context: Context): Boolean =
-        File(localModelsDir(context), "$DEFAULT_MODEL_NAME.tflite").exists()
+    fun isInstalled(context: Context, modelName: String): Boolean =
+        File(localModelsDir(context), "$modelName.tflite").exists()
 
-    /** Stream the default model from MediaPipe's gallery into
-     *  [localModelsDir]. Records a synthetic ApiTrace entry so the
-     *  download itself surfaces on the Trace screen. [onProgress]
-     *  reports (bytesDownloaded, totalBytes) where total may be -1
-     *  if the server didn't send Content-Length. Returns true on
-     *  success; the caller's "model picker" should then refresh
-     *  [availableModels]. */
-    fun downloadDefaultModel(
+    fun isDefaultModelInstalled(context: Context): Boolean = isInstalled(context, DEFAULT_MODEL_NAME)
+
+    /** Stream a [DownloadableModel] into [localModelsDir] and record a
+     *  synthetic ApiTrace entry so the download surfaces on the Trace
+     *  screen alongside HTTP traces. [onProgress] reports
+     *  (bytesDownloaded, totalBytes); total may be -1 if the server
+     *  didn't send Content-Length. Returns true on success. */
+    fun download(
         context: Context,
+        spec: DownloadableModel,
         onProgress: (Long, Long) -> Unit
     ): Boolean {
         val started = System.currentTimeMillis()
-        val target = File(localModelsDir(context), "$DEFAULT_MODEL_NAME.tflite")
+        val target = File(localModelsDir(context), "${spec.name}.tflite")
         val tmp = File(target.parentFile, "${target.name}.part")
         return try {
-            val url = java.net.URL(DEFAULT_MODEL_URL)
+            val url = java.net.URL(spec.url)
             val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                 connectTimeout = 30_000
                 readTimeout = 60_000
@@ -74,27 +105,33 @@ object LocalEmbedder {
                 tmp.delete()
                 throw java.io.IOException("Could not move ${tmp.name} into place")
             }
-            recordDownloadTrace(target.length(), System.currentTimeMillis() - started, error = null)
+            recordDownloadTrace(spec, target.length(), System.currentTimeMillis() - started, error = null)
             true
         } catch (e: Exception) {
-            android.util.Log.e("LocalEmbedder", "default model download failed: ${e.message}", e)
+            android.util.Log.e("LocalEmbedder", "model ${spec.name} download failed: ${e.message}", e)
             tmp.delete()
-            recordDownloadTrace(bytes = -1, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
+            recordDownloadTrace(spec, bytes = -1, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             false
         }
     }
 
-    private fun recordDownloadTrace(bytes: Long, durationMs: Long, error: String?) {
+    /** Backwards-compat shim — same as calling [download] with the
+     *  default spec. */
+    fun downloadDefaultModel(context: Context, onProgress: (Long, Long) -> Unit): Boolean =
+        download(context, downloadable.first { it.name == DEFAULT_MODEL_NAME }, onProgress)
+
+    private fun recordDownloadTrace(spec: DownloadableModel, bytes: Long, durationMs: Long, error: String?) {
         if (!ApiTracer.isTracingEnabled) return
         val gson = createAppGson()
+        val host = runCatching { java.net.URL(spec.url).host }.getOrDefault("download")
         ApiTracer.saveTrace(ApiTrace(
             timestamp = System.currentTimeMillis(),
-            hostname = "storage.googleapis.com",
+            hostname = host,
             reportId = ApiTracer.currentReportId,
-            model = DEFAULT_MODEL_NAME,
+            model = spec.name,
             category = "Local model download",
             request = TraceRequest(
-                url = DEFAULT_MODEL_URL,
+                url = spec.url,
                 method = "GET",
                 headers = emptyMap(),
                 body = null
