@@ -13,16 +13,13 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.suspendCancellableCoroutine
+import com.google.android.gms.tasks.Tasks
 import org.jsoup.Jsoup
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
 import java.net.URL
 import java.util.zip.ZipInputStream
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /**
  * Extracts plain text from a [KnowledgeSourceType]. Each implementation
@@ -175,18 +172,15 @@ internal object KnowledgeExtractors {
     }
 
     /** Bridge ML Kit's Task<Text> async API to a synchronous String
-     *  via a suspend point. The calling IO dispatcher serialises
-     *  overlapping work across pages or images so we never run two
-     *  recognizer.process calls concurrently against the same
-     *  client. */
+     *  via Play Services' Tasks.await, blocking the calling thread.
+     *  The calling IO dispatcher serialises overlapping work across
+     *  pages or images so we never run two recognizer.process calls
+     *  concurrently against the same client. Previously bridged via
+     *  runBlocking + suspendCancellableCoroutine; Tasks.await is a
+     *  cleaner blocking primitive that doesn't spin up a coroutine
+     *  event loop just to wait on a single callback. */
     private fun ocrBitmap(recognizer: TextRecognizer, bitmap: Bitmap): String =
-        runBlocking {
-            suspendCancellableCoroutine<String> { cont ->
-                recognizer.process(InputImage.fromBitmap(bitmap, 0))
-                    .addOnSuccessListener { result -> cont.resume(result.text) }
-                    .addOnFailureListener { e -> cont.resumeWithException(e) }
-            }
-        }
+        Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0))).text
 
     /** Walk a .docx (Office Open XML) zip, find word/document.xml, and
      *  pull the visible text out via a streaming XmlPullParser pass.

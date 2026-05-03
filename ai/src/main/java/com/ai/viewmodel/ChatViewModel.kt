@@ -65,22 +65,19 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
 
     /** Build a copy of [messages] with a system-message RAG context
      *  block prepended (or merged into an existing system message)
-     *  when retrieval finds matches for the latest user turn. The
-     *  retrieve() call is synchronous-blocking; callers must invoke
-     *  this off the main thread (every current call site does, via
-     *  flowOn(Dispatchers.IO)). */
-    private fun messagesWithRag(
+     *  when retrieval finds matches for the latest user turn.
+     *  Suspends on the embedder + cosine sweep; both call sites are
+     *  inside flow { } blocks with flowOn(Dispatchers.IO). */
+    private suspend fun messagesWithRag(
         context: android.content.Context,
         knowledgeBaseIds: List<String>,
         messages: List<ChatMessage>
     ): List<ChatMessage> {
         val lastUser = messages.lastOrNull { it.role == "user" }?.content?.takeIf { it.isNotBlank() } ?: return messages
-        val hits = kotlinx.coroutines.runBlocking {
-            runCatching {
-                KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
-                    knowledgeBaseIds, lastUser)
-            }.getOrDefault(emptyList())
-        }
+        val hits = runCatching {
+            KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
+                knowledgeBaseIds, lastUser)
+        }.getOrDefault(emptyList())
         if (hits.isEmpty()) return messages
         val ctx = KnowledgeService.formatContextBlock(hits)
         // Merge into the existing system message (preserve user's
