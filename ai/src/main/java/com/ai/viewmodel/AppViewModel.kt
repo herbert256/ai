@@ -303,6 +303,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor + service) }
             try {
                 val fetched = repository.fetchModelsWithKinds(service, apiKey)
+                // Persist the raw /models response to disk under
+                // files/model_lists/<id>.json for later
+                // pricing/capability lookups. Done before the in-memory
+                // settings update so a subsequent crash still leaves a
+                // valid snapshot on disk.
+                ModelListCache.save(getApplication(), service, fetched.rawResponse)
                 _uiState.update { state ->
                     val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)
                     // Cross-pollinate OpenRouter labels — covers two flows:
@@ -343,6 +349,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         onProgress?.invoke(service.displayName)
                         try {
                             val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
+                            // Disk-cache the raw response for later
+                            // pricing / capability lookups (see
+                            // ModelListCache).
+                            ModelListCache.save(getApplication(), service, fetched.rawResponse)
                             _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)) }
                             // Persist with the freshly-merged visionModels (auto + user override), capability map, and raw response snapshot.
                             val cfg = _uiState.value.aiSettings.getProvider(service)
