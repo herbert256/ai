@@ -23,6 +23,90 @@ object LocalEmbedder {
     private const val LOCAL_MODELS_DIR = "local_models"
     private val instances = ConcurrentHashMap<String, TextEmbedder>()
 
+    /** Universal Sentence Encoder, MediaPipe's recommended general-
+     *  purpose multilingual text embedder. ~25 MB, Apache 2.0. The
+     *  download URL is MediaPipe's public model gallery — same source
+     *  the official sample apps pull from. */
+    const val DEFAULT_MODEL_NAME = "universal_sentence_encoder_lite"
+    const val DEFAULT_MODEL_DISPLAY_NAME = "Universal Sentence Encoder Lite"
+    const val DEFAULT_MODEL_URL =
+        "https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/latest/universal_sentence_encoder.tflite"
+
+    fun isDefaultModelInstalled(context: Context): Boolean =
+        File(localModelsDir(context), "$DEFAULT_MODEL_NAME.tflite").exists()
+
+    /** Stream the default model from MediaPipe's gallery into
+     *  [localModelsDir]. Records a synthetic ApiTrace entry so the
+     *  download itself surfaces on the Trace screen. [onProgress]
+     *  reports (bytesDownloaded, totalBytes) where total may be -1
+     *  if the server didn't send Content-Length. Returns true on
+     *  success; the caller's "model picker" should then refresh
+     *  [availableModels]. */
+    fun downloadDefaultModel(
+        context: Context,
+        onProgress: (Long, Long) -> Unit
+    ): Boolean {
+        val started = System.currentTimeMillis()
+        val target = File(localModelsDir(context), "$DEFAULT_MODEL_NAME.tflite")
+        val tmp = File(target.parentFile, "${target.name}.part")
+        return try {
+            val url = java.net.URL(DEFAULT_MODEL_URL)
+            val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 30_000
+                readTimeout = 60_000
+                requestMethod = "GET"
+            }
+            val total = conn.contentLengthLong
+            conn.inputStream.use { input ->
+                tmp.outputStream().use { output ->
+                    val buf = ByteArray(64 * 1024)
+                    var read: Int
+                    var soFar = 0L
+                    while (input.read(buf).also { read = it } > 0) {
+                        output.write(buf, 0, read)
+                        soFar += read
+                        onProgress(soFar, total)
+                    }
+                }
+            }
+            if (target.exists()) target.delete()
+            if (!tmp.renameTo(target)) {
+                tmp.delete()
+                throw java.io.IOException("Could not move ${tmp.name} into place")
+            }
+            recordDownloadTrace(target.length(), System.currentTimeMillis() - started, error = null)
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("LocalEmbedder", "default model download failed: ${e.message}", e)
+            tmp.delete()
+            recordDownloadTrace(bytes = -1, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
+            false
+        }
+    }
+
+    private fun recordDownloadTrace(bytes: Long, durationMs: Long, error: String?) {
+        if (!ApiTracer.isTracingEnabled) return
+        val gson = createAppGson()
+        ApiTracer.saveTrace(ApiTrace(
+            timestamp = System.currentTimeMillis(),
+            hostname = "storage.googleapis.com",
+            reportId = ApiTracer.currentReportId,
+            model = DEFAULT_MODEL_NAME,
+            category = "Local model download",
+            request = TraceRequest(
+                url = DEFAULT_MODEL_URL,
+                method = "GET",
+                headers = emptyMap(),
+                body = null
+            ),
+            response = TraceResponse(
+                statusCode = if (error == null) 200 else 500,
+                headers = emptyMap(),
+                body = gson.toJson(mapOf("bytes" to bytes, "durationMs" to durationMs, "error" to error))
+            )
+        ))
+    }
+
     fun localModelsDir(context: Context): File =
         File(context.filesDir, LOCAL_MODELS_DIR).also { if (!it.exists()) it.mkdirs() }
 

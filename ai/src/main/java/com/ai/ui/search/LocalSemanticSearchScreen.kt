@@ -76,53 +76,88 @@ fun LocalSemanticSearchScreen(
         TitleBar(title = "Local semantic search", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (availableModels.isEmpty()) {
-            Text(
-                "No local models yet. Tap \"Add model\" and pick a MediaPipe-compatible text-embedder .tflite (e.g. universal_sentence_encoder.tflite, average_word_embedder.tflite). The file is copied into the app's local_models folder; nothing leaves the device.",
-                fontSize = 13.sp, color = AppColors.TextTertiary,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-        }
-
+        // Model picker. Tapping it opens a dropdown with three sections:
+        //   - the recommended default (Universal Sentence Encoder Lite)
+        //     — downloads from MediaPipe's gallery on first selection,
+        //   - any models already in local_models/, and
+        //   - "Pick a file…" which opens the SAF picker.
+        // Nothing happens at app launch — the download is gated on the
+        // user explicitly picking the default in this dropdown.
+        val defaultInstalled = LocalEmbedder.isDefaultModelInstalled(context)
         Box {
             OutlinedButton(
-                onClick = { if (availableModels.isNotEmpty()) pickerOpen = true },
-                enabled = availableModels.isNotEmpty(),
+                onClick = { pickerOpen = true },
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) {
                 Text(
-                    text = picked ?: "No local models",
+                    text = picked ?: "Choose a local model",
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
-                availableModels.forEach { m ->
-                    DropdownMenuItem(text = { Text(m) }, onClick = { picked = m; pickerOpen = false })
-                }
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            if (defaultInstalled) "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} ✓"
+                            else "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} — download (~25 MB)"
+                        )
+                    },
+                    onClick = {
+                        pickerOpen = false
+                        if (defaultInstalled) {
+                            picked = LocalEmbedder.DEFAULT_MODEL_NAME
+                        } else {
+                            running = true
+                            status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…"
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    LocalEmbedder.downloadDefaultModel(context) { soFar, total ->
+                                        val pct = if (total > 0) " ${(soFar * 100 / total)}%" else ""
+                                        scope.launch(Dispatchers.Main) {
+                                            status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…$pct"
+                                        }
+                                    }
+                                }
+                                running = false
+                                if (ok) {
+                                    availableModels = LocalEmbedder.availableModels(context)
+                                    picked = LocalEmbedder.DEFAULT_MODEL_NAME
+                                    status = "Installed ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}"
+                                } else status = "Download failed."
+                            }
+                        }
+                    }
+                )
+                availableModels
+                    .filter { it != LocalEmbedder.DEFAULT_MODEL_NAME }
+                    .forEach { m ->
+                        DropdownMenuItem(text = { Text(m) }, onClick = { picked = m; pickerOpen = false })
+                    }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text("Pick a file…") },
+                    onClick = {
+                        pickerOpen = false
+                        pickFile.launch(arrayOf("application/octet-stream", "*/*"))
+                    }
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Add model", maxLines = 1, softWrap = false) }
-            picked?.let { name ->
-                Spacer(modifier = Modifier.width(8.dp))
-                OutlinedButton(
+        picked?.let { name ->
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(
                     onClick = {
                         LocalEmbedder.release(name)
                         File(LocalEmbedder.localModelsDir(context), "$name.tflite").delete()
                         availableModels = LocalEmbedder.availableModels(context)
                         picked = availableModels.firstOrNull()
                         status = "Removed $name"
-                    },
-                    colors = AppColors.outlinedButtonColors()
-                ) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    }
+                ) { Text("Remove this model", color = AppColors.Red, fontSize = 12.sp) }
             }
         }
 
