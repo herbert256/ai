@@ -499,10 +499,17 @@ private fun displayNameForUri(context: android.content.Context, uri: Uri): Strin
 
 /** Multi-select dialog over the existing knowledge bases. Used by
  *  the New Report screen and the Chat parameters screen to attach
- *  RAG context to a run / session. Embedder constraint (all
- *  attached KBs must share an embedder) is enforced by the
- *  retrieval path; the dialog itself doesn't filter, just shows
- *  what's available. */
+ *  RAG context to a run / session.
+ *
+ *  Embedder constraint: KnowledgeService.retrieve embeds the query
+ *  with the *first* attached KB's embedder and silently skips KBs
+ *  whose embedder doesn't match (cosine across different vector
+ *  spaces is meaningless). The dialog enforces that here so the
+ *  user can't accidentally attach a mix that the retriever would
+ *  partially drop — once one KB is checked, every other KB whose
+ *  (provider, model) embedder differs becomes unselectable, with
+ *  a small "embedder mismatch" hint. Clearing the last selection
+ *  re-enables every row. */
 @Composable
 fun KnowledgeAttachDialog(
     knowledgeBases: List<KnowledgeBase>,
@@ -511,6 +518,10 @@ fun KnowledgeAttachDialog(
     onConfirm: (Set<String>) -> Unit
 ) {
     val selected = remember(initialSelectedIds) { mutableStateOf(initialSelectedIds) }
+    val anchorEmbedder = remember(selected.value, knowledgeBases) {
+        knowledgeBases.firstOrNull { it.id in selected.value }
+            ?.let { it.embedderProviderId to it.embedderModel }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Attach knowledge") },
@@ -521,20 +532,37 @@ fun KnowledgeAttachDialog(
                         fontSize = 13.sp, color = AppColors.TextTertiary)
                 } else knowledgeBases.forEach { kb ->
                     val isOn = kb.id in selected.value
+                    val matchesAnchor = anchorEmbedder == null ||
+                        (kb.embedderProviderId == anchorEmbedder.first && kb.embedderModel == anchorEmbedder.second)
+                    val enabled = isOn || matchesAnchor
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            selected.value = if (isOn) selected.value - kb.id else selected.value + kb.id
+                        modifier = Modifier.fillMaxWidth().let {
+                            if (enabled) it.clickable {
+                                selected.value = if (isOn) selected.value - kb.id else selected.value + kb.id
+                            } else it
                         },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(checked = isOn, onCheckedChange = { v ->
-                            selected.value = if (v) selected.value + kb.id else selected.value - kb.id
-                        })
+                        Checkbox(
+                            checked = isOn,
+                            enabled = enabled,
+                            onCheckedChange = { v ->
+                                selected.value = if (v) selected.value + kb.id else selected.value - kb.id
+                            }
+                        )
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(kb.name, fontSize = 14.sp, color = Color.White,
+                            Text(kb.name,
+                                fontSize = 14.sp,
+                                color = if (enabled) Color.White else AppColors.TextDisabled,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(embedderLabel(kb), fontSize = 11.sp, color = AppColors.TextTertiary,
+                            Text(embedderLabel(kb),
+                                fontSize = 11.sp,
+                                color = if (enabled) AppColors.TextTertiary else AppColors.TextDisabled,
                                 fontFamily = FontFamily.Monospace)
+                            if (!enabled) {
+                                Text("embedder mismatch — clear selection to enable",
+                                    fontSize = 10.sp, color = AppColors.TextDisabled)
+                            }
                         }
                     }
                 }
