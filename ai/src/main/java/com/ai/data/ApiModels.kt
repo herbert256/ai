@@ -589,7 +589,12 @@ data class OpenRouterModelInfo(
     val top_provider: OpenRouterTopProvider? = null,
     val architecture: OpenRouterArchitecture? = null,
     val per_request_limits: OpenRouterLimits? = null,
-    val supported_parameters: List<String>? = null
+    val supported_parameters: List<String>? = null,
+    /** Training-data cutoff date the model creator declares (ISO
+     *  YYYY-MM-DD). Useful on Model Info — users routinely ask
+     *  "does this model know about <recent thing>". Null when the
+     *  upstream catalog doesn't carry it. */
+    val knowledge_cutoff: String? = null
 )
 
 data class OpenRouterPricing(val prompt: String? = null, val completion: String? = null, val image: String? = null, val request: String? = null)

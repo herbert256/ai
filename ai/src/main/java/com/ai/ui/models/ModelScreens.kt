@@ -1001,6 +1001,7 @@ fun ModelInfoScreen(
                                 or.architecture?.tokenizer?.let { ModelInfoRow("Tokenizer", it) }
                                 or.architecture?.instruct_type?.let { ModelInfoRow("Instruct Type", it) }
                                 or.top_provider?.is_moderated?.let { ModelInfoRow("Moderated", if (it) "Yes" else "No") }
+                                or.knowledge_cutoff?.let { ModelInfoRow("Knowledge Cutoff", it) }
                             }
                         }
                     }
