@@ -427,7 +427,14 @@ object ReportStorage {
                 imageMime = src.imageMime,
                 webSearchTool = src.webSearchTool,
                 reasoningEffort = src.reasoningEffort,
-                sourceReportId = src.sourceReportId
+                sourceReportId = src.sourceReportId,
+                // RAG context the source report ran against — without
+                // copying this list a Regenerate on the copy runs with
+                // zero attached KBs and silently produces different
+                // output than the original. `pinned` intentionally stays
+                // at the default false: a copy shouldn't inherit pin
+                // status, that's a fresh user choice on the new entry.
+                knowledgeBaseIds = src.knowledgeBaseIds
             )
             saveReport(copy)
             newId
