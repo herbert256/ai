@@ -2,11 +2,13 @@ package com.ai.data
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -51,6 +53,9 @@ internal object KnowledgeExtractors {
             KnowledgeSourceType.PDF -> readUriPdf(context, Uri.parse(origin))
             KnowledgeSourceType.DOCX -> readUriDocx(context, Uri.parse(origin))
             KnowledgeSourceType.ODT -> readUriOdt(context, Uri.parse(origin))
+            KnowledgeSourceType.XLSX -> readUriXlsx(context, Uri.parse(origin))
+            KnowledgeSourceType.ODS -> readUriOds(context, Uri.parse(origin))
+            KnowledgeSourceType.IMAGE -> readUriImage(context, Uri.parse(origin))
             KnowledgeSourceType.URL -> fetchUrlAsText(origin)
         }
     }
@@ -112,13 +117,7 @@ internal object KnowledgeExtractors {
                             val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
                             try {
                                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                                val pageText = runBlocking {
-                                    suspendCancellableCoroutine<String> { cont ->
-                                        recognizer.process(InputImage.fromBitmap(bitmap, 0))
-                                            .addOnSuccessListener { result -> cont.resume(result.text) }
-                                            .addOnFailureListener { e -> cont.resumeWithException(e) }
-                                    }
-                                }
+                                val pageText = ocrBitmap(recognizer, bitmap)
                                 if (pageText.isNotBlank()) {
                                     if (sb.isNotEmpty()) sb.append("\n\n")
                                     sb.append(pageText)
@@ -137,6 +136,56 @@ internal object KnowledgeExtractors {
             runCatching { recognizer.close() }
         }
     }
+
+    /** Standalone image OCR. Loads the bitmap once via SAF, runs ML
+     *  Kit, returns the recognised text. Used by JPG / PNG sources;
+     *  PDF OCR uses the same [ocrBitmap] helper after rendering each
+     *  page. Sub-sampling guard avoids OOM on huge phone photos. */
+    private fun readUriImage(context: Context, uri: Uri): String {
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        try {
+            // Decode bounds first so we can downsample to ~2400px on
+            // the long side — same cap PDF OCR uses, keeps memory
+            // honest on 100-megapixel phone shots.
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri).use { inp ->
+                requireNotNull(inp) { "Could not open $uri" }
+                BitmapFactory.decodeStream(inp, null, bounds)
+            }
+            val maxDim = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+            var sampleSize = 1
+            while (maxDim / sampleSize > 2400) sampleSize *= 2
+            val opts = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            val bitmap = context.contentResolver.openInputStream(uri).use { inp ->
+                requireNotNull(inp) { "Could not open $uri" }
+                BitmapFactory.decodeStream(inp, null, opts)
+            } ?: return ""
+            return try {
+                ocrBitmap(recognizer, bitmap).normalised()
+            } finally {
+                bitmap.recycle()
+            }
+        } finally {
+            runCatching { recognizer.close() }
+        }
+    }
+
+    /** Bridge ML Kit's Task<Text> async API to a synchronous String
+     *  via a suspend point. The calling IO dispatcher serialises
+     *  overlapping work across pages or images so we never run two
+     *  recognizer.process calls concurrently against the same
+     *  client. */
+    private fun ocrBitmap(recognizer: TextRecognizer, bitmap: Bitmap): String =
+        runBlocking {
+            suspendCancellableCoroutine<String> { cont ->
+                recognizer.process(InputImage.fromBitmap(bitmap, 0))
+                    .addOnSuccessListener { result -> cont.resume(result.text) }
+                    .addOnFailureListener { e -> cont.resumeWithException(e) }
+            }
+        }
 
     /** Walk a .docx (Office Open XML) zip, find word/document.xml, and
      *  pull the visible text out via a streaming XmlPullParser pass.
@@ -225,6 +274,199 @@ internal object KnowledgeExtractors {
                     if (inText) {
                         val chunk = parser.text
                         if (!chunk.isNullOrEmpty()) sb.append(chunk)
+                    }
+                }
+            }
+            event = parser.next()
+        }
+        return sb.toString()
+    }
+
+    /** Walk an .xlsx (Office Open XML spreadsheet). Two-pass:
+     *  1. Read xl/sharedStrings.xml into an indexed list — strings
+     *     are deduped across the workbook; cells reference them by
+     *     index rather than embedding.
+     *  2. For each xl/worksheets/sheet*.xml, walk cells (<c>);
+     *     resolve t="s" via the shared-strings table, fall through
+     *     to inline values for everything else. Each row becomes a
+     *     tab-separated line; sheets are separated by a blank line
+     *     and a "[sheet N]" header so the chunker preserves
+     *     boundaries. */
+    private fun readUriXlsx(context: Context, uri: Uri): String {
+        return context.contentResolver.openInputStream(uri).use { inp ->
+            requireNotNull(inp) { "Could not open $uri" }
+            // First pass: pull every relevant entry into memory so we
+            // can two-pass the workbook (shared strings → sheets) without
+            // having to re-open the SAF stream (zip entries are
+            // forward-only). Phone-sized spreadsheets are small enough
+            // that holding them is cheap.
+            val sharedStrings = mutableListOf<String>()
+            val sheetXmls = mutableListOf<Pair<String, ByteArray>>()
+            ZipInputStream(inp).use { zin ->
+                var entry = zin.nextEntry
+                while (entry != null) {
+                    val name = entry.name
+                    if (name == "xl/sharedStrings.xml") {
+                        sharedStrings += parseXlsxSharedStrings(zin.readBytes().inputStream())
+                    } else if (name.startsWith("xl/worksheets/") && name.endsWith(".xml")) {
+                        sheetXmls += name to zin.readBytes()
+                    }
+                    entry = zin.nextEntry
+                }
+            }
+            val sb = StringBuilder()
+            sheetXmls.sortedBy { it.first }.forEachIndexed { idx, (_, bytes) ->
+                if (sb.isNotEmpty()) sb.append("\n\n")
+                sb.append("[sheet ").append(idx + 1).append("]\n")
+                sb.append(parseXlsxSheet(bytes.inputStream(), sharedStrings))
+            }
+            sb.toString()
+        }.normalised()
+    }
+
+    /** Returns the indexed list of strings in xl/sharedStrings.xml.
+     *  A <si> may contain a single <t> or several <r><t>…</t></r>
+     *  rich-text runs — flatten by concatenating every <t> under a
+     *  given <si>. */
+    private fun parseXlsxSharedStrings(stream: InputStream): List<String> {
+        val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }
+        val parser = factory.newPullParser()
+        parser.setInput(stream, "UTF-8")
+        val out = mutableListOf<String>()
+        val current = StringBuilder()
+        var depth = 0
+        var inT = false
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                XmlPullParser.START_TAG -> {
+                    when (parser.name) {
+                        "si" -> { current.clear(); depth = 1 }
+                        "t" -> if (depth > 0) inT = true
+                    }
+                }
+                XmlPullParser.TEXT -> if (inT) current.append(parser.text)
+                XmlPullParser.END_TAG -> {
+                    when (parser.name) {
+                        "t" -> inT = false
+                        "si" -> { out += current.toString(); current.clear(); depth = 0 }
+                    }
+                }
+            }
+            event = parser.next()
+        }
+        return out
+    }
+
+    /** Walk a single sheet, emit one tab-separated row per <row>.
+     *  Cell types: t="s" → resolve via [sharedStrings]; t="inlineStr"
+     *  → text under <is><t>; everything else → text of <v> as-is. */
+    private fun parseXlsxSheet(stream: InputStream, sharedStrings: List<String>): String {
+        val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }
+        val parser = factory.newPullParser()
+        parser.setInput(stream, "UTF-8")
+        val sb = StringBuilder()
+        val rowCells = mutableListOf<String>()
+        var inV = false
+        var inInlineT = false
+        var cellType: String? = null
+        val cellText = StringBuilder()
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                XmlPullParser.START_TAG -> when (parser.name) {
+                    "row" -> rowCells.clear()
+                    "c" -> {
+                        cellType = parser.getAttributeValue(null, "t")
+                        cellText.clear()
+                    }
+                    "v" -> inV = true
+                    "t" -> if (cellType == "inlineStr") inInlineT = true
+                }
+                XmlPullParser.TEXT -> {
+                    if (inV || inInlineT) cellText.append(parser.text)
+                }
+                XmlPullParser.END_TAG -> when (parser.name) {
+                    "v" -> inV = false
+                    "t" -> inInlineT = false
+                    "c" -> {
+                        val raw = cellText.toString().trim()
+                        val resolved = if (cellType == "s") {
+                            raw.toIntOrNull()?.let { sharedStrings.getOrNull(it) } ?: ""
+                        } else raw
+                        rowCells += resolved
+                    }
+                    "row" -> {
+                        // Drop fully-empty rows so chunking doesn't
+                        // get drowned in blank lines from sparse sheets.
+                        if (rowCells.any { it.isNotBlank() }) {
+                            sb.append(rowCells.joinToString("\t")).append('\n')
+                        }
+                    }
+                }
+            }
+            event = parser.next()
+        }
+        return sb.toString()
+    }
+
+    /** ODS spreadsheet: content.xml carries one <table:table> per
+     *  sheet. Cells live in <table:table-cell> with text in
+     *  <text:p>. We treat <table:table-cell> as a tab separator and
+     *  <table:table-row> as a newline. <table:table> boundaries get
+     *  a blank line + "[sheet N]" header to mirror the XLSX path. */
+    private fun readUriOds(context: Context, uri: Uri): String {
+        return context.contentResolver.openInputStream(uri).use { inp ->
+            requireNotNull(inp) { "Could not open $uri" }
+            ZipInputStream(inp).use { zin ->
+                var entry = zin.nextEntry
+                while (entry != null) {
+                    if (entry.name == "content.xml") {
+                        return@use parseOdsContent(zin.readBytes().inputStream())
+                    }
+                    entry = zin.nextEntry
+                }
+                ""
+            }
+        }.normalised()
+    }
+
+    private fun parseOdsContent(stream: InputStream): String {
+        val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }
+        val parser = factory.newPullParser()
+        parser.setInput(stream, "UTF-8")
+        val sb = StringBuilder()
+        var sheetIdx = 0
+        val rowCells = mutableListOf<String>()
+        val cellText = StringBuilder()
+        var inP = false
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                XmlPullParser.START_TAG -> when (parser.name) {
+                    "table" -> {
+                        sheetIdx++
+                        if (sb.isNotEmpty()) sb.append('\n')
+                        sb.append("[sheet ").append(sheetIdx).append("]\n")
+                    }
+                    "table-row" -> rowCells.clear()
+                    "table-cell" -> cellText.clear()
+                    "p" -> inP = true
+                }
+                XmlPullParser.TEXT -> if (inP) cellText.append(parser.text)
+                XmlPullParser.END_TAG -> when (parser.name) {
+                    "p" -> {
+                        inP = false
+                        // Multiple <text:p> inside one cell → join
+                        // them with a space so the value doesn't run
+                        // on. Trim later when emitting the row.
+                        if (cellText.isNotEmpty() && !cellText.endsWith(" ")) cellText.append(' ')
+                    }
+                    "table-cell" -> rowCells += cellText.toString().trim()
+                    "table-row" -> {
+                        if (rowCells.any { it.isNotBlank() }) {
+                            sb.append(rowCells.joinToString("\t")).append('\n')
+                        }
                     }
                 }
             }

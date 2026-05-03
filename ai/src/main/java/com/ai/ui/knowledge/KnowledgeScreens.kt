@@ -246,6 +246,10 @@ fun KnowledgeDetailScreen(
                     "application/pdf",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     "application/vnd.oasis.opendocument.text",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.oasis.opendocument.spreadsheet",
+                    "image/jpeg",
+                    "image/png",
                     "*/*"
                 )) },
                 enabled = !working, modifier = Modifier.weight(1f),
@@ -374,6 +378,9 @@ private fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowledg
         name.endsWith(".md") || name.endsWith(".markdown") -> KnowledgeSourceType.MARKDOWN
         name.endsWith(".docx") -> KnowledgeSourceType.DOCX
         name.endsWith(".odt") -> KnowledgeSourceType.ODT
+        name.endsWith(".xlsx") -> KnowledgeSourceType.XLSX
+        name.endsWith(".ods") -> KnowledgeSourceType.ODS
+        name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") -> KnowledgeSourceType.IMAGE
         else -> KnowledgeSourceType.TEXT
     }
 }
