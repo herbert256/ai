@@ -322,5 +322,12 @@ data class ModelCapabilities(
      *  Claude 3.7 / 4.x report different sets per tier. Empty / null
      *  means "no per-level info; the 🧠 dropdown falls back to all
      *  four options". */
-    val reasoningEffortLevels: List<String>? = null
+    val reasoningEffortLevels: List<String>? = null,
+    /** Native PDF ingestion — the model accepts a document content
+     *  block with raw PDF bytes (Claude 3.5+). Distinct from the
+     *  vision flag because PDFs are not images: Anthropic parses
+     *  page text + embedded images server-side, no client-side OCR
+     *  needed. Currently populated from Anthropic
+     *  `capabilities.pdf_input.supported`. */
+    val supportsPdfInput: Boolean? = null
 )

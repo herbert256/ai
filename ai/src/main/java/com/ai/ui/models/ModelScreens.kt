@@ -913,6 +913,16 @@ fun ModelInfoScreen(
                                     Text(reasoningLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
                                     Text(reasoningSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
                                 }
+                                // PDF input — currently only Anthropic
+                                // self-reports this on its /v1/models, so
+                                // the source label is fixed when present.
+                                cfg.modelCapabilities[modelName]?.supportsPdfInput?.let { pdf ->
+                                    Row {
+                                        Text("PDF input 📄: ${if (pdf) "yes" else "no"}",
+                                            fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                        Text("Provider self-report", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 // Add / edit manual override — opens the same form the
                                 // Manual model types CRUD uses, pre-filled with this

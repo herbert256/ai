@@ -586,6 +586,7 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         val id = info.id ?: return@mapNotNull null
         val thinking = info.capabilities?.thinking?.supported
         val vision = info.capabilities?.image_input?.supported
+        val pdf = info.capabilities?.pdf_input?.supported
         val ctx = info.max_input_tokens
         val maxOut = info.max_tokens
         val effort = info.capabilities?.effort
@@ -600,11 +601,12 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
             contextLength = ctx,
             maxOutputTokens = maxOut,
             supportsReasoning = thinking,
-            reasoningEffortLevels = effortLevels
+            reasoningEffortLevels = effortLevels,
+            supportsPdfInput = pdf
         )
         if (cap.supportsVision == null && cap.contextLength == null
             && cap.maxOutputTokens == null && cap.supportsReasoning == null
-            && cap.reasoningEffortLevels == null) null
+            && cap.reasoningEffortLevels == null && cap.supportsPdfInput == null) null
         else id to cap
     }.toMap()
     val visionFlagged = caps.filterValues { it.supportsVision == true }.keys.toSet()
