@@ -146,9 +146,11 @@ fun ReportsHubScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "AI Reports", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(24.dp))
-        HubCard(icon = "\uD83D\uDCDD", title = "New AI Report", onClick = onNavigateToNewReport)
-        Spacer(modifier = Modifier.height(12.dp))
-        HubCard(icon = "\uD83D\uDD04", title = "Start with a previous prompt", onClick = onNavigateToPromptHistory, enabled = hasPromptHistory)
+        StartHubGroup(
+            hasPromptHistory = hasPromptHistory,
+            onNew = onNavigateToNewReport,
+            onPreviousPrompt = onNavigateToPromptHistory
+        )
         Spacer(modifier = Modifier.height(12.dp))
         HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory, enabled = hasPreviousReports)
         Spacer(modifier = Modifier.height(12.dp))
@@ -158,6 +160,30 @@ fun ReportsHubScreen(
             onExtendedLocal = onNavigateToLocalSearch,
             onSemantic = onNavigateToSearch
         )
+    }
+}
+
+/** Groups the two creation entry points ("New AI Report" and "Start
+ *  with a previous prompt") into one Start card so the hub doesn't
+ *  show two loose top-level rows for what is conceptually the same
+ *  step. Mirrors the Search card pattern. */
+@Composable
+private fun StartHubGroup(
+    hasPromptHistory: Boolean,
+    onNew: () -> Unit,
+    onPreviousPrompt: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text("Start", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 4.dp))
+            SearchHubItem(icon = "\uD83D\uDCDD", title = "New AI Report", enabled = true, onClick = onNew)
+            SearchHubItem(icon = "\uD83D\uDD04", title = "Start with a previous prompt", enabled = hasPromptHistory, onClick = onPreviousPrompt)
+        }
     }
 }
 
