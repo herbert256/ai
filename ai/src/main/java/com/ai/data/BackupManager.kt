@@ -112,60 +112,92 @@ object BackupManager {
             if (version > MANIFEST_VERSION) {
                 throw IllegalStateException("Backup is from a newer app version ($version). Please update the app.")
             }
+            // Validate-then-write. Walk the zip once into memory,
+            // catching any read/truncation failure BEFORE we touch
+            // filesDir. The previous flow cleared filesDir as soon as
+            // the manifest version checked out — any subsequent
+            // failure (zip corruption, partial entry, IOException
+            // mid-stream) wiped the user's reports / chats / KBs and
+            // left a half-empty install with no way back. Now: bytes
+            // first, destroy second.
+            val staged = readAllEntriesValidated(context, tempZip)
             clearFilesDirForRestore(context.filesDir)
-            restoreFromZip(context, tempZip, version)
+            applyStagedEntries(context, staged, version)
         } finally {
             tempZip.delete()
         }
     }
 
-    private fun restoreFromZip(context: Context, zipFile: File, version: Int): RestoreSummary {
-        var prefsRestored = 0
-        var filesRestored = 0
-
+    /** Walk every entry in the zip, decompress + readBytes each one
+     *  into memory, and return the staged map. Any IOException /
+     *  truncation throws here, BEFORE the destructive
+     *  clearFilesDirForRestore step in [restore]. Memory cost: full
+     *  uncompressed payload — acceptable since backups are typically
+     *  10–50 MB and the device already had to load that much during
+     *  the SAF copy into the temp file. */
+    private fun readAllEntriesValidated(context: Context, zipFile: File): Map<String, ByteArray> {
+        val out = LinkedHashMap<String, ByteArray>()
         ZipInputStream(zipFile.inputStream()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
                 if (entry.isDirectory) { zip.closeEntry(); continue }
-                val bytes = zip.readBytes()
-                when {
-                    entry.name == "manifest.json" -> Unit
-                    // Generic: any prefs/<name>.json restores into the SharedPreferences
-                    // file called <name>. Old backups (pre-pricing_cache addition) and
-                    // future additions both round-trip without further code changes.
-                    entry.name.startsWith("prefs/") && entry.name.endsWith(".json") -> {
-                        val prefsName = entry.name.removePrefix("prefs/").removeSuffix(".json")
-                        if (prefsName.isNotBlank()) {
-                            applyPrefs(context, prefsName, bytes); prefsRestored++
-                        }
-                    }
-                    entry.name.startsWith("files/") -> {
-                        val rel = entry.name.removePrefix("files/")
-                        if (rel.isNotBlank()) {
-                            val target = File(context.filesDir, rel)
-                            // Defence in depth — a zip entry name like
-                            // `files/../shared_prefs/eval_prefs.xml`
-                            // resolves outside filesDir into the
-                            // app-private data dir; can't escape the
-                            // sandbox but could clobber a sibling
-                            // directory (shared_prefs, databases) that
-                            // the prefs/ branch is also restoring,
-                            // creating racy half-restores. Drop the
-                            // entry rather than write outside filesDir.
-                            val canonicalTarget = target.canonicalPath
-                            val canonicalRoot = context.filesDir.canonicalPath + File.separator
-                            if (!canonicalTarget.startsWith(canonicalRoot)) {
-                                android.util.Log.w("BackupManager",
-                                    "Skipping zip entry that escapes filesDir: ${entry.name}")
-                            } else {
-                                target.parentFile?.mkdirs()
-                                target.writeBytes(bytes)
-                                filesRestored++
-                            }
-                        }
+                val name = entry.name
+                // Skip entry names we wouldn't act on anyway so a
+                // weird/extra path in the zip doesn't allocate bytes
+                // for nothing.
+                val keep = name == "manifest.json"
+                    || (name.startsWith("prefs/") && name.endsWith(".json"))
+                    || name.startsWith("files/")
+                if (!keep) { zip.closeEntry(); continue }
+                // For files/ entries, validate the resolved path lives
+                // inside filesDir before staging — defence in depth
+                // against `files/../shared_prefs/...` style entries.
+                if (name.startsWith("files/")) {
+                    val rel = name.removePrefix("files/")
+                    if (rel.isBlank()) { zip.closeEntry(); continue }
+                    val target = File(context.filesDir, rel)
+                    val canonicalTarget = target.canonicalPath
+                    val canonicalRoot = context.filesDir.canonicalPath + File.separator
+                    if (!canonicalTarget.startsWith(canonicalRoot)) {
+                        android.util.Log.w("BackupManager",
+                            "Skipping zip entry that escapes filesDir: $name")
+                        zip.closeEntry(); continue
                     }
                 }
+                out[name] = zip.readBytes()
                 zip.closeEntry()
+            }
+        }
+        return out
+    }
+
+    /** Second pass — apply the in-memory staged entries to disk. By
+     *  now we've passed the wipe and the staged bytes are already
+     *  proven to read cleanly. */
+    private fun applyStagedEntries(context: Context, staged: Map<String, ByteArray>, version: Int): RestoreSummary {
+        var prefsRestored = 0
+        var filesRestored = 0
+        for ((name, bytes) in staged) {
+            when {
+                name == "manifest.json" -> Unit
+                // Generic: any prefs/<name>.json restores into the SharedPreferences
+                // file called <name>. Old backups (pre-pricing_cache addition) and
+                // future additions both round-trip without further code changes.
+                name.startsWith("prefs/") && name.endsWith(".json") -> {
+                    val prefsName = name.removePrefix("prefs/").removeSuffix(".json")
+                    if (prefsName.isNotBlank()) {
+                        applyPrefs(context, prefsName, bytes); prefsRestored++
+                    }
+                }
+                name.startsWith("files/") -> {
+                    val rel = name.removePrefix("files/")
+                    if (rel.isNotBlank()) {
+                        val target = File(context.filesDir, rel)
+                        target.parentFile?.mkdirs()
+                        target.writeBytes(bytes)
+                        filesRestored++
+                    }
+                }
             }
         }
         // After restoring the provider_registry prefs, fold in any providers that
