@@ -346,7 +346,11 @@ private fun FilterDropdown(
             colors = AppColors.outlinedButtonColors(),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
         ) {
-            Text("$label: $value", fontSize = 11.sp,
+            // Default ("(All)") is implicit — show just the label so the
+            // button reads "Category" rather than "Category: (All)".
+            // Active filter shows "<label>: <value>".
+            val display = if (value == "(All)") label else "$label: $value"
+            Text(display, fontSize = 11.sp,
                 modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("▾", fontSize = 11.sp, color = AppColors.TextTertiary)
         }
@@ -379,7 +383,11 @@ private fun FilterLauncherButton(
         colors = AppColors.outlinedButtonColors(),
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
     ) {
-        Text("$label: $value", fontSize = 11.sp,
+        // Match FilterDropdown: hide the "(All)" sentinel on the button
+        // — defaulting to All is implicit, only show "<label>: <value>"
+        // when something specific is picked.
+        val display = if (value == "(All)") label else "$label: $value"
+        Text(display, fontSize = 11.sp,
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text("▸", fontSize = 11.sp, color = AppColors.TextTertiary)
     }
