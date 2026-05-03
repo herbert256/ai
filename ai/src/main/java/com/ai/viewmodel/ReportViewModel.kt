@@ -880,25 +880,36 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // Drop the old result so the report row reverts to ⏳ until
             // executeReportTask publishes the new one.
             _agentResults.update { it - agentId }
-            // Mirror the override-params recipe used by regenerateReport so
-            // the per-row "Call model API again" path also picks up any
-            // pending Edit Parameters changes the user staged via the
-            // banner — without this the banner was a lie for this flow.
-            // The report's web-search-tool flag is OR'd on top so a regen
-            // doesn't lose 🌐 if the original report had it on.
+            // Rebuild the request from the model's CURRENT capabilities
+            // rather than blindly replaying the original report's flags.
+            // The user may have toggled vision / web-search / reasoning
+            // overrides since the report was generated, or the model's
+            // /models response may have been refreshed with a different
+            // capability set; either way "Call model API again" should
+            // produce a request that fits today's view of the model.
+            //
+            // Negatives only — we never invent flags the report didn't
+            // originally carry. Dropping unsupported features avoids
+            // 400s like "model X does not support reasoning_effort"
+            // even though the dispatcher's static gate would also
+            // strip them; pre-stripping keeps cost / token estimates
+            // and the per-call trace clean of speculative parameters.
+            val effectiveModel = task.runtimeAgent.model
+            val canReason = aiSettings.isReasoningCapable(provider, effectiveModel)
+            val canWeb = aiSettings.isWebSearchCapable(provider, effectiveModel)
+            val canVision = aiSettings.isVisionCapable(provider, effectiveModel)
             val baseOverride = state.reportAdvancedParameters
-            val withWeb = if (report.webSearchTool) {
+            val withWeb = if (report.webSearchTool && canWeb) {
                 (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
-            } else baseOverride
-            // Same overlay for the per-report 🧠 reasoning level — read
-            // off the saved report so a per-row re-run keeps the level
-            // even if the user navigated away and lost UiState.
-            val overrideParams = if (report.reasoningEffort != null) {
+            } else baseOverride?.copy(webSearchTool = false) ?: baseOverride
+            val overrideParams = if (report.reasoningEffort != null && canReason) {
                 (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort)
-            } else withWeb
+            } else withWeb?.copy(reasoningEffort = null) ?: withWeb
+            val effectiveImage = if (canVision) report.imageBase64 else null
+            val effectiveImageMime = if (canVision) report.imageMime else null
             executeReportTask(
                 context, reportId, report.prompt, overrideParams, task,
-                report.imageBase64, report.imageMime, isRegeneration = true
+                effectiveImage, effectiveImageMime, isRegeneration = true
             )
             }
         }
