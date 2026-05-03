@@ -377,6 +377,12 @@ data class OpenAiModel(
     val context_window: Int? = null,
     val supports_chat: Boolean? = null,
     val supports_image_input: Boolean? = null,
+    /** Moonshot's `/v1/models` declares vision under
+     *  `supports_image_in` (no trailing `put`). Different field, same
+     *  meaning — the dispatcher falls back to it when
+     *  `supports_image_input` is null so we don't silently miss every
+     *  Moonshot vision-capable model. */
+    val supports_image_in: Boolean? = null,
     /** xAI and some other OpenAI-compat providers expose this array of
      *  parameter names the model honors (e.g. ["reasoning",
      *  "include_reasoning", "max_tokens", …]). Used to detect thinking-

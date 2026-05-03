@@ -502,7 +502,9 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         val info = rawModels.firstOrNull { it.id == id }
         // Mistral exposes a rich capabilities block; other providers
         // sprinkle individual flags. Pull whatever we can recognize.
-        val supportsVision = info?.capabilities?.vision ?: info?.supports_image_input
+        val supportsVision = info?.capabilities?.vision
+            ?: info?.supports_image_input
+            ?: info?.supports_image_in
         val supportsFn = info?.capabilities?.function_calling
         val ctx = info?.max_context_length ?: info?.context_length ?: info?.context_window
         // Reasoning: prefer Mistral's nested `capabilities.reasoning`
