@@ -225,10 +225,10 @@ QUESTION:
 @QUESTION@
 
 RESPONSES:
-@RESULTS@
+@RESULTS_SHORT@
 
 Reference rules — follow them exactly:
-- Inline references MUST be ONLY the bracketed number, e.g. [1], [3]. Never include "provider=", "model=", or any provider or model name in an inline reference. A reference legend mapping each [N] to its provider and model is appended to your output automatically — do not duplicate it.
+- Each response is identified by ONLY a bracketed number — `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.
 - When ALL @COUNT@ responses agree on a point, write "all responses agree" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] … [@COUNT@] is noise.
 - Only enumerate IDs when a subset (not all) of the responses share a position — then list just that subset, e.g. "[1] and [3] argue …".
 
@@ -263,15 +263,23 @@ TEXT TO TRANSLATE:
 }
 
 /** Substitutes placeholders in [template] using the values for the
- *  current secondary-result run. `@RESULTS@` arrives pre-formatted from
- *  the caller — we only do plain string replace here. */
+ *  current secondary-result run. `@RESULTS@` and `@RESULTS_SHORT@`
+ *  arrive pre-formatted from the caller — we only do plain string
+ *  replace here. When [resultsShort] is null we substitute it with
+ *  [results] so a user template that references `@RESULTS_SHORT@`
+ *  without a paired short block still gets something coherent. */
 fun resolveSecondaryPrompt(
     template: String, question: String, results: String, count: Int,
-    title: String? = null
+    title: String? = null,
+    resultsShort: String? = null
 ): String {
     val now = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
     return template
         .replace("@QUESTION@", question)
+        // @RESULTS_SHORT@ first so the @RESULTS@ pass below doesn't
+        // partially match (the longer placeholder must replace before
+        // its prefix).
+        .replace("@RESULTS_SHORT@", resultsShort ?: results)
         .replace("@RESULTS@", results)
         .replace("@COUNT@", count.toString())
         .replace("@DATE@", now)
@@ -299,6 +307,28 @@ fun buildResultsBlock(report: Report, includeIds: Set<Int>? = null): String {
         val provider = AppService.findById(agent.provider)?.id ?: agent.provider
         sb.append("[").append(originalId).append("] provider=").append(provider)
             .append(" model=").append(agent.model).append('\n')
+        sb.append(agent.responseBody?.trim() ?: "")
+        emitted++
+        if (emitted != total) sb.append("\n\n")
+    }
+    return sb.toString()
+}
+
+/** Anonymised twin of [buildResultsBlock] — same structure but the
+ *  per-agent header is just `[N]` with no `provider=` / `model=`
+ *  identifiers. Used for Compare so the model literally cannot echo
+ *  the long `[N] provider=… model=…` string back into its prose;
+ *  the user-visible mapping arrives via [buildCompareLegend] which
+ *  is appended at storage time. */
+fun buildResultsBlockShort(report: Report, includeIds: Set<Int>? = null): String {
+    val sb = StringBuilder()
+    val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+    var emitted = 0
+    val total = if (includeIds != null) successful.indices.count { (it + 1) in includeIds } else successful.size
+    successful.forEachIndexed { idx, agent ->
+        val originalId = idx + 1
+        if (includeIds != null && originalId !in includeIds) return@forEachIndexed
+        sb.append("[").append(originalId).append("]\n")
         sb.append(agent.responseBody?.trim() ?: "")
         emitted++
         if (emitted != total) sb.append("\n\n")
