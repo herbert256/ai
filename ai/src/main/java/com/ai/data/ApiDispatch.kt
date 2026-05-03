@@ -565,14 +565,23 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         val vision = info.capabilities?.image_input?.supported
         val ctx = info.max_input_tokens
         val maxOut = info.max_tokens
+        val effort = info.capabilities?.effort
+        val effortLevels = if (effort?.supported == true) buildList {
+            if (effort.low?.supported == true) add("low")
+            if (effort.medium?.supported == true) add("medium")
+            if (effort.high?.supported == true) add("high")
+            if (effort.max?.supported == true) add("max")
+        }.takeIf { it.isNotEmpty() } else null
         val cap = ModelCapabilities(
             supportsVision = vision,
             contextLength = ctx,
             maxOutputTokens = maxOut,
-            supportsReasoning = thinking
+            supportsReasoning = thinking,
+            reasoningEffortLevels = effortLevels
         )
         if (cap.supportsVision == null && cap.contextLength == null
-            && cap.maxOutputTokens == null && cap.supportsReasoning == null) null
+            && cap.maxOutputTokens == null && cap.supportsReasoning == null
+            && cap.reasoningEffortLevels == null) null
         else id to cap
     }.toMap()
     val visionFlagged = caps.filterValues { it.supportsVision == true }.keys.toSet()

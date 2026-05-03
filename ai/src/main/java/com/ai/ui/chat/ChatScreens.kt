@@ -668,7 +668,19 @@ fun ChatSessionScreen(
                         onDismissRequest = { reasoningMenuExpanded = false },
                         modifier = Modifier.background(Color(0xFF2D2D2D))
                     ) {
-                        listOf("" to "None", "low" to "Low", "medium" to "Medium", "high" to "High").forEach { (value, label) ->
+                        // Narrow the option list to whatever the model
+                        // self-reports it accepts (Anthropic
+                        // capabilities.effort.{low,medium,high,max}). Fall
+                        // back to the legacy low/medium/high set when the
+                        // provider's /models response didn't carry per-
+                        // level info — every other provider currently.
+                        val perModelLevels = aiSettings.getProvider(provider)
+                            .modelCapabilities[model]?.reasoningEffortLevels
+                        val effortValues = perModelLevels ?: listOf("low", "medium", "high")
+                        val options = listOf("" to "None") + effortValues.map { v ->
+                            v to v.replaceFirstChar { it.uppercase() }
+                        }
+                        options.forEach { (value, label) ->
                             DropdownMenuItem(
                                 text = {
                                     Text(label, fontSize = 13.sp,
