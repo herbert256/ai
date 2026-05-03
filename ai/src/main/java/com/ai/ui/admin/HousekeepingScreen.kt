@@ -316,6 +316,8 @@ fun HousekeepingScreen(
                 }
             }
 
+            LocalModelsCard()
+
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Full reset", fontWeight = FontWeight.Bold, color = Color.White)
@@ -333,5 +335,136 @@ fun HousekeepingScreen(
                 }
             }
         }
+    }
+}
+
+/** Maintenance card for the on-device LiteRT models that back the
+ *  Local Semantic Search screen. Three actions:
+ *
+ *   - Download Universal Sentence Encoder Lite (~25 MB) from
+ *     MediaPipe's public gallery into filesDir/local_models/. Gated
+ *     on the user explicitly tapping the button — no implicit
+ *     downloads.
+ *   - Add a model — SAF file picker that copies a user-supplied
+ *     .tflite into the same directory.
+ *   - Per-row Remove — releases the in-memory TextEmbedder and
+ *     deletes the .tflite file.
+ */
+@Composable
+private fun LocalModelsCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var installed by remember { mutableStateOf(LocalEmbedder.availableModels(context)) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val name = withContext(Dispatchers.IO) { importTfliteModel(context, uri) }
+            if (name != null) {
+                installed = LocalEmbedder.availableModels(context)
+                status = "Imported $name"
+            } else status = "Could not import model"
+        }
+    }
+
+    val defaultInstalled = LocalEmbedder.DEFAULT_MODEL_NAME in installed
+
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Local LiteRT models", fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                "On-device text embedders for the Local Semantic Search screen. Models live in app storage; nothing leaves the device once installed.",
+                fontSize = 12.sp, color = AppColors.TextTertiary
+            )
+
+            Button(
+                onClick = {
+                    if (defaultInstalled) {
+                        status = "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} is already installed."
+                        return@Button
+                    }
+                    working = true
+                    status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…"
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            LocalEmbedder.downloadDefaultModel(context) { soFar, total ->
+                                val pct = if (total > 0) " ${(soFar * 100 / total)}%" else ""
+                                scope.launch(Dispatchers.Main) {
+                                    status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…$pct"
+                                }
+                            }
+                        }
+                        working = false
+                        if (ok) {
+                            installed = LocalEmbedder.availableModels(context)
+                            status = "Installed ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}"
+                        } else status = "Download failed."
+                    }
+                },
+                enabled = !working && !defaultInstalled,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) {
+                Text(
+                    if (defaultInstalled) "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} ✓"
+                    else "Download ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} (~25 MB)",
+                    maxLines = 1, softWrap = false
+                )
+            }
+
+            Button(
+                onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
+                enabled = !working,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            ) { Text("Add model from file…", maxLines = 1, softWrap = false) }
+
+            if (installed.isNotEmpty()) {
+                Text("Installed", fontSize = 12.sp, color = AppColors.TextTertiary)
+                installed.forEach { name ->
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(
+                            text = name,
+                            fontSize = 13.sp, color = Color.White,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = {
+                            LocalEmbedder.release(name)
+                            java.io.File(LocalEmbedder.localModelsDir(context), "$name.tflite").delete()
+                            installed = LocalEmbedder.availableModels(context)
+                            status = "Removed $name"
+                        }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+                    }
+                }
+            }
+
+            status?.let { Text(it, fontSize = 11.sp, color = AppColors.TextTertiary) }
+        }
+    }
+}
+
+/** Copy a user-picked .tflite from the SAF Uri into local_models/.
+ *  Mirrors the helper that previously lived in
+ *  LocalSemanticSearchScreen — moved here so the maintenance flow
+ *  has its own home in Housekeeping. */
+private fun importTfliteModel(context: Context, uri: android.net.Uri): String? {
+    return try {
+        val name = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (c.moveToFirst() && nameIdx >= 0) c.getString(nameIdx) else null
+        }?.takeIf { it.isNotBlank() } ?: "model_${System.currentTimeMillis()}.tflite"
+        val sanitized = name.replace(Regex("[^A-Za-z0-9._-]+"), "_")
+            .let { if (it.endsWith(".tflite", ignoreCase = true)) it else "$it.tflite" }
+        val target = java.io.File(LocalEmbedder.localModelsDir(context), sanitized)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
+        target.nameWithoutExtension
+    } catch (e: Exception) {
+        android.util.Log.e("Housekeeping", "import failed: ${e.message}", e)
+        null
     }
 }

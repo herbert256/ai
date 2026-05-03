@@ -2,8 +2,6 @@ package com.ai.ui.search
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,7 +27,6 @@ import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -52,7 +49,7 @@ fun LocalSemanticSearchScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var availableModels by remember { mutableStateOf(LocalEmbedder.availableModels(context)) }
+    val availableModels = remember { LocalEmbedder.availableModels(context) }
     var picked by remember { mutableStateOf(availableModels.firstOrNull()) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<LocalSemanticHit>>(emptyList()) }
@@ -60,104 +57,36 @@ fun LocalSemanticSearchScreen(
     var running by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
 
-    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val name = withContext(Dispatchers.IO) { importTfliteModel(context, uri) }
-            if (name != null) {
-                availableModels = LocalEmbedder.availableModels(context)
-                picked = name
-                status = "Imported $name"
-            } else status = "Could not import model"
-        }
-    }
-
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "Local semantic search", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Model picker. Tapping it opens a dropdown with three sections:
-        //   - the recommended default (Universal Sentence Encoder Lite)
-        //     — downloads from MediaPipe's gallery on first selection,
-        //   - any models already in local_models/, and
-        //   - "Pick a file…" which opens the SAF picker.
-        // Nothing happens at app launch — the download is gated on the
-        // user explicitly picking the default in this dropdown.
-        val defaultInstalled = LocalEmbedder.isDefaultModelInstalled(context)
-        Box {
-            OutlinedButton(
-                onClick = { pickerOpen = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) {
-                Text(
-                    text = picked ?: "Choose a local model",
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }
-            DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            if (defaultInstalled) "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} ✓"
-                            else "${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME} — download (~25 MB)"
-                        )
-                    },
-                    onClick = {
-                        pickerOpen = false
-                        if (defaultInstalled) {
-                            picked = LocalEmbedder.DEFAULT_MODEL_NAME
-                        } else {
-                            running = true
-                            status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…"
-                            scope.launch {
-                                val ok = withContext(Dispatchers.IO) {
-                                    LocalEmbedder.downloadDefaultModel(context) { soFar, total ->
-                                        val pct = if (total > 0) " ${(soFar * 100 / total)}%" else ""
-                                        scope.launch(Dispatchers.Main) {
-                                            status = "Downloading ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}…$pct"
-                                        }
-                                    }
-                                }
-                                running = false
-                                if (ok) {
-                                    availableModels = LocalEmbedder.availableModels(context)
-                                    picked = LocalEmbedder.DEFAULT_MODEL_NAME
-                                    status = "Installed ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}"
-                                } else status = "Download failed."
-                            }
-                        }
-                    }
-                )
-                availableModels
-                    .filter { it != LocalEmbedder.DEFAULT_MODEL_NAME }
-                    .forEach { m ->
+        if (availableModels.isEmpty()) {
+            Text(
+                "No local models installed yet. Open AI Housekeeping → Local LiteRT models to download Universal Sentence Encoder Lite or import your own .tflite.",
+                fontSize = 13.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+        } else {
+            // Picker over the already-installed models. Maintenance
+            // (download / import / remove) lives on the Housekeeping
+            // screen so this screen stays focused on running searches.
+            Box {
+                OutlinedButton(
+                    onClick = { pickerOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) {
+                    Text(
+                        text = picked ?: "Choose a local model",
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+                    availableModels.forEach { m ->
                         DropdownMenuItem(text = { Text(m) }, onClick = { picked = m; pickerOpen = false })
                     }
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text("Pick a file…") },
-                    onClick = {
-                        pickerOpen = false
-                        pickFile.launch(arrayOf("application/octet-stream", "*/*"))
-                    }
-                )
-            }
-        }
-
-        picked?.let { name ->
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(modifier = Modifier.weight(1f))
-                TextButton(
-                    onClick = {
-                        LocalEmbedder.release(name)
-                        File(LocalEmbedder.localModelsDir(context), "$name.tflite").delete()
-                        availableModels = LocalEmbedder.availableModels(context)
-                        picked = availableModels.firstOrNull()
-                        status = "Removed $name"
-                    }
-                ) { Text("Remove this model", color = AppColors.Red, fontSize = 12.sp) }
+                }
             }
         }
 
@@ -230,28 +159,6 @@ fun LocalSemanticSearchScreen(
 }
 
 private data class LocalSemanticHit(val reportId: String, val title: String, val timestamp: String, val score: Double)
-
-private fun importTfliteModel(context: Context, uri: android.net.Uri): String? {
-    return try {
-        // Pull a sensible filename out of DocumentsContract metadata; fall
-        // back to an opaque uuid+timestamp so the user always gets *some*
-        // visible name in the picker.
-        val name = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
-            val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (c.moveToFirst() && nameIdx >= 0) c.getString(nameIdx) else null
-        }?.takeIf { it.isNotBlank() } ?: "model_${System.currentTimeMillis()}.tflite"
-        val sanitized = name.replace(Regex("[^A-Za-z0-9._-]+"), "_")
-            .let { if (it.endsWith(".tflite", ignoreCase = true)) it else "$it.tflite" }
-        val target = File(LocalEmbedder.localModelsDir(context), sanitized)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
-        }
-        target.nameWithoutExtension
-    } catch (e: Exception) {
-        android.util.Log.e("LocalSemanticSearch", "import failed: ${e.message}", e)
-        null
-    }
-}
 
 private suspend fun runLocalEmbedSearch(
     context: Context,
