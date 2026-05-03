@@ -159,7 +159,7 @@ object KnowledgeService {
                 sourceId = sourceId,
                 ordinal = i,
                 text = t,
-                embedding = vectors[i]
+                embedding = FloatArray(vectors[i].size) { idx -> vectors[i][idx].toFloat() }
             )
         }
         val src = KnowledgeSource(
@@ -198,7 +198,7 @@ object KnowledgeService {
             android.util.Log.w("KnowledgeService", "Embedder mismatch across attached KBs (${first.name} vs ${mismatch.name}); using ${first.name}'s")
         }
 
-        val queryVec = if (first.embedderProviderId == "LOCAL") {
+        val queryVecRaw = if (first.embedderProviderId == "LOCAL") {
             LocalEmbedder.embed(context, first.embedderModel, listOf(query))?.firstOrNull()
         } else {
             val service = AppService.findById(first.embedderProviderId) ?: return emptyList()
@@ -206,6 +206,9 @@ object KnowledgeService {
             if (apiKey.isBlank()) return emptyList()
             repository.embed(service, apiKey, first.embedderModel, listOf(query))?.firstOrNull()
         } ?: return emptyList()
+        // Convert once to match the chunk-side FloatArray representation; the
+        // primitive-array cosine path is the hot loop now.
+        val queryVec = FloatArray(queryVecRaw.size) { idx -> queryVecRaw[idx].toFloat() }
 
         // Streaming cosine over every chunk in every selected KB
         // that shares the embedder. Mis-matched KBs are dropped to

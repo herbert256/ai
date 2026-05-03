@@ -78,4 +78,24 @@ object EmbeddingsStore {
         val denom = Math.sqrt(normA) * Math.sqrt(normB)
         return if (denom == 0.0) 0.0 else dot / denom
     }
+
+    /** Primitive-array cosine for the RAG retrieval hot path — the
+     *  KnowledgeChunk.embedding side now stores FloatArray, so we can
+     *  iterate without the boxed-Double boxed-call overhead. Math is
+     *  done in double internally to avoid float-accumulator drift on
+     *  longer vectors. */
+    fun cosine(a: FloatArray, b: FloatArray): Double {
+        if (a.isEmpty() || a.size != b.size) return 0.0
+        var dot = 0.0
+        var normA = 0.0
+        var normB = 0.0
+        for (i in a.indices) {
+            val ai = a[i].toDouble(); val bi = b[i].toDouble()
+            dot += ai * bi
+            normA += ai * ai
+            normB += bi * bi
+        }
+        val denom = Math.sqrt(normA) * Math.sqrt(normB)
+        return if (denom == 0.0) 0.0 else dot / denom
+    }
 }

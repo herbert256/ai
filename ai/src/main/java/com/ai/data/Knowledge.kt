@@ -50,13 +50,21 @@ data class KnowledgeBase(
     val totalChars: Long get() = sources.sumOf { it.charCount.toLong() }
 }
 
-/** One chunk of indexed text + its embedding vector. */
+/** One chunk of indexed text + its embedding vector. Embedding is a
+ *  primitive FloatArray rather than List<Double> — for a typical KB
+ *  with thousand-dim vectors that's a ~6× heap reduction over a boxed
+ *  List<Double> (4 bytes per dim vs 24 bytes including object header
+ *  and reference), and for cosine ranking the float-precision math
+ *  is indistinguishable from double. JSON storage is unchanged: Gson
+ *  reads any numeric array into FloatArray, so existing chunk files
+ *  written with full-double precision keep working — they're just
+ *  truncated to ~7 significant digits on read. */
 data class KnowledgeChunk(
     val id: String,
     val sourceId: String,
     val ordinal: Int,
     val text: String,
-    val embedding: List<Double>
+    val embedding: FloatArray
 )
 
 /**
