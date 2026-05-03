@@ -1,13 +1,26 @@
 package com.ai.data
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.jsoup.Jsoup
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
 import java.net.URL
+import java.util.zip.ZipInputStream
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * Extracts plain text from a [KnowledgeSourceType]. Each implementation
@@ -36,6 +49,8 @@ internal object KnowledgeExtractors {
             KnowledgeSourceType.TEXT -> readUriText(context, Uri.parse(origin))
             KnowledgeSourceType.MARKDOWN -> readUriText(context, Uri.parse(origin))
             KnowledgeSourceType.PDF -> readUriPdf(context, Uri.parse(origin))
+            KnowledgeSourceType.DOCX -> readUriDocx(context, Uri.parse(origin))
+            KnowledgeSourceType.ODT -> readUriOdt(context, Uri.parse(origin))
             KnowledgeSourceType.URL -> fetchUrlAsText(origin)
         }
     }
@@ -54,7 +69,7 @@ internal object KnowledgeExtractors {
             PDFBoxResourceLoader.init(context.applicationContext)
             pdfBoxInited = true
         }
-        return context.contentResolver.openInputStream(uri).use { inp ->
+        val text = context.contentResolver.openInputStream(uri).use { inp ->
             requireNotNull(inp) { "Could not open $uri" }
             PDDocument.load(inp).use { doc ->
                 val stripper = PDFTextStripper()
@@ -62,6 +77,160 @@ internal object KnowledgeExtractors {
                 stripper.getText(doc)
             }
         }.normalised()
+        if (text.isNotBlank()) return text
+        // Fall back to OCR when PDFBox returned nothing — image-only
+        // PDFs (scans, screenshot PDFs) have no text layer to strip.
+        // PdfRenderer wants a ParcelFileDescriptor, not a stream;
+        // re-open the SAF Uri in "r" mode.
+        return runCatching { ocrPdf(context, uri) }
+            .getOrDefault("")
+            .normalised()
+    }
+
+    /** Render each page of [uri] to a Bitmap and run ML Kit Latin
+     *  text recognition over it. Pages with no recognised text
+     *  contribute nothing; results join with double newlines so
+     *  paragraph chunking still works. Synchronous from the caller's
+     *  perspective — internally bridges ML Kit's Task<Text> API to a
+     *  suspend point so the calling IO dispatcher serialises page
+     *  renders and bitmap recycling without overlap. */
+    private fun ocrPdf(context: Context, uri: Uri): String {
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        return try {
+            context.contentResolver.openFileDescriptor(uri, "r").use { pfd ->
+                requireNotNull(pfd) { "Could not open $uri for OCR" }
+                PdfRenderer(pfd).use { renderer ->
+                    val sb = StringBuilder()
+                    for (i in 0 until renderer.pageCount) {
+                        renderer.openPage(i).use { page ->
+                            // 200 DPI ≈ 200/72 ≈ 2.78x scale; clamp at
+                            // ~2400px on the long side to keep memory
+                            // manageable for poster-size pages.
+                            val scale = 2.78f.coerceAtMost(2400f / maxOf(page.width, page.height))
+                            val w = (page.width * scale).toInt().coerceAtLeast(1)
+                            val h = (page.height * scale).toInt().coerceAtLeast(1)
+                            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                            try {
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                val pageText = runBlocking {
+                                    suspendCancellableCoroutine<String> { cont ->
+                                        recognizer.process(InputImage.fromBitmap(bitmap, 0))
+                                            .addOnSuccessListener { result -> cont.resume(result.text) }
+                                            .addOnFailureListener { e -> cont.resumeWithException(e) }
+                                    }
+                                }
+                                if (pageText.isNotBlank()) {
+                                    if (sb.isNotEmpty()) sb.append("\n\n")
+                                    sb.append(pageText)
+                                }
+                            } finally {
+                                bitmap.recycle()
+                            }
+                        }
+                    }
+                    sb.toString()
+                }
+            }
+        } finally {
+            // ML Kit's recognizer holds native resources; close so
+            // the OS can release them between source imports.
+            runCatching { recognizer.close() }
+        }
+    }
+
+    /** Walk a .docx (Office Open XML) zip, find word/document.xml, and
+     *  pull the visible text out via a streaming XmlPullParser pass.
+     *  Drops every other entry — styles, themes, headers, comments
+     *  etc. don't carry knowledge content. <w:p> becomes a paragraph
+     *  break (\n\n), <w:t> contributes its text, <w:tab> becomes \t. */
+    private fun readUriDocx(context: Context, uri: Uri): String {
+        return context.contentResolver.openInputStream(uri).use { inp ->
+            requireNotNull(inp) { "Could not open $uri" }
+            ZipInputStream(inp).use { zin ->
+                var entry = zin.nextEntry
+                while (entry != null) {
+                    if (entry.name == "word/document.xml") {
+                        return@use parseOfficeXml(
+                            zin,
+                            paragraphLocalNames = setOf("p"),
+                            textLocalNames = setOf("t"),
+                            tabLocalNames = setOf("tab")
+                        )
+                    }
+                    entry = zin.nextEntry
+                }
+                ""
+            }
+        }.normalised()
+    }
+
+    /** Same idea for ODT — the zip's content.xml carries the body
+     *  text. <text:p> → paragraph break, <text:span>/<text:p> text
+     *  contribution, <text:tab> → \t. */
+    private fun readUriOdt(context: Context, uri: Uri): String {
+        return context.contentResolver.openInputStream(uri).use { inp ->
+            requireNotNull(inp) { "Could not open $uri" }
+            ZipInputStream(inp).use { zin ->
+                var entry = zin.nextEntry
+                while (entry != null) {
+                    if (entry.name == "content.xml") {
+                        return@use parseOfficeXml(
+                            zin,
+                            paragraphLocalNames = setOf("p", "h"),
+                            textLocalNames = emptySet(), // ODT puts text directly under <text:p>
+                            tabLocalNames = setOf("tab")
+                        )
+                    }
+                    entry = zin.nextEntry
+                }
+                ""
+            }
+        }.normalised()
+    }
+
+    /** Streaming XML extractor shared between DOCX and ODT. Both
+     *  formats wrap text inside the same paragraph / inline pattern;
+     *  the only differences are the local element names and where
+     *  the runs live (DOCX nests text in <w:t>, ODT lets text fall
+     *  directly under <text:p>). XmlPullParser ignores namespaces by
+     *  local-name comparison so we don't have to hardcode prefixes. */
+    private fun parseOfficeXml(
+        stream: InputStream,
+        paragraphLocalNames: Set<String>,
+        textLocalNames: Set<String>,
+        tabLocalNames: Set<String>
+    ): String {
+        val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }
+        val parser = factory.newPullParser()
+        parser.setInput(stream, "UTF-8")
+        val sb = StringBuilder()
+        var inText = textLocalNames.isEmpty() // ODT path: text everywhere; DOCX path: only inside <w:t>
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                XmlPullParser.START_TAG -> {
+                    val name = parser.name
+                    when {
+                        name in paragraphLocalNames -> {
+                            if (sb.isNotEmpty() && !sb.endsWith("\n\n")) sb.append("\n\n")
+                        }
+                        name in tabLocalNames -> sb.append('\t')
+                        textLocalNames.isNotEmpty() && name in textLocalNames -> inText = true
+                    }
+                }
+                XmlPullParser.END_TAG -> {
+                    if (textLocalNames.isNotEmpty() && parser.name in textLocalNames) inText = false
+                }
+                XmlPullParser.TEXT -> {
+                    if (inText) {
+                        val chunk = parser.text
+                        if (!chunk.isNullOrEmpty()) sb.append(chunk)
+                    }
+                }
+            }
+            event = parser.next()
+        }
+        return sb.toString()
     }
 
     private fun fetchUrlAsText(url: String): String {

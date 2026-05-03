@@ -8,7 +8,7 @@ import kotlin.concurrent.withLock
 
 /** Type of source stored in a knowledge base. Drives which extractor
  *  the indexing pipeline picks. */
-enum class KnowledgeSourceType { TEXT, MARKDOWN, PDF, URL }
+enum class KnowledgeSourceType { TEXT, MARKDOWN, PDF, DOCX, ODT, URL }
 
 /** A single source ingested into a knowledge base. Persisted on the
  *  KB's manifest; the chunk array for it lives in a sibling file. */

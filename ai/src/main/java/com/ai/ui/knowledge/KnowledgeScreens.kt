@@ -241,7 +241,13 @@ fun KnowledgeDetailScreen(
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = { pickFile.launch(arrayOf("text/*", "application/pdf", "*/*")) },
+                onClick = { pickFile.launch(arrayOf(
+                    "text/*",
+                    "application/pdf",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.oasis.opendocument.text",
+                    "*/*"
+                )) },
                 enabled = !working, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
             ) { Text("+ File", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -366,6 +372,8 @@ private fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowledg
     return when {
         name.endsWith(".pdf") -> KnowledgeSourceType.PDF
         name.endsWith(".md") || name.endsWith(".markdown") -> KnowledgeSourceType.MARKDOWN
+        name.endsWith(".docx") -> KnowledgeSourceType.DOCX
+        name.endsWith(".odt") -> KnowledgeSourceType.ODT
         else -> KnowledgeSourceType.TEXT
     }
 }
