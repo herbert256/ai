@@ -139,6 +139,7 @@ fun AppNavHost(
                 onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
                 onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
                 onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
+                onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) },
                 onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
                 onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
                 onNavigateToManage = { navController.navigate(NavRoutes.AI_REPORT_MANAGE) },
@@ -156,6 +157,20 @@ fun AppNavHost(
             SemanticSearchScreen(
                 aiSettings = uiState.aiSettings,
                 repository = appViewModel.repository,
+                onBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onOpenReport = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.AI_REPORTS)
+                    }
+                }
+            )
+        }
+        composable(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            com.ai.ui.search.LocalSemanticSearchScreen(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenReport = { reportId ->

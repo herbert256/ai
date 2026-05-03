@@ -139,6 +139,13 @@ dependencies {
     // Preferences DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    // MediaPipe Tasks Text — wraps a LiteRT runtime so the app can run
+    // .tflite text-embedder models locally for on-device semantic
+    // search. The Tasks API hides tokenisation / device delegation
+    // and the bundled native lib is ~5-6 MB. Models live as
+    // user-supplied .tflite files under filesDir/local_models/.
+    implementation("com.google.mediapipe:tasks-text:0.10.14")
+
     debugImplementation(libs.androidx.ui.tooling)
 
     // Unit tests

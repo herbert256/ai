@@ -134,6 +134,7 @@ fun ReportsHubScreen(
     onNavigateToPromptHistory: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSearch: () -> Unit,
+    onNavigateToLocalSemanticSearch: () -> Unit = {},
     onNavigateToLocalSearch: () -> Unit,
     onNavigateToQuickLocalSearch: () -> Unit,
     onNavigateToManage: () -> Unit = {},
@@ -194,7 +195,8 @@ fun ReportsHubScreen(
             enabled = hasPreviousReports,
             onQuickLocal = onNavigateToQuickLocalSearch,
             onExtendedLocal = onNavigateToLocalSearch,
-            onSemantic = onNavigateToSearch
+            onRemoteSemantic = onNavigateToSearch,
+            onLocalSemantic = onNavigateToLocalSemanticSearch
         )
         Spacer(modifier = Modifier.height(12.dp))
         HubCard(icon = "🧹", title = "Manage", onClick = onNavigateToManage, enabled = hasPreviousReports)
@@ -281,17 +283,18 @@ private fun StartHubGroup(
     }
 }
 
-/** Groups the three search modes into one card titled "Search" so the
- *  hub doesn't show three loose top-level rows for variants of the
- *  same operation. Order matches escalating cost: Quick (single-word
- *  on-device) → Extended (tokenised on-device) → Semantic (uploads
- *  text to an embedding provider). */
+/** Groups the four search modes into one card titled "Search". Order
+ *  matches escalating cost: Quick (single-word on-device) → Extended
+ *  (tokenised on-device) → Remote semantic (uploads text to an
+ *  embedding provider) → Local semantic (on-device LiteRT model;
+ *  nothing leaves the device). */
 @Composable
 private fun SearchHubGroup(
     enabled: Boolean,
     onQuickLocal: () -> Unit,
     onExtendedLocal: () -> Unit,
-    onSemantic: () -> Unit
+    onRemoteSemantic: () -> Unit,
+    onLocalSemantic: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -303,7 +306,8 @@ private fun SearchHubGroup(
                 modifier = Modifier.padding(bottom = 4.dp))
             SearchHubItem(icon = "🔍", title = "Quick local search", enabled = enabled, onClick = onQuickLocal)
             SearchHubItem(icon = "📂", title = "Extended local search", enabled = enabled, onClick = onExtendedLocal)
-            SearchHubItem(icon = "🌐", title = "Semantic search", enabled = enabled, onClick = onSemantic)
+            SearchHubItem(icon = "🌐", title = "Remote semantic search", enabled = enabled, onClick = onRemoteSemantic)
+            SearchHubItem(icon = "📱", title = "Local semantic search", enabled = enabled, onClick = onLocalSemantic)
         }
     }
 }
