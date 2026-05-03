@@ -554,13 +554,28 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         android.util.Log.w("ApiDispatch", "Anthropic listModels returned 200 but no claude-* entries (data size=${response.body()?.data?.size ?: 0})")
     }
     val ids = entries.mapNotNull { it.id }.sorted()
-    // Pull `capabilities.thinking.supported` per model — Anthropic
-    // reports it on Claude 3.7 / 4.x extended-thinking entries.
+    // Read Anthropic's per-model capability bundle directly. Provider
+    // self-report is authoritative when present; pre-this-change we
+    // were falling through to LiteLLM / models.dev / heuristics for
+    // every Claude entry's vision + context length even though
+    // Anthropic ships them right here.
     val caps = entries.mapNotNull { info ->
         val id = info.id ?: return@mapNotNull null
-        val thinking = info.capabilities?.thinking?.supported ?: return@mapNotNull null
-        id to ModelCapabilities(supportsReasoning = thinking)
+        val thinking = info.capabilities?.thinking?.supported
+        val vision = info.capabilities?.image_input?.supported
+        val ctx = info.max_input_tokens
+        val maxOut = info.max_tokens
+        val cap = ModelCapabilities(
+            supportsVision = vision,
+            contextLength = ctx,
+            maxOutputTokens = maxOut,
+            supportsReasoning = thinking
+        )
+        if (cap.supportsVision == null && cap.contextLength == null
+            && cap.maxOutputTokens == null && cap.supportsReasoning == null) null
+        else id to cap
     }.toMap()
+    val visionFlagged = caps.filterValues { it.supportsVision == true }.keys.toSet()
     // Best-effort raw-JSON snapshot for future parser revisions.
     // fetchUrlAsString already swallows its own exceptions and returns
     // null on failure, so it can't poison the success path here — but
@@ -571,7 +586,7 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         normalizeUrl(service.baseUrl) + "v1/models",
         mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01")
     )
-    return FetchedModels(ids, ids.associateWith { ModelType.CHAT }, capabilities = caps, rawResponse = rawJson)
+    return FetchedModels(ids, ids.associateWith { ModelType.CHAT }, visionModels = visionFlagged, capabilities = caps, rawResponse = rawJson)
 }
 
 private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, apiKey: String): FetchedModels {

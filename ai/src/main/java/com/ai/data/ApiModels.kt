@@ -473,14 +473,32 @@ data class ClaudeModelInfo(
     val id: String?,
     val display_name: String? = null,
     val type: String? = null,
+    /** Token-limit fields exposed by Anthropic on every model entry.
+     *  Replaces our previous heuristic (LiteLLM / models.dev) for
+     *  Claude — provider self-report is authoritative when present. */
+    val max_input_tokens: Int? = null,
+    val max_tokens: Int? = null,
     /** Anthropic's per-model capability bundle. Carries the thinking
-     *  flag for Claude 3.7 / 4.x extended thinking. Older entries
-     *  omit the field; absent → null → falls through to LiteLLM /
-     *  models.dev / heuristic. */
+     *  flag for Claude 3.7 / 4.x extended thinking, plus image_input
+     *  and pdf_input for vision-capable / PDF-ingest entries. */
     val capabilities: ClaudeModelCapabilities? = null
 )
 data class ClaudeModelCapabilities(
-    val thinking: ClaudeModelThinking? = null
+    val thinking: ClaudeModelThinking? = null,
+    /** Authoritative vision flag — replaces the naming heuristic for
+     *  Claude. Present on every model that accepts image content
+     *  blocks (Claude 3+). */
+    val image_input: ClaudeModelSupportFlag? = null,
+    /** Native PDF ingestion (Claude 3.5+) — the model accepts a
+     *  document content block with raw PDF bytes, no OCR needed.
+     *  Surfaced as ModelCapabilities.supportsPdfInput. */
+    val pdf_input: ClaudeModelSupportFlag? = null,
+    /** Hard guarantee for response_format=json_schema. */
+    val structured_outputs: ClaudeModelSupportFlag? = null,
+    /** Per-effort-level support — Claude 3.7+ exposes which of
+     *  low/medium/high/max it accepts on the reasoning_effort param.
+     *  See ClaudeModelEffort. */
+    val effort: ClaudeModelEffort? = null
 )
 data class ClaudeModelThinking(
     val supported: Boolean? = null
@@ -494,6 +512,20 @@ data class ClaudeModelThinking(
     // Anthropic ships for a future parser revision to pull out, so
     // dropping the typed declaration here lets Gson silently skip
     // it regardless of shape.
+)
+/** Generic { "supported": bool } shape Anthropic uses for several
+ *  binary capability flags (image_input, pdf_input,
+ *  structured_outputs, batch, …). */
+data class ClaudeModelSupportFlag(val supported: Boolean? = null)
+/** Per-effort-level reasoning support. Each nested entry is the
+ *  same { supported: bool } shape so non-thinking models cleanly
+ *  parse with `supported = false` everywhere. */
+data class ClaudeModelEffort(
+    val supported: Boolean? = null,
+    val low: ClaudeModelSupportFlag? = null,
+    val medium: ClaudeModelSupportFlag? = null,
+    val high: ClaudeModelSupportFlag? = null,
+    val max: ClaudeModelSupportFlag? = null
 )
 
 data class GeminiModelsResponse(val models: List<GeminiModel>?)
