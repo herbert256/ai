@@ -432,7 +432,7 @@ fun AppNavHost(
                 ChatSessionScreen(
                     provider = agent.provider, model = effectiveModel, parameters = chatParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch, reasoning, kbs -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, customBaseUrl, webSearch, reasoning, context = agentChatContext, knowledgeBaseIds = kbs) },
+                    onSendMessageStream = { messages, webSearch, reasoning, kbs -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, sessionParams = chatParams, baseUrl = customBaseUrl, webSearchTool = webSearch, reasoningEffort = reasoning, context = agentChatContext, knowledgeBaseIds = kbs) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
                     aiSettings = uiState.aiSettings,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
@@ -538,6 +538,7 @@ fun AppNavHost(
                     } else {
                         { messages, webSearch, reasoning, kbs ->
                             chatViewModel.sendChatMessageStream(provider, apiKey, model, messages,
+                                sessionParams = uiState.chatParameters,
                                 webSearchTool = webSearch, reasoningEffort = reasoning,
                                 context = context, knowledgeBaseIds = kbs)
                         }
@@ -576,6 +577,7 @@ fun AppNavHost(
                     } else {
                         { messages, webSearch, reasoning, kbs ->
                             chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages,
+                                sessionParams = session.parameters,
                                 webSearchTool = webSearch, reasoningEffort = reasoning,
                                 context = sessionContext, knowledgeBaseIds = kbs)
                         }

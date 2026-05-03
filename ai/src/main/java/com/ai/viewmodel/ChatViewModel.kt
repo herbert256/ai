@@ -23,14 +23,20 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         apiKey: String,
         model: String,
         messages: List<ChatMessage>,
+        sessionParams: ChatParameters,
         baseUrl: String? = null,
         webSearchTool: Boolean = false,
         reasoningEffort: String? = null,
         context: android.content.Context? = null,
         knowledgeBaseIds: List<String> = emptyList()
     ): Flow<String> {
-        val base = appViewModel.uiState.value.chatParameters
-        val withWeb = if (webSearchTool && !base.webSearchTool) base.copy(webSearchTool = true) else base
+        // sessionParams is the source of truth for this turn — agent
+        // chats pass the agent's preset, resumed chats pass the
+        // persisted ChatSession.parameters, configure-on-the-fly
+        // chats pass UiState.chatParameters explicitly. The earlier
+        // global-uiState read silently shadowed all three with
+        // whatever the last configure-on-the-fly chat had set.
+        val withWeb = if (webSearchTool && !sessionParams.webSearchTool) sessionParams.copy(webSearchTool = true) else sessionParams
         // Per-turn reasoning override, when supplied. Empty string clears
         // back to "no hint"; null leaves whatever the chat-screen pulldown
         // sent last time (which is also its initial value from the
