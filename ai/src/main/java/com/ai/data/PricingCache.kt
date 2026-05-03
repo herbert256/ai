@@ -1250,7 +1250,29 @@ object PricingCache {
     // Private helpers
     private fun getPrefs(context: Context): SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private fun ensureLoaded(context: Context) = synchronized(lock) {
+    /** Lazy first-call population for every cache tier. Cold-call cost is dominated
+     *  by the LiteLLM bundled-asset parse (~1.2 MB JSON → ~3k entries) plus six
+     *  smaller SharedPreferences blobs. Once preload has completed (via [preloadAsync]
+     *  at app start, or [ensureLoadedBlocking] from a non-main caller), this is a
+     *  no-op past the per-tier null checks below.
+     *
+     *  Main-thread guard: if a UI caller hits this before the preload has finished,
+     *  short-circuit instead of blocking on the synchronized lock + reflective parse.
+     *  Affected lookups will fall through to DEFAULT_PRICING / null capability flags
+     *  for the duration of the cold window — Compose will recompose with real values
+     *  once the preload completes and the next state-driven recompose reads them.
+     *  This makes every public getter (getPricing, pricesConflict, getTierBreakdown,
+     *  getPricingStats, getOpenRouterCacheAge, the manual-override CRUD, the raw-entry
+     *  inspectors) safe to call from a Composable without an explicit guard at every
+     *  site. */
+    private fun ensureLoaded(context: Context) {
+        if (!preloadCompleted && isMainThread()) return
+        synchronized(lock) {
+            ensureLoadedLocked(context)
+        }
+    }
+
+    private fun ensureLoadedLocked(context: Context) {
         if (manualPricing == null) loadManualPricing(context)
         if (openRouterPricing == null) loadFromPrefs(context)
         // LiteLLM: no bundled asset (network only). The user populates the
