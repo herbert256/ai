@@ -608,7 +608,11 @@ data class OpenRouterModelInfo(
      *  YYYY-MM-DD). Useful on Model Info — users routinely ask
      *  "does this model know about <recent thing>". Null when the
      *  upstream catalog doesn't carry it. */
-    val knowledge_cutoff: String? = null
+    val knowledge_cutoff: String? = null,
+    /** ISO-8601 expiration (deprecation / removal) date. Pickers
+     *  flag entries with a ⚠ badge so the user knows to migrate
+     *  before the upstream pulls the model. Null = active. */
+    val expiration_date: String? = null
 )
 
 data class OpenRouterPricing(val prompt: String? = null, val completion: String? = null, val image: String? = null, val request: String? = null)

@@ -201,8 +201,19 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
                     items(filtered, key = { it }) { model ->
                         val p = PricingCache.getPricing(context, provider, model)
                         val real = p.source != "DEFAULT"
+                        // Deprecation badge: Mistral ships an ISO date on
+                        // entries past their EOL, OpenRouter ships
+                        // expiration_date on its detailed list. Either
+                        // one trips a tiny ⚠ in the row so the user
+                        // sees "this still works but the upstream
+                        // plans to pull it" before they pin it to a
+                        // saved Agent / Swarm.
+                        val deprecation = capsByModel[model]?.deprecationDate
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            if (deprecation != null) {
+                                Text("⚠", fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
+                            }
                             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                             com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
                             com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))

@@ -923,6 +923,15 @@ fun ModelInfoScreen(
                                         Text("Provider self-report", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                 }
+                                cfg.modelCapabilities[modelName]?.deprecationDate?.let { date ->
+                                    val replacement = cfg.modelCapabilities[modelName]?.deprecationReplacement
+                                    val msg = if (replacement.isNullOrBlank()) "⚠ Deprecated $date"
+                                        else "⚠ Deprecated $date → use $replacement"
+                                    Row {
+                                        Text(msg, fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f))
+                                        Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 // Add / edit manual override — opens the same form the
                                 // Manual model types CRUD uses, pre-filled with this
@@ -1002,6 +1011,7 @@ fun ModelInfoScreen(
                                 or.architecture?.instruct_type?.let { ModelInfoRow("Instruct Type", it) }
                                 or.top_provider?.is_moderated?.let { ModelInfoRow("Moderated", if (it) "Yes" else "No") }
                                 or.knowledge_cutoff?.let { ModelInfoRow("Knowledge Cutoff", it) }
+                                or.expiration_date?.let { ModelInfoRow("⚠ Expires", it) }
                             }
                         }
                     }
