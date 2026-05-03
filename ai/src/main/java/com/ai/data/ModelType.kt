@@ -222,18 +222,18 @@ object ModelType {
                         id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")
                 }
                 "XAI" -> {
-                    // Grok 3 family is always reasoning-capable; grok-4
-                    // and its dated -0709 build ship reasoning on by
-                    // default. Newer variants (grok-4.1, grok-4.3,
-                    // grok-4.20-…) are mixed: some are explicit
-                    // non-reasoning text models and we shouldn't
-                    // claim them. The "-reasoning" / "-non-reasoning"
-                    // suffix variants are already handled by the
-                    // generic checks above (positive on "reasoning",
-                    // hard negative on "non-reasoning"); fall through
-                    // to false for un-suffixed 4.x.
-                    id.startsWith("grok-3") || id == "grok-4" ||
-                        id.startsWith("grok-4-0")
+                    // Most current xAI models perform reasoning. The
+                    // explicit "-non-reasoning" variants are filtered by
+                    // the early hard-negative gate, so anything in the
+                    // grok-3 / grok-4.x families counts here. The
+                    // "always-on, no parameter" subset (grok-4.3,
+                    // grok-4.20-multi-agent, grok-code-fast-…) still
+                    // gets a 🧠 badge — they reason, they just don't
+                    // expose `reasoning_effort`. Whether the request
+                    // sends the parameter is decided separately by
+                    // [inferAcceptsReasoningEffortParam].
+                    id.startsWith("grok-3") || id.startsWith("grok-4") ||
+                        id.startsWith("grok-code")
                 }
                 "MOONSHOT" -> id.startsWith("kimi-k1.5") || id.startsWith("kimi-k2") || "thinking" in id
                 "DEEPSEEK" -> "r1" in id || "reasoner" in id
@@ -243,18 +243,37 @@ object ModelType {
         }
     }
 
-    /** Known-bad set: providers whose external metadata (LiteLLM /
-     *  models.dev) flags a model as reasoning-capable, but whose own
-     *  /v1/chat/completions endpoint rejects `reasoning_effort` for
-     *  that model. We've observed this for a slice of xAI Grok 4.x
-     *  variants — e.g. `grok-4.3` returns "Model X does not support
-     *  parameter reasoningEffort" despite models.dev marking it
-     *  `reasoning: true`. For this provider class we treat
-     *  [inferReasoning]'s answer as authoritative when negative —
-     *  bypassing the LiteLLM / models.dev / precomputed-snapshot
-     *  layers that would otherwise flip it positive. */
+    /** Providers whose "is reasoning model" signal from external
+     *  metadata can't be reused to decide "accepts the
+     *  `reasoning_effort` parameter". xAI ships always-on reasoning
+     *  models (grok-4.3, grok-4.20-multi-agent, grok-code-fast-…) that
+     *  reason internally but reject the parameter — we still want the
+     *  🧠 badge for these (per [inferReasoning]) but the dispatcher
+     *  must skip the parameter (per [inferAcceptsReasoningEffortParam]). */
     fun externalReasoningSignalUntrusted(provider: AppService): Boolean =
         provider.id == "XAI"
+
+    /** Narrow companion to [inferReasoning]: returns true only when the
+     *  model exposes a controllable reasoning parameter we can attach
+     *  (`reasoning_effort` for OpenAI-compat, the `thinking` block for
+     *  Anthropic, `thinkingConfig` for Gemini). For most providers this
+     *  matches [inferReasoning]; xAI is the exception — its always-on
+     *  variants reason but reject the parameter, so we narrow the xAI
+     *  branch to the controllable subset (grok-3 family, grok-4 /
+     *  grok-4-0… dated builds, anything ending in "-reasoning"). */
+    fun inferAcceptsReasoningEffortParam(provider: AppService, modelId: String): Boolean {
+        val id = modelId.lowercase()
+        if ("non-reasoning" in id || "non_reasoning" in id || "no-reasoning" in id) return false
+        if (provider.id == "XAI") {
+            // Controllable: grok-3* (incl. mini), grok-4 / grok-4-0709,
+            // any *-reasoning suffix (e.g. grok-4-fast-reasoning,
+            // grok-4.20-0309-reasoning). Excludes grok-4.3, grok-4.20
+            // multi-agent, grok-code-fast-… — those are always-on.
+            return id.startsWith("grok-3") || id == "grok-4" ||
+                id.startsWith("grok-4-0") || id.endsWith("-reasoning")
+        }
+        return inferReasoning(provider, modelId)
+    }
 }
 
 /** Result type for model-list fetches: ids in their native order, a type

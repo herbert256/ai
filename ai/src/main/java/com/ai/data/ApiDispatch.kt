@@ -829,18 +829,24 @@ internal fun ChatMessage.toClaudeMessage(): ClaudeMessage {
 }
 
 /** Definitive "should this dispatch attach a thinking / reasoning_effort
- *  block?" check used by every dispatcher helper. Walks the same
- *  layered chain [com.ai.model.Settings.isReasoningCapable] uses when a
- *  Settings reference is published in [com.ai.model.SettingsHolder]
- *  (user override → manual override → precomputed snapshot → provider
- *  /models → LiteLLM → models.dev → name heuristic). Falls back to the
- *  catalog-only chain when no Settings reference is available (early
- *  startup, unit tests). */
+ *  block?" check used by every dispatcher helper. Distinct from
+ *  [com.ai.model.Settings.isReasoningCapable] — the badge concept; xAI
+ *  ships always-on reasoning models that reason but reject the
+ *  `reasoning_effort` parameter, and dispatch must skip the parameter
+ *  there even though the badge stays on. Delegates to
+ *  [com.ai.model.Settings.acceptsReasoningEffortParam] when a Settings
+ *  reference is published in [com.ai.model.SettingsHolder]; falls back
+ *  to a catalog-only chain (with the same xAI gate inlined) when no
+ *  Settings reference is available (early startup, unit tests). */
 internal fun isReasoningCapableForDispatch(service: AppService, model: String): Boolean {
-    com.ai.model.SettingsHolder.current?.let { return it.isReasoningCapable(service, model) }
-    PricingCache.liteLLMSupportsReasoning(service, model)?.let { return it }
-    PricingCache.modelsDevSupportsReasoning(service, model)?.let { return it }
-    return ModelType.inferReasoning(service, model)
+    com.ai.model.SettingsHolder.current?.let { return it.acceptsReasoningEffortParam(service, model) }
+    val capable = PricingCache.liteLLMSupportsReasoning(service, model)
+        ?: PricingCache.modelsDevSupportsReasoning(service, model)
+        ?: ModelType.inferReasoning(service, model)
+    if (!capable) return false
+    if (ModelType.externalReasoningSignalUntrusted(service))
+        return ModelType.inferAcceptsReasoningEffortParam(service, model)
+    return true
 }
 
 /** True when [model] is a Claude Opus 4.7+ build that requires the

@@ -895,7 +895,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // strip them; pre-stripping keeps cost / token estimates
             // and the per-call trace clean of speculative parameters.
             val effectiveModel = task.runtimeAgent.model
-            val canReason = aiSettings.isReasoningCapable(provider, effectiveModel)
+            // acceptsReasoningEffortParam (not isReasoningCapable): an
+            // always-on reasoning model like grok-4.3 reasons but rejects
+            // the reasoning_effort parameter — keeping the badge on while
+            // still stripping the parameter from the request is the right
+            // mirror of what a fresh report would send.
+            val canReason = aiSettings.acceptsReasoningEffortParam(provider, effectiveModel)
             val canWeb = aiSettings.isWebSearchCapable(provider, effectiveModel)
             val canVision = aiSettings.isVisionCapable(provider, effectiveModel)
             val baseOverride = state.reportAdvancedParameters

@@ -487,6 +487,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // rejects the reasoning_effort parameter for it). Heuristic is
         // now authoritative-when-negative for xAI; recompute drops the
         // remaining false positives from the precomputed snapshot.
-        internal const val CAPS_PRECOMPUTED_VERSION = 3
+        // v4 — split capability (badge) from parameter-acceptance
+        // (request gate): isReasoningCapable returns true for the
+        // always-on xAI variants again so they keep their 🧠 badge,
+        // while acceptsReasoningEffortParam keeps the request gate.
+        // Recompute restores grok-4.3 et al. into reasoningCapableComputed.
+        // v5 — broadened the xAI inferReasoning heuristic to include
+        // grok-4.x and grok-code-fast-… (the always-on reasoning
+        // variants). Required so installs that don't have models.dev
+        // meta in cache still badge these correctly.
+        internal const val CAPS_PRECOMPUTED_VERSION = 5
     }
 }
