@@ -28,7 +28,8 @@ fun ChatsHubScreen(
     onNavigateToChatHistory: () -> Unit,
     onNavigateToChatSearch: () -> Unit,
     onNavigateToDualChat: () -> Unit,
-    onResumeSession: (String) -> Unit = {}
+    onResumeSession: (String) -> Unit = {},
+    onNavigateToManage: () -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
 
@@ -78,6 +79,12 @@ fun ChatsHubScreen(
             icon = "\uD83D\uDD0D", title = "Search Chats",
             description = "Search across all chat messages",
             onClick = onNavigateToChatSearch, enabled = hasChatHistory
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        ChatHubCard(
+            icon = "\uD83E\uDDF9", title = "Manage",
+            description = "Delete old chats or export a backup",
+            onClick = onNavigateToManage, enabled = hasChatHistory
         )
     }
 }

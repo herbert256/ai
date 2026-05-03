@@ -330,6 +330,7 @@ fun AppNavHost(
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
                 onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) },
                 onResumeSession = { sessionId -> navController.navigate(NavRoutes.aiChatContinue(sessionId)) },
+                onNavigateToManage = { navController.navigate(NavRoutes.AI_CHAT_MANAGE) },
                 onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) })
         }
         composable(NavRoutes.AI_CHAT_AGENT_SELECT) {
@@ -370,6 +371,12 @@ fun AppNavHost(
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
             }
+        }
+        composable(NavRoutes.AI_CHAT_MANAGE) {
+            com.ai.ui.chat.ChatManageScreen(
+                onBack = safePopBack,
+                onNavigateHome = navigateHome
+            )
         }
         composable(NavRoutes.AI_CHAT_SEARCH) {
             ChatSearchScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
