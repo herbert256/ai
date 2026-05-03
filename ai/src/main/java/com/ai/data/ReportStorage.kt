@@ -306,4 +306,23 @@ object ReportStorage {
             true
         }
     }
+
+    /** Append [newAgents] to [reportId]'s agent list (skipping ones whose
+     *  agentId already exists) and clear `completedAt` so the result
+     *  screen shows "in progress" again until the new rows finish.
+     *  Used by the additive Regenerate fast path — model-list-only
+     *  changes get the new agents stitched onto the existing report
+     *  rather than spawning a fresh report. */
+    fun appendAgents(context: Context, reportId: String, newAgents: List<ReportAgent>) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            val existingIds = report.agents.mapTo(mutableSetOf()) { it.agentId }
+            val toAdd = newAgents.filter { it.agentId !in existingIds }
+            if (toAdd.isEmpty()) return
+            report.agents.addAll(toAdd)
+            report.completedAt = null
+            saveReport(report)
+        }
+    }
 }

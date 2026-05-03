@@ -345,14 +345,50 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun regenerateReport(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
         scope.launch {
             val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return@launch
-            val ai = appViewModel.uiState.value.aiSettings
-            val staged = appViewModel.uiState.value.stagedReportModels
+            val state = appViewModel.uiState.value
+            val ai = state.aiSettings
+            val staged = state.stagedReportModels
             // Prefer a staged list from Edit Models — falls back to the on-disk agent set.
             val rebuilt = if (staged.isNotEmpty()) staged else reportToModels(report, ai)
             val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
             val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
             val directIds = rebuilt.filter { it.sourceType == "model" }.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            // Reset the screen state and consume the staged list, then drive a generation pass.
+
+            // Additive fast path: when the only change is the model
+            // list, we add new agents onto the existing report and skip
+            // the API call for unchanged ones. Pre-conditions:
+            //   * no meta runs / translations attached (they're tied to
+            //     the existing agent set and would be invalidated)
+            //   * prompt + title match what's persisted
+            //   * parameters not flagged dirty
+            //   * the staged set differs from the persisted set
+            val secondaries = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, reportId) }
+            val noSecondaries = secondaries.isEmpty()
+            val promptUnchanged = !state.hasPendingPromptChange &&
+                state.genericPromptTitle == report.title &&
+                state.genericPromptText == report.prompt
+            val paramsUnchanged = !state.hasPendingParametersChange
+            val agents = agentIds.mapNotNull { ai.getAgentById(it) }
+            val swarmMembers = ai.getMembersForSwarms(swarmIds)
+            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val uniqueDirectIds = directIds.filter { it !in swarmMemberIds }.toSet()
+            val directModels = uniqueDirectIds.mapNotNull { mid ->
+                val parts = mid.removePrefix("swarm:").split(":", limit = 2)
+                val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
+                SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
+            }
+            val tasks = buildReportTasks(ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt)
+            val existingIds = report.agents.map { it.agentId }.toSet()
+            val newTasks = tasks.filter { it.resultId !in existingIds }
+            val removedIds = existingIds - tasks.map { it.resultId }.toSet()
+            val modelListChanged = staged.isNotEmpty() && (newTasks.isNotEmpty() || removedIds.isNotEmpty())
+
+            if (noSecondaries && promptUnchanged && paramsUnchanged && modelListChanged) {
+                additiveRegenerate(context, scope, report, newTasks, removedIds, state)
+                return@launch
+            }
+
+            // Full regenerate path — create a new report and run every model.
             // Re-seed the image fields and the web-search toggle from the saved report so a
             // regenerate carries the same attachment + tool flag without the user having
             // to re-attach or re-tick.
@@ -375,6 +411,52 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 selectedSwarmIds = swarmIds, directModelIds = directIds,
                 parametersIds = emptyList(), reportType = report.reportType
             )
+        }
+    }
+
+    /** Mutate the existing report in place: drop agents the user
+     *  removed, append new agents (PENDING), and run [executeReportTask]
+     *  only on [newTasks]. Existing successful results stay untouched
+     *  on disk and on screen. */
+    private fun additiveRegenerate(
+        context: Context, scope: kotlinx.coroutines.CoroutineScope,
+        report: Report, newTasks: List<ReportTask>, removedIds: Set<String>,
+        state: UiState
+    ) {
+        scope.launch(Dispatchers.IO) {
+            withTracerTags(reportId = report.id, category = "Report regenerate (additive)") {
+                for (id in removedIds) ReportStorage.removeAgent(context, report.id, id)
+                if (newTasks.isNotEmpty()) ReportStorage.appendAgents(context, report.id, newTasks.map { it.reportAgent })
+                if (removedIds.isNotEmpty()) _agentResults.update { existing -> existing.filterKeys { it !in removedIds } }
+                ReportStorage.bumpReportTimestamp(context, report.id)
+                appViewModel.updateUiState { s -> s.copy(
+                    stagedReportModels = emptyList(),
+                    pendingReportModels = emptyList(),
+                    hasPendingPromptChange = false,
+                    hasPendingParametersChange = false
+                ) }
+
+                if (newTasks.isEmpty()) return@withTracerTags
+
+                // Mirror generateGenericReports' overlay logic so the new
+                // agents see the same per-report toggles (web-search,
+                // reasoning) the original run did.
+                val baseOverride = state.reportAdvancedParameters
+                val withWeb = if (report.webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
+                val overrideParams = if (report.reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort) else withWeb
+
+                val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
+                coroutineScope {
+                    newTasks.map { task ->
+                        async {
+                            sem.withPermit {
+                                executeReportTask(context, report.id, report.prompt, overrideParams, task,
+                                    report.imageBase64, report.imageMime, isRegeneration = true)
+                            }
+                        }
+                    }.awaitAll()
+                }
+            }
         }
     }
 
