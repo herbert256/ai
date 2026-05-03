@@ -172,6 +172,62 @@ object ModelType {
             }
         }
     }
+
+    /** Heuristic for "does this (provider, model) accept a thinking /
+     *  reasoning-effort parameter?". Conservative fallback used only
+     *  when the provider's own /models response and the LiteLLM /
+     *  models.dev catalogs don't carry an explicit reasoning flag.
+     *  False is harmless (no badge, no parameter sent); true would
+     *  drive the dispatcher to attach a thinking block, so the patterns
+     *  stay tight. Provider-aware so an open-source `qwq` shipped via
+     *  Anthropic doesn't accidentally hit the OpenAI-style branch. */
+    fun inferReasoning(provider: AppService, modelId: String): Boolean {
+        val id = modelId.lowercase()
+        // Family markers — apply across providers (open-source models ride
+        // through OpenRouter, Together, SiliconFlow, Groq with the same
+        // base name).
+        if (id.endsWith(":thinking") || ":thinking-" in id) return true
+        if ("deepseek-r1" in id || id.startsWith("r1-") || "-r1-" in id) return true
+        if ("qwq" in id) return true
+        if (id.startsWith("qwen3") || "-qwen3-" in id || ":qwen3" in id) return true
+        if ("nemotron" in id && ("reasoning" in id || "ultra" in id || "nano" in id)) return true
+        if ("magistral" in id) return true
+        if ("kimi-thinking" in id || "kimi-k1.5" in id || id.startsWith("kimi-k2")) return true
+        if ("gpt-oss" in id) return true
+        if ("phi-4-reasoning" in id) return true
+        if ("reasoning" in id || "thinking" in id) return true
+        return when (provider.apiFormat) {
+            ApiFormat.ANTHROPIC -> {
+                // Claude 3.7 (initial extended thinking) + every 4.x family.
+                "claude-3-7" in id || "claude-3.7" in id ||
+                    "opus-4" in id || "sonnet-4" in id || "haiku-4" in id ||
+                    Regex("""claude-(opus|sonnet|haiku)-4""").containsMatchIn(id)
+            }
+            ApiFormat.GOOGLE -> {
+                // Gemini 2.5 family (Pro, Flash) ships with thinking; the
+                // top-level `thinking` field on the /models response is
+                // the authoritative signal — this catches name-only fits.
+                id.startsWith("gemini-2.5") || ("gemini" in id && "-2.5" in id)
+            }
+            ApiFormat.OPENAI_COMPATIBLE -> when (provider.id) {
+                "OPENAI" -> {
+                    // gpt-5 family + o-series reasoning models.
+                    id.startsWith("gpt-5") ||
+                        id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")
+                }
+                "XAI" -> {
+                    // grok-3 / grok-4 / grok-4.x; explicit -mini-fast variants
+                    // also expose reasoning. Conservative on grok-2 and below.
+                    id.startsWith("grok-3") || id.startsWith("grok-4") ||
+                        id.startsWith("grok-5")
+                }
+                "MOONSHOT" -> id.startsWith("kimi-k1.5") || id.startsWith("kimi-k2") || "thinking" in id
+                "DEEPSEEK" -> "r1" in id || "reasoner" in id
+                "MISTRAL" -> "magistral" in id
+                else -> false
+            }
+        }
+    }
 }
 
 /** Result type for model-list fetches: ids in their native order, a type
@@ -200,5 +256,14 @@ data class ModelCapabilities(
     val supportsVision: Boolean? = null,
     val supportsFunctionCalling: Boolean? = null,
     val contextLength: Int? = null,
-    val maxOutputTokens: Int? = null
+    val maxOutputTokens: Int? = null,
+    /** Provider-self-reported "this model exposes a thinking /
+     *  reasoning_effort parameter". Surfaces from each provider's
+     *  /models response: Anthropic `capabilities.thinking.supported`,
+     *  Gemini top-level `thinking`, Mistral `capabilities.reasoning`,
+     *  xAI / OpenRouter `supported_parameters` containing "reasoning"
+     *  or "include_reasoning". Null when the response doesn't carry
+     *  the field — the lookup chain then falls through to LiteLLM /
+     *  models.dev / the [ModelType.inferReasoning] heuristic. */
+    val supportsReasoning: Boolean? = null
 )

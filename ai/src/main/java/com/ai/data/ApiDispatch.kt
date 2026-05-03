@@ -438,9 +438,15 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                     supportsVision = info?.architecture?.input_modalities
                         ?.any { it.equals("image", ignoreCase = true) },
                     contextLength = info?.context_length ?: info?.top_provider?.context_length,
-                    maxOutputTokens = info?.top_provider?.max_completion_tokens
+                    maxOutputTokens = info?.top_provider?.max_completion_tokens,
+                    // OpenRouter's `supported_parameters` array enumerates
+                    // the request fields each model honors. "reasoning" /
+                    // "include_reasoning" presence ⇒ thinking-capable.
+                    supportsReasoning = info?.supported_parameters?.let {
+                        it.any { p -> p.equals("reasoning", true) || p.equals("include_reasoning", true) }
+                    }
                 )
-            }.filterValues { it.supportsVision != null || it.contextLength != null || it.maxOutputTokens != null }
+            }.filterValues { it.supportsVision != null || it.contextLength != null || it.maxOutputTokens != null || it.supportsReasoning != null }
             return FetchedModels(ids, types, vision, caps, rawJson)
         }
         // Fall through to the basic /v1/models call below if the detailed call failed.
@@ -495,15 +501,24 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         val supportsVision = info?.capabilities?.vision ?: info?.supports_image_input
         val supportsFn = info?.capabilities?.function_calling
         val ctx = info?.max_context_length ?: info?.context_length ?: info?.context_window
+        // Reasoning: prefer Mistral's nested `capabilities.reasoning`
+        // boolean; fall back to any `supported_parameters` array
+        // (xAI / Together / etc.) carrying a "reasoning" entry.
+        val supportsReasoning = info?.capabilities?.reasoning
+            ?: info?.supported_parameters?.let {
+                it.any { p -> p.equals("reasoning", true) || p.equals("include_reasoning", true) }
+            }
         val cohereCap = cohereByName[id]?.cap
         val merged = ModelCapabilities(
             supportsVision = supportsVision ?: cohereCap?.supportsVision,
             supportsFunctionCalling = supportsFn,
             contextLength = ctx ?: cohereCap?.contextLength,
-            maxOutputTokens = null
+            maxOutputTokens = null,
+            supportsReasoning = supportsReasoning
         )
         if (merged.supportsVision != null || merged.supportsFunctionCalling != null
-            || merged.contextLength != null || merged.maxOutputTokens != null) {
+            || merged.contextLength != null || merged.maxOutputTokens != null
+            || merged.supportsReasoning != null) {
             caps[id] = merged
         }
     }
@@ -515,14 +530,22 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
     return try {
         val api = ApiFactory.createClaudeApi(service.baseUrl)
         val response = api.listModels(apiKey)
-        val ids = if (response.isSuccessful)
-            response.body()?.data?.mapNotNull { it.id }?.filter { it.startsWith("claude") }?.sorted().orEmpty()
+        val entries = if (response.isSuccessful)
+            response.body()?.data?.filter { it.id?.startsWith("claude") == true }.orEmpty()
         else emptyList()
+        val ids = entries.mapNotNull { it.id }.sorted()
+        // Pull `capabilities.thinking.supported` per model — Anthropic
+        // reports it on Claude 3.7 / 4.x extended-thinking entries.
+        val caps = entries.mapNotNull { info ->
+            val id = info.id ?: return@mapNotNull null
+            val thinking = info.capabilities?.thinking?.supported ?: return@mapNotNull null
+            id to ModelCapabilities(supportsReasoning = thinking)
+        }.toMap()
         val rawJson = ApiFactory.fetchUrlAsString(
             normalizeUrl(service.baseUrl) + "v1/models",
             mapOf("x-api-key" to apiKey, "anthropic-version" to "2023-06-01")
         )
-        FetchedModels(ids, ids.associateWith { ModelType.CHAT }, rawResponse = rawJson)
+        FetchedModels(ids, ids.associateWith { ModelType.CHAT }, capabilities = caps, rawResponse = rawJson)
     } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }
 }
 
@@ -545,14 +568,16 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
             val ids = all.keys.sorted()
             // Gemini exposes inputTokenLimit / outputTokenLimit per model;
             // no explicit vision flag, so leave that null and let the
-            // heuristic / catalog fallbacks decide.
+            // heuristic / catalog fallbacks decide. The top-level
+            // `thinking` boolean rides on every 2.5-family entry.
             val caps = byName.mapValues { (_, v) ->
                 val m = v.second
                 ModelCapabilities(
                     contextLength = m.inputTokenLimit,
-                    maxOutputTokens = m.outputTokenLimit
+                    maxOutputTokens = m.outputTokenLimit,
+                    supportsReasoning = m.thinking
                 )
-            }.filterValues { it.contextLength != null || it.maxOutputTokens != null }
+            }.filterValues { it.contextLength != null || it.maxOutputTokens != null || it.supportsReasoning != null }
             FetchedModels(ids, all, emptySet(), caps, rawJson)
         } else FetchedModels(emptyList(), emptyMap())
     } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }

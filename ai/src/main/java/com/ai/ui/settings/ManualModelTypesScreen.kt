@@ -71,6 +71,7 @@ fun ManualModelTypesScreen(
             val flags = buildString {
                 if (it.supportsVision) append(" 👁")
                 if (it.supportsWebSearch) append(" 🌐")
+                if (it.supportsReasoning) append(" 🧠")
             }
             "→ ${it.type}$flags"
         },
@@ -140,6 +141,7 @@ internal fun ManualModelTypeEditScreen(
     var type by remember { mutableStateOf(initial?.type ?: ModelType.CHAT) }
     var supportsVision by remember { mutableStateOf(initial?.supportsVision ?: false) }
     var supportsWebSearch by remember { mutableStateOf(initial?.supportsWebSearch ?: false) }
+    var supportsReasoning by remember { mutableStateOf(initial?.supportsReasoning ?: false) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
 
@@ -212,9 +214,11 @@ internal fun ManualModelTypeEditScreen(
                     knownModels.forEach { m ->
                         val vision = provider != null && aiSettings.isVisionCapable(provider, m)
                         val websearch = provider != null && aiSettings.isWebSearchCapable(provider, m)
+                        val reasoning = provider != null && aiSettings.isReasoningCapable(provider, m)
                         val suffix = buildString {
                             if (vision) append(" 👁")
                             if (websearch) append(" 🌐")
+                            if (reasoning) append(" 🧠")
                         }
                         DropdownMenuItem(
                             text = { Text("$m$suffix") },
@@ -262,6 +266,14 @@ internal fun ManualModelTypeEditScreen(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Supports web-search tool 🌐", color = Color.White, fontSize = 13.sp)
             }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp).clickable { supportsReasoning = !supportsReasoning },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(checked = supportsReasoning, onCheckedChange = { supportsReasoning = it })
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Supports thinking 🧠", color = Color.White, fontSize = 13.sp)
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -280,7 +292,8 @@ internal fun ManualModelTypeEditScreen(
                             modelId = modelId.trim(),
                             type = type,
                             supportsVision = supportsVision,
-                            supportsWebSearch = supportsWebSearch
+                            supportsWebSearch = supportsWebSearch,
+                            supportsReasoning = supportsReasoning
                         )
                     )
                 },

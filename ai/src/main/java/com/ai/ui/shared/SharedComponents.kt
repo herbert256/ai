@@ -42,6 +42,22 @@ fun WebSearchBadge(isWebSearchCapable: Boolean) {
 }
 
 /**
+ * Tiny "thinking / reasoning_effort capable" badge for model lists —
+ * same shape as VisionBadge / WebSearchBadge, parallel data source
+ * (Settings.isReasoningCapable). 🧠 matches the per-report
+ * reasoning-effort indicator already in use elsewhere.
+ */
+@Composable
+fun ReasoningBadge(isReasoningCapable: Boolean) {
+    if (!isReasoningCapable) return
+    Text(
+        text = "🧠",
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+/**
  * Generic title bar used across all screens.
  * Shows a back button on the left, optional title in the middle, and "AI" on the right.
  */

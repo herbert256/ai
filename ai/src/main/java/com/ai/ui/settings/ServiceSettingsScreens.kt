@@ -27,6 +27,7 @@ import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.SelectModelScreen
+import com.ai.ui.shared.ReasoningBadge
 import com.ai.ui.shared.VisionBadge
 import com.ai.ui.shared.WebSearchBadge
 import com.ai.ui.shared.TitleBar
@@ -320,6 +321,7 @@ fun ProviderModelSettingsScreen(
                         )
                         VisionBadge(aiSettings.isVisionCapable(service, modelId))
                         WebSearchBadge(aiSettings.isWebSearchCapable(service, modelId))
+                        ReasoningBadge(aiSettings.isReasoningCapable(service, modelId))
                         // getModelType() consults the user's manual overrides first, so
                         // edits in AI Setup → Manual model types overrides surface here
                         // immediately without needing a re-fetch.

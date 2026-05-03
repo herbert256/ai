@@ -126,8 +126,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             // transparently.
             val visionModels = loadJsonStringSet("${key}_vision_models")
             val webSearchModels = loadJsonStringSet("${key}_web_search_models")
+            val reasoningModels = loadJsonStringSet("${key}_reasoning_models")
             val visionCapableComputed = loadJsonStringSet("${key}_vision_capable_computed")
             val webSearchCapableComputed = loadJsonStringSet("${key}_web_search_capable_computed")
+            val reasoningCapableComputed = loadJsonStringSet("${key}_reasoning_capable_computed")
             val modelPricing: Map<String, com.ai.data.PricingCache.ModelPricing> = prefs.getString("${key}_model_pricing", null)?.let {
                 try {
                     val mapType = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.PricingCache.ModelPricing>>() {}.type
@@ -147,8 +149,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 model = prefs.getString("${key}_model", service.defaultModel) ?: service.defaultModel,
                 modelSource = modelSource, models = models, modelTypes = types,
                 visionModels = visionModels, webSearchModels = webSearchModels,
+                reasoningModels = reasoningModels,
                 visionCapableComputed = visionCapableComputed,
                 webSearchCapableComputed = webSearchCapableComputed,
+                reasoningCapableComputed = reasoningCapableComputed,
                 modelPricing = modelPricing,
                 modelCapabilities = modelCapabilities,
                 modelListRawJson = modelListRawJson,
@@ -184,12 +188,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 // saw it either.
                 putString("${key}_vision_models", if (config.visionModels.isEmpty()) null else gson.toJson(config.visionModels.toList()))
                 putString("${key}_web_search_models", if (config.webSearchModels.isEmpty()) null else gson.toJson(config.webSearchModels.toList()))
+                putString("${key}_reasoning_models", if (config.reasoningModels.isEmpty()) null else gson.toJson(config.reasoningModels.toList()))
                 // Pre-computed result of the layered isVisionCapable /
-                // isWebSearchCapable lookup — stored so list-render code
-                // can short-circuit through a Set membership check instead
-                // of re-running ~1k-entry catalog scans on every row.
+                // isWebSearchCapable / isReasoningCapable lookup — stored
+                // so list-render code can short-circuit through a Set
+                // membership check instead of re-running ~1k-entry
+                // catalog scans on every row.
                 putString("${key}_vision_capable_computed", if (config.visionCapableComputed.isEmpty()) null else gson.toJson(config.visionCapableComputed.toList()))
                 putString("${key}_web_search_capable_computed", if (config.webSearchCapableComputed.isEmpty()) null else gson.toJson(config.webSearchCapableComputed.toList()))
+                putString("${key}_reasoning_capable_computed", if (config.reasoningCapableComputed.isEmpty()) null else gson.toJson(config.reasoningCapableComputed.toList()))
                 putString("${key}_model_pricing", if (config.modelPricing.isEmpty()) null else gson.toJson(config.modelPricing))
                 putString("${key}_model_capabilities", if (config.modelCapabilities.isEmpty()) null else gson.toJson(config.modelCapabilities))
                 // Raw /models response — kept verbatim so a later parser

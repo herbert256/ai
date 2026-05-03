@@ -370,7 +370,12 @@ data class OpenAiModel(
     val context_length: Int? = null,
     val context_window: Int? = null,
     val supports_chat: Boolean? = null,
-    val supports_image_input: Boolean? = null
+    val supports_image_input: Boolean? = null,
+    /** xAI and some other OpenAI-compat providers expose this array of
+     *  parameter names the model honors (e.g. ["reasoning",
+     *  "include_reasoning", "max_tokens", …]). Used to detect thinking-
+     *  capable models without forcing a bespoke parser. */
+    val supported_parameters: List<String>? = null
 )
 
 data class MistralCapabilities(
@@ -379,7 +384,9 @@ data class MistralCapabilities(
     val function_calling: Boolean? = null,
     val fine_tuning: Boolean? = null,
     val vision: Boolean? = null,
-    val classification: Boolean? = null
+    val classification: Boolean? = null,
+    /** Mistral's per-model thinking flag (true on `magistral-*`). */
+    val reasoning: Boolean? = null
 )
 
 data class CohereModelsResponse(val models: List<CohereModelInfo>?)
@@ -450,7 +457,27 @@ data class MistralModerationResponse(
 )
 
 data class ClaudeModelsResponse(val data: List<ClaudeModelInfo>?)
-data class ClaudeModelInfo(val id: String?, val display_name: String?, val type: String?)
+data class ClaudeModelInfo(
+    val id: String?,
+    val display_name: String? = null,
+    val type: String? = null,
+    /** Anthropic's per-model capability bundle. Carries the thinking
+     *  flag for Claude 3.7 / 4.x extended thinking. Older entries
+     *  omit the field; absent → null → falls through to LiteLLM /
+     *  models.dev / heuristic. */
+    val capabilities: ClaudeModelCapabilities? = null
+)
+data class ClaudeModelCapabilities(
+    val thinking: ClaudeModelThinking? = null
+)
+data class ClaudeModelThinking(
+    val supported: Boolean? = null,
+    /** "enabled" / "adaptive" — Claude 3.7 only exposes "enabled";
+     *  Claude 4.x adds "adaptive" with a different request shape. Not
+     *  consumed yet; captured so a later parser revision can pick the
+     *  right thinking-block variant without re-fetching. */
+    val types: List<String>? = null
+)
 
 data class GeminiModelsResponse(val models: List<GeminiModel>?)
 data class GeminiModel(
@@ -458,7 +485,10 @@ data class GeminiModel(
     val displayName: String?,
     val supportedGenerationMethods: List<String>?,
     val inputTokenLimit: Int? = null,
-    val outputTokenLimit: Int? = null
+    val outputTokenLimit: Int? = null,
+    /** Top-level boolean Gemini sets on 2.5-family entries. Matches
+     *  the field name in the v1beta /models response. */
+    val thinking: Boolean? = null
 )
 
 // ============================================================================

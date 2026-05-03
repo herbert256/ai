@@ -375,6 +375,7 @@ fun ModelSearchScreen(
                     item = item,
                     isVisionCapable = aiSettings.isVisionCapable(item.provider, item.modelName),
                     isWebSearchCapable = aiSettings.isWebSearchCapable(item.provider, item.modelName),
+                    isReasoningCapable = aiSettings.isReasoningCapable(item.provider, item.modelName),
                     onClick = { onNavigateToModelInfo(item.provider, item.modelName) }
                 )
             }
@@ -383,7 +384,7 @@ fun ModelSearchScreen(
 }
 
 @Composable
-private fun ModelSearchResultCard(item: ModelSearchItem, isVisionCapable: Boolean, isWebSearchCapable: Boolean, onClick: () -> Unit) {
+private fun ModelSearchResultCard(item: ModelSearchItem, isVisionCapable: Boolean, isWebSearchCapable: Boolean, isReasoningCapable: Boolean, onClick: () -> Unit) {
     val context = LocalContext.current
     val pricing = remember(item.provider, item.modelName) { formatPricingPerMillion(context, item.provider, item.modelName) }
 
@@ -395,6 +396,7 @@ private fun ModelSearchResultCard(item: ModelSearchItem, isVisionCapable: Boolea
                     Text(item.modelName, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     com.ai.ui.shared.VisionBadge(isVisionCapable)
                     com.ai.ui.shared.WebSearchBadge(isWebSearchCapable)
+                    com.ai.ui.shared.ReasoningBadge(isReasoningCapable)
                 }
                 Text(item.providerName, fontSize = 12.sp, color = AppColors.Blue)
             }
@@ -859,14 +861,22 @@ fun ModelInfoScreen(
                             aiSettings.modelTypeOverrides.any {
                                 it.providerId == provider.id && it.modelId == modelName && it.supportsWebSearch
                             }
+                        val reasoningPinned = modelName in cfg.reasoningModels ||
+                            aiSettings.modelTypeOverrides.any {
+                                it.providerId == provider.id && it.modelId == modelName && it.supportsReasoning
+                            }
                         val providerVision = cfg.modelCapabilities[modelName]?.supportsVision
                         val providerWeb = cfg.modelCapabilities[modelName]?.supportsFunctionCalling
+                        val providerReasoning = cfg.modelCapabilities[modelName]?.supportsReasoning
                         val litellmVision = com.ai.data.PricingCache.liteLLMSupportsVision(provider, modelName)
                         val litellmWeb = com.ai.data.PricingCache.liteLLMSupportsWebSearch(provider, modelName)
+                        val litellmReasoning = com.ai.data.PricingCache.liteLLMSupportsReasoning(provider, modelName)
                         val modelsDevVision = com.ai.data.PricingCache.modelsDevSupportsVision(provider, modelName)
                         val modelsDevWeb = com.ai.data.PricingCache.modelsDevSupportsToolCall(provider, modelName)
+                        val modelsDevReasoning = com.ai.data.PricingCache.modelsDevSupportsReasoning(provider, modelName)
                         val visionEffective = aiSettings.isVisionCapable(provider, modelName)
                         val webEffective = aiSettings.isWebSearchCapable(provider, modelName)
+                        val reasoningEffective = aiSettings.isReasoningCapable(provider, modelName)
                         // Walk the chain and label the first tier that
                         // produced the answer. Order mirrors the slow
                         // lookup in Settings exactly. Auto-detect lands
@@ -883,8 +893,11 @@ fun ModelInfoScreen(
                             source(visionPinned, providerVision, litellmVision, modelsDevVision)
                         val webSrc = "Web search 🌐: ${if (webEffective) "yes" else "no"}" to
                             source(webPinned, providerWeb, litellmWeb, modelsDevWeb)
+                        val reasoningSrc = "Thinking 🧠: ${if (reasoningEffective) "yes" else "no"}" to
+                            source(reasoningPinned, providerReasoning, litellmReasoning, modelsDevReasoning)
                         val (visionLabel, visionSrcText) = visionSrc
                         val (webLabel, webSrcText) = webSrc
+                        val (reasoningLabel, reasoningSrcText) = reasoningSrc
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Capabilities", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
@@ -895,6 +908,10 @@ fun ModelInfoScreen(
                                 Row {
                                     Text(webLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
                                     Text(webSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                }
+                                Row {
+                                    Text(reasoningLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(reasoningSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 // Add / edit manual override — opens the same form the

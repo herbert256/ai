@@ -36,6 +36,11 @@ data class ProviderConfig(
      *  google_search / OpenAI Responses web_search_preview). Same pattern
      *  as visionModels — user override layered on top of a name heuristic. */
     val webSearchModels: Set<String> = emptySet(),
+    /** Set of model ids the user has explicitly flagged as supporting a
+     *  thinking / reasoning_effort parameter. Mirrors visionModels /
+     *  webSearchModels — user-curated; provider /models auto-detect
+     *  unions in here at fetch time. */
+    val reasoningModels: Set<String> = emptySet(),
     /** Pre-computed result of the layered isVisionCapable lookup for every
      *  id in [models]. Populated by [Settings.recomputeCapabilities]
      *  whenever the model list refreshes or a capability source (LiteLLM,
@@ -47,6 +52,7 @@ data class ProviderConfig(
      *  full recompute. */
     val visionCapableComputed: Set<String> = emptySet(),
     val webSearchCapableComputed: Set<String> = emptySet(),
+    val reasoningCapableComputed: Set<String> = emptySet(),
     /** Pre-computed pricing for every id in [models], keyed by model id —
      *  same idea as [visionCapableComputed]. List rows pull prompt /
      *  completion price (and `source` for the color tag) straight from
@@ -154,7 +160,10 @@ data class ModelTypeOverride(
     val supportsVision: Boolean = false,
     /** When true, isWebSearchCapable for this (provider, model) returns
      *  true even if the per-provider webSearchModels set doesn't contain it. */
-    val supportsWebSearch: Boolean = false
+    val supportsWebSearch: Boolean = false,
+    /** When true, isReasoningCapable for this (provider, model) returns
+     *  true even if the per-provider reasoningModels set doesn't contain it. */
+    val supportsReasoning: Boolean = false
 )
 
 data class Settings(
@@ -309,6 +318,41 @@ data class Settings(
         return com.ai.data.ModelType.inferWebSearch(service, modelId)
     }
 
+    /** Returns true when (provider, modelId) accepts a thinking /
+     *  reasoning_effort parameter. Layered the same way as
+     *  [isVisionCapable] / [isWebSearchCapable]: user override →
+     *  manual override → precomputed snapshot → provider-native
+     *  /models response → LiteLLM → models.dev → naming heuristic.
+     *  The dispatcher will read this to decide whether to attach a
+     *  thinking / reasoning_effort block on outbound requests
+     *  (separate change). */
+    fun isReasoningCapable(service: AppService, modelId: String): Boolean {
+        val cfg = getProvider(service)
+        if (modelId in cfg.reasoningModels) return true
+        if (modelTypeOverrides.any { it.providerId == service.id && it.modelId == modelId && it.supportsReasoning }) return true
+        if (modelId in cfg.reasoningCapableComputed) return true
+        return computeReasoningCapableSlow(service, modelId)
+    }
+
+    private fun computeReasoningCapableSlow(service: AppService, modelId: String): Boolean {
+        // Tier 4: provider's own /models self-report (Anthropic
+        // capabilities.thinking.supported, Gemini top-level thinking,
+        // Mistral capabilities.reasoning, xAI/OpenRouter
+        // supported_parameters).
+        getProvider(service).modelCapabilities[modelId]?.supportsReasoning?.let { return it }
+        // Tier 5: LiteLLM supports_reasoning / supports_max_reasoning_effort.
+        com.ai.data.PricingCache.liteLLMSupportsReasoning(service, modelId)?.let { return it }
+        // Tier 6: models.dev `reasoning` boolean.
+        com.ai.data.PricingCache.modelsDevSupportsReasoning(service, modelId)?.let { return it }
+        return com.ai.data.ModelType.inferReasoning(service, modelId)
+    }
+
+    fun withReasoningCapable(service: AppService, modelId: String, enabled: Boolean): Settings {
+        val cfg = getProvider(service)
+        val newSet = if (enabled) cfg.reasoningModels + modelId else cfg.reasoningModels - modelId
+        return withProvider(service, cfg.copy(reasoningModels = newSet))
+    }
+
     /** Walk every model in [service]'s list, run the slow layered lookup
      *  once per id, and store the resolved booleans in
      *  [ProviderConfig.visionCapableComputed] / [webSearchCapableComputed].
@@ -319,14 +363,17 @@ data class Settings(
         if (cfg.models.isEmpty()) return this
         val vision = cfg.models.filterTo(mutableSetOf()) { computeVisionCapableSlow(service, it) }
         val web = cfg.models.filterTo(mutableSetOf()) { computeWebSearchCapableSlow(service, it) }
+        val reasoning = cfg.models.filterTo(mutableSetOf()) { computeReasoningCapableSlow(service, it) }
         // Snapshot the layered cost lookup so per-row UIs don't re-scan
         // catalogs on every render — same precompute idea, applied to the
         // 2 cost fields. lookupPricing is context-free; PricingCache must
         // have been loaded by an earlier ensureLoadedBlocking / preloadAsync.
         val pricing = cfg.models.associateWith { com.ai.data.PricingCache.lookupPricing(service, it) }
-        if (vision == cfg.visionCapableComputed && web == cfg.webSearchCapableComputed && pricing == cfg.modelPricing) return this
+        if (vision == cfg.visionCapableComputed && web == cfg.webSearchCapableComputed
+            && reasoning == cfg.reasoningCapableComputed && pricing == cfg.modelPricing) return this
         return withProvider(service, cfg.copy(
             visionCapableComputed = vision, webSearchCapableComputed = web,
+            reasoningCapableComputed = reasoning,
             modelPricing = pricing
         ))
     }
