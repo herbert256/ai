@@ -94,6 +94,14 @@ fun TraceListScreen(
     }
     var selectedProvider by rememberSaveable { mutableStateOf("(All)") }
 
+    // Hostname distinct list — raw host strings as recorded on the
+    // trace. Useful when one provider (e.g. Cohere) ships traffic on
+    // multiple hosts and the user wants to slice by which.
+    val hostnames = remember(allTraceFiles) {
+        listOf("(All)") + allTraceFiles.map { it.hostname }.distinct().sorted()
+    }
+    var selectedHostname by rememberSaveable { mutableStateOf("(All)") }
+
     // Model filter — chosen via the Model picker overlay. null = no filter.
     var selectedModel by rememberSaveable { mutableStateOf<String?>(null) }
     var showModelPicker by remember { mutableStateOf(false) }
@@ -103,7 +111,7 @@ fun TraceListScreen(
     // failed run.
     var errorsOnly by rememberSaveable { mutableStateOf(false) }
 
-    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedModel, errorsOnly) {
+    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedHostname, selectedModel, errorsOnly) {
         allTraceFiles
             .filter { t -> when (selectedCategory) {
                 "(All)" -> true
@@ -113,6 +121,10 @@ fun TraceListScreen(
             .filter { t -> when (selectedProvider) {
                 "(All)" -> true
                 else -> providerLabelForHost(t.hostname) == selectedProvider
+            } }
+            .filter { t -> when (selectedHostname) {
+                "(All)" -> true
+                else -> t.hostname == selectedHostname
             } }
             .filter { t -> selectedModel == null || t.model == selectedModel }
             .filter { t -> !errorsOnly || t.statusCode == 0 || t.statusCode >= 400 }
@@ -122,10 +134,10 @@ fun TraceListScreen(
     }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
-    // Models with traces in the currently scoped (Category + Provider)
-    // subset. The picker shows only these so the user can't pick one
-    // that yields zero rows.
-    val pickableModels = remember(allTraceFiles, selectedCategory, selectedProvider) {
+    // Models with traces in the currently scoped (Category + Provider
+    // + Hostname) subset. The picker shows only these so the user
+    // can't pick one that yields zero rows.
+    val pickableModels = remember(allTraceFiles, selectedCategory, selectedProvider, selectedHostname) {
         allTraceFiles
             .filter { t -> when (selectedCategory) {
                 "(All)" -> true
@@ -135,6 +147,10 @@ fun TraceListScreen(
             .filter { t -> when (selectedProvider) {
                 "(All)" -> true
                 else -> providerLabelForHost(t.hostname) == selectedProvider
+            } }
+            .filter { t -> when (selectedHostname) {
+                "(All)" -> true
+                else -> t.hostname == selectedHostname
             } }
             .mapNotNull { t ->
                 val m = t.model?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
@@ -173,15 +189,17 @@ fun TraceListScreen(
             }
             TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
 
-            // Category / Provider / Model selectors share a single row.
-            // Each slot is only emitted when there's something useful
-            // to pick, with the surviving slots taking equal share via
-            // weight(1f). Model's "(All)" lives inside its picker
-            // overlay so a separate Clear button is unnecessary.
+            // Category / Provider / Hostname / Model selectors share
+            // a single row. Each slot is only emitted when there's
+            // something useful to pick, with the surviving slots
+            // taking equal share via weight(1f). Model's "(All)" lives
+            // inside its picker overlay so a separate Clear button is
+            // unnecessary.
             val showCategory = categories.size > 1
             val showProvider = providers.size > 1
+            val showHostname = hostnames.size > 2 // "(All)" + at least 2 distinct hosts
             val showModel = pickableModels.isNotEmpty()
-            if (showCategory || showProvider || showModel) {
+            if (showCategory || showProvider || showHostname || showModel) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -203,6 +221,15 @@ fun TraceListScreen(
                             value = selectedProvider,
                             options = providers,
                             onPick = { selectedProvider = it; currentPage = 0 },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (showHostname) {
+                        FilterDropdown(
+                            label = "Hostname",
+                            value = selectedHostname,
+                            options = hostnames,
+                            onPick = { selectedHostname = it; currentPage = 0 },
                             modifier = Modifier.weight(1f)
                         )
                     }
