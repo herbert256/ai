@@ -1069,15 +1069,18 @@ private fun ColumnScope.GenerationPhase(
         staged.map { m ->
             val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
                         else "swarm:${m.provider.id}:${m.model}"
-            val name = if (m.type == "agent") (aiSettings.getAgentById(m.agentId ?: "")?.name ?: m.model)
-                       else "${m.provider.displayName} / ${m.model}"
-            DisplayRow(rowId, name, !reportsAgentResults.containsKey(rowId))
+            // Model-only label per spec — drop the provider prefix and
+            // the agent's custom name so every row reads as a bare
+            // model id.
+            DisplayRow(rowId, m.model, !reportsAgentResults.containsKey(rowId))
         }
     } else {
         selectedAgents.sorted().map { agentId ->
-            val name = reportsAgentResults[agentId]?.displayName
-                ?: aiSettings.getAgentById(agentId)?.name
-                ?: agentId.removePrefix("swarm:").replace(":", " / ")
+            val result = reportsAgentResults[agentId]
+            val name = result?.let { resolveModelForResult(agentId, it) }
+                ?: aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
+                ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
+                ?: agentId
             DisplayRow(agentId, name, false)
         }
     }
@@ -1154,11 +1157,10 @@ private fun ColumnScope.GenerationPhase(
                         SecondaryKind.MODERATION -> "Moderate"
                         SecondaryKind.TRANSLATE -> "Translate"
                     }
-                    val provDisplay = AppService.findById(run.providerId)?.displayName ?: run.providerId
                     val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "$kindLabel \u00B7 $provDisplay / ${run.model}$langSuffix",
+                            "$kindLabel \u00B7 ${run.model}$langSuffix",
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
