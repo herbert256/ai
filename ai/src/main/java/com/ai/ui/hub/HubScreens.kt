@@ -133,7 +133,8 @@ fun ReportsHubScreen(
     onNavigateToNewReport: () -> Unit,
     onNavigateToPromptHistory: () -> Unit,
     onNavigateToHistory: () -> Unit,
-    onNavigateToSearch: () -> Unit
+    onNavigateToSearch: () -> Unit,
+    onNavigateToLocalSearch: () -> Unit
 ) {
     val context = LocalContext.current
     val hasPromptHistory = remember {
@@ -151,6 +152,8 @@ fun ReportsHubScreen(
         HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory, enabled = hasPreviousReports)
         Spacer(modifier = Modifier.height(12.dp))
         HubCard(icon = "🔎", title = "Semantic search", onClick = onNavigateToSearch, enabled = hasPreviousReports)
+        Spacer(modifier = Modifier.height(12.dp))
+        HubCard(icon = "🔍", title = "Local app search", onClick = onNavigateToLocalSearch, enabled = hasPreviousReports)
     }
 }
 

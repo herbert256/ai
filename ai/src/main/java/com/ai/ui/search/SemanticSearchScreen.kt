@@ -35,19 +35,14 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Search across saved reports. Two modes:
+ * Semantic search across saved reports. The user picks an embedding-typed
+ * model from any active provider; the screen embeds the query, embeds each
+ * report's title + first chunk of body (lazily, cached per
+ * (docId, provider, model, content hash)), scores by cosine similarity, returns top 10.
  *
- *  * Local app search — pure on-device case-insensitive token match
- *    over title + prompt + every agent response. Nothing leaves the
- *    device.
- *  * Embedding search — picks an OpenAI-compatible embedding model and
- *    scores each report by cosine similarity to the query embedding.
- *    Sends report text to the chosen provider on first index; cached
- *    per (reportId, provider, model, content hash) so edited reports
- *    re-embed automatically.
- *
- * MVP scope: reports only (no chats yet), single-pass scoring (no
- * chunking within a long report).
+ * MVP scope: reports only (no chats yet), single-pass scoring (no chunking
+ * within a long report). Cached report embeddings include a content hash, so
+ * edited reports are re-embedded automatically on the next search.
  */
 @Composable
 fun SemanticSearchScreen(
@@ -65,10 +60,7 @@ fun SemanticSearchScreen(
     // from Settings.modelTypes which is populated by ModelType.infer at fetch
     // time and overridden by the user via Manual model types overrides.
     val embeddingChoices = remember(aiSettings) { supportedEmbeddingChoices(aiSettings) }
-    // Local-app-search is always available; embedding choices are layered
-    // on top. Local is the default so first-run users don't have to
-    // configure embeddings before getting any value out of the screen.
-    var mode by remember { mutableStateOf<SearchMode>(SearchMode.Local) }
+    var picked by remember { mutableStateOf(embeddingChoices.firstOrNull()) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchHit>>(emptyList()) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -79,9 +71,16 @@ fun SemanticSearchScreen(
         TitleBar(title = "Semantic search", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Mode picker — always shows "Local app search" as an option, plus
-        // every embedding-capable (provider, model) pair the user has
-        // configured. Embedding rows note that they upload report text.
+        if (embeddingChoices.isEmpty()) {
+            Text(
+                "No supported OpenAI-compatible embedding models found. Mark a compatible provider model as 'embedding' in AI Setup → Models setup → Manual model types overrides, or fetch a provider whose model list includes one (e.g. text-embedding-3-small on OpenAI).",
+                fontSize = 13.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+            return@Column
+        }
+
+        // Model picker.
         Box {
             OutlinedButton(
                 onClick = { pickerOpen = true },
@@ -89,22 +88,15 @@ fun SemanticSearchScreen(
                 colors = AppColors.outlinedButtonColors()
             ) {
                 Text(
-                    text = when (val m = mode) {
-                        SearchMode.Local -> "Local app search"
-                        is SearchMode.Embedding -> "${m.service.displayName} / ${m.model}"
-                    },
+                    text = picked?.let { (s, m) -> "${s.displayName} / $m" } ?: "Pick embedding model",
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("Local app search") },
-                    onClick = { mode = SearchMode.Local; pickerOpen = false }
-                )
                 embeddingChoices.forEach { (s, m) ->
                     DropdownMenuItem(
                         text = { Text("${s.displayName} / $m") },
-                        onClick = { mode = SearchMode.Embedding(s, m); pickerOpen = false }
+                        onClick = { picked = s to m; pickerOpen = false }
                     )
                 }
             }
@@ -125,24 +117,18 @@ fun SemanticSearchScreen(
 
         Button(
             onClick = {
+                val (svc, model) = picked ?: return@Button
                 val q = query.trim()
                 if (q.isBlank()) return@Button
-                val current = mode
-                if (current is SearchMode.Embedding) {
-                    val key = aiSettings.getApiKey(current.service)
-                    if (key.isBlank()) { status = "No API key set for ${current.service.displayName}"; return@Button }
-                }
+                val key = aiSettings.getApiKey(svc)
+                if (key.isBlank()) { status = "No API key set for ${svc.displayName}"; return@Button }
                 running = true
-                status = if (current is SearchMode.Local) "Searching…" else "Indexing reports…"
+                status = "Indexing reports…"
                 results = emptyList()
                 scope.launch {
                     val hits = withContext(Dispatchers.IO) {
-                        when (current) {
-                            SearchMode.Local -> runLocalSearch(context, q)
-                            is SearchMode.Embedding -> runEmbeddingSearch(
-                                context, repository, current.service,
-                                aiSettings.getApiKey(current.service), current.model, q
-                            ) { msg -> scope.launch(Dispatchers.Main) { status = msg } }
+                        runEmbeddingSearch(context, repository, svc, key, model, q) { msg ->
+                            scope.launch(Dispatchers.Main) { status = msg }
                         }
                     }
                     results = hits
@@ -150,7 +136,7 @@ fun SemanticSearchScreen(
                     running = false
                 }
             },
-            enabled = !running && query.isNotBlank(),
+            enabled = !running && picked != null && query.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
         ) { Text(if (running) "Searching…" else "Search reports", maxLines = 1, softWrap = false) }
@@ -195,44 +181,6 @@ internal fun supportedEmbeddingChoices(aiSettings: Settings): List<Pair<AppServi
 }
 
 private data class SearchHit(val reportId: String, val title: String, val timestamp: String, val score: Double)
-
-private sealed class SearchMode {
-    object Local : SearchMode()
-    data class Embedding(val service: AppService, val model: String) : SearchMode()
-}
-
-/** On-device token search across [Report.title], [Report.prompt], and
- *  every successful agent's response body. The query is split on
- *  whitespace, lowercased; a report scores by the sum of token
- *  occurrences in its concatenated text. Reports where no token
- *  appears at all are dropped. Sorted descending by score, then by
- *  recency for ties. Top 25. Nothing leaves the device. */
-private fun runLocalSearch(context: android.content.Context, query: String): List<SearchHit> {
-    val tokens = query.lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
-    if (tokens.isEmpty()) return emptyList()
-    val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-    val reports: List<Report> = ReportStorage.getAllReports(context)
-    return reports.mapNotNull { r ->
-        val sb = StringBuilder()
-        sb.append(r.title).append('\n').append(r.prompt).append('\n')
-        for (a in r.agents) {
-            a.responseBody?.takeIf { it.isNotBlank() }?.let { sb.append(it).append('\n') }
-        }
-        val haystack = sb.toString().lowercase()
-        var score = 0
-        for (t in tokens) {
-            var idx = 0
-            while (true) {
-                val found = haystack.indexOf(t, idx)
-                if (found < 0) break
-                score++
-                idx = found + 1
-            }
-        }
-        if (score == 0) null
-        else SearchHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), score.toDouble())
-    }.sortedWith(compareByDescending<SearchHit> { it.score }.thenByDescending { it.timestamp }).take(25)
-}
 
 /** Embed [query], embed each report's representative text (cached), score by
  *  cosine similarity, return top 10 sorted descending. */
