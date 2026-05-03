@@ -355,8 +355,22 @@ fun NewReportScreen(
     val userTagBlock = remember { userTagRegex.find(rawPrompt)?.value ?: "" }
     var prompt by remember { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
     // (mime, base64) of an optional image attached to the prompt — passed
-    // through to every agent in the report.
-    var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // through to every agent in the report. Seeded from UiState when the
+    // share-target chooser staged an image into reportImageBase64/Mime
+    // before navigating here; we clear those fields on first composition
+    // so a later return to this screen doesn't re-stage the same image.
+    var attachedImage by remember {
+        mutableStateOf<Pair<String, String>?>(
+            uiState.reportImageMime?.let { mime ->
+                uiState.reportImageBase64?.let { b64 -> mime to b64 }
+            }
+        )
+    }
+    LaunchedEffect(Unit) {
+        if (uiState.reportImageBase64 != null || uiState.reportImageMime != null) {
+            viewModel.updateUiState { it.copy(reportImageBase64 = null, reportImageMime = null) }
+        }
+    }
     var attachError by remember { mutableStateOf<String?>(null) }
     var useWebSearch by remember { mutableStateOf(false) }
     // Per-report reasoning level. "" = none; one of low/medium/high
