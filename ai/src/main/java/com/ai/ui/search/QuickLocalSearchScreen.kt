@@ -28,14 +28,14 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * On-device keyword search across saved reports. The query is split on
- * whitespace and matched (case-insensitive) against title + prompt +
- * every successful agent's response body. Score = sum of token
- * occurrences across the concatenated text. No network calls — every
- * byte stays on the device.
+ * The cheaper of the two on-device search variants. Takes a single
+ * word (or short phrase, used as a substring), case-insensitive
+ * substring match against [Report.prompt] and every successful
+ * agent's response body. No tokenisation, no scoring — a report is
+ * either a hit or it isn't. Results sorted by recency.
  */
 @Composable
-fun LocalSearchScreen(
+fun QuickLocalSearchScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenReport: (String) -> Unit
@@ -44,20 +44,19 @@ fun LocalSearchScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<LocalSearchHit>>(emptyList()) }
+    var results by remember { mutableStateOf<List<QuickHit>>(emptyList()) }
     var status by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Extended local search", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Quick local search", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = query, onValueChange = { query = it },
-            label = { Text("Query") },
+            label = { Text("Word") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = false,
-            maxLines = 3,
+            singleLine = true,
             colors = AppColors.outlinedFieldColors()
         )
 
@@ -71,7 +70,7 @@ fun LocalSearchScreen(
                 status = "Searching…"
                 results = emptyList()
                 scope.launch {
-                    val hits = withContext(Dispatchers.IO) { runLocalSearch(context, q) }
+                    val hits = withContext(Dispatchers.IO) { runQuickSearch(context, q) }
                     results = hits
                     status = if (hits.isEmpty()) "No matches." else "${hits.size} results"
                     running = false
@@ -104,8 +103,6 @@ fun LocalSearchScreen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
                         }
-                        Text(hit.score.toString(), fontSize = 11.sp, color = AppColors.Blue,
-                            modifier = Modifier.padding(start = 8.dp))
                     }
                 }
             }
@@ -113,29 +110,19 @@ fun LocalSearchScreen(
     }
 }
 
-private data class LocalSearchHit(val reportId: String, val title: String, val timestamp: String, val score: Int)
+private data class QuickHit(val reportId: String, val title: String, val timestamp: String)
 
-private fun runLocalSearch(context: android.content.Context, query: String): List<LocalSearchHit> {
-    val tokens = query.lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
-    if (tokens.isEmpty()) return emptyList()
+private fun runQuickSearch(context: android.content.Context, word: String): List<QuickHit> {
+    val needle = word.lowercase()
+    if (needle.isBlank()) return emptyList()
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val reports: List<Report> = ReportStorage.getAllReports(context)
     return reports.mapNotNull { r ->
-        val sb = StringBuilder()
-        sb.append(r.title).append('\n').append(r.prompt).append('\n')
-        for (a in r.agents) a.responseBody?.takeIf { it.isNotBlank() }?.let { sb.append(it).append('\n') }
-        val haystack = sb.toString().lowercase()
-        var score = 0
-        for (t in tokens) {
-            var idx = 0
-            while (true) {
-                val found = haystack.indexOf(t, idx)
-                if (found < 0) break
-                score++
-                idx = found + 1
-            }
+        val matchesPrompt = r.prompt.contains(needle, ignoreCase = true)
+        val matchesAnyResponse = r.agents.any { a ->
+            a.responseBody?.contains(needle, ignoreCase = true) == true
         }
-        if (score == 0) null
-        else LocalSearchHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), score)
-    }.sortedWith(compareByDescending<LocalSearchHit> { it.score }.thenByDescending { it.timestamp }).take(25)
+        if (!matchesPrompt && !matchesAnyResponse) null
+        else QuickHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)))
+    }.sortedByDescending { it.timestamp }
 }

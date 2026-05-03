@@ -134,7 +134,8 @@ fun ReportsHubScreen(
     onNavigateToPromptHistory: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSearch: () -> Unit,
-    onNavigateToLocalSearch: () -> Unit
+    onNavigateToLocalSearch: () -> Unit,
+    onNavigateToQuickLocalSearch: () -> Unit
 ) {
     val context = LocalContext.current
     val hasPromptHistory = remember {
@@ -151,9 +152,55 @@ fun ReportsHubScreen(
         Spacer(modifier = Modifier.height(12.dp))
         HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory, enabled = hasPreviousReports)
         Spacer(modifier = Modifier.height(12.dp))
-        HubCard(icon = "🔎", title = "Semantic search", onClick = onNavigateToSearch, enabled = hasPreviousReports)
-        Spacer(modifier = Modifier.height(12.dp))
-        HubCard(icon = "🔍", title = "Local app search", onClick = onNavigateToLocalSearch, enabled = hasPreviousReports)
+        SearchHubGroup(
+            enabled = hasPreviousReports,
+            onQuickLocal = onNavigateToQuickLocalSearch,
+            onExtendedLocal = onNavigateToLocalSearch,
+            onSemantic = onNavigateToSearch
+        )
+    }
+}
+
+/** Groups the three search modes into one card titled "Search" so the
+ *  hub doesn't show three loose top-level rows for variants of the
+ *  same operation. Order matches escalating cost: Quick (single-word
+ *  on-device) → Extended (tokenised on-device) → Semantic (uploads
+ *  text to an embedding provider). */
+@Composable
+private fun SearchHubGroup(
+    enabled: Boolean,
+    onQuickLocal: () -> Unit,
+    onExtendedLocal: () -> Unit,
+    onSemantic: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text("Search", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = if (enabled) AppColors.TextSecondary else AppColors.TextDim,
+                modifier = Modifier.padding(bottom = 4.dp))
+            SearchHubItem(icon = "🔍", title = "Quick local search", enabled = enabled, onClick = onQuickLocal)
+            SearchHubItem(icon = "📂", title = "Extended local search", enabled = enabled, onClick = onExtendedLocal)
+            SearchHubItem(icon = "🌐", title = "Semantic search", enabled = enabled, onClick = onSemantic)
+        }
+    }
+}
+
+@Composable
+private fun SearchHubItem(icon: String, title: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+            color = if (enabled) Color.White else AppColors.TextDim)
     }
 }
 
