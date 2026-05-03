@@ -28,6 +28,8 @@ enum class SettingsSubScreen {
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
     AI_SECONDARY_PROMPTS,
+    AI_LOCAL_LITERT_MODELS,
+    AI_LOCAL_LLMS,
     AI_IMPORT_EXPORT,
     AI_REFRESH
 }
@@ -97,6 +99,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SWARMS, SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_SECONDARY_PROMPTS,
+            SettingsSubScreen.AI_LOCAL_LITERT_MODELS, SettingsSubScreen.AI_LOCAL_LLMS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
@@ -349,6 +352,12 @@ fun SettingsScreen(
                 onSave = onSaveGeneral,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
+        }
+        SettingsSubScreen.AI_LOCAL_LITERT_MODELS -> {
+            LocalLiteRtModelsScreen(onBack = goBack, onNavigateHome = onNavigateHome)
+        }
+        SettingsSubScreen.AI_LOCAL_LLMS -> {
+            LocalLlmsScreen(onBack = goBack, onNavigateHome = onNavigateHome)
         }
         SettingsSubScreen.AI_IMPORT_EXPORT -> {
             ImportExportScreen(

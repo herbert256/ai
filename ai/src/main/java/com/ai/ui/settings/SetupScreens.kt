@@ -57,6 +57,11 @@ fun SetupScreen(
         (if (openRouterApiKey.isNotBlank()) 1 else 0) +
         (if (aaApiKey.isNotBlank()) 1 else 0)
     }
+    // Counts of installed on-device runtimes — surfaced as the badge
+    // on the matching SetupNavCard so the user can see at a glance
+    // whether anything is installed without drilling in.
+    val liteRtCount = remember { com.ai.data.LocalEmbedder.availableModels(context).size }
+    val localLlmCount = remember { com.ai.data.LocalLlm.availableLlms(context).size }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -92,6 +97,10 @@ fun SetupScreen(
             }
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
+            SetupNavCard("\uD83D\uDCD0", "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LITERT_MODELS) })
+            SetupNavCard("\uD83D\uDCF1", "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LLMS) })
         }
     }
 }
