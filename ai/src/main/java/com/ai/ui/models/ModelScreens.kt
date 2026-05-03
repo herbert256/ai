@@ -932,6 +932,26 @@ fun ModelInfoScreen(
                                         Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                 }
+                                // Provider-recommended sampling defaults
+                                // (Mistral default_model_temperature, Together
+                                // config.stop). Shown so the user can see what
+                                // the upstream considers neutral before
+                                // diverging in a Parameters preset.
+                                cfg.modelCapabilities[modelName]?.defaultTemperature?.let { t ->
+                                    Row {
+                                        Text("Default temperature: $t", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                        Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    }
+                                }
+                                cfg.modelCapabilities[modelName]?.defaultStopSequences?.takeIf { it.isNotEmpty() }?.let { stops ->
+                                    Row {
+                                        Text("Default stops: ${stops.joinToString(", ")}",
+                                            fontSize = 13.sp, color = Color.White,
+                                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f))
+                                        Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 // Add / edit manual override — opens the same form the
                                 // Manual model types CRUD uses, pre-filled with this

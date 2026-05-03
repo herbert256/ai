@@ -353,5 +353,15 @@ data class ModelCapabilities(
      *  Mistral's `deprecation_replacement_model` field — pickers
      *  can show "→ use $deprecationReplacement" alongside the
      *  badge. */
-    val deprecationReplacement: String? = null
+    val deprecationReplacement: String? = null,
+    /** Provider-recommended default sampling temperature for this
+     *  model. Currently fed by Mistral's `default_model_temperature`.
+     *  Surfaced on Model Info so users can see what the provider
+     *  thinks is "right" before diverging in a Parameters preset. */
+    val defaultTemperature: Float? = null,
+    /** Provider-recommended stop sequences. Together's `config.stop`
+     *  populates this — typically the model's tokeniser's eos /
+     *  begin-of-sentence markers. Surfaced on Model Info; future
+     *  Parameters-preset wiring can offer a one-tap seed. */
+    val defaultStopSequences: List<String>? = null
 )

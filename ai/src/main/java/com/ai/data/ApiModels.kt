@@ -408,6 +408,15 @@ data class OpenAiModel(
      *  fall through to LiteLLM / models.dev / Helicone for prices
      *  the provider already published. Other providers ship null. */
     val pricing: TogetherPricing? = null,
+    /** Together AI's per-model chat-template config block — carries
+     *  recommended stop tokens. Mirrored to ModelCapabilities.
+     *  defaultStopSequences so a fresh Parameters preset can seed
+     *  the field. */
+    val config: TogetherConfig? = null,
+    /** Mistral's per-model recommended temperature. Other providers
+     *  don't ship this. Fed into ModelCapabilities.defaultTemperature
+     *  for the same Parameters-preset seeding. */
+    val default_model_temperature: Float? = null,
     /** Mistral's deprecation date (ISO-8601) when present. The
      *  picker can flag deprecated entries with a small ⚠ badge so
      *  the user knows to migrate. Null = active. */
@@ -453,6 +462,17 @@ data class MistralCapabilities(
     val ocr: Boolean? = null,
     val audio_transcription: Boolean? = null,
     val audio_speech: Boolean? = null
+)
+
+/** Together AI's per-model `config` block carries the chat-template
+ *  + bos / eos / stop tokens. Surfaced via ModelCapabilities so a
+ *  Parameters preset can pre-fill stop sequences from the provider's
+ *  recommendation rather than leaving the field blank. */
+data class TogetherConfig(
+    val stop: List<String>? = null,
+    val bos_token: String? = null,
+    val eos_token: String? = null,
+    val chat_template: String? = null
 )
 
 data class CohereModelsResponse(val models: List<CohereModelInfo>?)
@@ -636,7 +656,21 @@ data class OpenRouterModelInfo(
     /** ISO-8601 expiration (deprecation / removal) date. Pickers
      *  flag entries with a ⚠ badge so the user knows to migrate
      *  before the upstream pulls the model. Null = active. */
-    val expiration_date: String? = null
+    val expiration_date: String? = null,
+    /** OpenRouter's per-model default sampling — the values the
+     *  upstream applies when a parameter is omitted. Used to seed
+     *  fresh Parameters presets so a user creating one doesn't
+     *  start from blank fields. */
+    val default_parameters: OpenRouterDefaultParameters? = null
+)
+
+data class OpenRouterDefaultParameters(
+    val temperature: Float? = null,
+    val top_p: Float? = null,
+    val top_k: Int? = null,
+    val frequency_penalty: Float? = null,
+    val presence_penalty: Float? = null,
+    val repetition_penalty: Float? = null
 )
 
 data class OpenRouterPricing(

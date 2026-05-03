@@ -541,6 +541,11 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         val aliases = info?.aliases?.takeIf { it.isNotEmpty() }
         val deprecationDate = info?.deprecation
         val deprecationReplacement = info?.deprecation_replacement_model
+        // Provider-recommended defaults, surfaced on Model Info. Mistral
+        // ships per-model temperature, Together ships stop tokens — feed
+        // both fields where they're available.
+        val defaultTemp = info?.default_model_temperature
+        val defaultStops = info?.config?.stop?.takeIf { it.isNotEmpty() }
         val merged = ModelCapabilities(
             supportsVision = supportsVision ?: cohereCap?.supportsVision,
             supportsFunctionCalling = supportsFn,
@@ -549,12 +554,15 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
             supportsReasoning = supportsReasoning,
             aliases = aliases,
             deprecationDate = deprecationDate,
-            deprecationReplacement = deprecationReplacement
+            deprecationReplacement = deprecationReplacement,
+            defaultTemperature = defaultTemp,
+            defaultStopSequences = defaultStops
         )
         if (merged.supportsVision != null || merged.supportsFunctionCalling != null
             || merged.contextLength != null || merged.maxOutputTokens != null
             || merged.supportsReasoning != null || merged.aliases != null
-            || merged.deprecationDate != null) {
+            || merged.deprecationDate != null
+            || merged.defaultTemperature != null || merged.defaultStopSequences != null) {
             caps[id] = merged
         }
     }
