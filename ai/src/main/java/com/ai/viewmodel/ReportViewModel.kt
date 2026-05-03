@@ -871,6 +871,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // not capped against each other (intentional; that's the
                 // whole point of allowing concurrent runs).
                 val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
+                // Reference legend for COMPARE — same for every (lang, pick)
+                // tuple in the batch, so compute once. Null for the other
+                // kinds; the executor only appends when this is set.
+                val compareLegend = if (kind == SecondaryKind.COMPARE) buildCompareLegend(report, includeIds) else null
                 coroutineScope {
                     languages.flatMap { (lang, langNative) ->
                         val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
@@ -881,7 +885,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         picks.map { (provider, model) ->
                             async {
                                 sem.withPermit {
-                                    executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report, lang, langNative)
+                                    executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report, lang, langNative, compareLegend)
                                 }
                             }
                         }
@@ -940,7 +944,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings,
         report: Report,
         targetLanguage: String? = null,
-        targetLanguageNative: String? = null
+        targetLanguageNative: String? = null,
+        compareLegend: String? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
@@ -1045,8 +1050,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val inCost = tu?.let { it.inputTokens * pricing.promptPrice }
         val outCost = tu?.let { it.outputTokens * pricing.completionPrice }
 
+        // For COMPARE, append the deterministic reference legend so each
+        // [N] in the model's prose has a "[N] = Provider / Model" entry
+        // at the bottom regardless of whether the model bothered to
+        // include one. Only when the call actually produced content —
+        // an error response is left untouched so the failure is visible.
+        val finalContent = if (kind == SecondaryKind.COMPARE && response.error == null
+                && !response.analysis.isNullOrBlank() && !compareLegend.isNullOrBlank()) {
+            "${response.analysis.trimEnd()}\n\n---\n\n## References\n\n$compareLegend\n"
+        } else response.analysis
         SecondaryResultStorage.save(context, placeholder.copy(
-            content = response.analysis,
+            content = finalContent,
             errorMessage = response.error,
             tokenUsage = tu,
             inputCost = inCost,

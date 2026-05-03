@@ -227,10 +227,15 @@ QUESTION:
 RESPONSES:
 @RESULTS@
 
+Reference rules — follow them exactly:
+- Inline references MUST be ONLY the bracketed number, e.g. [1], [3]. Never include "provider=", "model=", or any provider or model name in an inline reference. A reference legend mapping each [N] to its provider and model is appended to your output automatically — do not duplicate it.
+- When ALL @COUNT@ responses agree on a point, write "all responses agree" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] … [@COUNT@] is noise.
+- Only enumerate IDs when a subset (not all) of the responses share a position — then list just that subset, e.g. "[1] and [3] argue …".
+
 Produce a comparative analysis with these sections:
 
 ## Points of agreement
-Claims, conclusions, or recommendations that most or all responses share. Reference responses by [N] where relevant.
+Claims, conclusions, or recommendations that most or all responses share. Apply the reference rules above.
 
 ## Points of disagreement
 Where responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.
@@ -297,6 +302,25 @@ fun buildResultsBlock(report: Report, includeIds: Set<Int>? = null): String {
         sb.append(agent.responseBody?.trim() ?: "")
         emitted++
         if (emitted != total) sb.append("\n\n")
+    }
+    return sb.toString()
+}
+
+/** Build the reference legend appended to a Compare result. Mirrors
+ *  [buildResultsBlock]'s 1-based id assignment so each `[N]` in the
+ *  generated comparison maps to the matching `[N] = Provider / Model`
+ *  line here. Honours [includeIds] the same way the results block
+ *  does — restrict the legend to the same subset that fed the prompt. */
+fun buildCompareLegend(report: Report, includeIds: Set<Int>? = null): String {
+    val sb = StringBuilder()
+    val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+    successful.forEachIndexed { idx, agent ->
+        val originalId = idx + 1
+        if (includeIds != null && originalId !in includeIds) return@forEachIndexed
+        val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+        if (sb.isNotEmpty()) sb.append('\n')
+        sb.append("[").append(originalId).append("] = ")
+            .append(provDisplay).append(" / ").append(agent.model)
     }
     return sb.toString()
 }
