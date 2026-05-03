@@ -155,6 +155,22 @@ class AnalysisRepository {
         imageBase64: String? = null,
         imageMime: String? = null
     ): AnalysisResponse = withContext(Dispatchers.IO) {
+        // Local on-device path — no API key, no HTTP, no retry. The
+        // sentinel AppService.LOCAL is the marker. Embedding-style
+        // simple flow: build the prompt, call MediaPipe LLM Inference,
+        // wrap the response.
+        if (agent.provider.id == "LOCAL") {
+            if (context == null) {
+                return@withContext AnalysisResponse(agent.provider, null, "Local LLM call requires a Context", agentName = agent.name)
+            }
+            val finalPrompt = buildPrompt(prompt, content, agent)
+            val out = LocalLlm.generate(context, agent.model, finalPrompt)
+            return@withContext if (out != null) {
+                AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200)
+            } else {
+                AnalysisResponse(agent.provider, null, "Local LLM \"${agent.model}\" failed — verify it loaded in Housekeeping → Local LLMs.", agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 500)
+            }
+        }
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)
         }
