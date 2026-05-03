@@ -450,11 +450,14 @@ fun KnowledgeDetailScreen(
     }
 }
 
-/** Heuristic file-type detection from extension + mime. The SAF Uri
- *  doesn't always carry a useful mime, so extension wins when set. */
+/** Heuristic file-type detection. Tries the display-name extension
+ *  first (the SAF picker usually exposes a real filename); falls
+ *  back to the URI's MIME type for share-target / document-provider
+ *  URIs that hand us an opaque content:// without a useful name.
+ *  Plain text is the last-resort default. */
 private fun pickTypeForUri(context: android.content.Context, uri: Uri): KnowledgeSourceType {
     val name = displayNameForUri(context, uri).orEmpty().lowercase()
-    return when {
+    val byExtension = when {
         name.endsWith(".pdf") -> KnowledgeSourceType.PDF
         name.endsWith(".md") || name.endsWith(".markdown") -> KnowledgeSourceType.MARKDOWN
         name.endsWith(".docx") -> KnowledgeSourceType.DOCX
@@ -463,7 +466,25 @@ private fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowledg
         name.endsWith(".ods") -> KnowledgeSourceType.ODS
         name.endsWith(".csv") || name.endsWith(".tsv") -> KnowledgeSourceType.CSV
         name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") -> KnowledgeSourceType.IMAGE
-        else -> KnowledgeSourceType.TEXT
+        name.endsWith(".txt") -> KnowledgeSourceType.TEXT
+        else -> null
+    }
+    if (byExtension != null) return byExtension
+    val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()?.lowercase()
+    return when (mime) {
+        "application/pdf" -> KnowledgeSourceType.PDF
+        "text/markdown", "text/x-markdown" -> KnowledgeSourceType.MARKDOWN
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> KnowledgeSourceType.DOCX
+        "application/vnd.oasis.opendocument.text" -> KnowledgeSourceType.ODT
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> KnowledgeSourceType.XLSX
+        "application/vnd.oasis.opendocument.spreadsheet" -> KnowledgeSourceType.ODS
+        "text/csv", "text/comma-separated-values",
+        "text/tab-separated-values" -> KnowledgeSourceType.CSV
+        else -> when {
+            mime?.startsWith("image/") == true -> KnowledgeSourceType.IMAGE
+            mime?.startsWith("text/") == true -> KnowledgeSourceType.TEXT
+            else -> KnowledgeSourceType.TEXT
+        }
     }
 }
 
