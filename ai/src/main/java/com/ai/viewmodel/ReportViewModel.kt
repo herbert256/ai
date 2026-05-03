@@ -1130,6 +1130,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     )
 
     data class TranslationRunState(
+        val runId: String,
         val sourceReportId: String,
         val targetLanguageName: String,
         val targetLanguageNative: String,
@@ -1144,9 +1145,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val isFinished: Boolean get() = finished
     }
 
-    private val _translationRun = MutableStateFlow<TranslationRunState?>(null)
-    val translationRun: StateFlow<TranslationRunState?> = _translationRun.asStateFlow()
-    private var translationJob: Job? = null
+    // Multiple concurrent translation runs: each Translate click
+    // allocates a fresh runId and runs in parallel with any others
+    // already in flight. Map keyed by runId so the UI can render one
+    // live row per run and Cancel can target a specific one.
+    private val _translationRuns = MutableStateFlow<Map<String, TranslationRunState>>(emptyMap())
+    val translationRuns: StateFlow<Map<String, TranslationRunState>> = _translationRuns.asStateFlow()
+    private val translationJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
     /** Snapshot the report's translatable items, kick off the runner.
      *  Concurrency capped at 3 — translations are often the slowest
@@ -1166,13 +1171,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         provider: AppService,
         model: String
     ): Job {
-        translationJob?.cancel()
+        val runId = java.util.UUID.randomUUID().toString()
         val job = scope.launch(Dispatchers.IO) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val generalSettings = state.generalSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
-                _translationRun.value = null
+                _translationRuns.update { it - runId }
                 return@launch
             }
             val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
@@ -1223,12 +1228,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     )
                 }
 
-            _translationRun.value = TranslationRunState(
+            _translationRuns.update { it + (runId to TranslationRunState(
+                runId = runId,
                 sourceReportId = sourceReportId,
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
                 items = items
-            )
+            )) }
 
             val template = generalSettings.translatePrompt.ifBlank { SecondaryPrompts.DEFAULT_TRANSLATE }
             val apiKey = aiSettings.getApiKey(provider)
@@ -1246,25 +1252,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 coroutineScope {
                     items.map { item ->
                         async {
-                            sem.withPermit { runOneTranslation(context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing) }
+                            sem.withPermit { runOneTranslation(runId, context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing) }
                         }
                     }.awaitAll()
                 }
 
                 // All done — write a TRANSLATE SecondaryResult per item
                 // onto the source report. No new report is created.
-                val finalState = _translationRun.value ?: return@launch
+                val finalState = _translationRuns.value[runId] ?: return@launch
                 if (finalState.cancelled) return@launch
                 saveTranslationSecondaries(context, finalState, provider, model, pricing)
                 ReportStorage.bumpReportTimestamp(context, sourceReportId)
-                _translationRun.update { it?.copy(finished = true) }
+                _translationRuns.update { runs ->
+                    val cur = runs[runId] ?: return@update runs
+                    runs + (runId to cur.copy(finished = true))
+                }
             }
         }
-        translationJob = job
+        translationJobs[runId] = job
+        job.invokeOnCompletion { translationJobs.remove(runId) }
         return job
     }
 
     private suspend fun runOneTranslation(
+        runId: String,
         context: Context,
         provider: AppService,
         apiKey: String,
@@ -1275,8 +1286,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         item: TranslationItem,
         pricing: PricingCache.ModelPricing
     ) {
-        _translationRun.update { state ->
-            state?.copy(items = state.items.map { if (it.id == item.id) it.copy(status = TranslationStatus.RUNNING) else it })
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            runs + (runId to cur.copy(items = cur.items.map { if (it.id == item.id) it.copy(status = TranslationStatus.RUNNING) else it }))
         }
         val resolved = template
             .replace("@LANGUAGE@", targetLanguageName)
@@ -1300,9 +1312,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val tu = response.tokenUsage
         val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
         val costCents = costDollars * 100
-        _translationRun.update { state ->
-            if (state == null) return@update null
-            val updated = state.items.map {
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            val updated = cur.items.map {
                 if (it.id != item.id) it
                 else if (response.isSuccess) it.copy(
                     status = TranslationStatus.DONE,
@@ -1319,7 +1331,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     durationMs = callDurationMs
                 )
             }
-            state.copy(items = updated, totalCostCents = updated.sumOf { it.costCents })
+            runs + (runId to cur.copy(items = updated, totalCostCents = updated.sumOf { it.costCents }))
         }
         // Roll the translation call into per-(provider, model) usage so
         // it shows up on the AI Usage screen alongside report / chat
@@ -1385,12 +1397,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    fun cancelTranslation() {
-        translationJob?.cancel()
-        _translationRun.update { it?.copy(cancelled = true) }
+    fun cancelTranslation(runId: String) {
+        translationJobs[runId]?.cancel()
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            runs + (runId to cur.copy(cancelled = true))
+        }
     }
 
-    fun consumeTranslationRun() {
-        _translationRun.value = null
+    fun consumeTranslationRun(runId: String) {
+        _translationRuns.update { it - runId }
     }
 }

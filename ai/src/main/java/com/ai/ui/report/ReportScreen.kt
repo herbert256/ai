@@ -140,12 +140,12 @@ fun ReportsScreenNav(
         onExportAll = { rid, onProgress ->
             bulkExportAndShare(context, rid, onProgress)
         },
-        translationRun = reportViewModel.translationRun.collectAsState().value,
+        translationRuns = reportViewModel.translationRuns.collectAsState().value.values.toList(),
         onStartTranslation = { sourceId, langName, langNative, prov, model ->
             reportViewModel.startTranslation(scope, context, sourceId, langName, langNative, prov, model)
         },
-        onCancelTranslation = { reportViewModel.cancelTranslation() },
-        onConsumeTranslation = { reportViewModel.consumeTranslationRun() }
+        onCancelTranslation = { runId -> reportViewModel.cancelTranslation(runId) },
+        onConsumeTranslation = { runId -> reportViewModel.consumeTranslationRun(runId) }
     )
 }
 
@@ -226,10 +226,10 @@ fun ReportsScreen(
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> },
     onExportAll: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> },
-    translationRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
+    translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
     onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
-    onCancelTranslation: () -> Unit = {},
-    onConsumeTranslation: () -> Unit = {}
+    onCancelTranslation: (String) -> Unit = {},
+    onConsumeTranslation: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -251,7 +251,12 @@ fun ReportsScreen(
     var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
     var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, translationRun?.finished) {
+    // Recompute when any translation run finishes — the persisted
+    // summary appears in translationRunSummaries on the next reload,
+    // which is what flips the live row to the static one.
+    val anyTranslationFinished = translationRuns.any { it.isFinished }
+    val finishedSignature = translationRuns.filter { it.isFinished }.map { it.runId }.toSet()
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0)
             secondaryRuns = emptyList()
@@ -294,23 +299,17 @@ fun ReportsScreen(
         }
     }
 
-    // While a translation is in flight, repoll the live state so the
-    // "n / N" prefix and the running cost stay current. (The
-    // translationRun StateFlow itself triggers recomposition on each
-    // _translationRun.update, but we also force a periodic poke so the
-    // cost cell formats reactively even when the parent recomposition
-    // would otherwise skip equal snapshots.)
-    LaunchedEffect(translationRun?.isRunning ?: false, currentReportId) {
-        // Once the run flips to finished, fold its rows into the
-        // persisted summary and clear the live state so the live row
-        // gives way to the static one.
-        if (translationRun?.isFinished == true) {
-            // Allow the LaunchedEffect above (keyed on `translationRun?.finished`)
-            // to reload and append the persisted secondary first;
-            // 200ms is long enough for the IO read to publish the new
-            // translationRunSummaries before we drop the live row.
+    // Once any individual run flips to finished, fold its rows into
+    // the persisted summary and consume just that run so its live row
+    // gives way to the static one. Other in-flight runs keep going.
+    LaunchedEffect(finishedSignature) {
+        if (finishedSignature.isNotEmpty()) {
+            // Allow the LaunchedEffect above (keyed on the same
+            // signature) to reload and append the persisted secondary
+            // first; 200 ms is long enough for the IO read to publish
+            // the new translationRunSummaries before we drop the live row.
             delay(200)
-            onConsumeTranslation()
+            finishedSignature.forEach { onConsumeTranslation(it) }
         }
     }
     // Overlay state for any flow that can hand off to a Compose
@@ -836,7 +835,7 @@ fun ReportsScreen(
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
-                translationRun = translationRun,
+                translationRuns = translationRuns,
                 onCancelTranslation = onCancelTranslation,
                 translationRunSummaries = translationRunSummaries,
                 onViewSecondaryKind = { kind -> listKind = kind },
@@ -992,8 +991,8 @@ private fun ColumnScope.GenerationPhase(
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
-    translationRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
-    onCancelTranslation: () -> Unit = {},
+    translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
+    onCancelTranslation: (String) -> Unit = {},
     translationRunSummaries: List<TranslationRunSummary> = emptyList(),
     onViewSecondaryKind: (SecondaryKind) -> Unit = {},
     onOpenSecondaryRun: (String) -> Unit = {},
@@ -1203,42 +1202,42 @@ private fun ColumnScope.GenerationPhase(
             }
         }
 
-        // Live translation row — appears the moment the user fires off
-        // a translate and disappears once the persisted summary takes
-        // its place. Hourglass spins while items are in flight; the
-        // text leads with "n / N" so the user can watch progress, and
-        // the cost cell on the right ticks up as each call returns.
-        // Tap-to-cancel: the same Cancel button TranslationProgressScreen
-        // used to host now lives next to the cost.
-        if (isComplete && translationRun != null && !translationRun.isFinished && !translationRun.cancelled) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
-                    AnimatedHourglass(fontSize = 16.sp)
-                }
-                RowTypeCell("translate")
-                val progress = "${translationRun.completed} / ${translationRun.total}"
-                val info = listOf(translationRun.targetLanguageName).joinToString(" · ")
-                Column(modifier = Modifier.weight(1f)) {
+        // Live translation rows — one per active run. Hourglass spins
+        // while items are in flight; the text leads with "n / N" so
+        // progress is visible at a glance, and the cost cell ticks up
+        // as each call returns. Multiple translations can run in
+        // parallel (different language / model / both); each gets its
+        // own row and its own Cancel.
+        if (isComplete) {
+            translationRuns.filter { !it.isFinished && !it.cancelled }.forEach { run ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
+                        AnimatedHourglass(fontSize = 16.sp)
+                    }
+                    RowTypeCell("translate")
+                    val progress = "${run.completed} / ${run.total}"
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "$progress · ${run.targetLanguageName.ifBlank { "Translate" }}",
+                            fontSize = 13.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (run.totalCostCents > 0.0) {
+                        Text(formatCents(run.totalCostCents), fontSize = 10.sp,
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(end = 6.dp))
+                    }
                     Text(
-                        "$progress · ${info.ifBlank { "Translate" }}",
-                        fontSize = 13.sp, color = Color.White,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                        "Cancel", fontSize = 11.sp, color = AppColors.Red,
+                        modifier = Modifier.clickable { onCancelTranslation(run.runId) }.padding(horizontal = 4.dp)
                     )
                 }
-                if (translationRun.totalCostCents > 0.0) {
-                    Text(formatCents(translationRun.totalCostCents), fontSize = 10.sp,
-                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(end = 6.dp))
-                }
-                Text(
-                    "Cancel", fontSize = 11.sp, color = AppColors.Red,
-                    modifier = Modifier.clickable { onCancelTranslation() }.padding(horizontal = 4.dp)
-                )
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
-            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
 
         // Translation runs — one row per Translate invocation. Each
