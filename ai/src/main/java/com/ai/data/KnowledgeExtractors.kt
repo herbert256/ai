@@ -548,7 +548,18 @@ internal object KnowledgeExtractors {
                         if (row.any { it.isNotBlank() }) rows.add(row.toList())
                         row.clear()
                     }
-                    '\r' -> Unit // skip; the trailing \n closes the row
+                    '\r' -> {
+                        // CRLF: defer to the trailing \n. CR-only (legacy Mac OS classic
+                        // exports, plus a surprising number of older spreadsheet apps that
+                        // still emit them): treat the bare \r as the row terminator instead
+                        // of dropping it, otherwise the whole file collapses into one row.
+                        if (i + 1 < n && text[i + 1] == '\n') Unit
+                        else {
+                            row.add(cell.toString()); cell.clear()
+                            if (row.any { it.isNotBlank() }) rows.add(row.toList())
+                            row.clear()
+                        }
+                    }
                     else -> cell.append(c)
                 }
             }
