@@ -795,12 +795,16 @@ private suspend fun routeShareToReport(
 ) {
     val title = shared.subject?.takeIf { it.isNotBlank() } ?: ""
     val prompt = shared.text?.takeIf { it.isNotBlank() } ?: ""
-    // First image-typed attachment goes onto reportImageBase64 so
-    // the New Report screen surfaces it like any other vision pick.
-    val firstImageUri = shared.uris.firstOrNull { uri ->
-        val mime = runCatching { context.contentResolver.getType(android.net.Uri.parse(uri)) }.getOrNull()
-        (mime ?: shared.mime)?.startsWith("image/") == true
-    }
+    // Partition URIs by mime — first image-typed one becomes the
+    // vision attachment; everything else queues for auto-attach as
+    // a new knowledge base on the New Report screen. This honours
+    // the chooser copy ("text → prompt; images → vision; files →
+    // Knowledge") instead of silently dropping the docs.
+    fun mimeOf(uri: String): String? =
+        runCatching { context.contentResolver.getType(android.net.Uri.parse(uri)) }.getOrNull()
+            ?: shared.mime
+    val (imageUris, nonImageUris) = shared.uris.partition { mimeOf(it)?.startsWith("image/") == true }
+    val firstImageUri = imageUris.firstOrNull()
     if (firstImageUri != null) {
         val pair: Pair<String, ByteArray?> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val u = android.net.Uri.parse(firstImageUri)
@@ -815,6 +819,9 @@ private suspend fun routeShareToReport(
                         reportImageMime = mime)
             }
         }
+    }
+    if (nonImageUris.isNotEmpty()) {
+        appViewModel.updateUiState { it.copy(pendingReportKnowledgeUris = nonImageUris) }
     }
     navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt)) {
         popUpTo(NavRoutes.AI) { inclusive = false }

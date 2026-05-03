@@ -78,7 +78,7 @@ fun ShareChooserScreen(
         ShareCard(
             icon = "📝",
             title = "New Report",
-            description = "Multi-model analysis. Text becomes the prompt; images attach for vision; files attach as Knowledge.",
+            description = "Multi-model analysis. Text becomes the prompt; the first image attaches for vision; non-image files queue for one-tap auto-attach as a knowledge base on the New Report screen.",
             enabled = hasText || hasUris,
             onClick = onSendToReport
         )

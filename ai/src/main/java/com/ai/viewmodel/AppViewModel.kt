@@ -104,6 +104,12 @@ data class UiState(
      *  after the user picks one (or creates a new KB) and clears
      *  the queue. */
     val pendingKnowledgeUris: List<String> = emptyList(),
+    /** Non-image SAF Uri strings staged by the share-target
+     *  chooser when the user picked "New Report". The New Report
+     *  screen surfaces a banner that lets the user auto-create a
+     *  one-shot knowledge base from these files and attach it to
+     *  the report being composed. Drained on attach / skip. */
+    val pendingReportKnowledgeUris: List<String> = emptyList(),
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),

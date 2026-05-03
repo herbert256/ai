@@ -23,8 +23,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
+import com.ai.data.AnalysisRepository
 import com.ai.data.ApiTracer
+import com.ai.data.KnowledgeService
+import com.ai.data.KnowledgeStore
+import com.ai.data.LocalEmbedder
 import com.ai.data.ReportStorage
+import com.ai.model.Settings
+import com.ai.ui.knowledge.displayNameForUri
+import com.ai.ui.knowledge.pickTypeForUri
+import com.ai.ui.search.supportedEmbeddingChoices
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -371,6 +379,20 @@ fun NewReportScreen(
             viewModel.updateUiState { it.copy(reportImageBase64 = null, reportImageMime = null) }
         }
     }
+
+    // Snapshot of any non-image URIs the share-target chooser routed
+    // here as "files attach as Knowledge". The banner below offers a
+    // one-tap auto-attach: create a fresh KB, ingest the URIs, append
+    // the KB id to attachedKnowledgeBaseIds so the report run uses
+    // RAG against them. Drained on attach / skip / discard so a later
+    // return to this screen doesn't re-stage the same files.
+    var sharedKbState by remember { mutableStateOf<SharedKbBannerState>(SharedKbBannerState.Idle) }
+    val sharedKbUris = remember { uiState.pendingReportKnowledgeUris }
+    LaunchedEffect(Unit) {
+        if (uiState.pendingReportKnowledgeUris.isNotEmpty()) {
+            viewModel.updateUiState { it.copy(pendingReportKnowledgeUris = emptyList()) }
+        }
+    }
     var attachError by remember { mutableStateOf<String?>(null) }
     var useWebSearch by remember { mutableStateOf(false) }
     // Per-report reasoning level. "" = none; one of low/medium/high
@@ -415,6 +437,35 @@ fun NewReportScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "New AI Report", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (sharedKbUris.isNotEmpty() && sharedKbState !is SharedKbBannerState.Skipped) {
+            SharedKbBanner(
+                uris = sharedKbUris,
+                title = title,
+                aiSettings = uiState.aiSettings,
+                state = sharedKbState,
+                onAttach = {
+                    sharedKbState = SharedKbBannerState.Working("Preparing…")
+                    coroutineScope.launch {
+                        sharedKbState = ingestSharedKb(
+                            context = context,
+                            repository = viewModel.repository,
+                            aiSettings = uiState.aiSettings,
+                            reportTitle = title,
+                            uris = sharedKbUris
+                        ) { msg -> sharedKbState = SharedKbBannerState.Working(msg) }
+                        val s = sharedKbState
+                        if (s is SharedKbBannerState.Done) {
+                            viewModel.updateUiState { st ->
+                                st.copy(attachedKnowledgeBaseIds = (st.attachedKnowledgeBaseIds + s.kbId).distinct())
+                            }
+                        }
+                    }
+                },
+                onSkip = { sharedKbState = SharedKbBannerState.Skipped }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { title = ""; prompt = ""; attachedImage = null }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
@@ -660,5 +711,146 @@ fun NewReportScreen(
                 }
             }
         )
+    }
+}
+
+/** State machine for the share-target "files queued as Knowledge"
+ *  banner on [NewReportScreen]. Idle = banner shown with the
+ *  Attach / Skip buttons; Working = ingestion in flight, status
+ *  message live; Done = KB created and attached, success summary
+ *  shown; Failed = error message + retry; Skipped = dismissed,
+ *  banner gone. */
+private sealed class SharedKbBannerState {
+    object Idle : SharedKbBannerState()
+    data class Working(val message: String) : SharedKbBannerState()
+    data class Done(val kbId: String, val kbName: String, val sources: Int, val chunks: Int) : SharedKbBannerState()
+    data class Failed(val message: String) : SharedKbBannerState()
+    object Skipped : SharedKbBannerState()
+}
+
+@Composable
+private fun SharedKbBanner(
+    uris: List<String>,
+    title: String,
+    aiSettings: Settings,
+    state: SharedKbBannerState,
+    onAttach: () -> Unit,
+    onSkip: () -> Unit
+) {
+    val context = LocalContext.current
+    // Resolve the embedder we'd use so the banner can show it (and
+    // surface "no embedder available" up front instead of failing
+    // mid-ingest). Local default wins when installed; otherwise the
+    // first remote (provider, model) marked EMBEDDING.
+    val embedderLabel = remember(aiSettings, context) {
+        when {
+            LocalEmbedder.isDefaultModelInstalled(context) ->
+                "Local · ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}"
+            else -> supportedEmbeddingChoices(aiSettings).firstOrNull()
+                ?.let { (svc, model) -> "${svc.displayName} · $model" }
+        }
+    }
+    val canAttach = embedderLabel != null && state is SharedKbBannerState.Idle
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val nFiles = uris.size
+            Text(
+                text = if (nFiles == 1) "1 file shared — attach as a knowledge base?"
+                    else "$nFiles files shared — attach as a knowledge base?",
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Green
+            )
+            embedderLabel?.let {
+                Text("Embedder: $it", fontSize = 11.sp, color = AppColors.TextTertiary)
+            } ?: Text(
+                "No embedder available — install a local .tflite under Housekeeping → Local Models, or activate a provider with an embedding model.",
+                fontSize = 11.sp, color = AppColors.Red
+            )
+            when (state) {
+                is SharedKbBannerState.Working -> Text(state.message, fontSize = 12.sp, color = AppColors.TextSecondary)
+                is SharedKbBannerState.Done -> Text(
+                    "Indexed ${state.sources} source(s), ${state.chunks} chunk(s). Attached as 📚.",
+                    fontSize = 12.sp, color = AppColors.Green
+                )
+                is SharedKbBannerState.Failed -> Text("Failed: ${state.message}", fontSize = 12.sp, color = AppColors.Red)
+                else -> { /* Idle — nothing extra */ }
+            }
+            if (state !is SharedKbBannerState.Done) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onAttach,
+                        enabled = canAttach,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                    ) { Text("Attach as KB", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    OutlinedButton(
+                        onClick = onSkip,
+                        enabled = state !is SharedKbBannerState.Working,
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Skip", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
+            }
+        }
+    }
+}
+
+/** Create a fresh KB from [uris], pick an embedder, ingest each
+ *  source via [KnowledgeService]. Returns [SharedKbBannerState.Done]
+ *  on success ([Failed] otherwise). Run on [Dispatchers.IO] —
+ *  callers should not block the main thread. */
+private suspend fun ingestSharedKb(
+    context: android.content.Context,
+    repository: AnalysisRepository,
+    aiSettings: Settings,
+    reportTitle: String,
+    uris: List<String>,
+    onProgress: (String) -> Unit
+): SharedKbBannerState = withContext(Dispatchers.IO) {
+    val (embedderProviderId, embedderModel) = when {
+        LocalEmbedder.isDefaultModelInstalled(context) ->
+            "LOCAL" to LocalEmbedder.DEFAULT_MODEL_NAME
+        else -> {
+            val choice = supportedEmbeddingChoices(aiSettings).firstOrNull()
+                ?: return@withContext SharedKbBannerState.Failed(
+                    "No embedder available."
+                )
+            choice.first.id to choice.second
+        }
+    }
+    val kbName = "Shared with ${reportTitle.ifBlank { "report" }} — ${
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
+    }"
+    val kb = runCatching {
+        KnowledgeStore.createKnowledgeBase(context, kbName, embedderProviderId, embedderModel)
+    }.getOrElse { return@withContext SharedKbBannerState.Failed(it.message ?: "Could not create KB") }
+    var totalChunks = 0
+    var sourcesIndexed = 0
+    uris.forEachIndexed { idx, raw ->
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return@forEachIndexed
+        val isHttp = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
+        onProgress("Ingesting ${idx + 1}/${uris.size}…")
+        val result = if (isHttp) {
+            KnowledgeService.indexUrl(context, repository, aiSettings, kb.id, trimmed) { msg, _, _ ->
+                onProgress("(${idx + 1}/${uris.size}) $msg")
+            }
+        } else {
+            val u = android.net.Uri.parse(trimmed)
+            val type = pickTypeForUri(context, u)
+            val displayName = displayNameForUri(context, u) ?: "shared_${System.currentTimeMillis()}"
+            KnowledgeService.indexFile(context, repository, aiSettings, kb.id, type, u, displayName) { msg, _, _ ->
+                onProgress("(${idx + 1}/${uris.size}) $displayName: $msg")
+            }
+        }
+        result.onSuccess { src ->
+            totalChunks += src.chunkCount
+            sourcesIndexed++
+        }
+    }
+    if (sourcesIndexed == 0) {
+        // Drop the empty KB so it doesn't leak into the user's list.
+        KnowledgeStore.deleteKnowledgeBase(context, kb.id)
+        SharedKbBannerState.Failed("Nothing indexed.")
+    } else {
+        SharedKbBannerState.Done(kb.id, kbName, sourcesIndexed, totalChunks)
     }
 }

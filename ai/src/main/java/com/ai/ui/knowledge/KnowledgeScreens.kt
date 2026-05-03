@@ -455,7 +455,7 @@ fun KnowledgeDetailScreen(
  *  back to the URI's MIME type for share-target / document-provider
  *  URIs that hand us an opaque content:// without a useful name.
  *  Plain text is the last-resort default. */
-private fun pickTypeForUri(context: android.content.Context, uri: Uri): KnowledgeSourceType {
+internal fun pickTypeForUri(context: android.content.Context, uri: Uri): KnowledgeSourceType {
     val name = displayNameForUri(context, uri).orEmpty().lowercase()
     val byExtension = when {
         name.endsWith(".pdf") -> KnowledgeSourceType.PDF
@@ -488,7 +488,7 @@ private fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowledg
     }
 }
 
-private fun displayNameForUri(context: android.content.Context, uri: Uri): String? {
+internal fun displayNameForUri(context: android.content.Context, uri: Uri): String? {
     return runCatching {
         context.contentResolver.query(uri, null, null, null, null)?.use { c ->
             val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
