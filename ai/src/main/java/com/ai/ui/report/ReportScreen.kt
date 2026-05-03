@@ -872,17 +872,16 @@ private fun ColumnScope.SelectionPhase(
 ) {
     val context = LocalContext.current
 
-    // Add buttons
+    // Add buttons. The all-models picker (+Model) supersedes the
+    // provider-then-model two-step, so the +Provider variant has been
+    // dropped from the row. The unused onAddModel callback stays in
+    // the signature for now but is ignored here.
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        // Button order: Agent, Flock, Swarm, Provider, Model. Note: onAddModel opens the provider
-        // selector (hence "+Provider") and onAddAllModels opens the all-models picker (renamed
-        // to the simpler "+Model" label per the new naming scheme).
         listOf(
             "Agent" to onAddAgent,
             "Flock" to onAddFlock,
             "Swarm" to onAddSwarm,
-            "Provider" to onAddModel,
             "Model" to onAddAllModels,
             "Report" to onAddFromReport
         ).forEach { (label, action) ->
