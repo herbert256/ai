@@ -274,14 +274,28 @@ fun TraceListScreen(
     }
 }
 
+/** Auxiliary hosts a provider's traffic may land on alongside its
+ *  registered baseUrl host. Cohere is the obvious one — its
+ *  baseUrl lives on `api.cohere.ai/compatibility/` (the OpenAI-compat
+ *  endpoint) but the rerank API + the native `/v1/models` capability
+ *  lookup we run inside fetchModelsOpenAi both hit `api.cohere.com`,
+ *  and traces tagged with that hostname were dropping into "(unknown)"
+ *  on the trace list's Provider filter. Extend this map when another
+ *  provider adds a similar second host. */
+private val PROVIDER_AUX_HOSTS: Map<String, Set<String>> = mapOf(
+    "COHERE" to setOf("api.cohere.com")
+)
+
 /** Resolve a trace's hostname back to a known [AppService.displayName],
- *  or "(unknown)" when none of the registered services' baseUrls match.
- *  Used by the Provider filter and the Model picker so traces can be
- *  sliced by which provider produced them. */
+ *  or "(unknown)" when neither the service's baseUrl host nor any of
+ *  its [PROVIDER_AUX_HOSTS] matches. Used by the Provider filter and
+ *  the Model picker so traces can be sliced by which provider produced
+ *  them. */
 private fun providerLabelForHost(host: String): String =
     AppService.entries.firstOrNull { svc ->
-        runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()
-            ?.equals(host, ignoreCase = true) == true
+        val baseHost = runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()
+        baseHost?.equals(host, ignoreCase = true) == true ||
+            PROVIDER_AUX_HOSTS[svc.id]?.any { it.equals(host, ignoreCase = true) } == true
     }?.displayName ?: "(unknown)"
 
 /** Generic dropdown slot used by Category, Provider and the Model
