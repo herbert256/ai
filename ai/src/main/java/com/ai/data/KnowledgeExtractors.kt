@@ -55,6 +55,7 @@ internal object KnowledgeExtractors {
             KnowledgeSourceType.ODT -> readUriOdt(context, Uri.parse(origin))
             KnowledgeSourceType.XLSX -> readUriXlsx(context, Uri.parse(origin))
             KnowledgeSourceType.ODS -> readUriOds(context, Uri.parse(origin))
+            KnowledgeSourceType.CSV -> readUriCsv(context, Uri.parse(origin))
             KnowledgeSourceType.IMAGE -> readUriImage(context, Uri.parse(origin))
             KnowledgeSourceType.URL -> fetchUrlAsText(origin)
         }
@@ -473,6 +474,91 @@ internal object KnowledgeExtractors {
             event = parser.next()
         }
         return sb.toString()
+    }
+
+    /** CSV ingestion. Parses RFC 4180-ish (handles quoted fields with
+     *  embedded commas / newlines / escaped quotes), auto-detects
+     *  comma-vs-semicolon delimiter, and emits rows tab-separated.
+     *  When the first row looks like a header (every cell non-blank,
+     *  at least one non-numeric), it's repeated at the top of every
+     *  10-row block so RAG retrieval lands on chunks that still know
+     *  what the columns mean. */
+    private fun readUriCsv(context: Context, uri: Uri): String {
+        val raw = context.contentResolver.openInputStream(uri).use { inp ->
+            requireNotNull(inp) { "Could not open $uri" }.bufferedReader().readText()
+        }
+        val rows = parseCsv(raw)
+        if (rows.isEmpty()) return ""
+        val firstRow = rows.first()
+        val hasHeader = firstRow.isNotEmpty() &&
+            firstRow.all { it.isNotBlank() } &&
+            firstRow.any { it.toDoubleOrNull() == null }
+        val header = if (hasHeader) firstRow else null
+        val dataRows = if (hasHeader) rows.drop(1) else rows
+        val sb = StringBuilder()
+        // Block size of 10 keeps each block under ~1.5 KB for typical
+        // wide-column CSVs, well below the 2 KB chunker cap so the
+        // chunker treats blocks as paragraphs and never has to split
+        // mid-row.
+        dataRows.chunked(10).forEach { block ->
+            if (sb.isNotEmpty()) sb.append("\n\n")
+            if (header != null) sb.append(joinRow(header)).append('\n')
+            block.forEach { row -> sb.append(joinRow(row)).append('\n') }
+        }
+        return sb.toString().normalised()
+    }
+
+    /** Tab-join a row, scrubbing embedded newlines (legitimate inside
+     *  quoted CSV fields) so they don't break the row layout. */
+    private fun joinRow(row: List<String>): String =
+        row.joinToString("\t") { it.replace('\n', ' ').replace('\r', ' ').trim() }
+
+    /** RFC 4180-style CSV tokenizer. Sniffs the delimiter from the
+     *  first kilobyte (`;` wins if it outnumbers `,`, e.g. European
+     *  exports), respects quoted fields with embedded delimiters /
+     *  newlines / `""` escaped quotes, and drops fully-empty rows. */
+    private fun parseCsv(text: String): List<List<String>> {
+        if (text.isBlank()) return emptyList()
+        val sample = text.take(1024)
+        val delim = if (sample.count { it == ';' } > sample.count { it == ',' }) ';' else ','
+        val rows = mutableListOf<List<String>>()
+        val cell = StringBuilder()
+        val row = mutableListOf<String>()
+        var inQuote = false
+        var i = 0
+        val n = text.length
+        while (i < n) {
+            val c = text[i]
+            if (inQuote) {
+                if (c == '"') {
+                    if (i + 1 < n && text[i + 1] == '"') {
+                        cell.append('"'); i++ // escaped quote inside quoted field
+                    } else {
+                        inQuote = false
+                    }
+                } else {
+                    cell.append(c)
+                }
+            } else {
+                when (c) {
+                    '"' -> inQuote = true
+                    delim -> { row.add(cell.toString()); cell.clear() }
+                    '\n' -> {
+                        row.add(cell.toString()); cell.clear()
+                        if (row.any { it.isNotBlank() }) rows.add(row.toList())
+                        row.clear()
+                    }
+                    '\r' -> Unit // skip; the trailing \n closes the row
+                    else -> cell.append(c)
+                }
+            }
+            i++
+        }
+        if (cell.isNotEmpty() || row.isNotEmpty()) {
+            row.add(cell.toString())
+            if (row.any { it.isNotBlank() }) rows.add(row.toList())
+        }
+        return rows
     }
 
     private fun fetchUrlAsText(url: String): String {

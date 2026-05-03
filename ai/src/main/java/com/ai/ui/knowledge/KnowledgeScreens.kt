@@ -322,6 +322,8 @@ fun KnowledgeDetailScreen(
             Button(
                 onClick = { pickFile.launch(arrayOf(
                     "text/*",
+                    "text/csv",
+                    "text/tab-separated-values",
                     "application/pdf",
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     "application/vnd.oasis.opendocument.text",
@@ -459,6 +461,7 @@ private fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowledg
         name.endsWith(".odt") -> KnowledgeSourceType.ODT
         name.endsWith(".xlsx") -> KnowledgeSourceType.XLSX
         name.endsWith(".ods") -> KnowledgeSourceType.ODS
+        name.endsWith(".csv") || name.endsWith(".tsv") -> KnowledgeSourceType.CSV
         name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") -> KnowledgeSourceType.IMAGE
         else -> KnowledgeSourceType.TEXT
     }
