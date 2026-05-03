@@ -84,7 +84,11 @@ class AppService(
 class AppServiceAdapter : JsonDeserializer<AppService>, JsonSerializer<AppService> {
     override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): AppService {
         val id = json?.asString ?: throw JsonParseException("Null AppService")
-        return ProviderRegistry.findById(id) ?: throw JsonParseException("Unknown AppService: $id")
+        // Route through AppService.findById so the synthetic LOCAL
+        // sentinel resolves — a chat session whose provider is Local
+        // would otherwise fail to deserialize and silently disappear
+        // from history (ProviderRegistry doesn't know about LOCAL).
+        return AppService.findById(id) ?: throw JsonParseException("Unknown AppService: $id")
     }
     override fun serialize(src: AppService?, typeOfSrc: Type?, context: JsonSerializationContext?): JsonElement {
         return JsonPrimitive(src?.id ?: "")
