@@ -45,6 +45,7 @@ fun HubScreen(
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
     onNavigateToModelSearch: () -> Unit,
+    onNavigateToKnowledge: () -> Unit = {},
     viewModel: AppViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -74,7 +75,7 @@ fun HubScreen(
 
     val cardHeight = 50.dp
     val cardSpacing = 12.dp
-    val cardCount = 9
+    val cardCount = 10
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
@@ -91,6 +92,8 @@ fun HubScreen(
             HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub, enabled = hasAnyAgent)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub, enabled = hasAnyAgent)
+            Spacer(modifier = Modifier.height(12.dp))
+            HubCard(icon = "\uD83D\uDCDA", title = "AI Knowledge", onClick = onNavigateToKnowledge)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch, enabled = hasAnyAgent)
             Spacer(modifier = Modifier.height(12.dp))

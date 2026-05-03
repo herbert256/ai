@@ -112,6 +112,7 @@ fun AppNavHost(
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
+                onNavigateToKnowledge = { navController.navigate(NavRoutes.AI_KNOWLEDGE) },
                 viewModel = appViewModel
             )
         }
@@ -391,6 +392,37 @@ fun AppNavHost(
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
             }
+        }
+        composable(NavRoutes.AI_KNOWLEDGE) {
+            com.ai.ui.knowledge.KnowledgeListScreen(
+                onBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onOpenKb = { kbId -> navController.navigate(NavRoutes.aiKnowledgeDetail(kbId)) },
+                onCreateKb = { navController.navigate(NavRoutes.AI_KNOWLEDGE_NEW) }
+            )
+        }
+        composable(NavRoutes.AI_KNOWLEDGE_NEW) {
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.knowledge.NewKnowledgeBaseScreen(
+                aiSettings = uiState.aiSettings,
+                onBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onCreated = { kbId ->
+                    navController.popBackStack()
+                    navController.navigate(NavRoutes.aiKnowledgeDetail(kbId))
+                }
+            )
+        }
+        composable(NavRoutes.AI_KNOWLEDGE_DETAIL) { entry ->
+            val kbId = entry.arguments?.getString("kbId") ?: ""
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.knowledge.KnowledgeDetailScreen(
+                aiSettings = uiState.aiSettings,
+                repository = appViewModel.repository,
+                kbId = kbId,
+                onBack = safePopBack,
+                onNavigateHome = navigateHome
+            )
         }
         composable(NavRoutes.AI_CHAT_MANAGE) {
             com.ai.ui.chat.ChatManageScreen(
