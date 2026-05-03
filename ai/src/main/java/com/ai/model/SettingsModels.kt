@@ -228,8 +228,20 @@ data class Settings(
     ): Settings {
         val cfg = getProvider(service)
         val merged = cfg.visionModels + autoVisionModels
+        // Union the provider's hardcoded model list with the API's
+        // response. OpenAI's /v1/models doesn't enumerate moderation
+        // (`omni-moderation-latest`, `text-moderation-latest`),
+        // text-to-speech (`tts-1`), transcription (`whisper-1`), or
+        // image (`dall-e-3`, `gpt-image-1`) endpoints — they're
+        // documented but unlisted. The fallback list in setup.json
+        // reinstates them so the Moderation / TTS / Image / STT
+        // pickers can find them. Distinct() dedupes overlap when the
+        // API does happen to return one. Only the fetcher path
+        // (this 5-arg overload) merges; manual-edit overloads stay
+        // verbatim so the user can still prune.
+        val withFallback = (models + (service.hardcodedModels ?: emptyList())).distinct()
         return withProvider(service, cfg.copy(
-            models = models.distinct(), modelTypes = types,
+            models = withFallback, modelTypes = types,
             visionModels = merged, modelCapabilities = capabilities,
             modelListRawJson = rawResponse ?: cfg.modelListRawJson
         )).recomputeCapabilities(service)

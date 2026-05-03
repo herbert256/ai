@@ -66,7 +66,7 @@ object ModelType {
             "moderation" in id -> MODERATION
             "whisper" in id || "transcrib" in id -> STT
             "tts" in id || "speech-2" in id || "text-to-speech" in id -> TTS
-            "dall-e" in id || "imagen" in id || "flux" in id || "stable-diffusion" in id || "sdxl" in id -> IMAGE
+            "dall-e" in id || id.startsWith("gpt-image-") || "imagen" in id || "flux" in id || "stable-diffusion" in id || "sdxl" in id -> IMAGE
             else -> CHAT
         }
     }

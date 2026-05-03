@@ -11,7 +11,21 @@
       "defaultModel": "gpt-4o-mini",
       "openRouterName": "openai",
       "prefsKey": "ai_openai",
-      "defaultModelSource": "API"
+      "defaultModelSource": "API",
+      "hardcodedModels": [
+        "omni-moderation-latest",
+        "omni-moderation-2024-09-26",
+        "text-moderation-latest",
+        "text-moderation-stable",
+        "tts-1",
+        "tts-1-hd",
+        "whisper-1",
+        "gpt-4o-transcribe",
+        "gpt-4o-mini-transcribe",
+        "dall-e-2",
+        "dall-e-3",
+        "gpt-image-1"
+      ]
     },
     {
       "id": "ANTHROPIC",
