@@ -62,6 +62,11 @@ data class Report(
      *  the HTML export pull the source's API traces into the JSON view
      *  alongside the translation traces. Null on regular reports. */
     val sourceReportId: String? = null,
+    /** Knowledge bases attached to this report. Each agent call has
+     *  its prompt prefixed with a context block built from top-K
+     *  chunks across these KBs (see KnowledgeService.retrieve /
+     *  formatContextBlock). Empty when no RAG is wired. */
+    val knowledgeBaseIds: List<String> = emptyList(),
     /** User-pinned flag. Pinned reports surface as their own group
      *  above the recent rows on the AI Reports hub. Persisted on the
      *  Report file so it survives across launches. */
@@ -99,13 +104,15 @@ object ReportStorage {
         // Without this the translation traces end up tagged with no
         // report id and don't surface on either report's trace screen.
         explicitId: String? = null,
-        sourceReportId: String? = null
+        sourceReportId: String? = null,
+        knowledgeBaseIds: List<String> = emptyList()
     ): Report {
         init(context)
         val report = Report(explicitId ?: UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
             agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
-            reasoningEffort = reasoningEffort, sourceReportId = sourceReportId)
+            reasoningEffort = reasoningEffort, sourceReportId = sourceReportId,
+            knowledgeBaseIds = knowledgeBaseIds)
         lock.withLock { saveReport(report) }
         return report
     }
@@ -189,8 +196,9 @@ object ReportStorage {
         webSearchTool: Boolean = false,
         reasoningEffort: String? = null,
         explicitId: String? = null,
-        sourceReportId: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId) }
+        sourceReportId: String? = null,
+        knowledgeBaseIds: List<String> = emptyList()
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId, knowledgeBaseIds) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }

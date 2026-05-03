@@ -378,3 +378,55 @@ private fun displayNameForUri(context: android.content.Context, uri: Uri): Strin
         }
     }.getOrNull()
 }
+
+/** Multi-select dialog over the existing knowledge bases. Used by
+ *  the New Report screen and the Chat parameters screen to attach
+ *  RAG context to a run / session. Embedder constraint (all
+ *  attached KBs must share an embedder) is enforced by the
+ *  retrieval path; the dialog itself doesn't filter, just shows
+ *  what's available. */
+@Composable
+fun KnowledgeAttachDialog(
+    knowledgeBases: List<KnowledgeBase>,
+    initialSelectedIds: Set<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<String>) -> Unit
+) {
+    val selected = remember(initialSelectedIds) { mutableStateOf(initialSelectedIds) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Attach knowledge") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (knowledgeBases.isEmpty()) {
+                    Text("No knowledge bases yet — create one in AI Knowledge.",
+                        fontSize = 13.sp, color = AppColors.TextTertiary)
+                } else knowledgeBases.forEach { kb ->
+                    val isOn = kb.id in selected.value
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            selected.value = if (isOn) selected.value - kb.id else selected.value + kb.id
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = isOn, onCheckedChange = { v ->
+                            selected.value = if (v) selected.value + kb.id else selected.value - kb.id
+                        })
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(kb.name, fontSize = 14.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(embedderLabel(kb), fontSize = 11.sp, color = AppColors.TextTertiary,
+                                fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected.value) }) { Text("Apply") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}

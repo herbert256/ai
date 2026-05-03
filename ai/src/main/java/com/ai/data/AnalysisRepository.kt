@@ -91,6 +91,12 @@ class AnalysisRepository {
         return "$dayOfWeek, $month $dayOfMonth$ordinalSuffix"
     }
 
+    /** Prepend a RAG context block to [prompt] when one is non-empty.
+     *  Empty prefix passes the prompt through unchanged so callers
+     *  don't need to special-case the no-knowledge path. */
+    private fun withRagPrefix(prompt: String, ragPrefix: String): String =
+        if (ragPrefix.isBlank()) prompt else "$ragPrefix\n\n$prompt"
+
     private fun buildPrompt(promptTemplate: String, content: String, agent: com.ai.model.Agent? = null): String {
         var result = promptTemplate.replace("@FEN@", content).replace("@DATE@", formatCurrentDate())
         if (agent != null) {
@@ -153,17 +159,35 @@ class AnalysisRepository {
         context: Context? = null,
         baseUrl: String? = null,
         imageBase64: String? = null,
-        imageMime: String? = null
+        imageMime: String? = null,
+        // RAG: when non-empty, retrieve top-K chunks across these
+        // KBs and prepend the rendered context block to the system
+        // prompt before dispatch. aiSettings is needed for remote
+        // embedders' API keys.
+        knowledgeBaseIds: List<String> = emptyList(),
+        aiSettings: com.ai.model.Settings? = null
     ): AnalysisResponse = withContext(Dispatchers.IO) {
         // Local on-device path — no API key, no HTTP, no retry. The
         // sentinel AppService.LOCAL is the marker. Embedding-style
         // simple flow: build the prompt, call MediaPipe LLM Inference,
         // wrap the response.
+        // RAG injection: if knowledge bases are attached, retrieve
+        // top-K chunks for this prompt and prepend the rendered
+        // context block. Failures are silent (fallback to bare
+        // prompt) so an embedder hiccup doesn't kill the whole call.
+        val repository = this@AnalysisRepository
+        val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
+            runCatching {
+                val hits = KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                KnowledgeService.formatContextBlock(hits)
+            }.getOrDefault("")
+        } else ""
+
         if (agent.provider.id == "LOCAL") {
             if (context == null) {
                 return@withContext AnalysisResponse(agent.provider, null, "Local LLM call requires a Context", agentName = agent.name)
             }
-            val finalPrompt = buildPrompt(prompt, content, agent)
+            val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
             val out = LocalLlm.generate(context, agent.model, finalPrompt)
             return@withContext if (out != null) {
                 AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200)
@@ -174,7 +198,7 @@ class AnalysisRepository {
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)
         }
-        val finalPrompt = buildPrompt(prompt, content, agent)
+        val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
         suspend fun makeApiCall(): AnalysisResponse {
             var params = validateParams(mergeParameters(agentResolvedParams, overrideParams))
             if (overrideParams != null && context != null) {

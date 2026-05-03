@@ -87,6 +87,12 @@ data class UiState(
     // preset reasoningEffort. Non-reasoning models silently ignore the
     // field at dispatch time.
     val reportReasoningEffort: String? = null,
+    /** Knowledge bases attached to the next report run. The selection
+     *  screen toggles entries here; ReportViewModel.generateGenericReports
+     *  copies the snapshot onto the new Report's knowledgeBaseIds.
+     *  AnalysisRepository.analyzeWithAgent reads it via the per-call
+     *  Report it loads to inject the context block. */
+    val attachedKnowledgeBaseIds: List<String> = emptyList(),
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),

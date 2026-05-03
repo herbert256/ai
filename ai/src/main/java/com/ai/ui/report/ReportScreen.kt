@@ -131,6 +131,7 @@ fun ReportsScreenNav(
         onUpdateTitle = { rid, title ->
             scope.launch { reportViewModel.updateReportTitle(context, rid, title) }
         },
+        onAttachKnowledgeBases = { ids -> viewModel.updateUiState { it.copy(attachedKnowledgeBaseIds = ids) } },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)
             onNavigateBack()
@@ -220,6 +221,7 @@ fun ReportsScreen(
     onRegenerate: (String) -> Unit = {},
     onUpdatePrompt: (String, String) -> Unit = { _, _ -> },
     onUpdateTitle: (String, String) -> Unit = { _, _ -> },
+    onAttachKnowledgeBases: (List<String>) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
     onCopyReport: (String) -> Unit = {},
     onTogglePinReport: (String) -> Unit = {},
@@ -818,7 +820,9 @@ fun ReportsScreen(
                 onAdvancedParams = { showAdvancedParameters = true },
                 onParametersChange = { selectedParametersIds = it },
                 onGenerate = { type -> if (models.isNotEmpty()) onGenerate(models, selectedParametersIds, type) },
-                onUpdateModelList = { if (editModeRid != null) onUpdateModelList(editModeRid, models) }
+                onUpdateModelList = { if (editModeRid != null) onUpdateModelList(editModeRid, models) },
+                attachedKnowledgeBaseIds = uiState.attachedKnowledgeBaseIds,
+                onAttachKnowledgeBases = onAttachKnowledgeBases
             )
         } else {
             // Generation phase
@@ -891,7 +895,9 @@ private fun ColumnScope.SelectionPhase(
     onAdvancedParams: () -> Unit,
     onParametersChange: (List<String>) -> Unit,
     onGenerate: (ReportType) -> Unit,
-    onUpdateModelList: () -> Unit
+    onUpdateModelList: () -> Unit,
+    attachedKnowledgeBaseIds: List<String> = emptyList(),
+    onAttachKnowledgeBases: (List<String>) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -947,6 +953,37 @@ private fun ColumnScope.SelectionPhase(
     }
 
     Spacer(modifier = Modifier.height(8.dp))
+
+    // Knowledge attach \u2014 multi-select over saved KBs, snapshot lives
+    // in UiState.attachedKnowledgeBaseIds and gets copied onto the
+    // new Report when generation kicks off. analyzeWithAgent reads
+    // it via the per-call Report at dispatch time.
+    val ctx = LocalContext.current
+    var showKbDialog by remember { mutableStateOf(false) }
+    val allKbs = remember { com.ai.data.KnowledgeStore.listKnowledgeBases(ctx) }
+    if (allKbs.isNotEmpty()) {
+        OutlinedButton(
+            onClick = { showKbDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) {
+            val n = attachedKnowledgeBaseIds.size
+            val label = if (n == 0) "\ud83d\udcda Attach knowledge" else "\ud83d\udcda Attached: $n"
+            Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    if (showKbDialog) {
+        com.ai.ui.knowledge.KnowledgeAttachDialog(
+            knowledgeBases = allKbs,
+            initialSelectedIds = attachedKnowledgeBaseIds.toSet(),
+            onDismiss = { showKbDialog = false },
+            onConfirm = { selected ->
+                onAttachKnowledgeBases(selected.toList())
+                showKbDialog = false
+            }
+        )
+    }
 
     // Bottom buttons
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

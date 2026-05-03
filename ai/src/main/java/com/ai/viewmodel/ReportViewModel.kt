@@ -130,7 +130,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 rapportText = rapportText, reportType = reportType, closeText = state.externalCloseHtml,
                 imageBase64 = imageBase64, imageMime = imageMime,
                 webSearchTool = state.reportWebSearchTool,
-                reasoningEffort = state.reportReasoningEffort
+                reasoningEffort = state.reportReasoningEffort,
+                knowledgeBaseIds = state.attachedKnowledgeBaseIds
             )
             val reportId = report.id
 
@@ -216,6 +217,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, aiPrompt)
 
+        // Pull the report's attached KB ids so analyzeWithAgent can
+        // do RAG retrieval on this turn. Cheap re-read; the
+        // alternative (caching on the ReportTask) is more surface
+        // area than payoff.
+        val knowledgeBaseIds = ReportStorage.getReport(context, reportId)?.knowledgeBaseIds.orEmpty()
         val startTime = System.currentTimeMillis()
         val response = try {
             val baseUrl = appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
@@ -228,7 +234,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 context,
                 baseUrl,
                 imageBase64,
-                imageMime
+                imageMime,
+                knowledgeBaseIds = knowledgeBaseIds,
+                aiSettings = appViewModel.uiState.value.aiSettings
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Honor structured cancellation (Stop / nav-away) instead of
