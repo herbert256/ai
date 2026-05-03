@@ -59,7 +59,18 @@ private fun parseSseStream(
             if (currentLine.isBlank()) { eventType = null; continue }
             if (currentLine.startsWith("event:")) {
                 eventType = currentLine.removePrefix("event:").trim()
-                if (eventType == "message_stop") sawTerminator = true
+                // Per-format terminator events. Anthropic ends with
+                // `event: message_stop`; OpenAI's Responses API ends
+                // with `event: response.completed` (and may or may not
+                // also send a trailing `data: [DONE]` for back-compat
+                // depending on which Responses API revision the
+                // upstream is on — recognising the event keeps us
+                // correct either way). Without this, every Responses
+                // API stream that doesn't ship the legacy [DONE]
+                // throws "ended without terminator" right after a
+                // perfectly valid response.
+                if (eventType == "message_stop"
+                    || eventType == "response.completed") sawTerminator = true
                 continue
             }
             if (currentLine.startsWith(":")) continue  // SSE comment
