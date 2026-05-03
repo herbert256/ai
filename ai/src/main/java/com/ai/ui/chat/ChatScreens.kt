@@ -289,8 +289,16 @@ fun ChatSessionScreen(
     /** Optional pre-fill for the input box, threaded through from
      *  the share-target chooser when the user picked "New Chat". */
     initialUserInput: String? = null,
-    /** Fires once when [initialUserInput] has been consumed so the
-     *  staged value can be cleared from UiState. */
+    /** Optional pre-attached vision image for the first user turn.
+     *  Set by the AI Chat hub's "📸 Start with photo" entry (and
+     *  any future flow that wants to drop a chat session in with
+     *  an image already attached). When non-null both fields must
+     *  be set; the screen seeds [attachedImage] on first composition. */
+    initialUserImageBase64: String? = null,
+    initialUserImageMime: String? = null,
+    /** Fires once when [initialUserInput] / [initialUserImageBase64]
+     *  / [initialUserImageMime] have been consumed so the staged
+     *  values can be cleared from UiState. */
     onConsumeStarter: () -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
@@ -306,6 +314,11 @@ fun ChatSessionScreen(
     // chooser, then drop the staged value so leaving + returning
     // doesn't re-stuff it.
     val starter = remember { initialUserInput }
+    val starterImage = remember {
+        val mime = initialUserImageMime
+        val b64 = initialUserImageBase64
+        if (mime != null && b64 != null) mime to b64 else null
+    }
     LaunchedEffect(Unit) { onConsumeStarter() }
     var userInput by remember { mutableStateOf(starter ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -313,7 +326,7 @@ fun ChatSessionScreen(
     val streamingContentState = remember { mutableStateOf("") }
     var totalCost by remember { mutableDoubleStateOf(0.0) }
     // (mime, base64) of an image attached to the next user message.
-    var attachedImage by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var attachedImage by remember { mutableStateOf<Pair<String, String>?>(starterImage) }
     var useWebSearch by remember { mutableStateOf(parameters.webSearchTool) }
     // Per-turn reasoning-effort hint. "" = no hint; "low"/"medium"/"high"
     // map to the same OpenAI Responses-API / Gemini thinking field

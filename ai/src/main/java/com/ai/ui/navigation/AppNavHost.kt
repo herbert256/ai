@@ -197,6 +197,14 @@ fun AppNavHost(
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
+                },
+                onStartWithPhoto = { mime, b64 ->
+                    // Stage the camera photo in the same UiState
+                    // fields the share-target chooser writes; the
+                    // New AI Report screen seeds attachedImage from
+                    // them on first composition and clears them.
+                    appViewModel.updateUiState { it.copy(reportImageBase64 = b64, reportImageMime = mime) }
+                    navController.navigate(NavRoutes.AI_NEW_REPORT)
                 })
         }
         composable(NavRoutes.AI_SEARCH) {
@@ -408,7 +416,17 @@ fun AppNavHost(
                 // synthetic LOCAL provider, so the standard
                 // AI_CHAT_SESSION composable handles routing.
                 onNavigateToLocalLlmChat = { model -> navController.navigate(NavRoutes.aiChatSession("LOCAL", model)) },
-                onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) })
+                onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) },
+                onStartWithPhoto = { mime, b64 ->
+                    // Stage the photo for the chat session screen at
+                    // the end of the configure-on-the-fly chain. The
+                    // user picks provider / model / params normally;
+                    // ChatSessionScreen seeds attachedImage from
+                    // these UiState fields on first composition and
+                    // clears them via onConsumeStarter.
+                    appViewModel.updateUiState { it.copy(chatStarterImageBase64 = b64, chatStarterImageMime = mime) }
+                    navController.navigate(NavRoutes.AI_CHAT_PROVIDER)
+                })
         }
         composable(NavRoutes.AI_CHAT_AGENT_SELECT) {
             val uiState by appViewModel.uiState.collectAsState()
@@ -446,7 +464,17 @@ fun AppNavHost(
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                     initialUserInput = uiState.chatStarterText,
-                    onConsumeStarter = { appViewModel.updateUiState { it.copy(chatStarterText = null) } }
+                    initialUserImageBase64 = uiState.chatStarterImageBase64,
+                    initialUserImageMime = uiState.chatStarterImageMime,
+                    onConsumeStarter = {
+                        appViewModel.updateUiState {
+                            it.copy(
+                                chatStarterText = null,
+                                chatStarterImageBase64 = null,
+                                chatStarterImageMime = null
+                            )
+                        }
+                    }
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
@@ -560,7 +588,17 @@ fun AppNavHost(
                     isVisionCapable = !isLocal && uiState.aiSettings.isVisionCapable(provider, model),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                     initialUserInput = uiState.chatStarterText,
-                    onConsumeStarter = { appViewModel.updateUiState { it.copy(chatStarterText = null) } }
+                    initialUserImageBase64 = uiState.chatStarterImageBase64,
+                    initialUserImageMime = uiState.chatStarterImageMime,
+                    onConsumeStarter = {
+                        appViewModel.updateUiState {
+                            it.copy(
+                                chatStarterText = null,
+                                chatStarterImageBase64 = null,
+                                chatStarterImageMime = null
+                            )
+                        }
+                    }
                 )
             }
         }

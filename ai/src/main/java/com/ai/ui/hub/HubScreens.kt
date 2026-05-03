@@ -149,7 +149,13 @@ fun ReportsHubScreen(
     onNavigateToLocalSearch: () -> Unit,
     onNavigateToQuickLocalSearch: () -> Unit,
     onNavigateToManage: () -> Unit = {},
-    onOpenReport: (String) -> Unit = {}
+    onOpenReport: (String) -> Unit = {},
+    /** Called when the user has just taken a photo via the
+     *  "📸 Start with photo" entry. Caller stages the (mime, base64)
+     *  into UiState.reportImageBase64/Mime and navigates to
+     *  AI_NEW_REPORT — the same plumbing the share-target chooser
+     *  uses. (See routeShareToReport in AppNavHost.) */
+    onStartWithPhoto: (mime: String, base64: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val hasPromptHistory = remember {
@@ -171,6 +177,11 @@ fun ReportsHubScreen(
             }
         }
     }
+    var photoError by remember { mutableStateOf<String?>(null) }
+    val launchCamera = com.ai.ui.shared.rememberCameraCaptureLauncher(
+        onCaptured = { mime, b64 -> photoError = null; onStartWithPhoto(mime, b64) },
+        onError = { photoError = it }
+    )
 
     Column(modifier = Modifier
         .fillMaxSize()
@@ -186,10 +197,14 @@ fun ReportsHubScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
+        photoError?.let {
+            Text(it, color = AppColors.Red, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        }
         StartHubGroup(
             hasPromptHistory = hasPromptHistory,
             onNew = onNavigateToNewReport,
-            onPreviousPrompt = onNavigateToPromptHistory
+            onPreviousPrompt = onNavigateToPromptHistory,
+            onStartWithPhoto = launchCamera
         )
         Spacer(modifier = Modifier.height(12.dp))
         HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory, enabled = hasPreviousReports)
@@ -278,7 +293,8 @@ private fun ReportListCard(title: String, icon: String?, reports: List<com.ai.da
 private fun StartHubGroup(
     hasPromptHistory: Boolean,
     onNew: () -> Unit,
-    onPreviousPrompt: () -> Unit
+    onPreviousPrompt: () -> Unit,
+    onStartWithPhoto: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -290,6 +306,7 @@ private fun StartHubGroup(
                 modifier = Modifier.padding(bottom = 4.dp))
             SearchHubItem(icon = "\uD83D\uDCDD", title = "New AI Report", enabled = true, onClick = onNew)
             SearchHubItem(icon = "\uD83D\uDD04", title = "Start with a previous prompt", enabled = hasPromptHistory, onClick = onPreviousPrompt)
+            SearchHubItem(icon = "\uD83D\uDCF8", title = "Start with photo", enabled = true, onClick = onStartWithPhoto)
         }
     }
 }

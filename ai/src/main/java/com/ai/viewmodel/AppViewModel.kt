@@ -99,6 +99,13 @@ data class UiState(
      *  and clears it via clearChatStarterText() so navigating
      *  away and back doesn't re-stuff the box. */
     val chatStarterText: String? = null,
+    /** Initial vision attachment staged by the AI Chat hub's
+     *  "📸 Start with photo" entry (and any future flow that wants
+     *  to drop a chat session in with an image already attached).
+     *  Consumed by ChatSessionScreen on first composition the same
+     *  way chatStarterText is. */
+    val chatStarterImageBase64: String? = null,
+    val chatStarterImageMime: String? = null,
     /** SAF Uri strings staged for ingestion by the AI Knowledge
      *  screen. The list screen drops them into the active KB
      *  after the user picks one (or creates a new KB) and clears

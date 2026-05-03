@@ -31,7 +31,14 @@ fun ChatsHubScreen(
     onNavigateToDualChat: () -> Unit,
     onResumeSession: (String) -> Unit = {},
     onNavigateToManage: () -> Unit = {},
-    onNavigateToLocalLlmChat: (String) -> Unit = {}
+    onNavigateToLocalLlmChat: (String) -> Unit = {},
+    /** Called when the user has just taken a photo via the
+     *  "📸 Start with photo" entry. Caller stages the (mime, base64)
+     *  into UiState.chatStarterImageBase64/Mime and navigates to
+     *  AI_CHAT_PROVIDER (the configure-on-the-fly chain). The chat
+     *  session screen reads the staging and seeds the first user
+     *  turn's image. */
+    onStartWithPhoto: (mime: String, base64: String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
@@ -60,6 +67,11 @@ fun ChatsHubScreen(
         val lastUserVisible = s.messages.lastOrNull { it.role != "system" }
         lastUserVisible?.role == "user"
     }
+    var photoError by remember { mutableStateOf<String?>(null) }
+    val launchCamera = com.ai.ui.shared.rememberCameraCaptureLauncher(
+        onCaptured = { mime, b64 -> photoError = null; onStartWithPhoto(mime, b64) },
+        onError = { photoError = it }
+    )
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -74,11 +86,15 @@ fun ChatsHubScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
+        photoError?.let {
+            Text(it, color = AppColors.Red, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        }
         StartChatGroup(
             hasAgents = hasAgents,
             onAgentChat = onNavigateToAgentSelect,
             onNewChat = onNavigateToNewChat,
-            onDualChat = onNavigateToDualChat
+            onDualChat = onNavigateToDualChat,
+            onStartWithPhoto = launchCamera
         )
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
@@ -209,7 +225,8 @@ private fun StartChatGroup(
     hasAgents: Boolean,
     onAgentChat: () -> Unit,
     onNewChat: () -> Unit,
-    onDualChat: () -> Unit
+    onDualChat: () -> Unit,
+    onStartWithPhoto: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -222,6 +239,7 @@ private fun StartChatGroup(
             ChatStartRow(icon = "\uD83E\uDD16", title = "New Chat with Agent", enabled = hasAgents, onClick = onAgentChat)
             ChatStartRow(icon = "\uD83D\uDCAC", title = "New Chat \u2013 Configure On The Fly", enabled = true, onClick = onNewChat)
             ChatStartRow(icon = "\uD83E\uDD1C\uD83E\uDD1B", title = "Dual AI Chat", enabled = true, onClick = onDualChat)
+            ChatStartRow(icon = "\uD83D\uDCF8", title = "Start with photo", enabled = true, onClick = onStartWithPhoto)
         }
     }
 }
