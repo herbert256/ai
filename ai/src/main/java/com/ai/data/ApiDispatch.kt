@@ -441,7 +441,10 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     // OpenRouter exposes architecture.modality on its detailed list — use that for types.
     if (service.id == "OPENROUTER") {
         val orApi = ApiFactory.createOpenRouterModelsApi(service.baseUrl)
-        val response = try { orApi.listModelsDetailed("Bearer $apiKey") } catch (_: Exception) { null }
+        val response = try { orApi.listModelsDetailed("Bearer $apiKey") } catch (e: Exception) {
+            android.util.Log.w("ApiDispatch", "OpenRouter listModelsDetailed threw: ${e.javaClass.simpleName}: ${e.message}")
+            null
+        }
         val data = if (response?.isSuccessful == true) response.body()?.data.orEmpty() else emptyList()
         if (data.isNotEmpty()) {
             val filtered = service.modelFilterRegex?.let { regex -> data.filter { regex.containsMatchIn(it.id) } } ?: data
@@ -518,8 +521,15 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                         )
                     )
                 }.toMap()
-            } else emptyMap()
-        } catch (_: Exception) { emptyMap() }
+            } else {
+                val body = runCatching { resp.errorBody()?.string()?.take(300) }.getOrNull()
+                android.util.Log.w("ApiDispatch", "Cohere native listModels HTTP ${resp.code()}: ${body ?: "(no body)"}")
+                emptyMap()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ApiDispatch", "Cohere native listModels threw: ${e.javaClass.simpleName}: ${e.message}")
+            emptyMap()
+        }
     } else emptyMap()
 
     val types = ids.associateWith { id ->
@@ -703,8 +713,15 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
                 )
             }.filterValues { it.contextLength != null || it.maxOutputTokens != null || it.supportsReasoning != null }
             FetchedModels(ids, all, emptySet(), caps, rawJson)
-        } else FetchedModels(emptyList(), emptyMap())
-    } catch (_: Exception) { FetchedModels(emptyList(), emptyMap()) }
+        } else {
+            val body = runCatching { response.errorBody()?.string()?.take(300) }.getOrNull()
+            android.util.Log.w("ApiDispatch", "Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
+            FetchedModels(emptyList(), emptyMap())
+        }
+    } catch (e: Exception) {
+        android.util.Log.w("ApiDispatch", "Gemini listModels threw: ${e.javaClass.simpleName}: ${e.message}")
+        FetchedModels(emptyList(), emptyMap())
+    }
 }
 
 // ============================================================================
