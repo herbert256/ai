@@ -17,13 +17,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
-import com.ai.data.AppService
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.formatCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -44,36 +44,49 @@ internal fun TranslationCallDetailScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val provider = AppService.findById(result.providerId)?.displayName ?: result.providerId
-    val what = result.agentName.removePrefix("Translate:").trim().ifBlank { result.agentName }
     val titleLang = result.targetLanguage?.let { "Translate · $it" } ?: "Translate"
 
-    // Resolve the original text based on what this row translated. The
-    // source kind + targetId pair is stamped on the row when the
-    // translation flow saves it (see saveTranslationSecondaries).
-    val originalContent by produceState<String?>(initialValue = null, result.id) {
+    // Resolve everything we need about the source item in one IO read:
+    // its content, the model that produced it, and the trace file
+    // (when one exists). Driven by translateSourceKind +
+    // translateSourceTargetId stamped on the row in
+    // saveTranslationSecondaries.
+    data class SourceInfo(val content: String?, val model: String?, val traceFilename: String?)
+    val source by produceState(initialValue = SourceInfo(null, null, null), result.id) {
         value = withContext(Dispatchers.IO) {
-            val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext null
+            val report = ReportStorage.getReport(context, result.reportId)
+                ?: return@withContext SourceInfo(null, null, null)
             when (result.translateSourceKind) {
-                "PROMPT" -> report.prompt
+                // The prompt is user-typed text — no source model, no trace.
+                "PROMPT" -> SourceInfo(report.prompt, null, null)
                 "AGENT" -> {
-                    val targetId = result.translateSourceTargetId ?: return@withContext null
-                    report.agents.firstOrNull { it.agentId == targetId && it.reportStatus == ReportStatus.SUCCESS }
-                        ?.responseBody
+                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null)
+                    val agent = report.agents.firstOrNull { it.agentId == targetId && it.reportStatus == ReportStatus.SUCCESS }
+                    val tf = agent?.let {
+                        ApiTracer.getTraceFiles()
+                            .filter { t -> t.reportId == result.reportId && t.model == it.model }
+                            .maxByOrNull { t -> t.timestamp }?.filename
+                    }
+                    SourceInfo(agent?.responseBody, agent?.model, tf)
                 }
                 "SUMMARY", "COMPARE" -> {
-                    val targetId = result.translateSourceTargetId ?: return@withContext null
-                    SecondaryResultStorage.get(context, result.reportId, targetId)?.content
+                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null)
+                    val sec = SecondaryResultStorage.get(context, result.reportId, targetId)
+                    val tf = sec?.let {
+                        ApiTracer.getTraceFiles()
+                            .filter { t -> t.reportId == result.reportId && t.model == it.model }
+                            .minByOrNull { t -> kotlin.math.abs(t.timestamp - it.timestamp) }?.filename
+                    }
+                    SourceInfo(sec?.content, sec?.model, tf)
                 }
-                else -> null
+                else -> SourceInfo(null, null, null)
             }
         }
     }
 
-    // Look up the API trace for this translation call: same report id,
-    // same model, closest timestamp. Drives the 🐞 link visibility +
-    // navigation target.
-    val traceFilename by produceState<String?>(initialValue = null, result.id) {
+    // Trace for this translation call itself: same report id + this
+    // call's translation model, closest timestamp.
+    val translationTraceFilename by produceState<String?>(initialValue = null, result.id) {
         value = withContext(Dispatchers.IO) {
             ApiTracer.getTraceFiles()
                 .filter { it.reportId == result.reportId && it.model == result.model }
@@ -84,26 +97,40 @@ internal fun TranslationCallDetailScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(title = titleLang, onBackClick = onBack, onAiClick = onNavigateHome)
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(what, fontSize = 13.sp, color = AppColors.TextSecondary,
-                    maxLines = 1, fontWeight = FontWeight.SemiBold)
-                Text("$provider — ${result.model}", fontSize = 13.sp, color = AppColors.Blue,
-                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        // Two-line header at the top — one row per model, in the same
+        // visual style as the section labels below. Source model line
+        // is omitted when the row translated something with no model
+        // (PROMPT). Cost row sums input + output cents for this single
+        // translation call.
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            source.model?.let { srcModel ->
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("Report: $srcModel",
+                        fontSize = 14.sp, color = AppColors.Blue,
+                        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f))
+                    source.traceFilename?.let { tf ->
+                        Text("🐞", fontSize = 18.sp,
+                            modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
+                    }
+                }
+                Spacer(modifier = Modifier.height(2.dp))
             }
-            // 🐞 trace link — only emitted when a trace file exists.
-            // Tapping routes to the trace detail screen.
-            val tf = traceFilename
-            if (tf != null) {
-                Text(
-                    "🐞", fontSize = 18.sp,
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .clickable { onNavigateToTraceFile(tf) }
-                )
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Translation: ${result.model}",
+                    fontSize = 14.sp, color = AppColors.Green,
+                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                translationTraceFilename?.let { tf ->
+                    Text("🐞", fontSize = 18.sp,
+                        modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
+                }
+            }
+            val totalCost = (result.inputCost ?: 0.0) + (result.outputCost ?: 0.0)
+            if (totalCost > 0.0) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text("Cost: ${formatCents(totalCost)} ¢",
+                    fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
             }
         }
 
@@ -126,7 +153,7 @@ internal fun TranslationCallDetailScreen(
                     Text("Original", fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(6.dp))
                     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        val src = originalContent
+                        val src = source.content
                         if (src.isNullOrBlank()) {
                             Text("(source content not found)", color = AppColors.TextTertiary, fontSize = 13.sp)
                         } else {
