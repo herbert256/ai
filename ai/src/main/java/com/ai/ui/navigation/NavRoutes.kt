@@ -22,6 +22,7 @@ object NavRoutes {
     const val AI_SEARCH = "ai_search"
     const val AI_LOCAL_SEARCH = "ai_local_search"
     const val AI_QUICK_LOCAL_SEARCH = "ai_quick_local_search"
+    const val AI_REPORT_MANAGE = "ai_report_manage"
     const val AI_USAGE = "ai_usage"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_SETUP = "ai_setup"

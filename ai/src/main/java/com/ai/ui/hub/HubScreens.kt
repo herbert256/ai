@@ -136,6 +136,7 @@ fun ReportsHubScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToLocalSearch: () -> Unit,
     onNavigateToQuickLocalSearch: () -> Unit,
+    onNavigateToManage: () -> Unit = {},
     onOpenReport: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -195,6 +196,8 @@ fun ReportsHubScreen(
             onExtendedLocal = onNavigateToLocalSearch,
             onSemantic = onNavigateToSearch
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        HubCard(icon = "🧹", title = "Manage", onClick = onNavigateToManage, enabled = hasPreviousReports)
     }
 }
 

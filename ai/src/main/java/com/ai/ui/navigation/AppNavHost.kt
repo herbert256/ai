@@ -141,6 +141,7 @@ fun AppNavHost(
                 onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
                 onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
                 onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
+                onNavigateToManage = { navController.navigate(NavRoutes.AI_REPORT_MANAGE) },
                 onOpenReport = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
@@ -177,6 +178,12 @@ fun AppNavHost(
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
                 }
+            )
+        }
+        composable(NavRoutes.AI_REPORT_MANAGE) {
+            com.ai.ui.report.ReportManageScreen(
+                onBack = safePopBack,
+                onNavigateHome = navigateHome
             )
         }
         composable(NavRoutes.AI_QUICK_LOCAL_SEARCH) {
