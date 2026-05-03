@@ -690,7 +690,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportId: String,
         kind: SecondaryKind,
         picks: List<Pair<AppService, String>>,
-        scopeChoice: SecondaryScope = SecondaryScope.AllReports
+        scopeChoice: SecondaryScope = SecondaryScope.AllReports,
+        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
     ): Job? {
         if (picks.isEmpty()) return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -734,6 +735,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val ids = extractTopRankedIds(rerank?.content, scopeChoice.count)
                         if (ids.isNullOrEmpty()) null else ids.toSet()
                     }
+                    is SecondaryScope.Manual -> {
+                        // Manual is expressed as agentIds; convert to the
+                        // 1-based original-id indices used by buildLanguageInputs
+                        // / buildResultsBlock.
+                        val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                        val ids = successful.mapIndexedNotNull { idx, a ->
+                            if (a.agentId in scopeChoice.agentIds) idx + 1 else null
+                        }
+                        if (ids.isEmpty()) null else ids.toSet()
+                    }
                 }
                 val successfulCount = if (includeIds != null) includeIds.size
                     else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -753,7 +764,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val l = tr.targetLanguage!!
                             if (l !in nativeByLang) nativeByLang[l] = tr.targetLanguageNative
                         }
-                    nativeByLang
+                    // Apply the user's language filter, if any. Selected is
+                    // a positive list, AllPresent keeps every language.
+                    when (languageScope) {
+                        SecondaryLanguageScope.AllPresent -> nativeByLang
+                        is SecondaryLanguageScope.Selected -> {
+                            val filtered = LinkedHashMap<String, String?>()
+                            nativeByLang.forEach { (k, v) -> if (k in languageScope.languages) filtered[k] = v }
+                            filtered
+                        }
+                    }
                 } else LinkedHashMap()
                 val languages: List<Pair<String?, String?>> = listOf<Pair<String?, String?>>(null to null) +
                     translationLanguages.map { (lang, native) -> lang to native }

@@ -307,6 +307,21 @@ fun buildResultsBlock(report: Report, includeIds: Set<Int>? = null): String {
 sealed class SecondaryScope {
     object AllReports : SecondaryScope()
     data class TopRanked(val count: Int, val rerankResultId: String) : SecondaryScope()
+    /** Explicit list of agent ids the user picked from the existing
+     *  report. When non-empty the meta run only sees those rows, the
+     *  same way [TopRanked] only sees the rerank's top-N. */
+    data class Manual(val agentIds: Set<String>) : SecondaryScope()
+}
+
+/** Language filter for SUMMARIZE / COMPARE multi-language fan-out.
+ *  Defaults to AllPresent so existing call sites keep their behaviour;
+ *  the scope picker offers Selected for "only these languages".
+ *  TRANSLATE / RERANK / MODERATION ignore this. */
+sealed class SecondaryLanguageScope {
+    object AllPresent : SecondaryLanguageScope()
+    /** [languages] holds English-name keys ("Dutch") plus the empty
+     *  string for the original (untranslated) source. */
+    data class Selected(val languages: Set<String>) : SecondaryLanguageScope()
 }
 
 /** Result of an API-level rerank call (Cohere v2/rerank or compatible).

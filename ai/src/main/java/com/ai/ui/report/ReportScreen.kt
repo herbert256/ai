@@ -84,8 +84,8 @@ fun ReportsScreenNav(
         uiState = uiState,
         reportsAgentResults = agentResults,
         initialModels = initialModels,
-        onRunSecondary = { reportId, kind, picks, scopeChoice ->
-            reportViewModel.runSecondary(scope, context, reportId, kind, picks, scopeChoice)
+        onRunSecondary = { reportId, kind, picks, scopeChoice, languageScope ->
+            reportViewModel.runSecondary(scope, context, reportId, kind, picks, scopeChoice, languageScope)
         },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
@@ -219,7 +219,7 @@ fun ReportsScreen(
     onDeleteReport: (String) -> Unit = {},
     onCopyReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onRunSecondary: (String, SecondaryKind, List<Pair<AppService, String>>, com.ai.data.SecondaryScope) -> Unit = { _, _, _, _ -> },
+    onRunSecondary: (String, SecondaryKind, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
@@ -365,6 +365,7 @@ fun ReportsScreen(
     // so onRunSecondary can apply it. Null until the user opts to start.
     var secondaryScopeKind by remember { mutableStateOf<SecondaryKind?>(null) }
     var pendingSecondaryScope by remember { mutableStateOf<com.ai.data.SecondaryScope>(com.ai.data.SecondaryScope.AllReports) }
+    var pendingLanguageScope by remember { mutableStateOf<com.ai.data.SecondaryLanguageScope>(com.ai.data.SecondaryLanguageScope.AllPresent) }
     // Unified Meta screen overlay reached from the Actions card. While
     // open, the user can browse all Rerank/Summarize/Compare entries and
     // launch new ones from the bottom Add card.
@@ -519,52 +520,52 @@ fun ReportsScreen(
         return
     }
 
-    // Scope screen — shown before the picker for Summarize / Compare when
-    // the report has at least one rerank result. Lets the user narrow the
-    // input to the top-N entries of a chosen rerank.
+    // Scope screen — always shown before the picker for Summarize /
+    // Compare. Lets the user pick the input set (all model results /
+    // top-N from a rerank / a manual subset) and, when translation
+    // rows exist, which target languages to fan out to.
     val scopeKind = secondaryScopeKind
     if (scopeKind != null && currentReportId != null) {
         val rid = currentReportId
-        // IO load — scope screen reads the rerank list and the parent
-        // report off disk; without produceState both would parse JSON
-        // on the UI thread. Loading sentinel keeps the screen blank
-        // until the read finishes (typically <50 ms).
-        data class ScopeData(val reranks: List<com.ai.data.SecondaryResult>, val totalReports: Int)
+        data class ScopeData(
+            val agents: List<com.ai.data.ReportAgent>,
+            val reranks: List<com.ai.data.SecondaryResult>,
+            val languages: List<Pair<String, String?>>,
+            val totalReports: Int
+        )
         val scopeDataState = produceState<ScopeData?>(initialValue = null, rid) {
             value = withContext(Dispatchers.IO) {
-                val rr = com.ai.data.SecondaryResultStorage.listForReport(context, rid, com.ai.data.SecondaryKind.RERANK)
                 val report = com.ai.data.ReportStorage.getReport(context, rid)
-                val total = report?.agents?.count { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() } ?: 0
-                ScopeData(rr, total)
+                val all = com.ai.data.SecondaryResultStorage.listForReport(context, rid)
+                val rr = all.filter { it.kind == com.ai.data.SecondaryKind.RERANK }
+                val successfulAgents = report?.agents?.filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }.orEmpty()
+                val nativeByLang = LinkedHashMap<String, String?>()
+                all.filter { it.kind == com.ai.data.SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
+                    .forEach { tr ->
+                        val l = tr.targetLanguage!!
+                        if (l !in nativeByLang) nativeByLang[l] = tr.targetLanguageNative
+                    }
+                ScopeData(successfulAgents, rr, nativeByLang.map { it.key to it.value }, successfulAgents.size)
             }
         }
         val sd = scopeDataState.value
-        if (sd == null) {
-            // Still loading — render nothing for a frame or two.
-            return
-        }
-        // Defensive: scope screen should never have been entered without
-        // reranks present, but if reranks were deleted between click and
-        // render, fall through to the picker with AllReports.
-        if (sd.reranks.isEmpty()) {
-            secondaryScopeKind = null
-            secondaryPickerKind = scopeKind
-            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-        } else {
-            SecondaryScopeScreen(
-                kind = scopeKind,
-                reranks = sd.reranks,
-                totalReports = sd.totalReports,
-                onContinue = { chosen ->
-                    pendingSecondaryScope = chosen
-                    secondaryScopeKind = null
-                    secondaryPickerKind = scopeKind
-                },
-                onBack = { secondaryScopeKind = null },
-                onNavigateHome = onNavigateHome
-            )
-            return
-        }
+        if (sd == null) return
+        SecondaryScopeScreen(
+            kind = scopeKind,
+            agents = sd.agents,
+            reranks = sd.reranks,
+            languages = sd.languages,
+            totalReports = sd.totalReports,
+            onContinue = { chosenScope, chosenLangScope ->
+                pendingSecondaryScope = chosenScope
+                pendingLanguageScope = chosenLangScope
+                secondaryScopeKind = null
+                secondaryPickerKind = scopeKind
+            },
+            onBack = { secondaryScopeKind = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     // Rerank / Summarize / Compare model picker. Reuses the same multi-select
@@ -591,9 +592,10 @@ fun ReportsScreen(
                 else -> null
             },
             onConfirm = { pick ->
-                onRunSecondary(rid, pickerKind, listOf(pick), pendingSecondaryScope)
+                onRunSecondary(rid, pickerKind, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
                 secondaryPickerKind = null
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
             },
             onBack = { secondaryPickerKind = null },
             onNavigateHome = onNavigateHome
@@ -691,16 +693,8 @@ fun ReportsScreen(
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 secondaryPickerKind = SecondaryKind.RERANK
             },
-            onSummarize = {
-                val hasRerank = com.ai.data.SecondaryResultStorage.countForReport(context, rid).rerank > 0
-                if (hasRerank) secondaryScopeKind = SecondaryKind.SUMMARIZE
-                else { pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports; secondaryPickerKind = SecondaryKind.SUMMARIZE }
-            },
-            onCompare = {
-                val hasRerank = com.ai.data.SecondaryResultStorage.countForReport(context, rid).rerank > 0
-                if (hasRerank) secondaryScopeKind = SecondaryKind.COMPARE
-                else { pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports; secondaryPickerKind = SecondaryKind.COMPARE }
-            },
+            onSummarize = { secondaryScopeKind = SecondaryKind.SUMMARIZE },
+            onCompare = { secondaryScopeKind = SecondaryKind.COMPARE },
             onModerate = {
                 // Moderation operates on every response, no scope step.
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
@@ -853,22 +847,8 @@ fun ReportsScreen(
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                     secondaryPickerKind = SecondaryKind.RERANK
                 },
-                onSummarize = {
-                    val rid = currentReportId
-                    if (rid != null) {
-                        val hasRerank = com.ai.data.SecondaryResultStorage.countForReport(context, rid).rerank > 0
-                        if (hasRerank) secondaryScopeKind = SecondaryKind.SUMMARIZE
-                        else { pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports; secondaryPickerKind = SecondaryKind.SUMMARIZE }
-                    }
-                },
-                onCompare = {
-                    val rid = currentReportId
-                    if (rid != null) {
-                        val hasRerank = com.ai.data.SecondaryResultStorage.countForReport(context, rid).rerank > 0
-                        if (hasRerank) secondaryScopeKind = SecondaryKind.COMPARE
-                        else { pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports; secondaryPickerKind = SecondaryKind.COMPARE }
-                    }
-                },
+                onSummarize = { if (currentReportId != null) secondaryScopeKind = SecondaryKind.SUMMARIZE },
+                onCompare = { if (currentReportId != null) secondaryScopeKind = SecondaryKind.COMPARE },
                 onModerate = {
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                     secondaryPickerKind = SecondaryKind.MODERATION
