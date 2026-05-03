@@ -143,9 +143,25 @@ object BackupManager {
                         val rel = entry.name.removePrefix("files/")
                         if (rel.isNotBlank()) {
                             val target = File(context.filesDir, rel)
-                            target.parentFile?.mkdirs()
-                            target.writeBytes(bytes)
-                            filesRestored++
+                            // Defence in depth — a zip entry name like
+                            // `files/../shared_prefs/eval_prefs.xml`
+                            // resolves outside filesDir into the
+                            // app-private data dir; can't escape the
+                            // sandbox but could clobber a sibling
+                            // directory (shared_prefs, databases) that
+                            // the prefs/ branch is also restoring,
+                            // creating racy half-restores. Drop the
+                            // entry rather than write outside filesDir.
+                            val canonicalTarget = target.canonicalPath
+                            val canonicalRoot = context.filesDir.canonicalPath + File.separator
+                            if (!canonicalTarget.startsWith(canonicalRoot)) {
+                                android.util.Log.w("BackupManager",
+                                    "Skipping zip entry that escapes filesDir: ${entry.name}")
+                            } else {
+                                target.parentFile?.mkdirs()
+                                target.writeBytes(bytes)
+                                filesRestored++
+                            }
                         }
                     }
                 }
