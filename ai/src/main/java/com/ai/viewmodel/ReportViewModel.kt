@@ -331,6 +331,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     suspend fun updateReportPrompt(context: Context, reportId: String, newPrompt: String) {
         withContext(Dispatchers.IO) {
             ReportStorage.updateReportPromptText(context, reportId, newPrompt)
+            ReportStorage.bumpReportTimestamp(context, reportId)
         }
         appViewModel.updateUiState { it.copy(
             genericPromptText = newPrompt,
@@ -347,6 +348,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     suspend fun updateReportTitle(context: Context, reportId: String, newTitle: String) {
         withContext(Dispatchers.IO) {
             ReportStorage.updateReportTitle(context, reportId, newTitle)
+            ReportStorage.bumpReportTimestamp(context, reportId)
         }
         appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle) }
     }
