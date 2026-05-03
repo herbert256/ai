@@ -95,10 +95,11 @@ fun SetupScreen(
                 onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
-            SetupNavCard("\uD83D\uDCD0", "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LITERT_MODELS) })
-            SetupNavCard("\uD83D\uDCF1", "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LLMS) })
+            run {
+                val localCount = liteRtCount + localLlmCount
+                SetupNavCard("\uD83D\uDCBB", "Local Models", "On-device LLMs and LiteRT text embedders", "$localCount",
+                    onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
+            }
         }
     }
 }
@@ -226,6 +227,39 @@ fun PromptsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
             ModelsSetupNavCard("🔄", "Internal Prompts", "Rerank, Summarize, Compare, Intro, Model info", "$internalPromptsCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_SECONDARY_PROMPTS) })
+        }
+    }
+}
+
+// ===== Local Models Setup hub =====
+
+/** Sub-hub under AI Setup that groups the two on-device runtime
+ *  entry points (Local LLMs — `.task` chat / completion bundles
+ *  driving the synthetic Local provider — and Local LiteRT models
+ *  — `.tflite` text embedders driving Local Semantic Search and
+ *  Local-embedder Knowledge bases). Same shape as the other
+ *  sub-hubs. */
+@Composable
+fun LocalModelsSetupScreen(
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
+    onNavigate: (SettingsSubScreen) -> Unit
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val liteRtCount = remember { com.ai.data.LocalEmbedder.availableModels(context).size }
+    val localLlmCount = remember { com.ai.data.LocalLlm.availableLlms(context).size }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "Local models", onBackClick = onBack, onAiClick = onBackToHome)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("📱", "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LLMS) })
+            ModelsSetupNavCard("📐", "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LITERT_MODELS) })
         }
     }
 }

@@ -30,6 +30,7 @@ enum class SettingsSubScreen {
     AI_EXTERNAL_SERVICES,
     AI_PROMPTS_SETUP,
     AI_SECONDARY_PROMPTS,
+    AI_LOCAL_MODELS_SETUP,
     AI_LOCAL_LITERT_MODELS,
     AI_LOCAL_LLMS,
     AI_IMPORT_EXPORT,
@@ -100,12 +101,14 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
             SettingsSubScreen.AI_SECONDARY_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
+            SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
+            SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
             SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_WORKERS_SETUP,
             SettingsSubScreen.AI_PROMPTS_SETUP,
+            SettingsSubScreen.AI_LOCAL_MODELS_SETUP,
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
-            SettingsSubScreen.AI_LOCAL_LITERT_MODELS, SettingsSubScreen.AI_LOCAL_LLMS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
@@ -232,6 +235,12 @@ fun SettingsScreen(
             PromptsSetupScreen(
                 aiSettings = aiSettings,
                 generalSettings = generalSettings,
+                onBack = goBack, onBackToHome = onNavigateHome,
+                onNavigate = { currentSubScreen = it }
+            )
+        }
+        SettingsSubScreen.AI_LOCAL_MODELS_SETUP -> {
+            LocalModelsSetupScreen(
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }
             )
