@@ -28,6 +28,7 @@ enum class SettingsSubScreen {
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
+    AI_PROMPTS_SETUP,
     AI_SECONDARY_PROMPTS,
     AI_LOCAL_LITERT_MODELS,
     AI_LOCAL_LLMS,
@@ -97,11 +98,13 @@ fun SettingsScreen(
             SettingsSubScreen.AI_MANUAL_MODEL_TYPES -> currentSubScreen = SettingsSubScreen.AI_MODELS_SETUP
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
+            SettingsSubScreen.AI_SYSTEM_PROMPTS,
+            SettingsSubScreen.AI_SECONDARY_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
             SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_WORKERS_SETUP,
+            SettingsSubScreen.AI_PROMPTS_SETUP,
             SettingsSubScreen.AI_PARAMETERS,
-            SettingsSubScreen.AI_SYSTEM_PROMPTS, SettingsSubScreen.AI_EXTERNAL_SERVICES,
-            SettingsSubScreen.AI_SECONDARY_PROMPTS,
+            SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS, SettingsSubScreen.AI_LOCAL_LLMS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
@@ -221,6 +224,14 @@ fun SettingsScreen(
             WorkersSetupScreen(
                 aiSettings = aiSettings,
                 hasApiKey = aiSettings.hasAnyApiKey(),
+                onBack = goBack, onBackToHome = onNavigateHome,
+                onNavigate = { currentSubScreen = it }
+            )
+        }
+        SettingsSubScreen.AI_PROMPTS_SETUP -> {
+            PromptsSetupScreen(
+                aiSettings = aiSettings,
+                generalSettings = generalSettings,
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }
             )

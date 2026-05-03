@@ -81,19 +81,18 @@ fun SetupScreen(
             }
             SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
-            SetupNavCard("\uD83D\uDDE8\uFE0F", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
-                onClick = onNavigateToCostConfig)
             run {
                 val metaCount = (if (rerankPrompt.isNotBlank()) 1 else 0) +
                     (if (summarizePrompt.isNotBlank()) 1 else 0) +
                     (if (comparePrompt.isNotBlank()) 1 else 0) +
                     (if (introPrompt.isNotBlank()) 1 else 0) +
                     (if (modelInfoPrompt.isNotBlank()) 1 else 0)
-                SetupNavCard("\uD83D\uDD04", "Internal Prompts", "Rerank, Summarize, Compare, Intro, Model info", "$metaCount",
-                    onClick = { onNavigate(SettingsSubScreen.AI_SECONDARY_PROMPTS) })
+                val promptsCount = aiSettings.systemPrompts.size + metaCount
+                SetupNavCard("\uD83D\uDCDD", "Prompt management", "System prompts and Internal prompt templates", "$promptsCount",
+                    onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS_SETUP) })
             }
+            SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
+                onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
             SetupNavCard("\uD83D\uDCD0", "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
@@ -189,6 +188,44 @@ fun WorkersSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) }, enabled = hasApiKey)
             ModelsSetupNavCard("🐝", "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }, enabled = hasApiKey)
+        }
+    }
+}
+
+// ===== Prompts Setup hub =====
+
+/** Sub-hub under AI Setup that groups the two prompt-management
+ *  entry points (System Prompts — reusable system messages — and
+ *  Internal Prompts — Rerank / Summarize / Compare / Intro / Model
+ *  info templates). Same pattern as [WorkersSetupScreen] and
+ *  [ModelsSetupScreen] — keeps the AI Setup landing page compact. */
+@Composable
+fun PromptsSetupScreen(
+    aiSettings: Settings,
+    generalSettings: com.ai.viewmodel.GeneralSettings,
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
+    onNavigate: (SettingsSubScreen) -> Unit
+) {
+    BackHandler { onBack() }
+    val internalPromptsCount = remember(generalSettings) {
+        (if (generalSettings.rerankPrompt.isNotBlank()) 1 else 0) +
+            (if (generalSettings.summarizePrompt.isNotBlank()) 1 else 0) +
+            (if (generalSettings.comparePrompt.isNotBlank()) 1 else 0) +
+            (if (generalSettings.introPrompt.isNotBlank()) 1 else 0) +
+            (if (generalSettings.modelInfoPrompt.isNotBlank()) 1 else 0)
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "Prompt management", onBackClick = onBack, onAiClick = onBackToHome)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
+            ModelsSetupNavCard("🔄", "Internal Prompts", "Rerank, Summarize, Compare, Intro, Model info", "$internalPromptsCount",
+                onClick = { onNavigate(SettingsSubScreen.AI_SECONDARY_PROMPTS) })
         }
     }
 }
