@@ -187,7 +187,7 @@ fun ReportsHubScreen(
         }
         if (recentReports.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            ReportListCard(title = "Recent", icon = null, reports = recentReports, onOpen = onOpenReport)
+            ReportListCard(title = "Recent", icon = "\uD83D\uDD58", reports = recentReports, onOpen = onOpenReport)
         }
         Spacer(modifier = Modifier.height(12.dp))
         SearchHubGroup(
@@ -230,13 +230,12 @@ private fun InFlightPill(count: Int, onResume: () -> Unit) {
  *  rows and the Pinned section. Each row opens the report on tap. */
 @Composable
 private fun ReportListCard(title: String, icon: String?, reports: List<com.ai.data.Report>, onOpen: (String) -> Unit) {
-    val df = remember { java.text.SimpleDateFormat("MMM d HH:mm", java.util.Locale.US) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
                 if (icon != null) {
                     Text(icon, fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(6.dp))
@@ -244,25 +243,15 @@ private fun ReportListCard(title: String, icon: String?, reports: List<com.ai.da
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextSecondary)
             }
             reports.forEach { r ->
-                Row(
+                Text(
+                    text = r.title.ifBlank { "(untitled)" },
+                    fontSize = 13.sp, color = Color.White,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onOpen(r.id) }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = r.title.ifBlank { "(untitled)" },
-                            fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = df.format(java.util.Date(r.timestamp)),
-                            fontSize = 11.sp, color = AppColors.TextTertiary
-                        )
-                    }
-                }
+                        .padding(vertical = 3.dp)
+                )
             }
         }
     }

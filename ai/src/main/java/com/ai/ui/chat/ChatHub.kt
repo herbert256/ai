@@ -88,7 +88,7 @@ fun ChatsHubScreen(
         }
         if (recentSessions.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            ChatListCard(title = "Recent", icon = null, sessions = recentSessions, onResume = onResumeSession)
+            ChatListCard(title = "Recent", icon = "🕘", sessions = recentSessions, onResume = onResumeSession)
         }
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
@@ -110,13 +110,12 @@ fun ChatsHubScreen(
  *  model, and updated timestamp; tap resumes that session. */
 @Composable
 private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.data.ChatSession>, onResume: (String) -> Unit) {
-    val df = remember { java.text.SimpleDateFormat("MMM d HH:mm", java.util.Locale.US) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
                 if (icon != null) {
                     Text(icon, fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(6.dp))
@@ -124,26 +123,15 @@ private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.dat
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextSecondary)
             }
             sessions.forEach { s ->
-                Row(
+                Text(
+                    text = s.preview,
+                    fontSize = 13.sp, color = Color.White,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onResume(s.id) }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = s.preview,
-                            fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${s.provider.displayName} \u00B7 ${s.model} \u00B7 ${df.format(java.util.Date(s.updatedAt))}",
-                            fontSize = 11.sp, color = AppColors.TextTertiary,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                }
+                        .padding(vertical = 3.dp)
+                )
             }
         }
     }
