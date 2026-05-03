@@ -41,11 +41,11 @@ fun ChatsHubScreen(
     val hasChatHistory by produceState(initialValue = false, historyVersion) {
         value = ChatHistoryManager.getSessionCountAsync() > 0
     }
-    val recentSessions by produceState<List<com.ai.data.ChatSession>>(initialValue = emptyList(), historyVersion) {
-        value = ChatHistoryManager.getAllSessionsAsync()
-            .sortedByDescending { it.updatedAt }
-            .take(3)
+    val allSessionsForHub by produceState<List<com.ai.data.ChatSession>>(initialValue = emptyList(), historyVersion) {
+        value = ChatHistoryManager.getAllSessionsAsync().sortedByDescending { it.updatedAt }
     }
+    val pinnedSessions = allSessionsForHub.filter { it.pinned }
+    val recentSessions = allSessionsForHub.filter { !it.pinned }.take(3)
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -65,9 +65,13 @@ fun ChatsHubScreen(
             description = "Resume a previous chat session",
             onClick = onNavigateToChatHistory, enabled = hasChatHistory
         )
+        if (pinnedSessions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            ChatListCard(title = "Pinned", icon = "📌", sessions = pinnedSessions, onResume = onResumeSession)
+        }
         if (recentSessions.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            RecentChatsCard(sessions = recentSessions, onResume = onResumeSession)
+            ChatListCard(title = "Recent", icon = null, sessions = recentSessions, onResume = onResumeSession)
         }
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
@@ -78,20 +82,24 @@ fun ChatsHubScreen(
     }
 }
 
-/** Inline preview of the 3 most recent chat sessions. Tap a row to
- *  resume that session \u2014 one tap instead of three (Continue \u2192 list \u2192
- *  pick) for the common "open the conversation I was just in" case. */
+/** Card listing chat sessions \u2014 used by both the Pinned and Recent
+ *  sections. Each row shows the first user message preview, provider /
+ *  model, and updated timestamp; tap resumes that session. */
 @Composable
-private fun RecentChatsCard(sessions: List<com.ai.data.ChatSession>, onResume: (String) -> Unit) {
+private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.data.ChatSession>, onResume: (String) -> Unit) {
     val df = remember { java.text.SimpleDateFormat("MMM d HH:mm", java.util.Locale.US) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text("Recent", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = AppColors.TextSecondary,
-                modifier = Modifier.padding(bottom = 4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                if (icon != null) {
+                    Text(icon, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextSecondary)
+            }
             sessions.forEach { s ->
                 Row(
                     modifier = Modifier

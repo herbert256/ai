@@ -77,7 +77,10 @@ data class ChatSession(
     val messages: List<ChatMessage>,
     val parameters: ChatParameters = ChatParameters(),
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** User-pinned flag. Pinned sessions appear as their own section
+     *  above Recent on the AI Chat hub. */
+    val pinned: Boolean = false
 ) {
     val preview: String
         get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"

@@ -352,9 +352,15 @@ fun ChatSessionScreen(
 
     val pricing = remember(provider, model) { PricingCache.getPricing(context, provider, model) }
 
+    // Read the persisted pinned flag once on entry so subsequent saves
+    // preserve it. Toggled below by the 📌 pill next to the model line.
+    var pinned by remember(currentSessionId) {
+        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.pinned == true)
+    }
+
     fun saveSession(msgs: List<ChatMessage>) {
         ChatHistoryManager.saveSession(
-            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = parameters, updatedAt = System.currentTimeMillis())
+            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = parameters, updatedAt = System.currentTimeMillis(), pinned = pinned)
         )
     }
 
@@ -497,7 +503,24 @@ fun ChatSessionScreen(
                 }
             }
         )
-        Text("${provider.displayName} / $model", fontSize = 12.sp, color = AppColors.TextTertiary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${provider.displayName} / $model", fontSize = 12.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.weight(1f))
+            Text(
+                if (pinned) "📌 Pinned" else "📌 Pin",
+                fontSize = 11.sp,
+                color = if (pinned) AppColors.Orange else AppColors.TextTertiary,
+                modifier = Modifier
+                    .clickable {
+                        pinned = !pinned
+                        // Touch the persisted record immediately so the
+                        // hub picks the new state up without waiting for
+                        // the next message save.
+                        ChatHistoryManager.setSessionPinned(currentSessionId, pinned)
+                    }
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Card(

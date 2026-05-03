@@ -74,6 +74,14 @@ object ChatHistoryManager {
         } catch (_: Exception) { false }
     }
 
+    /** Toggle the pinned flag on [sessionId]. Pinned sessions surface
+     *  as their own section on the AI Chat hub. Doesn't bump
+     *  updatedAt — pinning is metadata, not activity. */
+    fun setSessionPinned(sessionId: String, pinned: Boolean): Boolean {
+        val current = loadSession(sessionId) ?: return false
+        return saveSession(current.copy(pinned = pinned))
+    }
+
     fun deleteAllSessions(): Int {
         val dir = historyDir ?: return 0
         if (!dir.exists()) return 0
