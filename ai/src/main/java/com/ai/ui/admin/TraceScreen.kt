@@ -173,44 +173,46 @@ fun TraceListScreen(
             }
             TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
 
-            // Category / Provider / Model selectors — each row is only
-            // shown when there's something useful to pick. Clearing a
-            // filter re-shows the broader scope.
-            if (categories.size > 1) {
+            // Category / Provider / Model selectors share a single row.
+            // Each slot is only emitted when there's something useful
+            // to pick, with the surviving slots taking equal share via
+            // weight(1f). Model's "(All)" lives inside its picker
+            // overlay so a separate Clear button is unnecessary.
+            val showCategory = categories.size > 1
+            val showProvider = providers.size > 1
+            val showModel = pickableModels.isNotEmpty()
+            if (showCategory || showProvider || showModel) {
                 Spacer(modifier = Modifier.height(4.dp))
-                FilterDropdown(
-                    label = "Category",
-                    value = selectedCategory,
-                    options = categories,
-                    onPick = { selectedCategory = it; currentPage = 0 }
-                )
-            }
-            if (providers.size > 1) {
-                Spacer(modifier = Modifier.height(4.dp))
-                FilterDropdown(
-                    label = "Provider",
-                    value = selectedProvider,
-                    options = providers,
-                    onPick = { selectedProvider = it; currentPage = 0 }
-                )
-            }
-            if (pickableModels.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(
-                        onClick = { showModelPicker = true },
-                        modifier = Modifier.weight(1f),
-                        colors = AppColors.outlinedButtonColors(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text("Model: ${selectedModel ?: "(All)"}", fontSize = 12.sp,
-                            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("▸", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (showCategory) {
+                        FilterDropdown(
+                            label = "Category",
+                            value = selectedCategory,
+                            options = categories,
+                            onPick = { selectedCategory = it; currentPage = 0 },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    if (selectedModel != null) {
-                        TextButton(onClick = { selectedModel = null; currentPage = 0 }) {
-                            Text("Clear", fontSize = 11.sp, maxLines = 1, softWrap = false)
-                        }
+                    if (showProvider) {
+                        FilterDropdown(
+                            label = "Provider",
+                            value = selectedProvider,
+                            options = providers,
+                            onPick = { selectedProvider = it; currentPage = 0 },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (showModel) {
+                        FilterLauncherButton(
+                            label = "Model",
+                            value = selectedModel ?: "(All)",
+                            onClick = { showModelPicker = true },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -282,27 +284,30 @@ private fun providerLabelForHost(host: String): String =
             ?.equals(host, ignoreCase = true) == true
     }?.displayName ?: "(unknown)"
 
-/** Generic dropdown row used by Category and Provider — full-width
- *  outlined button labelled "<label>: <value>" with a downward chevron,
- *  expanding into a DropdownMenu of [options]. */
+/** Generic dropdown slot used by Category, Provider and the Model
+ *  launcher — outlined button labelled "<label>: <value>" with a
+ *  downward chevron, expanding into a DropdownMenu of [options].
+ *  Sized by the caller's [modifier] so the three filters can share
+ *  one row via weight(1f). */
 @Composable
 private fun FilterDropdown(
     label: String,
     value: String,
     options: List<String>,
-    onPick: (String) -> Unit
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth()
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = modifier) {
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
         ) {
-            Text("$label: $value", fontSize = 12.sp,
+            Text("$label: $value", fontSize = 11.sp,
                 modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("▾", fontSize = 12.sp, color = AppColors.TextTertiary)
+            Text("▾", fontSize = 11.sp, color = AppColors.TextTertiary)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { opt ->
@@ -312,6 +317,30 @@ private fun FilterDropdown(
                 )
             }
         }
+    }
+}
+
+/** Same outlined-button shape as [FilterDropdown] but the chevron
+ *  hands off to an external picker overlay rather than a built-in
+ *  DropdownMenu — used for Model where the option list is too long
+ *  to live in a popup menu. The "(All)" option lives in the
+ *  picker itself, so a separate Clear button is unnecessary. */
+@Composable
+private fun FilterLauncherButton(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        colors = AppColors.outlinedButtonColors(),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        Text("$label: $value", fontSize = 11.sp,
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("▸", fontSize = 11.sp, color = AppColors.TextTertiary)
     }
 }
 
