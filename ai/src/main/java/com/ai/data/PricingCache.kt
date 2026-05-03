@@ -155,10 +155,8 @@ object PricingCache {
     fun saveOpenRouterPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(lock) {
         openRouterPricing = pricing
         openRouterTimestamp = System.currentTimeMillis()
-        getPrefs(context).edit {
-            putString(KEY_OPENROUTER_PRICING, gson.toJson(pricing))
-            putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp)
-        }
+        saveBlob(context, KEY_OPENROUTER_PRICING, gson.toJson(pricing))
+        getPrefs(context).edit { putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp) }
     }
 
     /** Persist Together AI native pricing — populated as a side
@@ -168,10 +166,8 @@ object PricingCache {
     fun saveTogetherPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(lock) {
         togetherPricing = pricing
         togetherTimestamp = System.currentTimeMillis()
-        getPrefs(context).edit {
-            putString(KEY_TOGETHER_PRICING, gson.toJson(pricing))
-            putLong(KEY_TOGETHER_TIMESTAMP, togetherTimestamp)
-        }
+        saveBlob(context, KEY_TOGETHER_PRICING, gson.toJson(pricing))
+        getPrefs(context).edit { putLong(KEY_TOGETHER_TIMESTAMP, togetherTimestamp) }
     }
 
     private fun findTogetherPricing(provider: AppService, model: String): ModelPricing? {
@@ -688,11 +684,9 @@ object PricingCache {
                 litellmMetaLookupCache.clear()
                 litellmPricingLookupCache.clear()
                 litellmTimestamp = System.currentTimeMillis()
-                getPrefs(context).edit {
-                    putString(KEY_LITELLM_PRICING, gson.toJson(pricing))
-                    putString(KEY_LITELLM_META, gson.toJson(meta))
-                    putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp)
-                }
+                saveBlob(context, KEY_LITELLM_PRICING, gson.toJson(pricing))
+                saveBlob(context, KEY_LITELLM_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp) }
             }
             pricing.size
         } catch (e: Exception) {
@@ -728,11 +722,9 @@ object PricingCache {
                 modelsDevMeta = meta
                 modelsDevMetaLookupCache.clear()
                 modelsDevTimestamp = System.currentTimeMillis()
-                getPrefs(context).edit {
-                    putString(KEY_MODELS_DEV_PRICING, gson.toJson(pricing))
-                    putString(KEY_MODELS_DEV_META, gson.toJson(meta))
-                    putLong(KEY_MODELS_DEV_TIMESTAMP, modelsDevTimestamp)
-                }
+                saveBlob(context, KEY_MODELS_DEV_PRICING, gson.toJson(pricing))
+                saveBlob(context, KEY_MODELS_DEV_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_MODELS_DEV_TIMESTAMP, modelsDevTimestamp) }
             }
             pricing.size
         } catch (e: Exception) {
@@ -956,11 +948,9 @@ object PricingCache {
                 heliconePricing = exact
                 heliconePatterns = patterns
                 heliconeTimestamp = System.currentTimeMillis()
-                getPrefs(context).edit {
-                    putString(KEY_HELICONE_PRICING, gson.toJson(exact))
-                    putString(KEY_HELICONE_PATTERNS, gson.toJson(patterns))
-                    putLong(KEY_HELICONE_TIMESTAMP, heliconeTimestamp)
-                }
+                saveBlob(context, KEY_HELICONE_PRICING, gson.toJson(exact))
+                saveBlob(context, KEY_HELICONE_PATTERNS, gson.toJson(patterns))
+                getPrefs(context).edit { putLong(KEY_HELICONE_TIMESTAMP, heliconeTimestamp) }
             }
             exact.size + patterns.size
         } catch (e: Exception) {
@@ -1072,10 +1062,8 @@ object PricingCache {
             synchronized(lock) {
                 llmPricesPricing = combined
                 llmPricesTimestamp = System.currentTimeMillis()
-                getPrefs(context).edit {
-                    putString(KEY_LLMPRICES_PRICING, gson.toJson(combined))
-                    putLong(KEY_LLMPRICES_TIMESTAMP, llmPricesTimestamp)
-                }
+                saveBlob(context, KEY_LLMPRICES_PRICING, gson.toJson(combined))
+                getPrefs(context).edit { putLong(KEY_LLMPRICES_TIMESTAMP, llmPricesTimestamp) }
             }
             combined.size
         } catch (e: Exception) {
@@ -1190,11 +1178,9 @@ object PricingCache {
                 aaPricing = pricing
                 aaMeta = meta
                 aaTimestamp = System.currentTimeMillis()
-                getPrefs(context).edit {
-                    putString(KEY_AA_PRICING, gson.toJson(pricing))
-                    putString(KEY_AA_META, gson.toJson(meta))
-                    putLong(KEY_AA_TIMESTAMP, aaTimestamp)
-                }
+                saveBlob(context, KEY_AA_PRICING, gson.toJson(pricing))
+                saveBlob(context, KEY_AA_META, gson.toJson(meta))
+                getPrefs(context).edit { putLong(KEY_AA_TIMESTAMP, aaTimestamp) }
             }
             pricing.size + meta.size
         } catch (e: Exception) {
@@ -1250,6 +1236,35 @@ object PricingCache {
     // Private helpers
     private fun getPrefs(context: Context): SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    /** filesDir/pricing/<key>.json — the new home for tier blobs. SharedPreferences was
+     *  the wrong store for ~1 MB JSON each: it loads the entire prefs map into RAM at
+     *  process start and keeps it there forever. Each tier now lives in its own file
+     *  and is read on demand. Timestamps stay in prefs (small longs, hot-read). */
+    private fun blobFile(context: Context, name: String): java.io.File {
+        val dir = java.io.File(context.filesDir, "pricing").also { it.mkdirs() }
+        return java.io.File(dir, "$name.json")
+    }
+
+    /** Read a tier blob, falling back once to the legacy SharedPreferences key for
+     *  installs that pre-date the file move. The migration is one-shot: on a hit the
+     *  prefs entry is rewritten to disk and removed from prefs. */
+    private fun loadBlob(context: Context, prefsKey: String): String? {
+        val f = blobFile(context, prefsKey)
+        if (f.exists()) return runCatching { f.readText() }.getOrNull()
+        val prefs = getPrefs(context)
+        val fromPrefs = prefs.getString(prefsKey, null) ?: return null
+        f.writeTextAtomic(fromPrefs)
+        prefs.edit { remove(prefsKey) }
+        return fromPrefs
+    }
+
+    /** Atomically write a tier blob and drop the legacy prefs key if it lingers. */
+    private fun saveBlob(context: Context, prefsKey: String, json: String) {
+        blobFile(context, prefsKey).writeTextAtomic(json)
+        val prefs = getPrefs(context)
+        if (prefs.contains(prefsKey)) prefs.edit { remove(prefsKey) }
+    }
+
     /** Lazy first-call population for every cache tier. Cold-call cost is dominated
      *  by the LiteLLM bundled-asset parse (~1.2 MB JSON → ~3k entries) plus six
      *  smaller SharedPreferences blobs. Once preload has completed (via [preloadAsync]
@@ -1282,7 +1297,7 @@ object PricingCache {
         // falls through to the next tier.
         if (litellmPricing == null) {
             val prefs = getPrefs(context)
-            prefs.getString(KEY_LITELLM_PRICING, null)?.let { json ->
+            loadBlob(context, KEY_LITELLM_PRICING)?.let { json ->
                 try { litellmPricing = gson.fromJson(json, mapModelPricingType); litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0) }
                 catch (_: Exception) {}
             }
@@ -1290,8 +1305,7 @@ object PricingCache {
             litellmPricingLookupCache.clear()
         }
         if (litellmMeta == null) {
-            val prefs = getPrefs(context)
-            prefs.getString(KEY_LITELLM_META, null)?.let { json ->
+            loadBlob(context, KEY_LITELLM_META)?.let { json ->
                 try {
                     val type = object : TypeToken<Map<String, LiteLLMMeta>>() {}.type
                     litellmMeta = gson.fromJson(json, type)
@@ -1301,15 +1315,15 @@ object PricingCache {
             litellmMetaLookupCache.clear()
         }
         // models.dev: no bundled asset (network only). Both maps live in
-        // prefs, repopulate from there if present. The user's first
-        // refresh populates them; subsequent app restarts read from prefs.
+        // filesDir/pricing/, repopulate from there if present. The user's
+        // first refresh populates them; subsequent app restarts read from
+        // disk.
         if (modelsDevPricing == null || modelsDevMeta == null) {
-            val prefs = getPrefs(context)
-            modelsDevTimestamp = prefs.getLong(KEY_MODELS_DEV_TIMESTAMP, 0)
-            prefs.getString(KEY_MODELS_DEV_PRICING, null)?.let { json ->
+            modelsDevTimestamp = getPrefs(context).getLong(KEY_MODELS_DEV_TIMESTAMP, 0)
+            loadBlob(context, KEY_MODELS_DEV_PRICING)?.let { json ->
                 try { modelsDevPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
             }
-            prefs.getString(KEY_MODELS_DEV_META, null)?.let { json ->
+            loadBlob(context, KEY_MODELS_DEV_META)?.let { json ->
                 try {
                     val type = object : TypeToken<Map<String, ModelsDevMeta>>() {}.type
                     modelsDevMeta = gson.fromJson(json, type)
@@ -1320,12 +1334,11 @@ object PricingCache {
         // Helicone — exact map plus pattern list. Both are network-only
         // (no bundled asset); empty until the user runs the refresh.
         if (heliconePricing == null || heliconePatterns == null) {
-            val prefs = getPrefs(context)
-            heliconeTimestamp = prefs.getLong(KEY_HELICONE_TIMESTAMP, 0)
-            prefs.getString(KEY_HELICONE_PRICING, null)?.let { json ->
+            heliconeTimestamp = getPrefs(context).getLong(KEY_HELICONE_TIMESTAMP, 0)
+            loadBlob(context, KEY_HELICONE_PRICING)?.let { json ->
                 try { heliconePricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
             }
-            prefs.getString(KEY_HELICONE_PATTERNS, null)?.let { json ->
+            loadBlob(context, KEY_HELICONE_PATTERNS)?.let { json ->
                 try {
                     val type = object : TypeToken<List<HeliconePattern>>() {}.type
                     heliconePatterns = gson.fromJson(json, type)
@@ -1334,20 +1347,18 @@ object PricingCache {
         }
         // llm-prices.com — single combined map.
         if (llmPricesPricing == null) {
-            val prefs = getPrefs(context)
-            llmPricesTimestamp = prefs.getLong(KEY_LLMPRICES_TIMESTAMP, 0)
-            prefs.getString(KEY_LLMPRICES_PRICING, null)?.let { json ->
+            llmPricesTimestamp = getPrefs(context).getLong(KEY_LLMPRICES_TIMESTAMP, 0)
+            loadBlob(context, KEY_LLMPRICES_PRICING)?.let { json ->
                 try { llmPricesPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
             }
         }
         // Artificial Analysis — pricing + sidecar.
         if (aaPricing == null || aaMeta == null) {
-            val prefs = getPrefs(context)
-            aaTimestamp = prefs.getLong(KEY_AA_TIMESTAMP, 0)
-            prefs.getString(KEY_AA_PRICING, null)?.let { json ->
+            aaTimestamp = getPrefs(context).getLong(KEY_AA_TIMESTAMP, 0)
+            loadBlob(context, KEY_AA_PRICING)?.let { json ->
                 try { aaPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
             }
-            prefs.getString(KEY_AA_META, null)?.let { json ->
+            loadBlob(context, KEY_AA_META)?.let { json ->
                 try {
                     val type = object : TypeToken<Map<String, ArtificialAnalysisMeta>>() {}.type
                     aaMeta = gson.fromJson(json, type)
@@ -1358,12 +1369,12 @@ object PricingCache {
 
     private fun loadFromPrefs(context: Context) {
         val prefs = getPrefs(context)
-        val json = prefs.getString(KEY_OPENROUTER_PRICING, null)
+        val json = loadBlob(context, KEY_OPENROUTER_PRICING)
         openRouterTimestamp = prefs.getLong(KEY_OPENROUTER_TIMESTAMP, 0)
         openRouterPricing = if (json != null) {
             try { gson.fromJson(json, mapModelPricingType) } catch (_: Exception) { emptyMap() }
         } else emptyMap()
-        val tj = prefs.getString(KEY_TOGETHER_PRICING, null)
+        val tj = loadBlob(context, KEY_TOGETHER_PRICING)
         togetherTimestamp = prefs.getLong(KEY_TOGETHER_TIMESTAMP, 0)
         togetherPricing = if (tj != null) {
             try { gson.fromJson(tj, mapModelPricingType) } catch (_: Exception) { emptyMap() }
