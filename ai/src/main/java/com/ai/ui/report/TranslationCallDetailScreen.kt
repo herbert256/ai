@@ -103,19 +103,29 @@ internal fun TranslationCallDetailScreen(
         // (PROMPT). Cost row sums input + output cents for this single
         // translation call.
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            source.model?.let { srcModel ->
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text("Report: $srcModel",
-                        fontSize = 14.sp, color = AppColors.Blue,
-                        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f))
-                    source.traceFilename?.let { tf ->
-                        Text("🐞", fontSize = 18.sp,
-                            modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
-                    }
-                }
-                Spacer(modifier = Modifier.height(2.dp))
+            // Source-side header reflects the actual item being translated:
+            // Prompt (no model attached), Report (one of the agent
+            // responses), Summary, or Compare. Falls back to "Source"
+            // for legacy rows missing translateSourceKind.
+            val sourceLabel = when (result.translateSourceKind) {
+                "PROMPT" -> "Prompt"
+                "AGENT" -> "Report"
+                "SUMMARY" -> "Summary"
+                "COMPARE" -> "Compare"
+                else -> "Source"
             }
+            val sourceHeader = source.model?.let { "$sourceLabel: $it" } ?: sourceLabel
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(sourceHeader,
+                    fontSize = 14.sp, color = AppColors.Blue,
+                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                source.traceFilename?.let { tf ->
+                    Text("🐞", fontSize = 18.sp,
+                        modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("Translation: ${result.model}",
                     fontSize = 14.sp, color = AppColors.Green,
