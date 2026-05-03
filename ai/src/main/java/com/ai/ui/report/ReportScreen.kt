@@ -1129,15 +1129,30 @@ private fun ColumnScope.GenerationPhase(
     val agentOutputTokens = remember(reportsAgentResults) {
         reportsAgentResults.values.sumOf { it.tokenUsage?.outputTokens ?: 0 }
     }
-    val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens
-    val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens
-    val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost
+    // Live in-flight translation runs aren't persisted as TRANSLATE
+    // SecondaryResults until the whole batch finishes, so secondaryTotals
+    // (computed from disk) misses every per-call cost during a running
+    // translation — the bottom-of-screen run row was the only place that
+    // showed the live tally. Fold the in-memory state in here so the
+    // top banner ticks up with each call. When the run finishes its
+    // rows persist and the live row is consumed within ~200ms (no
+    // double-count window worth worrying about).
+    val liveTranslationInputTokens = translationRuns.filter { !it.isFinished }
+        .sumOf { run -> run.items.sumOf { it.tokenUsage?.inputTokens ?: 0 } }
+    val liveTranslationOutputTokens = translationRuns.filter { !it.isFinished }
+        .sumOf { run -> run.items.sumOf { it.tokenUsage?.outputTokens ?: 0 } }
+    val liveTranslationCost = translationRuns.filter { !it.isFinished }
+        .sumOf { it.totalCostDollars }
+
+    val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
+    val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
+    val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost + liveTranslationCost
 
     // Totals banner — at the top of the page so the bottom-line cost
     // is visible without scrolling. Sums tokens and cents across the
-    // per-agent rows AND every persisted meta run (rerank / summarize
-    // / compare / moderation / translate). Hidden when nothing has
-    // billed anything yet.
+    // per-agent rows, every persisted meta run (rerank / summarize
+    // / compare / moderation / translate), and any in-flight translation
+    // batch's live state. Hidden when nothing has billed anything yet.
     if (totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0) {
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
             Text("Total: $totalInputTokens/$totalOutputTokens tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
