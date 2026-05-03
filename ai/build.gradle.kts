@@ -159,6 +159,15 @@ dependencies {
     // saves the user a round-trip through a desktop unzipper.
     implementation("org.apache.commons:commons-compress:1.27.1")
 
+    // PDFBox-Android — Apache PDFBox port for Android. Used by the
+    // Knowledge ingestion pipeline to extract text from .pdf files
+    // before chunking + embedding. ~6 MB native + Java.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+
+    // Jsoup — HTML parser used by the Knowledge ingestion pipeline
+    // to fetch a web page and extract its readable text content.
+    implementation("org.jsoup:jsoup:1.18.1")
+
     debugImplementation(libs.androidx.ui.tooling)
 
     // Unit tests
