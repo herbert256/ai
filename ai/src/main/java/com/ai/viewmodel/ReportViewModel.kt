@@ -1104,10 +1104,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     /** One row on the translation progress screen. [sourceText] is what
      *  gets fed to the model; [translatedText] is filled in on DONE.
-     *  [costCents] is the per-call cost in cents (input + output) for
-     *  the running tally. [target] is the SecondaryResult.id when the
-     *  source is a SUMMARY / COMPARE — used so the new report can
-     *  recreate that meta result with translated content. */
+     *  [costDollars] is the per-call cost in USD (input + output) for
+     *  the running tally — the live result-list row passes it through
+     *  formatCents() which multiplies by 100, same convention every
+     *  other cost cell in the app uses. [target] is the
+     *  SecondaryResult.id when the source is a SUMMARY / COMPARE —
+     *  used so the new report can recreate that meta result with
+     *  translated content. */
     data class TranslationItem(
         val id: String,
         val label: String,
@@ -1117,7 +1120,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val status: TranslationStatus = TranslationStatus.PENDING,
         val translatedText: String? = null,
         val errorMessage: String? = null,
-        val costCents: Double = 0.0,
+        val costDollars: Double = 0.0,
         /** Token usage from the translation API call. Stored so the new
          *  Report can attribute per-row cost to the translation
          *  operation rather than carrying the source-run figures
@@ -1135,7 +1138,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val targetLanguageName: String,
         val targetLanguageNative: String,
         val items: List<TranslationItem>,
-        val totalCostCents: Double = 0.0,
+        val totalCostDollars: Double = 0.0,
         val finished: Boolean = false,
         val cancelled: Boolean = false
     ) {
@@ -1311,7 +1314,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val callDurationMs = System.currentTimeMillis() - callStart
         val tu = response.tokenUsage
         val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
-        val costCents = costDollars * 100
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
             val updated = cur.items.map {
@@ -1319,19 +1321,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 else if (response.isSuccess) it.copy(
                     status = TranslationStatus.DONE,
                     translatedText = response.analysis,
-                    costCents = costCents,
+                    costDollars = costDollars,
                     tokenUsage = tu,
                     durationMs = callDurationMs
                 )
                 else it.copy(
                     status = TranslationStatus.ERROR,
                     errorMessage = response.error ?: "Empty response",
-                    costCents = costCents,
+                    costDollars = costDollars,
                     tokenUsage = tu,
                     durationMs = callDurationMs
                 )
             }
-            runs + (runId to cur.copy(items = updated, totalCostCents = updated.sumOf { it.costCents }))
+            runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
         }
         // Roll the translation call into per-(provider, model) usage so
         // it shows up on the AI Usage screen alongside report / chat
