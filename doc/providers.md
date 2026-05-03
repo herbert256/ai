@@ -1,6 +1,7 @@
 # Providers
 
-Every provider shipped in `assets/setup.json`. The full schema is in
+Every provider shipped in `assets/setup.json`, plus the synthetic
+`LOCAL` provider added at runtime. The full schema is in
 [datastructures.md](datastructures.md) under `AppService`; this table
 shows only the fields that differ from the default.
 
@@ -15,7 +16,7 @@ OpenRouter lookup key is `<openRouterName>/<modelId>`.
 
 | Provider | Base URL | Admin URL | Default model | Notable non-default fields |
 |---|---|---|---|---|
-| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `defaultModelSource=API` |
+| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `defaultModelSource=API`, hardcoded moderation models (`omni-moderation-*`, `text-moderation-*`) since `/v1/models` doesn't surface them |
 | **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-sonnet-4-6` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `modelsPath=v1/models`, `openRouterName=anthropic`, 9 hardcoded models |
 | **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API` |
 | **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `litellmPrefix=xai`, `defaultModelSource=API` |
@@ -90,3 +91,12 @@ A few non-default fields warrant explanation:
   app fetches a live list or shows the hardcoded fallback.
 - **`endpointRules`**: prefix-based routing (e.g. OpenAI maps `gpt-5`
   to the Responses API, everything else to Chat Completions).
+
+## The synthetic LOCAL provider
+
+In addition to the table above, the app exposes a runtime-only
+`AppService` for the on-device path:
+
+| Provider | Base URL | Admin URL | Default model | Notes |
+|---|---|---|---|---|
+| **Local** (`id = LOCAL`) | `local://` | (none) | (empty) | Routes chat / report / embedding calls through `LocalLlm.generate` (for `.task` LLMs) and `LocalEmbedder.embed` (for `.tflite` text embedders). Not registered in `ProviderRegistry`; surfaces only via `AppService.findById("LOCAL")`. The model list comes from whatever `.task` files live under `<filesDir>/local_llms/`; the embedder list from `<filesDir>/local_models/`. No `apiFormat` — dispatch is by `provider.id == "LOCAL"`. See [local-runtime.md](local-runtime.md). |

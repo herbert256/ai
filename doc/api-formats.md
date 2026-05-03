@@ -1,6 +1,6 @@
 # API Formats
 
-Three dispatch paths cover all 38 default providers. Identity is
+Three dispatch paths cover all 39 default cloud providers. Identity is
 **always** keyed off `service.apiFormat` — never off provider id —
 which is why adding an OpenAI-compatible provider is usually a single
 JSON entry in `setup.json`.
@@ -12,7 +12,14 @@ enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE }
 Dispatch lives in `com.ai.data.ApiDispatch`; streaming in
 `com.ai.data.ApiStreaming`.
 
-## OPENAI_COMPATIBLE (default — 36 of 38 providers)
+In addition there is a **synthetic on-device path** routed via
+`AppService.LOCAL` (`id = "LOCAL"`). It does not use `ApiFormat` at
+all — when an agent's provider is `LOCAL`, the dispatch layer skips
+Retrofit entirely and calls `LocalLlm.generate()` (chat / report) or
+`LocalEmbedder.embed()` (embeddings). See
+[local-runtime.md](local-runtime.md).
+
+## OPENAI_COMPATIBLE (default — 37 of 39 providers)
 
 The familiar OpenAI Chat Completions wire format. Bearer-token auth.
 Same request/response shape as `OpenAiRequest` / `OpenAiResponse` in
@@ -111,6 +118,13 @@ If you ever need a fourth format:
    names match.
 5. Set `apiFormat` on the new provider's entry in `setup.json`.
 
-The 28-of-38 ratio of `OPENAI_COMPATIBLE` providers means you almost
+The 37-of-39 ratio of `OPENAI_COMPATIBLE` providers means you almost
 never need to do this — it's worth pushing back on the third party
 to add an OpenAI-compatible endpoint before reaching for a new format.
+
+## A note on OpenAI moderation models
+
+The OpenAI `omni-moderation-*` and `text-moderation-*` model ids do
+**not** show up in `/v1/models`. They ship in the OpenAI provider's
+`hardcodedModels` list in `setup.json` so the moderation flow can
+still pick them when the user hasn't manually added them.

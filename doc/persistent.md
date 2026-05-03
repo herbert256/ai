@@ -6,7 +6,8 @@ Housekeeping → Backup) into a single `.zip`.
 
 ## SharedPreferences (5 files)
 
-All under `/data/data/com.ai/shared_prefs/<name>.xml`.
+All under `/data/data/com.ai/shared_prefs/<name>.xml`. All five are
+captured in `BackupManager.PREFS_TO_BACKUP`.
 
 ### `eval_prefs` — main settings
 By far the largest. Loaded by `SettingsPreferences`.
@@ -23,6 +24,9 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `rerank_prompt` | String | Rerank template (blank → built-in default) |
 | `summarize_prompt` | String | Summarize template (blank → built-in default) |
 | `compare_prompt` | String | Compare template (blank → built-in default) |
+| `intro_prompt` | String | Self-introduction template (blank → built-in default) |
+| `model_info_prompt` | String | Model Info template (blank → built-in default) |
+| `translate_prompt` | String | Translate template (blank → built-in default) |
 
 #### Per-provider config
 For every provider id (`<key> = service.prefsKey`, e.g. `ai_openai`):
@@ -52,10 +56,13 @@ For every provider id (`<key> = service.prefsKey`, e.g. `ai_openai`):
 | `ai_swarms` | JSON List<Swarm> |
 | `ai_parameters` | JSON List<Parameters> |
 | `ai_system_prompts` | JSON List<SystemPrompt> |
-| `ai_prompts` | JSON List<Prompt> |
 | `ai_endpoints` | JSON Map<String, List<Endpoint>> (keyed by provider id) |
 | `provider_states` | JSON Map<String, String> ("ok"/"error"/"inactive"/"not-used") |
 | `ai_model_type_overrides` | JSON List<ModelTypeOverride> |
+
+> **Note:** the older `ai_prompts` (Internal Prompts) key is no
+> longer written. The intro / model-info / translate templates have
+> moved to dedicated `*_prompt` keys above.
 
 #### Caches and bookkeeping
 | Key | Type | Notes |
@@ -64,7 +71,7 @@ For every provider id (`<key> = service.prefsKey`, e.g. `ai_openai`):
 | `caps_precomputed_version` | Int | bootstrap-migration version flag for the precompute pass |
 | `ai_report_agents_v2` | StringSet | last-used agent selection for the Reports flow |
 | `ai_report_models_v2` | StringSet | last-used direct-model selection for the Reports flow |
-| `secondary_last_<kind>_<reportId>` | StringSet | per-(report, kind) last-selected models for Rerank/Summarize/Compare pickers |
+| `secondary_last_<kind>_<reportId>` | StringSet | per-(report, kind) last-selected models for the secondary pickers |
 | `last_ai_report_title` | String | most recent report title (used by external-intent flows) |
 | `last_ai_report_prompt` | String | most recent report prompt |
 
@@ -121,18 +128,24 @@ network call until the TTL expires.
 
 ## Files (under `<filesDir>`)
 
-The app's `filesDir` is `/data/data/com.ai/files/`.
+The app's `filesDir` is `/data/data/com.ai/files/`. The full tree is
+captured wholesale by the backup zip.
 
 ### `reports/<reportId>.json`
 One file per generated report. Holds the prompt, every agent's
-request/response/headers/usage/citations/cost, status, durations, etc.
-Written atomically; protected by `ReportStorage`'s `ReentrantLock`.
+request/response/headers/usage/citations/cost, status, durations,
+plus `knowledgeBaseIds`, `imageBase64/Mime` (vision), `webSearchTool`
+/ `reasoningEffort` (regen state), `sourceReportId` (translated
+copies), and `pinned`. Written atomically; protected by
+`ReportStorage`'s `ReentrantLock`.
 
 ### `secondary/<reportId>/<resultId>.json`
-One file per Rerank / Summarize / Compare result. Subdirectory per
-parent report so deleting a report cascades cleanly. Holds the
-chosen kind, provider+model, content, error, token usage, costs,
-duration.
+One file per Rerank / Summarize / Compare / Moderate / Translate
+result. Subdirectory per parent report so deleting a report cascades
+cleanly. Translate rows additionally carry
+`translateSourceTargetId/Kind`, `targetLanguage/Native`, and a shared
+`translationRunId` so the result viewer can group rows from one
+batch.
 
 ### `trace/<hostname>_<timestamp>_<seq>.json`
 One file per outbound API call (when `ApiTracer.isTracingEnabled` is
@@ -142,9 +155,15 @@ body — except streaming responses, which note that they were not
 captured to avoid breaking the response stream). Tagged with the
 `reportId` and `model` of the originating call where applicable.
 
+On-device LLM (`LocalLlm.generate`) and on-device embedder
+(`LocalEmbedder.embed`) calls write traces too, with
+`hostname = "local"` and url like `local://generate/<modelFile>` or
+`local://embed/<modelFile>`.
+
 ### `chat-history.json`
 Single JSON file with every persisted chat session. Managed by
 `ChatHistoryManager`. Sessions are auto-saved as messages arrive.
+Holds `pinned` and `knowledgeBaseIds` per session.
 
 ### `prompt-history.json`
 Up to 100 most-recently-used report prompts. Managed by
@@ -153,13 +172,49 @@ card reads it.
 
 ### `usage-stats.json`
 List of `UsageStats` entries — one per `(provider, model, kind)`
-triple. Updated in-memory by every successful API call;
-disk-flushed on a 2-second debounce. Read by the AI Usage screen.
+triple. Updated in-memory by every successful API call; disk-flushed
+on a 2-second debounce. Read by the AI Usage screen.
 
 ### `prompt-cache.json`
 Cached `PromptCache` entries — per-prompt cached responses with TTL.
 Used by `PromptCache` to short-circuit repeat lookups (e.g. the
 Model Info "model info" prompt).
+
+### `knowledge/<kbId>/`
+Knowledge base data. Per-KB layout:
+
+```
+knowledge/<kbId>/
+  manifest.json     — KnowledgeBase + KnowledgeSource[] list
+  chunks/
+    <sourceId>.json — JSON array of KnowledgeChunk for that source
+```
+
+One JSON file per source keeps add / remove / re-index cheap (no
+full-KB rewrite for a single-source change), while loading a whole
+KB for retrieval still scans only one directory. See
+[knowledge.md](knowledge.md).
+
+### `embeddings/<sha256>.json`
+Per-document embedding cache, keyed by SHA-256 of `(providerId, model,
+docId, contentHash)`. Doubles instead of Floats — half the size
+benefit isn't worth the precision loss for cosine over short
+documents. Used by the layered Local / Remote semantic search
+screens to short-circuit re-embedding.
+
+### `local_models/<name>.tflite`
+On-device text-embedder models for `LocalEmbedder`. The default
+Universal Sentence Encoder is downloaded on first use of the Local
+Semantic Search screen. Custom user-supplied `.tflite` files (with
+proper MediaPipe Tasks metadata) can be added via the SAF picker on
+**Housekeeping → Local Models**.
+
+### `local_llms/<name>.task`
+On-device LLM bundles for `LocalLlm`. User-supplied — most models
+require accepting model-card terms in a browser before download. The
+**Housekeeping → Local LLMs** card carries hand-off links and a SAF
+picker that accepts `.task`, `.zip`, `.tar.gz`, `.tgz`, and `.tar`
+archives.
 
 ### `datastore/*` (Jetpack DataStore proto files)
 Used for atomic flags like `setup_imported`. See
@@ -169,9 +224,9 @@ Used for atomic flags like `setup_imported`. See
 
 - Raw streaming SSE bodies (response body in trace files reads
   `[streaming response - not captured]`).
-- WebView Chromium cookies and process state — intentionally excluded
-  from the backup zip; doesn't make sense to restore on a different
-  device.
+- WebView Chromium cookies and process state — intentionally
+  excluded from the backup zip; doesn't make sense to restore on a
+  different device.
 - The `assets/setup.json` provider catalog — this ships in the APK
   and is consumed once at first run; the merged result lives in
   `provider_registry` prefs from then on.
@@ -184,6 +239,10 @@ Used for atomic flags like `setup_imported`. See
 - `clearUsageStats()` — empties `usage-stats.json` and the in-memory cache
 - `clearTraces()` — `ApiTracer.clearTraces()` deletes every file under `trace/`
 
-`Housekeeping → Start clean` runs all of the above plus deletes every
-chat session, every report (and cascaded secondary results), and every
-trace older than the cutoff timestamp.
+`Housekeeping → Full reset` runs all of the above plus deletes every
+chat session, every report (and cascaded secondary results), every
+knowledge base, every cached embedding, and every trace older than
+the cutoff timestamp. (It does not delete on-device `.task` /
+`.tflite` files — those persist across full resets and have their
+own per-row Remove on the matching Local LLMs / Local Models
+cards.)

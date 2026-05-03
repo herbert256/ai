@@ -6,34 +6,41 @@ A single-Activity Android app written in Kotlin + Jetpack Compose, MVVM
 with three view models on top of `StateFlow`. Networking goes through
 Retrofit + OkHttp (with custom interceptors for tracing and rate-limit
 retry). Persistence is split between `SharedPreferences` (user-curated
-config, caches) and JSON files under `filesDir` (reports, traces,
-chat history, usage stats).
+config, caches) and JSON files under `filesDir` (reports, secondary
+results, traces, chat history, knowledge bases, embeddings,
+usage stats).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  MainActivity                                                       │
 │  └── AppNavHost  (Jetpack Navigation)                               │
 │       ├── HubScreen                                                 │
-│       ├── ReportsScreen / ReportsViewerScreen                       │
-│       ├── ChatScreen / ChatHistory / DualChatScreen                 │
+│       ├── ReportsHubScreen / ReportScreen / ReportSingleResultScreen│
+│       ├── ChatsHubScreen / ChatScreens / DualChatScreen             │
+│       ├── KnowledgeListScreen / KnowledgeDetailScreen               │
 │       ├── ModelInfoScreen / ModelListScreen                         │
+│       ├── SearchScreens (Quick / Extended local + Local / Remote    │
+│       │                  semantic)                                  │
+│       ├── ShareChooserScreen   (overlay before NavHost)             │
 │       ├── SettingsScreen (two-tier: enum-driven sub-screens)        │
 │       ├── HousekeepingScreen / StatisticsScreen                     │
+│       ├── SecondaryResultsScreen / TranslationCompareScreen / …     │
 │       └── HelpScreen / TraceScreen                                  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ViewModels                                                         │
-│  ├── AppViewModel       — settings, prefs, model fetching           │
-│  ├── ChatViewModel      — chat state and streaming                  │
-│  └── ReportViewModel    — report + secondary-result generation      │
+│  ├── AppViewModel       — settings, prefs, model fetching, RAG attach│
+│  ├── ChatViewModel      — chat state and streaming, KB injection    │
+│  └── ReportViewModel    — report + secondary-result generation,     │
+│                           multi-language fan-out, translation runs  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Data layer (com.ai.data)                                           │
-│  ├── AnalysisRepository  — façade with retry / fallback logic       │
+│  ├── AnalysisRepository  — façade with retry / fallback / RAG inject│
 │  ├── ApiDispatch         — selects ApiFormat-specific code path     │
 │  ├── ApiStreaming        — SSE parser + Flow emission               │
 │  ├── ApiClient           — Retrofit interfaces, ApiFactory          │
@@ -41,17 +48,34 @@ chat history, usage stats).
 │  ├── ProviderRegistry    — runtime registry of AppService instances │
 │  ├── PricingCache        — six-tier pricing + capability lookup     │
 │  ├── ReportStorage       — per-report JSON file persistence         │
-│  ├── SecondaryResultStorage — rerank/summarize/compare persistence  │
+│  ├── SecondaryResultStorage — rerank/summarize/compare/moderate/    │
+│  │                            translate persistence                 │
 │  ├── ChatHistoryManager  — chat session persistence                 │
 │  ├── HuggingFaceCache    — HF model-info cache                      │
-│  └── BackupManager       — zip-based backup/restore                 │
+│  ├── BackupManager       — zip-based backup/restore                 │
+│  ├── ModelListCache      — model-list TTL bookkeeping               │
+│  ├── PromptCache         — per-prompt cached responses              │
+│  │                                                                  │
+│  │ — RAG —                                                          │
+│  ├── Knowledge           — KnowledgeBase, KnowledgeSource,          │
+│  │                         KnowledgeChunk, KnowledgeStore           │
+│  ├── KnowledgeExtractors — 10 source-type extractors                │
+│  ├── KnowledgeService    — index + retrieve pipeline                │
+│  ├── EmbeddingsStore     — content-hashed per-doc embedding cache   │
+│  │                                                                  │
+│  │ — On-device runtime —                                            │
+│  ├── LocalLlm            — MediaPipe Tasks GenAI .task runtime      │
+│  ├── LocalEmbedder       — MediaPipe Tasks TextEmbedder runtime     │
+│  │                                                                  │
+│  │ — Share-target —                                                 │
+│  └── SharedContent       — snapshot of an ACTION_SEND payload       │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
             ┌──────────────────────────────────────────┐
-            │  External APIs (38 providers)            │
-            │  + 7 metadata repositories (see          │
-            │  repositories.md)                        │
+            │  External APIs (39 cloud providers)      │
+            │  + 7 metadata repositories               │
+            │  + on-device MediaPipe Tasks (no network)│
             └──────────────────────────────────────────┘
 ```
 
@@ -59,27 +83,42 @@ chat history, usage stats).
 
 ### `AppService` and `ApiFormat`
 
-Every provider is an `AppService` with an `apiFormat` field — one of
-`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. Dispatch always keys off
-the format, never off provider identity, so 36 of 38 default providers
-share unified code paths. Adding an OpenAI-compatible provider is a
-one-line entry in `setup.json` (see [development.md](development.md)).
+Every cloud provider is an `AppService` with an `apiFormat` field —
+one of `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. Dispatch always
+keys off the format, never off provider identity, so 37 of 39 default
+providers share unified code paths. Adding an OpenAI-compatible
+provider is a one-line entry in `setup.json` (see
+[development.md](development.md)).
 
 `AppService.entries` returns the live list from `ProviderRegistry`,
 which loads `setup.json` at first run and then merges any custom
 provider definitions the user imports.
 
+In addition there is a **synthetic `LOCAL` `AppService`** —
+`AppService.LOCAL`, id `"LOCAL"` — that is **not** registered in
+`ProviderRegistry`. It surfaces only via `findById("LOCAL")` and is
+the routing sentinel for the on-device runtime: if `agent.provider ==
+LOCAL` the dispatch layer skips Retrofit entirely and calls
+`LocalLlm.generate` (or `LocalEmbedder.embed` for embeddings). It
+appears in every model picker as a normal "Local" provider so the
+user sees the on-device path next to cloud providers without bespoke
+buttons.
+
 ### Three ViewModels
 
-- **`AppViewModel`** — owns `UiState` (a single bag of every UI-relevant
-  field) and `Settings`. Handles bootstrap, model-list refresh,
-  external intents, and persistence. Other view models delegate to it
-  for shared state.
-- **`ChatViewModel`** — chat session state and streaming.
-- **`ReportViewModel`** — report generation and the rerank / summarize /
-  compare meta-result flow. Holds an in-memory `_agentResults` flow
-  separate from `UiState` so per-task completions don't ripple
-  equality checks across the rest of the UiState.
+- **`AppViewModel`** — owns `UiState` (a single bag of every
+  UI-relevant field) and `Settings`. Handles bootstrap, model-list
+  refresh, external + share intents, and persistence. Other view
+  models delegate to it for shared state.
+- **`ChatViewModel`** — chat session state and streaming, including
+  per-turn KB retrieval and context-block injection.
+- **`ReportViewModel`** — report generation, secondary-result flows
+  (Rerank / Summarize / Compare / Moderate / Translate), and the
+  multi-language fan-out for Summarize / Compare. Holds an in-memory
+  `_agentResults` flow separate from `UiState` so per-task completions
+  don't ripple equality checks across the rest of the UiState. Holds
+  a `Map<String, TranslationRun>` keyed by runId so multiple
+  concurrent Translate batches don't overwrite each other.
 
 ### Two-tier navigation
 
@@ -105,12 +144,66 @@ Both are precomputed into `ProviderConfig.visionCapableComputed`,
 hot path on list-render screens is a `Set` membership check rather
 than the full layered scan.
 
+### RAG layer
+
+`com.ai.data.Knowledge*` implements the retrieval-augmented
+generation pipeline:
+
+- **Knowledge bases** live under `<filesDir>/knowledge/<kbId>/` with
+  a `manifest.json` (the `KnowledgeBase` + `KnowledgeSource[]` list)
+  and a `chunks/<sourceId>.json` per source.
+- **Sources** are extracted by `KnowledgeExtractors` — ten types:
+  TEXT, MARKDOWN, PDF (with OCR fallback for image-only PDFs), DOCX,
+  ODT, XLSX, ODS, CSV, IMAGE, URL.
+- **Chunking** is paragraph-greedy with overlap (`KnowledgeChunker`).
+- **Embeddings** go through either `LocalEmbedder` (when
+  `embedderProviderId == "LOCAL"`) or `AnalysisRepository.embed`
+  (any provider's `/v1/embeddings`). Per-content cache lives in
+  `EmbeddingsStore`.
+- **Retrieval** is cosine-similarity top-K across every chunk in
+  every attached KB; the prompt or user message gets a `[KNOWLEDGE]…
+  [/KNOWLEDGE]` context block prepended at dispatch time.
+
+See [knowledge.md](knowledge.md) for the full pipeline.
+
+### On-device runtime
+
+Two singletons wrap MediaPipe Tasks:
+
+- **`LocalLlm`** holds an `LlmInference` cache keyed by `.task` file
+  name. `availableLlms()` lists `<filesDir>/local_llms/*.task`.
+  `generate()` runs synchronously and writes a synthetic
+  `ApiTrace` (hostname `local`, url
+  `local://generate/<modelFile>`).
+- **`LocalEmbedder`** holds a `TextEmbedder` cache keyed by
+  `.tflite` file name. `availableModels()` lists
+  `<filesDir>/local_models/*.tflite` plus the curated
+  `downloadable` list. `embed()` writes a similar synthetic trace.
+
+Both are reachable from any provider-agnostic code path because
+they share the `AppService.LOCAL` sentinel — chat, report, and RAG
+flows route to them when the provider id is `"LOCAL"`. See
+[local-runtime.md](local-runtime.md).
+
+### Share-target
+
+`MainActivity` extracts incoming `ACTION_SEND` /
+`ACTION_SEND_MULTIPLE` intents into a `SharedContent` snapshot
+(text + subject + URI list + mime). `AppNavHost` renders
+`ShareChooserScreen` as an **overlay before the NavHost** and
+routes the user's pick to one of three destinations: Report
+(routeShareToReport pre-fills title/prompt + base64s a single image),
+Chat (stages `chatStarterText` in `UiState`), or Knowledge (queues
+URIs in `UiState.pendingKnowledgeUris` and the Knowledge list /
+detail screens drain the queue). See
+[share-target.md](share-target.md).
+
 ### Generic CRUD list
 
 The `CrudListScreen<T>` composable backs every list-of-things screen
-(Agents, Flocks, Swarms, Parameters, Internal Prompts, System Prompts).
-Each consumer plugs in `itemTitle`, `itemSubtitle`, `onAdd`, `onEdit`,
-`onDelete` and the rest is shared.
+(Agents, Flocks, Swarms, Parameters, System Prompts). Each consumer
+plugs in `itemTitle`, `itemSubtitle`, `onAdd`, `onEdit`, `onDelete`
+and the rest is shared.
 
 ### Full-screen overlay pattern
 
@@ -127,47 +220,59 @@ intact — a UX the user has explicitly relied on.
 
 ### Two-step Summarize / Compare scope
 
-When a parent report has at least one rerank, Summarize and Compare
-route through `SecondaryScopeScreen` first, where the user can narrow
-the input set to the top-N entries of a chosen rerank. Rerank itself
-always runs on the full set. See
+When a parent report has at least one rerank, Summarize / Compare /
+Moderate / Translate route through `SecondaryScopeScreen` first,
+where the user can narrow the input set to the top-N entries of a
+chosen rerank, manually pick agents, or (for Summarize / Compare /
+Translate) choose which present languages to fan out across.
+Rerank itself always runs on the full set. See
 [secondary-results.md](secondary-results.md) for the full flow.
 
 ## Concurrency
 
-- Network calls happen on `Dispatchers.IO`. `AnalysisRepository.analyzeWithAgent`
-  runs each report agent concurrently up to `REPORT_CONCURRENCY_LIMIT = 4`,
-  controlled with a `Semaphore`.
+- Network calls happen on `Dispatchers.IO`.
+  `AnalysisRepository.analyzeWithAgent` runs each report agent
+  concurrently up to `REPORT_CONCURRENCY_LIMIT = 4`, controlled with
+  a `Semaphore`. The same semaphore caps the parallel fan-out inside
+  a Summarize / Compare / Translate batch.
 - `ApiTracer` and `ReportStorage` use `ReentrantLock` for thread-safe
-  file writes.
+  file writes; `KnowledgeStore` does the same for KB manifest +
+  chunk files.
 - `usageStatsCache` is a `ConcurrentHashMap` with a 2-second debounced
   flush, so heavy concurrent updates don't serialize on disk I/O.
 - `RateLimitRetryInterceptor` retries 429s up to five times with a
   3-second back-off; it has an explicit main-thread guard so it can
   never ANR the UI.
+- Multiple Translate batches can be in flight at once (one per
+  `runId`); they share the report-concurrency semaphore but their
+  results land in their own rows.
 
 ## Streaming
 
 Server-Sent Events flow through `ApiStreaming`, parsed into
 `Flow<String>` chunks. Each `ApiFormat` has its own SSE parser
 (OpenAI's `data: {...}\n\n` framing, Anthropic's `event:` + `data:`
-pairs, Gemini's chunked-JSON format).
+pairs, Gemini's chunked-JSON format). The `LOCAL` provider doesn't
+stream — `LocalLlm.generate` returns the full text in one go (the
+MediaPipe API doesn't expose a partial-token callback this version
+plumbs through).
 
 ## State recovery
 
 Two recovery mechanisms keep the app robust to process death:
 
-1. `restoreCompletedReport` and `hydrateAgentResultsFromStorage` rebuild
-   the in-memory `_agentResults` flow from `ReportStorage` files when
-   the user comes back to a finished report whose StateFlow was lost.
+1. `restoreCompletedReport` and `hydrateAgentResultsFromStorage`
+   rebuild the in-memory `_agentResults` flow from `ReportStorage`
+   files when the user comes back to a finished report whose
+   StateFlow was lost.
 2. `rememberSaveable` on key UI state (e.g. AI Usage's expanded
    provider list) survives navigation away and back.
 
 ## Auto-restart
 
-After a "Refresh all" run on the Refresh screen, the app restarts itself
-to pick up freshly-persisted caches without forcing the user to swipe
-the app away:
+After a "Refresh all" run on the Refresh screen, the app restarts
+itself to pick up freshly-persisted caches without forcing the user
+to swipe the app away:
 
 ```kotlin
 val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -175,3 +280,6 @@ launch?.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
 context.startActivity(launch)
 Runtime.getRuntime().exit(0)
 ```
+
+The same restart gate applies after restoring a backup so the in-memory
+state matches the freshly-restored on-disk state.
