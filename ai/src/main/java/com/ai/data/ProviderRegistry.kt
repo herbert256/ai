@@ -44,7 +44,36 @@ object ProviderRegistry {
                 android.util.Log.w("ProviderRegistry", "No providers loaded, falling back to assets")
                 loadFromAssets(context)
             }
+            // Every startup: re-read setup.json's providerDefinitions and
+            // append any whose id isn't yet in the registry. Existing
+            // providers are left strictly alone — fields the user has
+            // edited locally never get clobbered. Lets the bundle ship
+            // new built-in providers to existing installs without a
+            // "Reset to defaults" step.
+            ensureBundledProvidersPresent(context)
             initialized = true
+        }
+    }
+
+    private fun ensureBundledProvidersPresent(context: Context) {
+        try {
+            val json = context.assets.open("setup.json").bufferedReader().use { it.readText() }
+            val export = createAppGson().fromJson(json, ConfigExport::class.java)
+            val defs = export.providerDefinitions ?: return
+            var changed = false
+            for (def in defs) {
+                if (providers.none { it.id == def.id }) {
+                    try {
+                        providers.add(def.toAppService())
+                        changed = true
+                    } catch (e: Exception) {
+                        android.util.Log.w("ProviderRegistry", "Skipped bundled provider ${def.id}: ${e.message}")
+                    }
+                }
+            }
+            if (changed) save()
+        } catch (e: Exception) {
+            android.util.Log.w("ProviderRegistry", "ensureBundledProvidersPresent failed: ${e.message}")
         }
     }
 
