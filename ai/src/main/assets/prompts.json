@@ -37,7 +37,7 @@
     "reference": false,
     "category": "internal",
     "agent": "*select",
-    "text": "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.\n\nYou are: @MODEL@ from @PROVIDER@."
+    "text": "Briefly introduce yourself in two short sentences: model name, who built you, and what you\u0027re best at. Plain prose, no markdown.\n\nYou are: @MODEL@ from @PROVIDER@."
   },
   {
     "name": "Model info",
