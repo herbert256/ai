@@ -167,7 +167,12 @@ fun InternalPromptEditScreen(
             )
 
             Text("Type", fontSize = 12.sp, color = AppColors.TextTertiary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 INTERNAL_TYPES.forEach { t ->
                     FilterChip(
                         selected = type == t,
