@@ -252,10 +252,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             prefs.edit().putInt(KEY_CAPS_PRECOMPUTED_VERSION, CAPS_PRECOMPUTED_VERSION).apply()
         }
 
-        // Bundled-provider seeding used to live here; it now runs only
-        // when the user taps "Import new providers from
-        // assets/providers.json" on the Providers screen. Fresh installs
-        // start with an empty registry by design.
+        // First-run seeding from bundled assets. The flag prevents
+        // re-importing on subsequent boots and on app updates (the
+        // pref persists across version installs but is wiped on data
+        // clear / reinstall, which is exactly when we want to seed
+        // again). Existing installs that pre-date this flag get the
+        // flag set without an import, so we don't surprise users by
+        // reviving prompts/providers they previously deleted.
+        if (!prefs.getBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, false)) {
+            val isEmptyInstall = ProviderRegistry.getAll().isEmpty() && ai.internalPrompts.isEmpty()
+            if (isEmptyInstall) {
+                val providersAdded = ProviderRegistry.importFromAsset(application, "providers.json")
+                if (providersAdded < 0) {
+                    android.util.Log.w("AppViewModel", "First-run providers.json import failed")
+                }
+                val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(application)
+                if (bundled.isNotEmpty()) {
+                    val merged = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundled)
+                    if (merged.size != ai.internalPrompts.size) {
+                        ai = ai.copy(internalPrompts = merged)
+                    }
+                }
+            }
+            prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
+        }
 
         // Legacy migration: pre-v23 builds (and any backup made then)
         // stored the Intro / Model info / Translate templates as plain
@@ -818,5 +838,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // variants). Required so installs that don't have models.dev
         // meta in cache still badge these correctly.
         internal const val CAPS_PRECOMPUTED_VERSION = 5
+
+        // First-run marker. Absent on a fresh install and after a data
+        // clear / reinstall, present after the very first successful
+        // bootstrap. Survives app updates (SharedPreferences is part of
+        // user data, untouched by APK upgrades), so the bundled
+        // providers.json + prompts.json import is one-shot per install.
+        internal const val KEY_FIRST_RUN_BOOTSTRAPPED = "first_run_bootstrapped"
     }
 }
