@@ -905,11 +905,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val compareLegend = if (kind == SecondaryKind.COMPARE) buildCompareLegend(report, includeIds) else null
                 coroutineScope {
                     languages.flatMap { (lang, langNative) ->
-                        val (translatedPrompt, resultsBlock, resultsBlockShort) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
+                        val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
                         val resolvedPrompt = resolveSecondaryPrompt(
                             template, question = translatedPrompt, results = resultsBlock,
-                            count = successfulCount, title = report.title,
-                            resultsShort = resultsBlockShort
+                            count = successfulCount, title = report.title
                         )
                         picks.map { (provider, model) ->
                             async {
@@ -931,53 +930,40 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Build the (prompt, @RESULTS@, @RESULTS_SHORT@) triple for one
-     *  language's Summarize / Compare batch. When [language] is null
-     *  the original prompt + raw agent bodies are returned. Otherwise
-     *  translated text is taken from TRANSLATE rows tagged with
-     *  [language] — PROMPT:prompt for the question, AGENT:<agentId>
-     *  for each agent's body. Falls back to the original text per-item
-     *  if a translation is missing so a partial translation set still
-     *  produces a coherent batch.
-     *
-     *  The short block is the same content with `[N]` headers only
-     *  (no `provider=`/`model=`), used by the Compare flow so the
-     *  model can't echo identifiers it never saw. */
+    /** Build the (prompt, @RESULTS@) pair for one language's
+     *  Summarize / Compare batch. When [language] is null the original
+     *  prompt + raw agent bodies are returned via [buildResultsBlock].
+     *  Otherwise translated text is taken from TRANSLATE rows tagged
+     *  with [language] — PROMPT:prompt for the question,
+     *  AGENT:<agentId> for each agent's body. Falls back to the
+     *  original text per-item if a translation is missing so a
+     *  partial translation set still produces a coherent batch. */
     private fun buildLanguageInputs(
         report: Report,
         secondaries: List<SecondaryResult>,
         language: String?,
         includeIds: Set<Int>?
-    ): Triple<String, String, String> {
+    ): Pair<String, String> {
         if (language == null) {
-            return Triple(report.prompt, buildResultsBlock(report, includeIds), buildResultsBlockShort(report, includeIds))
+            return report.prompt to buildResultsBlock(report, includeIds)
         }
         val byTarget = secondaries
             .filter { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == language && !it.content.isNullOrBlank() }
             .associateBy { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
         val translatedPrompt = byTarget["PROMPT:prompt"]?.content ?: report.prompt
-        val long = StringBuilder()
-        val short = StringBuilder()
+        val sb = StringBuilder()
         val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
         var emitted = 0
         val total = if (includeIds != null) successful.indices.count { (it + 1) in includeIds } else successful.size
         successful.forEachIndexed { idx, agent ->
             val originalId = idx + 1
             if (includeIds != null && originalId !in includeIds) return@forEachIndexed
-            val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
             val body = byTarget["AGENT:${agent.agentId}"]?.content ?: (agent.responseBody?.trim() ?: "")
-            long.append("[").append(originalId).append("] provider=").append(provDisplay)
-                .append(" model=").append(agent.model).append('\n')
-            long.append(body)
-            short.append("[").append(originalId).append("]\n")
-            short.append(body)
+            sb.append("[").append(originalId).append("]\n").append(body)
             emitted++
-            if (emitted != total) {
-                long.append("\n\n")
-                short.append("\n\n")
-            }
+            if (emitted != total) sb.append("\n\n")
         }
-        return Triple(translatedPrompt, long.toString(), short.toString())
+        return translatedPrompt to sb.toString()
     }
 
     private suspend fun executeSecondaryTask(

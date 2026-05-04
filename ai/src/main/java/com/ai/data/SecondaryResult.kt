@@ -225,7 +225,7 @@ QUESTION:
 @QUESTION@
 
 RESPONSES:
-@RESULTS_SHORT@
+@RESULTS@
 
 Reference rules — follow them exactly:
 - Each response is identified by ONLY a bracketed number — `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.
@@ -263,15 +263,13 @@ TEXT TO TRANSLATE:
 }
 
 /** Substitutes placeholders in [template] using the values for the
- *  current secondary-result run. `@RESULTS@` and `@RESULTS_SHORT@`
- *  arrive pre-formatted from the caller — we only do plain string
- *  replace here. When [resultsShort] is null we substitute it with
- *  [results] so a user template that references `@RESULTS_SHORT@`
- *  without a paired short block still gets something coherent. */
+ *  current secondary-result run. `@RESULTS@` arrives pre-formatted
+ *  from the caller — we only do plain string replace here.
+ *  `@RESULTS_SHORT@` is kept as an alias of `@RESULTS@` for backward
+ *  compatibility with any user template that still references it. */
 fun resolveSecondaryPrompt(
     template: String, question: String, results: String, count: Int,
-    title: String? = null,
-    resultsShort: String? = null
+    title: String? = null
 ): String {
     val now = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
     return template
@@ -279,17 +277,18 @@ fun resolveSecondaryPrompt(
         // @RESULTS_SHORT@ first so the @RESULTS@ pass below doesn't
         // partially match (the longer placeholder must replace before
         // its prefix).
-        .replace("@RESULTS_SHORT@", resultsShort ?: results)
+        .replace("@RESULTS_SHORT@", results)
         .replace("@RESULTS@", results)
         .replace("@COUNT@", count.toString())
         .replace("@DATE@", now)
         .replace("@TITLE@", title ?: "")
 }
 
-/** Build the @RESULTS@ block: per-agent text, prefixed with `[N]
- *  provider=<id> model=<id>`. The bracketed N is the stable id rerank
- *  models echo back — and the anchor target HTML export wires up
- *  links to.
+/** Build the @RESULTS@ block: per-agent text, prefixed only with the
+ *  bracketed `[N]` id (no provider / model identifiers — those reach
+ *  the user via the appended Compare legend, not the prompt). The
+ *  bracketed N is the stable id rerank models echo back — and the
+ *  anchor target HTML export wires up links to.
  *
  *  [includeIds] (1-based) restricts the block to a subset of the success-
  *  ordered agent list while *preserving the original numbering*. The
@@ -297,30 +296,6 @@ fun resolveSecondaryPrompt(
  *  keys on the original ids, so passing [4, 1, 7] correctly emits
  *  blocks `[1] [4] [7]` in their original-success order. */
 fun buildResultsBlock(report: Report, includeIds: Set<Int>? = null): String {
-    val sb = StringBuilder()
-    val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-    var emitted = 0
-    val total = if (includeIds != null) successful.indices.count { (it + 1) in includeIds } else successful.size
-    successful.forEachIndexed { idx, agent ->
-        val originalId = idx + 1
-        if (includeIds != null && originalId !in includeIds) return@forEachIndexed
-        val provider = AppService.findById(agent.provider)?.id ?: agent.provider
-        sb.append("[").append(originalId).append("] provider=").append(provider)
-            .append(" model=").append(agent.model).append('\n')
-        sb.append(agent.responseBody?.trim() ?: "")
-        emitted++
-        if (emitted != total) sb.append("\n\n")
-    }
-    return sb.toString()
-}
-
-/** Anonymised twin of [buildResultsBlock] — same structure but the
- *  per-agent header is just `[N]` with no `provider=` / `model=`
- *  identifiers. Used for Compare so the model literally cannot echo
- *  the long `[N] provider=… model=…` string back into its prose;
- *  the user-visible mapping arrives via [buildCompareLegend] which
- *  is appended at storage time. */
-fun buildResultsBlockShort(report: Report, includeIds: Set<Int>? = null): String {
     val sb = StringBuilder()
     val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
     var emitted = 0
