@@ -317,13 +317,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  the provider in the "default agents" flock (creating the agent
      *  + flock if needed). Both edits are applied to the same Settings
      *  copy so the StateFlow update lands atomically and a single save
-     *  flushes the result to disk. */
+     *  flushes the result to disk.
+     *
+     *  Also kicks off a background `/v1/models` fetch — when that
+     *  succeeds the provider's `modelSource` flips to API and the
+     *  fetched ids replace the manual list. A failed fetch leaves
+     *  modelSource untouched (the test itself already passed, so the
+     *  provider stays "ok" either way). */
     fun markProviderTestedOk(service: AppService, defaultModel: String) {
         val updated = _uiState.value.aiSettings
             .withProviderState(service, "ok")
             .ensureDefaultAgentInFlock(service, defaultModel)
         _uiState.update { it.copy(aiSettings = updated) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
+        // Background model-list fetch with API-source flip on success.
+        // Read the api key off the latest snapshot so a key change
+        // mid-flight is honored.
+        fetchModels(service, _uiState.value.aiSettings.getApiKey(service), flipToApiOnSuccess = true)
     }
 
     fun clearTraces() = ApiTracer.clearTraces()
@@ -339,7 +349,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ===== Model Fetching =====
 
-    fun fetchModels(service: AppService, apiKey: String) {
+    fun fetchModels(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor + service) }
             try {
@@ -360,14 +370,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _uiState.update { state ->
                     val withSelf = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)
+                    // When the caller asked for an API-source flip
+                    // (per-provider Test button), apply it in the same
+                    // state update so model list + source land atomically.
+                    val withSource = if (flipToApiOnSuccess && fetched.ids.isNotEmpty()) {
+                        val cfg = withSelf.getProvider(service)
+                        if (cfg.modelSource != ModelSource.API)
+                            withSelf.withProvider(service, cfg.copy(modelSource = ModelSource.API))
+                        else withSelf
+                    } else withSelf
                     // Cross-pollinate OpenRouter labels — covers two flows:
                     //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
                     //   • OpenRouter fetch propagates fresh labels to every other provider
-                    state.copy(aiSettings = withSelf.applyOpenRouterTypes(), loadingModelsFor = state.loadingModelsFor - service)
+                    state.copy(aiSettings = withSource.applyOpenRouterTypes(), loadingModelsFor = state.loadingModelsFor - service)
                 }
                 val final = _uiState.value.aiSettings
                 val cfgSelf = final.getProvider(service)
                 settingsPrefs.saveModelsForProvider(service, fetched.ids, cfgSelf.modelTypes, cfgSelf.visionModels, cfgSelf.modelCapabilities, cfgSelf.modelListRawJson)
+                // saveModelsForProvider only writes the per-key model
+                // set. The modelSource lives in the main aiSettings JSON
+                // and needs a saveSettings to be persisted across
+                // restarts, so flush it here when the flip happened.
+                if (flipToApiOnSuccess && fetched.ids.isNotEmpty() && cfgSelf.modelSource == ModelSource.API) {
+                    settingsPrefs.saveSettings(final)
+                }
                 if (service.id == "OPENROUTER") {
                     // Persist the freshly cross-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->
