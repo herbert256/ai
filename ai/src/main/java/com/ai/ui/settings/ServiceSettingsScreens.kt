@@ -105,9 +105,15 @@ fun ModelsListScreen(
     aiSettings: Settings,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
-    onProviderSelected: (AppService) -> Unit
+    onProviderSelected: (AppService) -> Unit,
+    onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() }
 ) {
     BackHandler { onBackToAiSetup() }
+    val scope = rememberCoroutineScope()
+    var refreshInProgress by remember { mutableStateOf(false) }
+    var refreshProgressText by remember { mutableStateOf("") }
+    var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
@@ -149,6 +155,75 @@ fun ModelsListScreen(
                 }
             }
         }
+
+        // Bulk refresh button — same code path as Refresh → Models so a
+        // user already on this screen doesn't have to bounce back to
+        // Housekeeping. forceRefresh=true matches the Refresh-screen
+        // behaviour: cache-validity check is bypassed.
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = {
+                scope.launch {
+                    refreshInProgress = true
+                    refreshProgressText = ""
+                    try {
+                        refreshResults = onRefreshAllModels(aiSettings, true) { msg -> refreshProgressText = msg }
+                    } finally {
+                        refreshInProgress = false
+                    }
+                }
+            },
+            enabled = !refreshInProgress && activeProviders.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+        ) {
+            Text(
+                if (refreshInProgress) "Refreshing…" else "Call all API retrieve models lists",
+                maxLines = 1, softWrap = false
+            )
+        }
+    }
+
+    if (refreshInProgress) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Refreshing models") },
+            text = {
+                Column {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    if (refreshProgressText.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(refreshProgressText, fontSize = 12.sp, color = AppColors.TextTertiary)
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+    refreshResults?.let { results ->
+        AlertDialog(
+            onDismissRequest = { refreshResults = null },
+            title = { Text("Model Refresh Results") },
+            text = {
+                Column {
+                    if (results.isEmpty()) {
+                        Text("No providers with API source were eligible for refresh.",
+                            fontSize = 13.sp, color = AppColors.TextTertiary)
+                    } else {
+                        results.entries.sortedBy { it.key }.forEach { (name, count) ->
+                            val color = if (count > 0) AppColors.Green else AppColors.Red
+                            Text("$name: ${if (count > 0) "$count models" else "failed"}",
+                                fontSize = 13.sp, color = color)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { refreshResults = null }) {
+                    Text("OK", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 }
 

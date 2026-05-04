@@ -191,7 +191,8 @@ fun SettingsScreen(
         SettingsSubScreen.AI_MODELS -> {
             ModelsListScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
-                onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT }
+                onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT },
+                onRefreshAllModels = onRefreshAllModels
             )
         }
         SettingsSubScreen.AI_MODEL_EDIT -> {
