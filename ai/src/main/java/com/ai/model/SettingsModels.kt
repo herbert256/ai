@@ -144,21 +144,28 @@ data class Parameters(
 data class SystemPrompt(val id: String, val name: String, val prompt: String)
 
 /**
- * User-managed Meta prompt (Rerank / Summarize / Compare / Moderation
- * and any custom variant). [type] selects the executor — "rerank"
- * routes to a rerank-API model, "moderation" to a moderation-API
- * model, "chat" to a regular chat completion. [reference] applies
- * only to type=chat: when true, the executor appends a `[N] =
- * Provider / Model` legend to the response. [text] is the chat
- * template body (substituted with @QUESTION@ / @RESULTS@ / @COUNT@ /
- * @TITLE@ / @DATE@); ignored for type=moderation since the moderation
- * API takes the raw inputs and has no template.
+ * User-managed Internal prompt — covers both the Meta-prompt
+ * launchers on the Report Result screen ([category] == "meta") and
+ * the built-in Intro / Model info / Translate templates
+ * ([category] == "internal"). [type] selects the executor for meta-
+ * category entries — "rerank" routes to a rerank-API model,
+ * "moderation" to a moderation-API model, "chat" to a regular chat
+ * completion. [reference] applies only to type=chat: when true, the
+ * executor appends a `[N] = Provider / Model` legend to the response.
+ * [agent] is either the literal sentinel `"*select"` (ask the user
+ * which model to run on) or the name of an [Agent] in
+ * [Settings.agents]. [text] is the chat template body (substituted
+ * with @QUESTION@ / @RESULTS@ / @COUNT@ / @TITLE@ / @DATE@); ignored
+ * for type=moderation since the moderation API takes the raw inputs
+ * and has no template.
  */
-data class MetaPrompt(
+data class InternalPrompt(
     val id: String,
     val name: String,
     val type: String,
     val reference: Boolean = false,
+    val category: String = "internal",
+    val agent: String = "*select",
     val text: String = ""
 )
 
@@ -192,7 +199,7 @@ data class Settings(
     val swarms: List<Swarm> = emptyList(),
     val parameters: List<Parameters> = emptyList(),
     val systemPrompts: List<SystemPrompt> = emptyList(),
-    val metaPrompts: List<MetaPrompt> = emptyList(),
+    val internalPrompts: List<InternalPrompt> = emptyList(),
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
     val providerStates: Map<String, String> = emptyMap(),
     val modelTypeOverrides: List<ModelTypeOverride> = emptyList()
@@ -496,7 +503,8 @@ data class Settings(
     fun getMembersForSwarms(swarmIds: Set<String>) = swarmIds.flatMap { id -> getSwarmById(id)?.members ?: emptyList() }.distinctBy { "${it.provider.id}:${it.model}" }
 
     fun getSystemPromptById(id: String) = systemPrompts.find { it.id == id }
-    fun getMetaPromptById(id: String) = metaPrompts.find { it.id == id }
+    fun getInternalPromptById(id: String) = internalPrompts.find { it.id == id }
+    fun getInternalPromptByName(name: String) = internalPrompts.firstOrNull { it.name.equals(name, ignoreCase = true) }
     fun getParametersById(id: String) = parameters.find { it.id == id }
     fun getParametersByName(name: String) = parameters.find { it.name.equals(name, ignoreCase = true) }
 
@@ -538,8 +546,8 @@ data class Settings(
         swarms = swarms.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it }
     )
 
-    fun removeMetaPrompt(metaPromptId: String) = copy(
-        metaPrompts = metaPrompts.filter { it.id != metaPromptId }
+    fun removeInternalPrompt(internalPromptId: String) = copy(
+        internalPrompts = internalPrompts.filter { it.id != internalPromptId }
     )
 
     fun removeParameters(parametersId: String) = copy(

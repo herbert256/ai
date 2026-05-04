@@ -228,7 +228,7 @@ fun ReportsScreen(
     onCopyReport: (String) -> Unit = {},
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onRunSecondary: (String, com.ai.model.MetaPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
+    onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
@@ -383,8 +383,8 @@ fun ReportsScreen(
     // user picks one Meta prompt at a time from the new Meta card or
     // the unified Meta hub; type=chat goes through the scope screen
     // first, type=rerank/moderation skips it.
-    var secondaryPickerMetaPrompt by remember { mutableStateOf<com.ai.model.MetaPrompt?>(null) }
-    var secondaryScopeMetaPrompt by remember { mutableStateOf<com.ai.model.MetaPrompt?>(null) }
+    var secondaryPickerMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    var secondaryScopeMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
     var pendingSecondaryScope by remember { mutableStateOf<com.ai.data.SecondaryScope>(com.ai.data.SecondaryScope.AllReports) }
     var pendingLanguageScope by remember { mutableStateOf<com.ai.data.SecondaryLanguageScope>(com.ai.data.SecondaryLanguageScope.AllPresent) }
     // Unified Meta screen overlay reached from the Actions card.
@@ -710,7 +710,7 @@ fun ReportsScreen(
     // Helper used by both the new Meta card and the Meta hub's "Add"
     // list — applies the chat / non-chat scope-skip rule and stamps
     // the launching MetaPrompt into the right state.
-    val launchMetaPrompt: (com.ai.model.MetaPrompt) -> Unit = { mp ->
+    val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
         if (mp.type == "chat") {
             secondaryScopeMetaPrompt = mp
         } else {
@@ -726,7 +726,7 @@ fun ReportsScreen(
         ReportMetaScreen(
             reportId = rid,
             isRunning = uiState.activeSecondaryBatches > 0,
-            metaPrompts = aiSettings.metaPrompts,
+            metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
             onLaunchMetaPrompt = launchMetaPrompt,
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBack = { showMetaScreen = false },
@@ -874,7 +874,7 @@ fun ReportsScreen(
                 onOpenSecondaryRun = { id -> openMetaResultId = id },
                 onOpenTranslationRun = { runId -> openTranslationRunId = runId },
                 onOpenMeta = { showMetaScreen = true },
-                metaPrompts = aiSettings.metaPrompts,
+                metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
                 onLaunchMetaPrompt = launchMetaPrompt
             )
         }
@@ -1058,8 +1058,8 @@ private fun ColumnScope.GenerationPhase(
     onOpenSecondaryRun: (String) -> Unit = {},
     onOpenTranslationRun: (String) -> Unit = {},
     onOpenMeta: () -> Unit = {},
-    metaPrompts: List<com.ai.model.MetaPrompt> = emptyList(),
-    onLaunchMetaPrompt: (com.ai.model.MetaPrompt) -> Unit = {}
+    metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    onLaunchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = {}
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings

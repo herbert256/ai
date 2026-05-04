@@ -73,7 +73,7 @@ data class EndpointExport(val id: String, val name: String, val url: String, val
 data class ProviderEndpointsExport(val provider: String, val endpoints: List<EndpointExport>)
 
 data class ConfigExport(
-    val version: Int = 21,
+    val version: Int = 23,
     val providers: Map<String, ProviderConfigExport>,
     val agents: List<AgentExport>,
     val flocks: List<FlockExport>? = null,
@@ -90,28 +90,30 @@ data class ConfigExport(
     val providerStates: Map<String, String>? = null,
     val modelTypeOverrides: List<ModelTypeOverride>? = null,
     val defaultTypePaths: Map<String, String>? = null,
-    /** User-managed Meta prompts (Rerank / Summarize / Compare /
-     *  Moderation and any custom variants). Null when the user has
-     *  none, in which case the importer leaves the existing list
-     *  untouched. */
-    val metaPrompts: List<MetaPromptExport>? = null,
-    /** Self-introduction template (was an Internal Prompt named "intro";
-     *  Internal Prompts have been removed). Null when unset. */
+    /** User-managed Internal prompts (covers Meta + Internal categories
+     *  in one list). Null when the importer should leave the user's
+     *  existing list untouched. */
+    val internalPrompts: List<InternalPromptExport>? = null,
+    /** Legacy GeneralSettings prompt fields, kept here only so v11–v22
+     *  bundles still deserialise. The importer ignores these for
+     *  writing — those templates are now [InternalPrompt] entries
+     *  managed via the unified Internal Prompts CRUD. */
     val introPrompt: String? = null,
-    /** Model-info template (was an Internal Prompt named "model_info";
-     *  Internal Prompts have been removed). Null when unset. */
     val modelInfoPrompt: String? = null,
-    /** Translation prompt — used by the Translate button on the
-     *  Report result screen. Null when unset (runtime falls back to
-     *  SecondaryPrompts.DEFAULT_TRANSLATE). */
-    val translatePrompt: String? = null
+    val translatePrompt: String? = null,
+    /** Legacy v22 field — kept on the wire so older bundles still
+     *  parse. Importer treats `metaPrompts` as a legacy alias of
+     *  [internalPrompts] when the new field is absent. */
+    val metaPrompts: List<InternalPromptExport>? = null
 )
 
-data class MetaPromptExport(
+data class InternalPromptExport(
     val id: String,
     val name: String,
     val type: String,
     val reference: Boolean = false,
+    val category: String = "internal",
+    val agent: String = "*select",
     val text: String = ""
 )
 
@@ -130,11 +132,5 @@ data class ConfigImportResult(
     val huggingFaceApiKey: String? = null,
     val openRouterApiKey: String? = null,
     val artificialAnalysisApiKey: String? = null,
-    val defaultTypePaths: Map<String, String>? = null,
-    val introPrompt: String? = null,
-    val modelInfoPrompt: String? = null,
-    /** Translation template — used by the Report result screen's
-     *  Translate button. Null when unset (runtime falls back to
-     *  SecondaryPrompts.DEFAULT_TRANSLATE). */
-    val translatePrompt: String? = null
+    val defaultTypePaths: Map<String, String>? = null
 )

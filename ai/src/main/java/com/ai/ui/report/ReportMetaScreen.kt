@@ -51,8 +51,8 @@ import java.util.Locale
 internal fun ReportMetaScreen(
     reportId: String,
     isRunning: Boolean,
-    metaPrompts: List<com.ai.model.MetaPrompt>,
-    onLaunchMetaPrompt: (com.ai.model.MetaPrompt) -> Unit,
+    metaPrompts: List<com.ai.model.InternalPrompt>,
+    onLaunchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,

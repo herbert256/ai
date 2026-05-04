@@ -220,31 +220,6 @@ fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
     SecondaryKind.TRANSLATE -> "Translate"
 }
 
-/**
- * Hardcoded fallback prompts for the *Internal Prompts* editor. The
- * Meta-prompt templates (Rerank / Summarize / Compare / Moderation)
- * are no longer kept here — they ship as seed entries in
- * `assets/prompts.json` and are user-managed via the Report Meta
- * Prompts CRUD. Placeholders in the strings below match the existing
- * @VAR@ convention used elsewhere.
- */
-object SecondaryPrompts {
-    const val DEFAULT_INTRO = """Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.
-
-You are: @MODEL@ from @PROVIDER@."""
-
-    const val DEFAULT_MODEL_INFO = """Tell me about yourself as an AI model. Cover: your name and version, who created you, your context window if you know it, your primary strengths, and any notable limitations. Plain prose, 3–6 sentences.
-
-You are: @MODEL@ from @PROVIDER@."""
-
-    const val DEFAULT_TRANSLATE = """Translate the following text to @LANGUAGE@.
-
-Preserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.
-
-TEXT TO TRANSLATE:
-@TEXT@"""
-}
-
 /** Substitutes placeholders in [template] using the values for the
  *  current secondary-result run. `@RESULTS@` arrives pre-formatted
  *  from the caller — we only do plain string replace here. */

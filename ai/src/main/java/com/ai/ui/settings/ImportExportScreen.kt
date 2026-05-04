@@ -196,9 +196,6 @@ fun ImportExportScreen(
                     result.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
                     var gs = generalSettings
                     result.defaultTypePaths?.let { gs = gs.copy(defaultTypePaths = it) }
-                    result.introPrompt?.let { gs = gs.copy(introPrompt = it) }
-                    result.modelInfoPrompt?.let { gs = gs.copy(modelInfoPrompt = it) }
-                    result.translatePrompt?.let { gs = gs.copy(translatePrompt = it) }
                     if (gs != generalSettings) onSaveGeneral(gs)
                 }
             }

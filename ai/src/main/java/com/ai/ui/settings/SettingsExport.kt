@@ -27,7 +27,7 @@ fun importAiConfigFromAsset(context: Context, assetFileName: String, currentSett
         val json = context.assets.open(assetFileName).bufferedReader().use { it.readText() }
         if (json.isBlank()) return null
         val export = gson.fromJson(json, ConfigExport::class.java)
-        if (export.version !in 11..22) return null
+        if (export.version !in 11..23) return null
         processImportedConfig(context, export, currentSettings, silent = true)
     } catch (e: Exception) {
         android.util.Log.e("SettingsExport", "Error importing config from asset $assetFileName: ${e.message}")
@@ -46,8 +46,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: Settings
         val json = BufferedReader(InputStreamReader(inputStream)).use { it.readText() }
         if (json.isBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return null }
         val export = gson.fromJson(json, ConfigExport::class.java)
-        if (export.version !in 11..22) {
-            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-22.", Toast.LENGTH_LONG).show(); return null
+        if (export.version !in 11..23) {
+            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-23.", Toast.LENGTH_LONG).show(); return null
         }
         processImportedConfig(context, export, currentSettings)
     } catch (e: JsonSyntaxException) {
@@ -64,8 +64,8 @@ fun importAiConfigFromClipboard(context: Context, json: String, currentSettings:
     return try {
         if (json.isBlank()) { Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show(); return null }
         val export = gson.fromJson(json, ConfigExport::class.java)
-        if (export.version !in 11..22) {
-            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-22.", Toast.LENGTH_LONG).show(); return null
+        if (export.version !in 11..23) {
+            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-23.", Toast.LENGTH_LONG).show(); return null
         }
         processImportedConfig(context, export, currentSettings)
     } catch (e: JsonSyntaxException) {
@@ -101,13 +101,15 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
     }
 
     val export = ConfigExport(
-        version = 22, providers = providerExports,
+        version = 23, providers = providerExports,
         agents = settings.agents.map { AgentExport(it.id, it.name, it.provider.id, it.model, "", it.paramsIds.ifEmpty { null }, it.endpointId, it.systemPromptId) },
         flocks = settings.flocks.ifEmpty { null }?.map { FlockExport(it.id, it.name, it.agentIds, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
         swarms = settings.swarms.ifEmpty { null }?.map { SwarmExport(it.id, it.name, it.members.map { m -> SwarmMemberExport(m.provider.id, m.model) }, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
         parameters = settings.parameters.ifEmpty { null }?.map { ParametersExport(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) },
         systemPrompts = settings.systemPrompts.ifEmpty { null }?.map { SystemPromptExport(it.id, it.name, it.prompt) },
-        metaPrompts = settings.metaPrompts.ifEmpty { null }?.map { MetaPromptExport(it.id, it.name, it.type, it.reference, it.text) },
+        internalPrompts = settings.internalPrompts.ifEmpty { null }?.map {
+            InternalPromptExport(it.id, it.name, it.type, it.reference, it.category, it.agent, it.text)
+        },
         huggingFaceApiKey = null,
         // aiPrompts dropped — Internal Prompts are gone; ConfigExport
         // keeps the field as deserialization-only for back-compat.
@@ -120,10 +122,7 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         providerDefinitions = ProviderRegistry.getCustomProviders().ifEmpty { null },
         providerStates = settings.providerStates.ifEmpty { null },
         modelTypeOverrides = settings.modelTypeOverrides.ifEmpty { null },
-        defaultTypePaths = generalSettings.defaultTypePaths.ifEmpty { null },
-        introPrompt = generalSettings.introPrompt.ifBlank { null },
-        modelInfoPrompt = generalSettings.modelInfoPrompt.ifBlank { null },
-        translatePrompt = generalSettings.translatePrompt.ifBlank { null }
+        defaultTypePaths = generalSettings.defaultTypePaths.ifEmpty { null }
     )
 
     return createAppGson(prettyPrint = true).toJson(export)
@@ -158,15 +157,17 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
     val swarms = export.swarms?.mapNotNull { e -> try { Swarm(e.id, e.name, e.members.mapNotNull { m -> AppService.findById(m.provider)?.let { SwarmMember(it, m.model) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped swarm member ${m.provider}/${m.model}: unknown provider") } }, e.parametersIds ?: emptyList(), e.systemPromptId) } catch (ex: Exception) { android.util.Log.w("SettingsExport", "Skipped swarm ${e.name}: ${ex.message}"); null } } ?: emptyList()
     val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) } ?: emptyList()
     val systemPrompts = export.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
-    // export.aiPrompts is intentionally ignored — Internal Prompts feature
-    // is gone. Old export bundles still parse via the nullable field on
-    // ConfigExport.
-    val metaPrompts = export.metaPrompts?.map { MetaPrompt(it.id, it.name, it.type, it.reference, it.text) }
-        ?: currentSettings.metaPrompts
+    // Pull internalPrompts; fall back to the legacy v22 metaPrompts
+    // field when an older bundle is being imported. Both shapes use the
+    // same per-row schema thanks to InternalPromptExport's defaults.
+    val internalPromptSource = export.internalPrompts ?: export.metaPrompts
+    val internalPrompts = internalPromptSource?.map {
+        InternalPrompt(it.id, it.name, it.type, it.reference, it.category, it.agent, it.text)
+    } ?: currentSettings.internalPrompts
 
     var settings = currentSettings.copy(
         agents = agents, flocks = flocks, swarms = swarms,
-        parameters = parameters, systemPrompts = systemPrompts, metaPrompts = metaPrompts,
+        parameters = parameters, systemPrompts = systemPrompts, internalPrompts = internalPrompts,
         providerStates = export.providerStates ?: currentSettings.providerStates,
         modelTypeOverrides = export.modelTypeOverrides ?: currentSettings.modelTypeOverrides
     )
@@ -211,7 +212,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 
-    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths, export.introPrompt, export.modelInfoPrompt, export.translatePrompt)
+    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths)
 }
 
 /**

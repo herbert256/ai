@@ -21,7 +21,7 @@ import com.ai.data.ReportAgent
 import com.ai.data.SecondaryLanguageScope
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryScope
-import com.ai.model.MetaPrompt
+import com.ai.model.InternalPrompt
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import java.text.SimpleDateFormat
@@ -37,7 +37,7 @@ import java.util.Locale
  */
 @Composable
 internal fun SecondaryScopeScreen(
-    metaPrompt: MetaPrompt,
+    metaPrompt: InternalPrompt,
     agents: List<ReportAgent>,
     reranks: List<SecondaryResult>,
     languages: List<Pair<String, String?>>, // (English, native) pairs; empty when no translations

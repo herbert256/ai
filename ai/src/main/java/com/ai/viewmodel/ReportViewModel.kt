@@ -501,7 +501,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val groups = nonTranslate
             .filter { !it.metaPromptId.isNullOrBlank() }
             .groupBy { it.metaPromptId!! }
-        val metaPromptsLookup = appViewModel.uiState.value.aiSettings.metaPrompts.associateBy { it.id }
+        val metaPromptsLookup = appViewModel.uiState.value.aiSettings.internalPrompts.associateBy { it.id }
         val ordered = groups.entries.sortedBy { (id, _) ->
             when (metaPromptsLookup[id]?.type) {
                 "rerank" -> 0
@@ -710,7 +710,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     // ===== Meta prompt results =====
 
-    /** Map a [com.ai.model.MetaPrompt.type] to the legacy [SecondaryKind]
+    /** Map a [com.ai.model.InternalPrompt.type] to the legacy [SecondaryKind]
      *  used by storage / counts. The kind is only a routing label here —
      *  the user-given Meta prompt name (persisted on the result) is what
      *  the View card buckets on. */
@@ -803,7 +803,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
-        metaPrompt: com.ai.model.MetaPrompt,
+        metaPrompt: com.ai.model.InternalPrompt,
         picks: List<Pair<AppService, String>>,
         scopeChoice: SecondaryScope = SecondaryScope.AllReports,
         languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
@@ -962,7 +962,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private suspend fun executeSecondaryTask(
         context: Context, reportId: String, kind: SecondaryKind,
-        metaPrompt: com.ai.model.MetaPrompt,
+        metaPrompt: com.ai.model.InternalPrompt,
         provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings,
         report: Report,
         targetLanguage: String? = null,
@@ -1367,7 +1367,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 items = items
             )) }
 
-            val template = generalSettings.translatePrompt.ifBlank { SecondaryPrompts.DEFAULT_TRANSLATE }
+            val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
             val apiKey = aiSettings.getApiKey(provider)
             val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
             val pricing = PricingCache.getPricing(context, provider, model)

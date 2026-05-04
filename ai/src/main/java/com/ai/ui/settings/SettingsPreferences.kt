@@ -28,7 +28,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listSwarmType: Type = object : TypeToken<List<Swarm>>() {}.type
         val listParametersType: Type = object : TypeToken<List<Parameters>>() {}.type
         val listSystemPromptType: Type = object : TypeToken<List<SystemPrompt>>() {}.type
-        val listMetaPromptType: Type = object : TypeToken<List<MetaPrompt>>() {}.type
+        val listInternalPromptType: Type = object : TypeToken<List<InternalPrompt>>() {}.type
         val listModelTypeOverrideType: Type = object : TypeToken<List<ModelTypeOverride>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
@@ -52,10 +52,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
-            defaultTypePaths = defaultTypePaths,
-            introPrompt = prefs.getString(KEY_INTRO_PROMPT, "") ?: "",
-            modelInfoPrompt = prefs.getString(KEY_MODEL_INFO_PROMPT, "") ?: "",
-            translatePrompt = prefs.getString(KEY_TRANSLATE_PROMPT, "") ?: ""
+            defaultTypePaths = defaultTypePaths
         )
     }
 
@@ -67,9 +64,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AA_API_KEY, settings.artificialAnalysisApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
-            putString(KEY_INTRO_PROMPT, settings.introPrompt)
-            putString(KEY_MODEL_INFO_PROMPT, settings.modelInfoPrompt)
-            putString(KEY_TRANSLATE_PROMPT, settings.translatePrompt)
         }
     }
 
@@ -83,7 +77,19 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
-            metaPrompts = loadList(KEY_AI_META_PROMPTS, TypeTokens.listMetaPromptType),
+            // Gson reflection bypasses Kotlin defaults for fields that
+            // didn't exist when the JSON was written, so rows persisted
+            // by the previous build (without category / agent) come back
+            // with those properties as runtime null. Patch them up to
+            // "meta" / "*select" — the legacy data was always
+            // meta-eligible, never bound to a specific agent.
+            internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { ip ->
+                @Suppress("USELESS_CAST")
+                val cat = (ip.category as String?) ?: "meta"
+                @Suppress("USELESS_CAST")
+                val ag = (ip.agent as String?) ?: "*select"
+                if (cat == ip.category && ag == ip.agent) ip else ip.copy(category = cat, agent = ag)
+            },
             endpoints = loadEndpoints(),
             providerStates = loadMap(KEY_PROVIDER_STATES),
             modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType)
@@ -207,7 +213,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
-            putString(KEY_AI_META_PROMPTS, gson.toJson(settings.metaPrompts))
+            putString(KEY_AI_INTERNAL_PROMPTS, gson.toJson(settings.internalPrompts))
             putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
             putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
             putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
@@ -414,16 +420,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AA_API_KEY = "artificial_analysis_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
-        private const val KEY_INTRO_PROMPT = "intro_prompt"
-        private const val KEY_MODEL_INFO_PROMPT = "model_info_prompt"
-        private const val KEY_TRANSLATE_PROMPT = "translate_prompt"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"
         private const val KEY_AI_PARAMETERS = "ai_parameters"
         private const val KEY_AI_SYSTEM_PROMPTS = "ai_system_prompts"
-        private const val KEY_AI_META_PROMPTS = "ai_meta_prompts"
-        const val KEY_AI_META_PROMPTS_SEEDED = "ai_meta_prompts_seeded"
+        // Persisted under the legacy "ai_meta_prompts" key so users
+        // who already have seeded entries from the previous build don't
+        // lose them across the rename to InternalPrompt.
+        private const val KEY_AI_INTERNAL_PROMPTS = "ai_meta_prompts"
         private const val KEY_AI_ENDPOINTS = "ai_endpoints"
         private const val KEY_PROVIDER_STATES = "provider_states"
         private const val KEY_AI_MODEL_TYPE_OVERRIDES = "ai_model_type_overrides"

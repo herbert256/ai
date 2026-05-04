@@ -33,19 +33,7 @@ data class GeneralSettings(
     /** Default API path per model type. Used when a provider doesn't declare a
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS
      *  when this map is empty for a given type. */
-    val defaultTypePaths: Map<String, String> = emptyMap(),
-    /** Self-introduction prompt — run by each model in the report when
-     *  generating a Comprehensive PDF. Empty falls back to a built-in
-     *  default. Variables: @MODEL@ / @PROVIDER@. */
-    val introPrompt: String = "",
-    /** Model-info prompt — run on the Model Info screen so a model
-     *  describes itself. Empty falls back to a built-in default. */
-    val modelInfoPrompt: String = "",
-    /** Translation prompt — used by the Translate button on the Report
-     *  result screen. Variables: @LANGUAGE@ (the chosen target name) and
-     *  @TEXT@ (the source text). Empty falls back to
-     *  [com.ai.data.SecondaryPrompts.DEFAULT_TRANSLATE]. */
-    val translatePrompt: String = ""
+    val defaultTypePaths: Map<String, String> = emptyMap()
 )
 
 // Prompt history entry
@@ -270,10 +258,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         huggingFaceApiKey = result.huggingFaceApiKey ?: gs.huggingFaceApiKey,
                         openRouterApiKey = result.openRouterApiKey ?: gs.openRouterApiKey,
                         artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: gs.artificialAnalysisApiKey,
-                        defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths,
-                        introPrompt = result.introPrompt ?: gs.introPrompt,
-                        modelInfoPrompt = result.modelInfoPrompt ?: gs.modelInfoPrompt,
-                        translatePrompt = result.translatePrompt ?: gs.translatePrompt
+                        defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths
                     )
                     if (updatedGs != gs) { gs = updatedGs; settingsPrefs.saveGeneralSettings(gs) }
                 }
@@ -281,18 +266,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // One-shot Meta-prompt seed from assets/prompts.json. Independent
-        // of the setup.json import so users on existing installs (already
-        // marked SETUP_IMPORTED) still receive the new built-in Meta
-        // prompts on first run with this build.
-        if (!com.ai.data.MetaPromptSeed.isSeeded(application)) {
-            val seeded = com.ai.data.MetaPromptSeed.loadSeedFromAssets(application)
-            if (seeded.isNotEmpty()) {
-                ai = ai.copy(metaPrompts = ai.metaPrompts + seeded)
-                settingsPrefs.saveSettings(ai)
-            }
-            com.ai.data.MetaPromptSeed.markSeeded(application)
-        }
+        // Ensure every prompt declared in assets/prompts.json is
+        // present in Settings.internalPrompts. Runs on every startup —
+        // existing entries are left alone (no overwrites), missing
+        // entries are appended. Lets the bundle ship new built-in
+        // prompts to existing installs without losing user edits.
+        val bundledPrompts = com.ai.data.InternalPromptSeed.loadFromAssets(application)
+        val mergedPrompts = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundledPrompts)
+        // Save unconditionally so the migration applied at load
+        // (null category/agent → "meta"/"*select" for pre-rename rows)
+        // persists to disk on the very first boot of this build, not
+        // only after the user makes a CRUD edit.
+        ai = ai.copy(internalPrompts = mergedPrompts)
+        settingsPrefs.saveSettings(ai)
 
         return gs to ai
     }
