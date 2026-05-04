@@ -234,6 +234,7 @@ fun ProviderModelSettingsScreen(
     service: AppService,
     aiSettings: Settings,
     isLoadingModels: Boolean = false,
+    fetchError: com.ai.viewmodel.FetchModelsError? = null,
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
@@ -365,6 +366,14 @@ fun ProviderModelSettingsScreen(
                         ) { Text("Remove ${failedModels.size} failed", maxLines = 1, softWrap = false) }
                     }
                 }
+                // Inline failure surface for the Fetch Models button — same
+                // 🐞 deep-link pattern as the per-provider Test button.
+                if (fetchError != null && !isLoadingModels) {
+                    com.ai.ui.shared.FetchModelsErrorRow(
+                        error = fetchError,
+                        onNavigateToTrace = onNavigateToTrace
+                    )
+                }
             } else if (modelSource == ModelSource.API && apiKey.isBlank()) {
                 Text("Set an API key for ${service.displayName} in Providers to fetch models.", fontSize = 12.sp, color = AppColors.TextTertiary)
             }
@@ -465,6 +474,7 @@ fun ProviderSettingsScreen(
     service: AppService,
     aiSettings: Settings,
     isLoadingModels: Boolean = false,
+    fetchError: com.ai.viewmodel.FetchModelsError? = null,
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
@@ -630,6 +640,8 @@ fun ProviderSettingsScreen(
             // shows an inline spinner while the fetch runs.
             onRefresh = if (apiKey.isNotBlank()) ({ onFetchModels(apiKey) }) else null,
             isRefreshing = isLoadingModels,
+            fetchError = fetchError,
+            onNavigateToTrace = onNavigateToTrace,
             onNavigateToProviderModels = { showModelSelector = false; onNavigateToModels() }
         )
         return

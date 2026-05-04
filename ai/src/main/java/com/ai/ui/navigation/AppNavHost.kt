@@ -816,7 +816,9 @@ fun SettingsScreenNav(
     val uiState by viewModel.uiState.collectAsState()
     SettingsScreen(
         generalSettings = uiState.generalSettings, aiSettings = uiState.aiSettings,
-        loadingModelsFor = uiState.loadingModelsFor, onFetchModels = viewModel::fetchModels,
+        loadingModelsFor = uiState.loadingModelsFor,
+        fetchModelsErrors = uiState.fetchModelsErrors,
+        onFetchModels = viewModel::fetchModels,
         onBack = onNavigateBack, onNavigateHome = onNavigateHome,
         onSaveGeneral = { viewModel.updateGeneralSettings(it) }, onSaveAi = { viewModel.updateSettings(it) },
         onTestAiModel = { s, k, m -> viewModel.testAiModel(s, k, m) },

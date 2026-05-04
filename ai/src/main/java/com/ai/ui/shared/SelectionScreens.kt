@@ -21,11 +21,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.model.Agent
 import com.ai.model.ModelSource
 import com.ai.model.Settings
+import com.ai.viewmodel.FetchModelsError
 
 private fun formatPrice(pricePerToken: Double): String {
     val perMillion = pricePerToken * 1_000_000
@@ -50,6 +52,8 @@ fun SelectModelScreen(
     onNavigateHome: () -> Unit,
     onRefresh: (() -> Unit)? = null,
     isRefreshing: Boolean = false,
+    fetchError: FetchModelsError? = null,
+    onNavigateToTrace: ((String) -> Unit)? = null,
     onNavigateToProviderModels: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
@@ -127,6 +131,13 @@ fun SelectModelScreen(
                 }
             }
         )
+
+        // Surface a stale Fetch-models failure inline so the user can see
+        // why the list might be empty / out of date and hop into the
+        // captured trace via the \ud83d\udc1e link.
+        if (fetchError != null && !isRefreshing) {
+            FetchModelsErrorRow(fetchError, onNavigateToTrace, modifier = Modifier.padding(top = 8.dp))
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -354,6 +365,35 @@ fun SelectAgentScreen(
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }
+        }
+    }
+}
+
+/** Inline red error line for a failed Fetch-models call, with an
+ *  optional \uD83D\uDC1E trailing icon that deep-links into the captured trace.
+ *  Shared between [SelectModelScreen] and the per-provider model
+ *  settings screen so both surfaces show the same affordance. */
+@Composable
+fun FetchModelsErrorRow(
+    error: FetchModelsError,
+    onNavigateToTrace: ((String) -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "Fetch failed: ${error.message}",
+            color = AppColors.Red,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f)
+        )
+        val tf = error.traceFile
+        if (tf != null && onNavigateToTrace != null && ApiTracer.isTracingEnabled) {
+            Text(
+                "\uD83D\uDC1E", fontSize = 18.sp,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .clickable { onNavigateToTrace(tf) }
+            )
         }
     }
 }

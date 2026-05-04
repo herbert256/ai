@@ -48,6 +48,12 @@ data class PromptHistoryEntry(
     val prompt: String
 )
 
+/** Captured failure from a Fetch-models call. The trace filename, if any,
+ *  points at the request/response pair recorded by [com.ai.data.ApiTracer]
+ *  during this attempt — the model picker renders a 🐞 next to the error
+ *  text that deep-links into the Trace screen for that exact call. */
+data class FetchModelsError(val message: String, val traceFile: String?)
+
 // Main UI state
 data class UiState(
     val isLoading: Boolean = false,
@@ -55,6 +61,12 @@ data class UiState(
     val generalSettings: GeneralSettings = GeneralSettings(),
     val aiSettings: Settings = Settings(),
     val loadingModelsFor: Set<AppService> = emptySet(),
+    /** Most recent Fetch-models failure per provider (keyed by service.id).
+     *  Cleared when the next Fetch-models call for that provider starts;
+     *  populated from the catch arm of [AppViewModel.fetchModels]. The
+     *  model-picker UI consults this to render an inline error + 🐞 link
+     *  to the captured trace. */
+    val fetchModelsErrors: Map<String, FetchModelsError> = emptyMap(),
     // Reports
     val showGenericAgentSelection: Boolean = false,
     val showGenericReportsDialog: Boolean = false,
@@ -626,7 +638,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun fetchModels(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor + service) }
+            val startedAt = System.currentTimeMillis()
+            _uiState.update { it.copy(
+                loadingModelsFor = it.loadingModelsFor + service,
+                fetchModelsErrors = it.fetchModelsErrors - service.id
+            ) }
             try {
                 val fetched = repository.fetchModelsWithKinds(service, apiKey)
                 // Persist the raw /models response to disk under
@@ -678,7 +694,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 android.util.Log.w("AppViewModel", "Failed to fetch models for ${service.displayName}: ${e.message}")
-                _uiState.update { it.copy(loadingModelsFor = it.loadingModelsFor - service) }
+                val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+                // Match the trace bracketed by withTraceCategory("Retrieve
+                // models list") in ApiDispatch.fetchModelsWithKinds. Filtering
+                // by category as well as timestamp keeps concurrent fetches
+                // from clobbering each other's pointers.
+                val traceFile = if (ApiTracer.isTracingEnabled) {
+                    ApiTracer.getTraceFiles()
+                        .firstOrNull { it.timestamp >= startedAt && it.category == "Retrieve models list" }
+                        ?.filename
+                } else null
+                _uiState.update { it.copy(
+                    loadingModelsFor = it.loadingModelsFor - service,
+                    fetchModelsErrors = it.fetchModelsErrors + (service.id to FetchModelsError(msg, traceFile))
+                ) }
             }
         }
     }

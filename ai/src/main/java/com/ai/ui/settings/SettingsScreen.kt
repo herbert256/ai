@@ -45,6 +45,7 @@ fun SettingsScreen(
     generalSettings: GeneralSettings,
     aiSettings: Settings,
     loadingModelsFor: Set<AppService> = emptySet(),
+    fetchModelsErrors: Map<String, com.ai.viewmodel.FetchModelsError> = emptyMap(),
     onBack: () -> Unit,
     onNavigateHome: () -> Unit = onBack,
     onSaveGeneral: (GeneralSettings) -> Unit,
@@ -182,6 +183,7 @@ fun SettingsScreen(
                 ProviderSettingsScreen(
                     service = provider, aiSettings = aiSettings,
                     isLoadingModels = provider in loadingModelsFor,
+                    fetchError = fetchModelsErrors[provider.id],
                     onBackToSettings = goBack, onBackToHome = onNavigateHome,
                     onSave = onSaveAi,
                     onFetchModels = {
@@ -215,6 +217,7 @@ fun SettingsScreen(
                 ProviderModelSettingsScreen(
                     service = provider, aiSettings = aiSettings,
                     isLoadingModels = provider in loadingModelsFor,
+                    fetchError = fetchModelsErrors[provider.id],
                     onBack = goBack, onBackToHome = onNavigateHome,
                     onSave = onSaveAi,
                     onFetchModels = {
@@ -301,6 +304,7 @@ fun SettingsScreen(
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 loadingModelsFor = loadingModelsFor,
+                fetchModelsErrors = fetchModelsErrors,
                 onNavigateToTrace = onNavigateToTrace
             )
         }

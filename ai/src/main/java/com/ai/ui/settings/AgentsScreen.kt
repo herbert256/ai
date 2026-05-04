@@ -60,6 +60,7 @@ fun AgentEditScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     loadingModelsFor: Set<AppService> = emptySet(),
+    fetchModelsErrors: Map<String, com.ai.viewmodel.FetchModelsError> = emptyMap(),
     onNavigateToTrace: ((String) -> Unit)? = null,
     /** Optional callback fired when the agent picks a LiteLLM-listed
      *  endpoint that isn't yet in the provider's configured endpoints —
@@ -113,7 +114,9 @@ fun AgentEditScreen(
                 onSelectModel = { model = it; overlayMode = 0 },
                 onBack = { overlayMode = 0 }, onNavigateHome = onNavigateHome,
                 onRefresh = if (effectiveKey.isNotBlank()) ({ onFetchModels(selectedProvider, effectiveKey) }) else null,
-                isRefreshing = selectedProvider in loadingModelsFor
+                isRefreshing = selectedProvider in loadingModelsFor,
+                fetchError = fetchModelsErrors[selectedProvider.id],
+                onNavigateToTrace = onNavigateToTrace
             )
             return
         }
