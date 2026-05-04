@@ -24,12 +24,12 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 
 /**
- * One-row-per-provider view of every provider that has an API key
- * configured, regardless of state. Each row tap-opens the provider's
- * Admin URL in the user's default browser. Reached from Housekeeping →
- * Provider administration; useful when the user needs to top up
- * credits, rotate a key, or check usage on the provider's console
- * without hunting through the per-provider settings screens.
+ * One-row-per-provider view of every provider, regardless of state.
+ * Each row tap-opens the provider's Admin URL in the user's default
+ * browser. Reached from Housekeeping → Provider administration;
+ * useful when the user needs to sign up, top up credits, rotate a
+ * key, or check usage on the provider's console without hunting
+ * through the per-provider settings screens.
  */
 @Composable
 fun ProviderAdminScreen(
@@ -40,11 +40,10 @@ fun ProviderAdminScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    // Sort: state == "ok" first, then keyed-but-failing, then inactive.
-    // Within each bucket, alphabetical by display name.
+    // Sort: state == "ok" first, then keyed-but-failing, then keyless,
+    // then inactive. Within each bucket, alphabetical by display name.
     val rows = remember(aiSettings) {
         AppService.entries
-            .filter { aiSettings.getApiKey(it).isNotBlank() }
             .map { it to aiSettings.getProviderState(it) }
             .sortedWith(
                 compareBy(
@@ -58,17 +57,10 @@ fun ProviderAdminScreen(
         TitleBar(title = "Provider administration", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Every provider with an API key configured. Tap a row to open the provider's admin console.",
+            "All ${rows.size} providers. Tap a row to open the provider's admin / signup console.",
             fontSize = 12.sp, color = AppColors.TextTertiary
         )
         Spacer(modifier = Modifier.height(8.dp))
-
-        if (rows.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No providers with API keys yet", color = AppColors.TextSecondary, fontSize = 14.sp)
-            }
-            return@Column
-        }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             rows.forEach { (provider, state) ->
