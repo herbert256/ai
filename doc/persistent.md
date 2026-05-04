@@ -21,12 +21,15 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `artificial_analysis_api_key` | String | for AA pricing/scores tier |
 | `default_email` | String | default email for the report email export |
 | `default_type_paths` | JSON Map<String,String> | global per-type API path defaults |
-| `rerank_prompt` | String | Rerank template (blank → built-in default) |
-| `summarize_prompt` | String | Summarize template (blank → built-in default) |
-| `compare_prompt` | String | Compare template (blank → built-in default) |
-| `intro_prompt` | String | Self-introduction template (blank → built-in default) |
-| `model_info_prompt` | String | Model Info template (blank → built-in default) |
-| `translate_prompt` | String | Translate template (blank → built-in default) |
+| `intro_prompt` | String | Self-introduction template (blank → seeded default from `assets/prompts.json`) |
+| `model_info_prompt` | String | Model Info template (blank → seeded default) |
+| `translate_prompt` | String | Translate template (blank → seeded default) |
+
+> Rerank and every chat-type Meta prompt (Compare, Critique,
+> Summarize, …) used to live here as dedicated keys; they now
+> live as `InternalPrompt` rows under
+> `eval_prefs.internal_prompts` and are CRUD-managed via Settings
+> → AI Setup → Prompt management.
 
 #### Per-provider config
 For every provider id (`<key> = service.prefsKey`, e.g. `ai_openai`):
@@ -166,12 +169,15 @@ copies), and `pinned`. Written atomically; protected by
 `ReportStorage`'s `ReentrantLock`.
 
 ### `secondary/<reportId>/<resultId>.json`
-One file per Rerank / Summarize / Compare / Moderate / Translate
-result. Subdirectory per parent report so deleting a report cascades
-cleanly. Translate rows additionally carry
-`translateSourceTargetId/Kind`, `targetLanguage/Native`, and a shared
-`translationRunId` so the result viewer can group rows from one
-batch.
+One file per `SecondaryResult` row — RERANK, META (every chat-type
+Meta prompt), MODERATION, or TRANSLATE. META rows carry the
+user-given `metaPromptName` (and `metaPromptId`) so the UI /
+exports group them under the Meta-prompt name regardless of how
+many or which prompts the user has configured. Subdirectory per
+parent report so deleting a report cascades cleanly. Translate
+rows additionally carry `translateSourceTargetId/Kind`,
+`targetLanguage/Native`, and a shared `translationRunId` so the
+result viewer can group rows from one batch.
 
 ### `trace/<hostname>_<timestamp>_<seq>.json`
 One file per outbound API call (when `ApiTracer.isTracingEnabled` is

@@ -185,23 +185,26 @@ Result of a single provider model-list fetch.
 | rawUsageJson | `String?` |
 
 ### `SecondaryResult`
-Rerank / Summarize / Compare / Moderate / Translate meta-result tied
-to a parent report.
+Meta-result tied to a parent report — rerank, chat-type Meta
+(driven by the user's Meta-prompt CRUD entries), moderation, or
+translation.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | `String` (UUID) | |
 | reportId | `String` | |
-| kind | `SecondaryKind` | `RERANK`, `SUMMARIZE`, `COMPARE`, `MODERATION`, `TRANSLATE` |
+| kind | `SecondaryKind` | `RERANK`, `META`, `MODERATION`, `TRANSLATE` |
 | providerId, model, agentName | `String` | |
 | timestamp | `Long` | |
-| content | `String?` | the model output (Compare's content has a deterministic `## References` legend appended at storage time) |
+| content | `String?` | the model output (chat-type META rows whose Meta prompt has `reference=true` get a deterministic `## References` legend appended at storage time) |
 | errorMessage | `String?` | |
 | tokenUsage | `TokenUsage?` | |
 | inputCost, outputCost | `Double?` | |
 | durationMs | `Long?` | |
+| metaPromptId | `String?` | id of the `InternalPrompt` (`category="meta"`) entry that produced this row. Drives per-(report, prompt) "last-selection" lookups |
+| metaPromptName | `String?` | display name of the Meta prompt copied at run time. Drives every UI bucket / export section / cost-row label so renaming or deleting the Meta prompt later doesn't reshape old rows |
 | translateSourceTargetId | `String?` | TRANSLATE only — id of the item translated (`"prompt"`, `agent.agentId`, or a secondary `id`) |
-| translateSourceKind | `String?` | TRANSLATE only — `"PROMPT"`, `"AGENT"`, `"SUMMARY"`, `"COMPARE"` |
+| translateSourceKind | `String?` | TRANSLATE only — `"PROMPT"`, `"AGENT"`, `"META"` |
 | targetLanguage | `String?` | TRANSLATE only — English language name (e.g. `"Dutch"`) |
 | targetLanguageNative | `String?` | TRANSLATE only — native rendering (e.g. `"Nederlands"`) |
 | translationRunId | `String?` | TRANSLATE only — UUID shared by every row of one Translate batch so the result page can group them |
@@ -215,8 +218,8 @@ to a parent report.
   user picked from the existing report; only those rows feed in.
 
 ### `SecondaryLanguageScope` (sealed)
-For Summarize / Compare / Translate fan-out across translated
-content present on the report.
+For chat-type META and Translate fan-out across translated content
+present on the report.
 
 - `AllPresent` — fan out across every language present.
 - `Selected(languages: Set<String>)` — restrict to the chosen
@@ -490,8 +493,9 @@ Computed:
 - `providerStates: Map<String, String>?`
 - `modelTypeOverrides: List<ModelTypeOverride>?`
 - `defaultTypePaths: Map<String, String>?`
-- `rerankPrompt, summarizePrompt, comparePrompt: String?`
-- `introPrompt, modelInfoPrompt, translatePrompt: String?`
+- `introPrompt, modelInfoPrompt, translatePrompt: String?` (the
+  three system-prompt strings; chat-type Meta prompts and Rerank
+  ride along under `aiPrompts` / `internalPrompts`)
 
 ### `ConfigImportResult`
 Mirror of the above — what `processImportedConfig` returns to the
@@ -519,10 +523,14 @@ list.
 | huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey | `String` | |
 | defaultEmail | `String` | |
 | defaultTypePaths | `Map<String, String>` | |
-| rerankPrompt, summarizePrompt, comparePrompt | `String` | empty → built-in default |
-| introPrompt | `String` | empty → built-in default; used by the model self-introduction step in Comprehensive PDF |
-| modelInfoPrompt | `String` | empty → built-in default; used by the Model Info screen's "model info" prompt |
-| translatePrompt | `String` | empty → built-in default; used by the Report result screen's Translate flow |
+| introPrompt | `String` | empty → seeded default from `assets/prompts.json`; used by the model self-introduction step in Comprehensive PDF |
+| modelInfoPrompt | `String` | empty → seeded default; used by the Model Info screen's "model info" prompt |
+| translatePrompt | `String` | empty → seeded default; used by the Report result screen's Translate flow |
+
+> Rerank and every chat-type Meta prompt are **not** fields on
+> `GeneralSettings` — they live as `InternalPrompt` entries in
+> `Settings.internalPrompts`, CRUD-managed via the Prompt
+> management screen.
 
 ### `UiState`
 The single immutable bag the entire UI subscribes to. See

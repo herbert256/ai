@@ -34,8 +34,10 @@ provider's `/v1/embeddings`.
 - **[datastructures.md](datastructures.md)** — Every non-trivial data
   class with every field, grouped by domain.
 - **[secondary-results.md](secondary-results.md)** — Deep dive on the
-  Rerank / Summarize / Compare / Moderate / Translate meta-result flow,
-  including prompt resolution, scope, language fan-out, and storage.
+  meta-result flow: RERANK, the user-driven META kind (every chat-
+  type Meta prompt — Compare, Critique, Synthesize, …), MODERATION,
+  TRANSLATE — including prompt resolution, scope, language fan-out,
+  and storage.
 
 ### Subsystem deep dives
 - **[knowledge.md](knowledge.md)** — RAG: knowledge base structure,
@@ -47,7 +49,7 @@ provider's `/v1/embeddings`.
   download flow, `.task` / `.tflite` import, synthetic ApiTrace
   emission.
 - **[translation.md](translation.md)** — TRANSLATE secondary-kind,
-  multi-language fan-out, translation runs, the Translate Compare /
+  multi-language fan-out, translation runs, the side-by-side /
   Translate Run / Translate Call detail screens.
 - **[share-target.md](share-target.md)** — `ACTION_SEND` /
   `ACTION_SEND_MULTIPLE` plumbing, the chooser, and the three landing
@@ -97,7 +99,7 @@ truth. When in doubt, the relevant files are:
   (OpenRouter / Together) and `DEFAULT_PRICING`. Tier blobs live
   under `<filesDir>/pricing/`; `pricing_cache.xml` keeps only
   timestamps and the manual-override map
-- `data/SecondaryResult.kt` — Rerank / Summarize / Compare / Moderate / Translate data + prompts
+- `data/SecondaryResult.kt` — `SecondaryKind` (RERANK, META, MODERATION, TRANSLATE) + storage + scope / language-scope sealed types + prompt-template helpers
 - `data/Knowledge.kt` + `data/KnowledgeService.kt` + `data/KnowledgeExtractors.kt` — RAG layer
 - `data/LocalLlm.kt` + `data/LocalEmbedder.kt` — on-device runtime
 - `data/SharedContent.kt` — share-target snapshot

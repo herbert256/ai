@@ -143,22 +143,36 @@ install: Settings → AI Setup → Import/Export → "Import setup".
    (`ImportExportScreen.kt`).
 6. Add the tier as a Source button on the Model Info screen.
 
-### A new SecondaryKind (after Rerank / Summarize / Compare / Moderate / Translate)
+### A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE)
+
+Most "I want a new analysis on report outputs" cases are covered
+by adding a Meta-prompt entry under Settings → AI Setup → Prompt
+management — no code changes needed. Add a new `SecondaryKind`
+enum value only when the new flow has fundamentally different
+routing (different API endpoint shape, different result schema,
+different rendering).
 
 Add an enum value to `SecondaryKind` in `data/SecondaryResult.kt`.
 The Kotlin compiler will then enforce exhaustive `when` on every
 site that maps `kind` to a string / colour / button label / view
 title / prompt template. Walk the resulting compile errors:
 
-- `SecondaryPrompts.DEFAULT_*` constant
-- `GeneralSettings.<kind>Prompt` field + prefs key + export field
-- `SecondaryPromptsScreen` editor
-- `ReportViewModel.resolveTemplate` / `executeSecondaryTask`
-- `ReportScreen` action button + view button + scope-screen routing
-- `SecondaryResultsScreen` titles
-- `StatisticsScreen` kind colour
-- `ContentDisplay.ReportCostTable` row mapping + colour
-- `ReportExport.appendSecondarySections` rendering + CSS
+- `legacyKindDisplayName` mapping
+- `SecondaryResultStorage.Counts` + `countForReport`
+- `ReportViewModel.metaTypeToKind` (if the new kind comes from a
+  Meta-prompt `type`) and `executeSecondaryTask`
+- `ReportScreen` running-row "type" cell
+- `SecondaryResultsScreen` routing (which view to render —
+  picker, table, drill-in list)
+- `ContentDisplay.ReportCostTable` row mapping
+- `ReportExport.renderLanguageBlock` view-picker tabs +
+  `renderMetaCard` rendering + costs Type column
+- `WordOdtExport.appendLanguageContent` + `appendCosts` Type
+  column
+- `ZippedHtmlExport.emitLanguageSections` +
+  `languageSections` + `buildReportIndex` + `secondaryPage`
+  branches + costs Type column
+- `PdfExport.buildShortHtml` filter
 
 The same pattern documents itself; lean on the compiler.
 

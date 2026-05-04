@@ -115,12 +115,12 @@ buttons.
 - **`ChatViewModel`** — chat session state and streaming, including
   per-turn KB retrieval and context-block injection.
 - **`ReportViewModel`** — report generation, secondary-result flows
-  (Rerank / Summarize / Compare / Moderate / Translate), and the
-  multi-language fan-out for Summarize / Compare. Holds an in-memory
-  `_agentResults` flow separate from `UiState` so per-task completions
-  don't ripple equality checks across the rest of the UiState. Holds
-  a `Map<String, TranslationRun>` keyed by runId so multiple
-  concurrent Translate batches don't overwrite each other.
+  (RERANK / META / MODERATION / TRANSLATE), and the multi-language
+  fan-out for chat-type META and TRANSLATE. Holds an in-memory
+  `_agentResults` flow separate from `UiState` so per-task
+  completions don't ripple equality checks across the rest of the
+  UiState. Holds a `Map<String, TranslationRun>` keyed by runId so
+  multiple concurrent Translate batches don't overwrite each other.
 
 ### Two-tier navigation
 
@@ -258,14 +258,14 @@ The `return` inside `@Composable` preserves the parent's `remember`
 state, so backing out of the overlay leaves the parent's local state
 intact — a UX the user has explicitly relied on.
 
-### Two-step Summarize / Compare scope
+### Two-step Meta scope
 
-When a parent report has at least one rerank, Summarize / Compare /
-Moderate / Translate route through `SecondaryScopeScreen` first,
-where the user can narrow the input set to the top-N entries of a
-chosen rerank, manually pick agents, or (for Summarize / Compare /
-Translate) choose which present languages to fan out across.
-Rerank itself always runs on the full set. See
+Chat-type Meta runs (and Translate) route through
+`SecondaryScopeScreen` first, where the user can narrow the input
+set to the top-N entries of a chosen rerank, manually pick agents,
+or (when translations exist) choose which present languages to fan
+out across. Rerank-typed and Moderation-typed Meta prompts skip
+the scope screen and always run on the full set. See
 [secondary-results.md](secondary-results.md) for the full flow.
 
 ## Concurrency
@@ -274,7 +274,7 @@ Rerank itself always runs on the full set. See
   `AnalysisRepository.analyzeWithAgent` runs each report agent
   concurrently up to `REPORT_CONCURRENCY_LIMIT = 4`, controlled with
   a `Semaphore`. The same semaphore caps the parallel fan-out inside
-  a Summarize / Compare / Translate batch.
+  a chat-type Meta or Translate batch.
 - `ApiTracer` and `ReportStorage` use `ReentrantLock` for thread-safe
   file writes; `KnowledgeStore` does the same for KB manifest +
   chunk files.

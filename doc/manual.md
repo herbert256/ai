@@ -104,52 +104,63 @@ When the report is complete, three rows of buttons appear:
   tap **Regenerate** in the Actions row to re-run with the changes.
   When only the model list changed, Regenerate is **additive** — it
   runs only the new models and merges them in.
-- **Actions** — Regenerate / Export / Copy / Translate / Delete, plus
-  **Rerank / Summarize / Compare / Moderate** (see below).
+- **Actions** — Regenerate / Export / Copy / Translate / Delete.
+- **Meta** — one button per Meta prompt configured under AI Setup
+  → Prompt management (see below).
 
-### Rerank / Summarize / Compare / Moderate / Translate
+### Meta prompts and Translate
 
-Five meta-result flows that operate on a finished report's outputs:
+Meta-result flows that operate on a finished report's outputs.
+The available Meta buttons are entirely user-driven via the
+Meta-prompt CRUD: Settings → AI Setup → **Prompt management →
+Report Meta Prompts**. A typical setup:
 
-- **Rerank** — picks rerank-aware models (Cohere etc.) or any chat
-  model and asks it to rank the responses 1..N with a score and
-  reason.
-- **Summarize** — picks chat model(s) and asks for a single
-  synthesised answer combining the strongest points of every
-  response.
-- **Compare** — picks chat model(s) and asks for an analysis of where
+- **Compare** — chat-type prompt asking the model to identify where
   responses agree, where they diverge, and what each one uniquely
-  contributed. **A reference legend (`[N] = Provider / Model`) is
-  appended deterministically by the storage layer**, so even if the
-  model forgets to enumerate, you can resolve every `[N]`.
-- **Moderate** — runs the report's responses through OpenAI's
-  `/v1/moderations` endpoint and shows the flagged-categories table.
-- **Translate** — translates the prompt and every successful agent
-  response to one or more languages, fans out one API call per
-  language × source. See [translation.md](translation.md) for the
-  full flow.
+  contributed. Tick **reference** on the entry to get a deterministic
+  `[N] = Provider / Model` legend appended automatically.
+- **Critique** / **Synthesize** / etc. — any chat-type analysis
+  you want; the prompt name becomes the button label and the
+  view tab name in exports.
+- **Rerank** — pick a `type=rerank` Meta prompt (or a chat-type
+  one if you'd rather use a chat model) to rank responses 1..N
+  with a score and reason. Rerank-typed entries route through the
+  provider's dedicated rerank endpoint when the picked model
+  supports it.
+- **Moderation** — `type=moderation` Meta prompt that runs the
+  report's responses through a provider's `/moderations` endpoint
+  and shows the flagged-categories table.
+
+Translate is a separate Actions button (not a Meta prompt) — it
+translates the prompt and every successful agent response (plus any
+chat-type Meta rows in scope) to one or more languages, fanning out
+one API call per language × source. See
+[translation.md](translation.md) for the full flow.
 
 You can run any of them multiple times per report — each run is a
-separate, independently viewable, independently deletable entry. Once
-results exist, **View Reranks (n) / Summaries (m) / Compares (k) /
-Moderations (l) / Translations (m)** buttons appear on the View row.
+separate, independently viewable, independently deletable entry.
+Once results exist, the View row gains a button per Meta prompt
+name that has at least one row on this report (e.g.
+**Compare (k)**, **Critique (n)**), plus **Reranks / Moderations /
+Translations** buttons for those structured kinds.
 
 #### Scope step
 
-For Summarize / Compare / Moderate / Translate, a **scope** screen
-shows up to let you narrow what gets fed in:
+For chat-type Meta prompts and Translate, a **scope** screen shows
+up to let you narrow what gets fed in:
 
 - **All model reports** (default) — feed every successful response.
 - **Only top ranked reports** — narrow to the top-N entries of a
   chosen rerank (when the report has at least one rerank).
 - **Manual selection** — explicitly pick which agents to feed in.
-- For Translate / Summarize / Compare on a report that already has
-  translations, you can also restrict to **All present languages** or
-  **Selected** specific languages. See
+- For chat-type Meta runs and Translate on a report that already
+  has translations, you can also restrict to **All present
+  languages** or **Selected** specific languages. See
   [translation.md](translation.md).
 
-Then **Continue** lands on the model picker. Rerank itself never
-shows the scope screen — it always operates on the full set.
+Then **Continue** lands on the model picker. Rerank /
+Moderation–typed Meta prompts skip the scope screen — they always
+operate on the full set.
 
 ### Export
 
@@ -165,13 +176,16 @@ Tap **Export** in the Actions row. Choose:
 The HTML export contains:
 - A toggle to switch between **One by one** (tabbed) and **All
   together** (grid card layout).
-- The original prompt and a Costs table (with a Type column for
-  rerank / summarize / compare / moderate / translate API spend).
+- The original prompt and a Costs table (the Type column reads the
+  Meta-prompt name lowercased — `compare`, `critique`, … — for
+  chat-type rows; structured kinds keep their fixed labels:
+  `rerank`, `meta`, `moderation`, `translate`).
 - Stable `result-N` anchors on each agent's card.
-- Reranks, Summaries, Compares, Moderations, and Translations blocks
-  at the end. Rerank entries render as a linked rank table; Compare
-  references like `[3]` are clickable jumps back to that agent's
-  card.
+- One view-picker tab per chat-type Meta prompt name (e.g.
+  Compare / Critique / Synthesize), plus Reranks / Moderations /
+  Translations tabs for the structured kinds. Rerank entries
+  render as a linked rank table; chat-type Meta references like
+  `[3]` are clickable jumps back to that agent's card.
 - Markdown tables (GFM pipe-style) render as proper HTML tables in
   the in-app viewer and in every export.
 
@@ -358,14 +372,14 @@ Local LLM and local embedder calls are traced too with hostname
 | Parameters | Reusable parameter presets (incl. reasoning effort) |
 | System Prompts | Reusable system prompts |
 | Costs | Manual price overrides |
-| Rerank, Summarize, Compare | Custom prompt templates for those flows |
-| Intro, Model Info, Translate | Custom prompt templates for the model-introduction, model-info, and translation flows |
+| Prompt management | CRUD for Meta prompts (`category=meta`) — each entry becomes a button on the report's Meta row. Type picks the routing (chat / rerank / moderation); the name picks the bucket label everywhere |
+| Rerank, Translate, Intro, Model Info | Custom prompt templates for those system flows |
 | External Services | HuggingFace / OpenRouter / Artificial Analysis keys |
 
-> **Note:** "Internal Prompts" (the older agent-bound template list)
-> have been removed. The intro, model-info, and translate prompts
-> now live as dedicated `GeneralSettings` fields editable in the
-> matching cards above.
+> **Note:** Anything user-driven that runs on a report's outputs
+> (Compare, Critique, Synthesize, …) is configured under **Prompt
+> management → Report Meta Prompts**, not under the system-prompt
+> cards.
 
 ### Refresh
 

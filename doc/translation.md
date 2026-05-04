@@ -1,9 +1,10 @@
 # Translation
 
-The Translate flow is a fifth `SecondaryKind` (`TRANSLATE`) that
-operates on a finished report's content — translating the original
-prompt and every successful agent response into one or more target
-languages, fanning out one API call per (source × language) pair.
+The Translate flow is a `SecondaryKind` (`TRANSLATE`) that operates
+on a finished report's content — translating the original prompt
+and every successful agent response (plus any chat-type Meta rows
+in scope) into one or more target languages, fanning out one API
+call per (source × language) pair.
 
 ## Triggering a Translate run
 
@@ -15,7 +16,7 @@ From the result-phase Actions row on a finished report, tap
    list (with native renderings as subtitles, e.g. "Dutch /
    Nederlands"). Multi-select.
 2. **Scope picker** (`ui/report/SecondaryScopeScreen.kt`) — same
-   scope screen as Summarize / Compare:
+   scope screen the chat-type Meta runs use:
    - All model reports
    - Top-N from a chosen rerank
    - Manual selection
@@ -47,12 +48,17 @@ For each selected language, one TRANSLATE call is made per:
   `translateSourceTargetId = "prompt"`.
 - **Each in-scope agent response** — `translateSourceKind = "AGENT"`,
   `translateSourceTargetId = agent.agentId`.
-- **Each in-scope Summary or Compare result** (when included via
-  language scope) — `translateSourceKind = "SUMMARY"` or `"COMPARE"`,
-  `translateSourceTargetId = secondary.id`.
+- **Each in-scope chat-type Meta result** (e.g. a "Compare" /
+  "Critique" / "Synthesize" row — anything with `kind = META`)
+  when included via language scope —
+  `translateSourceKind = "META"`,
+  `translateSourceTargetId = secondary.id`. Rerank and Moderation
+  rows are never translated; their content is structured JSON.
 
-The TRANSLATE prompt template (`SecondaryPrompts.DEFAULT_TRANSLATE`,
-overridable via `GeneralSettings.translatePrompt`) substitutes:
+The TRANSLATE prompt template lives as the `InternalPrompt` row
+named `"Translate"` (seeded from `assets/prompts.json` on fresh
+install, editable thereafter via Settings → AI Setup → Prompt
+management). It substitutes:
 
 | Variable | Meaning |
 |---|---|
@@ -66,27 +72,32 @@ like [1] or [N]. Preserve URLs and code identifiers untouched. Do
 NOT add commentary, preface, or explanation — output only the
 translation."
 
-## Multi-language fan-out for Summarize / Compare
+## Multi-language fan-out for chat-type Meta runs
 
-When a report has TRANSLATE rows, **Summarize** and **Compare** can
-also fan out across the present languages. The scope screen picks
-up a `SecondaryLanguageScope` (`AllPresent` or `Selected(...)`) and
-the run produces one batch per language; inside each batch, the
-agent response bodies are pulled from the matching TRANSLATE rows
-(falling back to the original text per-item if a translation is
-missing) and the prompt-side `@QUESTION@` is the translated prompt.
+When a report has TRANSLATE rows, **any chat-type Meta prompt** —
+"Compare", "Critique", "Synthesize", whatever the user has named
+it in the Meta-prompt CRUD — can also fan out across the present
+languages. The scope screen picks up a `SecondaryLanguageScope`
+(`AllPresent` or `Selected(...)`) and the run produces one batch
+per language; inside each batch, the agent response bodies are
+pulled from the matching TRANSLATE rows (falling back to the
+original text per-item if a translation is missing) and the
+prompt-side `@QUESTION@` is the translated prompt.
 
-The result is one Summary / Compare per (language, model-pick) — so
-asking for a Summary in three languages from two models gives you
-six Summary rows.
+The result is one Meta row per (language, model-pick) — so asking
+for a "Compare" in three languages from two models gives you six
+Compare rows. Each row carries the same `metaPromptName` so the UI
+and exports group them under the user-given name regardless of
+language.
 
 ## UI screens
 
 - **`LanguageSelectionScreen`** — multi-select language picker,
   feeds into the Translate flow.
-- **`SecondaryResultsScreen`** — list of all Reranks / Summaries /
-  Compares / Moderations / Translations on a report. The
-  Translations section groups rows by `translationRunId`; each
+- **`SecondaryResultsScreen`** — list of every meta row on the
+  report, scoped to whichever Meta-prompt name (or structured kind:
+  Rerank / Moderation / Translate) the user tapped on the View row.
+  The Translations branch groups rows by `translationRunId`; each
   group surfaces as a single "run" row with the model name, the
   language list, and the count.
 - **`TranslationRunDetailScreen`** — drill into a run: shows the
@@ -104,7 +115,7 @@ original — translations are stored as TRANSLATE secondaries, not
 as a copy. The Result screen surfaces:
 
 - A language pulldown at the top — switching it re-renders agent
-  bodies and summaries / compares from the matching TRANSLATE rows
+  bodies and chat-type Meta rows from the matching TRANSLATE rows
   for that language.
 - The original (`null`) language option always renders the
   untranslated content.
@@ -120,11 +131,11 @@ screen + its own row colour in the Report cost table.
 
 ## Editing the translation prompt
 
-Settings → AI Setup → **Translate** opens the prompt editor for
-`GeneralSettings.translatePrompt`. Empty falls back to
-`SecondaryPrompts.DEFAULT_TRANSLATE`. The editor shares the
-`SecondaryPromptsScreen` codebase with Rerank / Summarize / Compare /
-Intro / Model Info.
+Settings → AI Setup → **Prompt management** lists every
+`InternalPrompt` — the Translate entry is the row named
+`"Translate"` under the system-prompt section. Edit its `text`
+field. Defaults are seeded from `assets/prompts.json` on a fresh
+install; existing entries are never overwritten by re-seeds.
 
 ## See also
 
