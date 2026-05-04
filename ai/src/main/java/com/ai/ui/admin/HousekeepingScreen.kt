@@ -185,26 +185,28 @@ fun HousekeepingScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // Configuration shortcuts — moved here from AI Setup so all the
-            // "manage app data" actions live together.
-            CollapsibleCard("Configuration") {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = onNavigateToImportExport,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                        ) { Text("Export / Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        Button(
-                            onClick = onNavigateToRefresh,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                        ) { Text("Refresh", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Button(
-                        onClick = onNavigateToProviderAdmin,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                    ) { Text("Provider administration", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            CollapsibleCard("Export / Import") {
+                Button(
+                    onClick = onNavigateToImportExport,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                ) { Text("Export / Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+
+            CollapsibleCard("Refresh") {
+                Button(
+                    onClick = onNavigateToRefresh,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Refresh", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+
+            CollapsibleCard("Provider administration") {
+                Button(
+                    onClick = onNavigateToProviderAdmin,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) { Text("Provider administration", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
 
             // Backup / restore — uses Android's Storage Access Framework so the
