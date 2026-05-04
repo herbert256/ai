@@ -162,7 +162,7 @@ fun HousekeepingScreen(
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
             title = { Text("Clear all runtime data?") },
-            text = { Text("This permanently deletes all reports, chat history, API traces, prompt history, knowledge bases, pricing cache (manual overrides plus cached tier blobs), and the per-provider model-list cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) and usage statistics are kept.") },
+            text = { Text("This permanently deletes all reports, chat history, API traces, prompt history, knowledge bases, pricing cache (manual overrides plus cached tier blobs), the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) and usage statistics are kept.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -179,8 +179,9 @@ fun HousekeepingScreen(
                         val kbs = KnowledgeStore.clearAll(context)
                         PricingCache.clearAll(context)
                         ModelListCache.clearAll(context)
+                        EmbeddingsStore.clearAll(context)
                         showClearAllConfirm = false
-                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces, prompt cache & history, $kbs knowledge bases, pricing cache, model-list cache", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces, prompt cache & history, $kbs knowledge bases, pricing cache, model-list cache, semantic-search cache", Toast.LENGTH_LONG).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }
