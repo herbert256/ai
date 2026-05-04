@@ -561,17 +561,19 @@ fun AppNavHost(
         }
         composable(NavRoutes.AI_CHAT_PROVIDER) {
             val uiState by appViewModel.uiState.collectAsState()
-            ChatSelectProviderScreen(aiSettings = uiState.aiSettings, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onSelectProvider = { navController.navigate(NavRoutes.aiChatModel(it.id)) })
-        }
-        composable(NavRoutes.AI_CHAT_MODEL) { entry ->
-            val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
-            val uiState by appViewModel.uiState.collectAsState()
-            if (provider != null) {
-                SelectModelScreen(provider = provider, aiSettings = uiState.aiSettings, currentModel = "",
-                    onSelectModel = { navController.navigate(NavRoutes.aiChatParams(provider.id, it)) },
-                    onBack = safePopBack, onNavigateHome = navigateHome)
-            }
+            // Configure-on-the-fly entry: one rich picker (search +
+            // type / provider / capability filters) instead of the old
+            // two-step provider→model flow. Row click jumps straight
+            // to AI_CHAT_PARAMS with the chosen (provider, model).
+            com.ai.ui.models.ModelSearchScreen(
+                aiSettings = uiState.aiSettings,
+                loadingModelsFor = uiState.loadingModelsFor,
+                onBackToAiSetup = safePopBack, onBackToHome = navigateHome,
+                onNavigateToModelInfo = { _, _ -> },
+                onPickModel = { provider, model ->
+                    navController.navigate(NavRoutes.aiChatParams(provider.id, model))
+                }
+            )
         }
         composable(NavRoutes.AI_CHAT_PARAMS) { entry ->
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")

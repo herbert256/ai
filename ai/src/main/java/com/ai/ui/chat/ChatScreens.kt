@@ -47,61 +47,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// ===== Provider Selection =====
-
-@Composable
-fun ChatSelectProviderScreen(
-    aiSettings: Settings,
-    onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onSelectProvider: (AppService) -> Unit
-) {
-    BackHandler { onNavigateBack() }
-    val context = LocalContext.current
-
-    val installedLocalLlms = remember { com.ai.data.LocalLlm.availableLlms(context) }
-    val activeProviders = remember(aiSettings, installedLocalLlms) {
-        val remote = aiSettings.getActiveServices()
-        // LOCAL surfaces here only when at least one .task model is
-        // installed — otherwise picking it would land on an empty
-        // model list with no way forward.
-        val withLocal = if (installedLocalLlms.isNotEmpty()) remote + AppService.LOCAL else remote
-        withLocal.sortedBy { it.displayName }
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
-    ) {
-        TitleBar(title = "Select Provider", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (activeProviders.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No providers configured.\nGo to AI Setup to add providers.", color = AppColors.TextTertiary, fontSize = 14.sp)
-            }
-        } else {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                LazyColumn {
-                    items(activeProviders, key = { it.id }) { provider ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(provider.displayName, fontSize = 16.sp, color = Color.White, modifier = Modifier.weight(1f))
-                            Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                        }
-                        HorizontalDivider(color = AppColors.DividerDark)
-                    }
-                }
-            }
-        }
-    }
-}
-
 // ===== Parameters Screen =====
 
 @Composable
