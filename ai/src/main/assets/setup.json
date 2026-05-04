@@ -277,6 +277,7 @@
       "adminUrl": "https://app.fireworks.ai/",
       "defaultModel": "accounts/fireworks/models/deepseek-v3p2",
       "prefsKey": "ai_fireworks",
+      "defaultModelSource": "API",
       "hardcodedModels": [
         "accounts/fireworks/models/deepseek-v3p2",
         "accounts/fireworks/models/deepseek-r1-0528",
@@ -293,6 +294,7 @@
       "adminUrl": "https://cloud.cerebras.ai/",
       "defaultModel": "llama-3.3-70b",
       "prefsKey": "ai_cerebras",
+      "defaultModelSource": "API",
       "hardcodedModels": [
         "llama-3.3-70b",
         "llama-4-scout-17b-16e-instruct",
