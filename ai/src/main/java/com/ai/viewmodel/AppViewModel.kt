@@ -327,6 +327,114 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return added
     }
 
+    // ===== Housekeeping primitives =====
+    //
+    // Each Housekeeping → Reset card button (Clear Usage Statistics,
+    // Clear all runtime data, Clear all configuration) and the
+    // resetApplication() orchestrator route through these helpers, so
+    // the wipe sets stay in lockstep when one is later extended.
+
+    data class RuntimeWipeResult(val reports: Int, val chats: Int, val knowledgeBases: Int)
+    data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
+
+    fun clearUsageStatistics() {
+        settingsPrefs.clearUsageStats()
+    }
+
+    fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
+        val reports = ReportStorage.getAllReports(context).also { list ->
+            list.forEach { ReportStorage.deleteReport(context, it.id) }
+        }
+        val chats = ChatHistoryManager.deleteAllSessions()
+        ApiTracer.clearTraces()
+        PromptCache.clearAll()
+        settingsPrefs.clearPromptHistory()
+        settingsPrefs.clearLastReportPrompt()
+        val kbs = KnowledgeStore.clearAll(context)
+        PricingCache.clearAll(context)
+        ModelListCache.clearAll(context)
+        EmbeddingsStore.clearAll(context)
+        return RuntimeWipeResult(reports.size, chats, kbs)
+    }
+
+    fun clearAllConfiguration(context: Context): ConfigWipeResult {
+        updateSettings(Settings())
+        updateGeneralSettings(GeneralSettings())
+        val llms = LocalLlm.clearAll(context)
+        val embedders = LocalEmbedder.clearAll(context)
+        return ConfigWipeResult(llms, embedders)
+    }
+
+    /** Factory-style reset that preserves API keys. Runs the nine-step
+     *  cascade documented in the Reset application dialog: snapshot
+     *  the keys to a temp file in cacheDir, wipe usage stats / runtime
+     *  data / provider registry, reload providers.json + prompts.json
+     *  from assets, clear configuration (so Settings() is built against
+     *  the freshly loaded registry), then re-import the keys. The temp
+     *  file is deleted in finally so a mid-cascade crash can't strand
+     *  the keys on disk. */
+    fun resetApplication(context: Context, onComplete: (success: Boolean, message: String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val tempFile = java.io.File(context.cacheDir, "reset_keys_${System.currentTimeMillis()}.json")
+            val outcome = runCatching {
+                // 1. Export keys to temp file
+                val snap = _uiState.value
+                val keysJson = com.ai.ui.settings.buildApiKeysJson(
+                    snap.aiSettings,
+                    snap.generalSettings.huggingFaceApiKey,
+                    snap.generalSettings.openRouterApiKey,
+                    snap.generalSettings.artificialAnalysisApiKey
+                )
+                tempFile.writeText(keysJson)
+
+                // 2. Clear usage stats
+                clearUsageStatistics()
+                // 3. Clear runtime data
+                clearAllRuntimeData(context)
+                // 4. Wipe provider registry
+                ProviderRegistry.resetToDefaults(context)
+                // 5. Reload providers.json from assets
+                val providersAdded = ProviderRegistry.importFromAsset(context, "providers.json")
+                if (providersAdded < 0) {
+                    android.util.Log.w("AppViewModel", "providers.json reload failed during reset")
+                }
+                // 6. Clear configuration (Settings() now keyed against fresh registry)
+                clearAllConfiguration(context)
+                // Persist the reset Settings synchronously before the
+                // import step reads _uiState — updateSettings's IO save
+                // is fire-and-forget but the StateFlow update is sync.
+                // 7. Reload prompts.json from assets
+                loadBundledInternalPrompts()
+                // 8. Re-import keys from temp file
+                val readBack = tempFile.readText()
+                val result = com.ai.ui.settings.applyApiKeysJson(readBack, _uiState.value.aiSettings)
+                if (result != null) {
+                    var gs = _uiState.value.generalSettings
+                    result.huggingFaceApiKey?.let { gs = gs.copy(huggingFaceApiKey = it) }
+                    result.openRouterApiKey?.let { gs = gs.copy(openRouterApiKey = it) }
+                    result.artificialAnalysisApiKey?.let { gs = gs.copy(artificialAnalysisApiKey = it) }
+                    if (gs != _uiState.value.generalSettings) updateGeneralSettings(gs)
+                    updateSettings(result.settings)
+                    result.imported
+                } else 0
+            }
+            // 9. Always delete the temp keys file
+            runCatching { tempFile.delete() }
+
+            withContext(Dispatchers.Main) {
+                outcome.fold(
+                    onSuccess = { count ->
+                        onComplete(true, "Reset complete — $count API keys restored")
+                    },
+                    onFailure = { ex ->
+                        android.util.Log.e("AppViewModel", "resetApplication failed", ex)
+                        onComplete(false, "Reset failed: ${ex.javaClass.simpleName}: ${ex.message}")
+                    }
+                )
+            }
+        }
+    }
+
     // ===== Settings =====
 
     fun updateGeneralSettings(settings: GeneralSettings) {

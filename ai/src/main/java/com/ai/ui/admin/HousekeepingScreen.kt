@@ -1,6 +1,5 @@
 package com.ai.ui.admin
 
-import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,8 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
-import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.*
+import com.ai.viewmodel.AppViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -28,7 +27,10 @@ import kotlinx.coroutines.withContext
 @Composable
 fun HousekeepingScreen(
     onBackToHome: () -> Unit,
-    onClearConfiguration: () -> Unit = {},
+    onClearUsageStatistics: () -> Unit = {},
+    onClearRuntimeData: () -> AppViewModel.RuntimeWipeResult = { AppViewModel.RuntimeWipeResult(0, 0, 0) },
+    onClearConfiguration: () -> AppViewModel.ConfigWipeResult = { AppViewModel.ConfigWipeResult(0, 0) },
+    onResetApplication: ((success: Boolean, message: String) -> Unit) -> Unit = { _ -> },
     onNavigateToImportExport: () -> Unit = {},
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToProviderAdmin: () -> Unit = {}
@@ -38,6 +40,8 @@ fun HousekeepingScreen(
     val scope = rememberCoroutineScope()
     var showClearAllConfirm by remember { mutableStateOf(false) }
     var showClearConfigConfirm by remember { mutableStateOf(false) }
+    var showResetConfirm by remember { mutableStateOf(false) }
+    var resetConfirmText by remember { mutableStateOf("") }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
     var busyLabel by remember { mutableStateOf<String?>(null) }
     var daysToKeepText by remember { mutableStateOf("30") }
@@ -141,13 +145,11 @@ fun HousekeepingScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        onClearConfiguration()
-                        val llms = LocalLlm.clearAll(context)
-                        val embedders = LocalEmbedder.clearAll(context)
+                        val r = onClearConfiguration()
                         showClearConfigConfirm = false
                         Toast.makeText(
                             context,
-                            "Configuration cleared, $llms local LLM${if (llms == 1) "" else "s"} and $embedders LiteRT model${if (embedders == 1) "" else "s"} removed",
+                            "Configuration cleared, ${r.localLlms} local LLM${if (r.localLlms == 1) "" else "s"} and ${r.embedders} LiteRT model${if (r.embedders == 1) "" else "s"} removed",
                             Toast.LENGTH_LONG
                         ).show()
                     },
@@ -166,27 +168,68 @@ fun HousekeepingScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val reports = ReportStorage.getAllReports(context).also { list ->
-                            list.forEach { ReportStorage.deleteReport(context, it.id) }
-                        }
-                        val chats = ChatHistoryManager.deleteAllSessions()
-                        ApiTracer.clearTraces()
-                        PromptCache.clearAll()
-                        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-                        val sp = SettingsPreferences(prefs, context.filesDir)
-                        sp.clearPromptHistory()
-                        sp.clearLastReportPrompt()
-                        val kbs = KnowledgeStore.clearAll(context)
-                        PricingCache.clearAll(context)
-                        ModelListCache.clearAll(context)
-                        EmbeddingsStore.clearAll(context)
+                        val r = onClearRuntimeData()
                         showClearAllConfirm = false
-                        Toast.makeText(context, "Cleared ${reports.size} reports, $chats chats, traces, prompt cache & history, $kbs knowledge bases, pricing cache, model-list cache, semantic-search cache", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "Cleared ${r.reports} reports, ${r.chats} chats, traces, prompt cache & history, ${r.knowledgeBases} knowledge bases, pricing cache, model-list cache, semantic-search cache",
+                            Toast.LENGTH_LONG
+                        ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showClearAllConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
+    if (showResetConfirm) {
+        // Type-to-confirm: extra friction for a destructive op that
+        // wipes essentially everything but API keys. Reset enables only
+        // when the user types RESET (case-sensitive, trimmed).
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false; resetConfirmText = "" },
+            title = { Text("Reset application?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Factory-style reset: API keys are preserved (per-provider plus HuggingFace, OpenRouter, Artificial Analysis); everything else is wiped and providers + internal prompts are reloaded fresh from app assets."
+                    )
+                    Text(
+                        "Lost: agents, flocks, swarms, parameters, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports, chats, traces, knowledge bases, embeddings, prompt history, usage stats, pricing/model-list caches, Local LLM and LiteRT models.",
+                        fontSize = 12.sp,
+                        color = AppColors.TextTertiary
+                    )
+                    Text("Type RESET to confirm:", fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = resetConfirmText,
+                        onValueChange = { resetConfirmText = it },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedFieldColors()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showResetConfirm = false
+                        resetConfirmText = ""
+                        busyLabel = "Resetting…"
+                        onResetApplication { success, message ->
+                            busyLabel = null
+                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    enabled = resetConfirmText.trim() == "RESET",
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                ) { Text("Reset", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false; resetConfirmText = "" }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
         )
     }
 
@@ -278,9 +321,7 @@ fun HousekeepingScreen(
             CollapsibleCard("Usage statistics") {
                     Button(
                         onClick = {
-                            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-                            val settingsPrefs = SettingsPreferences(prefs, context.filesDir)
-                            settingsPrefs.clearUsageStats()
+                            onClearUsageStatistics()
                             Toast.makeText(context, "Usage statistics cleared", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -319,6 +360,13 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                     ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
+
+                    Button(
+                        onClick = { showResetConfirm = true },
+                        enabled = busyLabel == null,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                    ) { Text("Reset application", maxLines = 1, softWrap = false) }
             }
         }
     }

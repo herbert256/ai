@@ -23,7 +23,6 @@ import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import java.text.SimpleDateFormat
@@ -69,18 +68,13 @@ fun ImportExportScreen(
 
     val exportKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val keys = mutableMapOf<String, String>()
-        for (service in AppService.entries) {
-            val apiKey = aiSettings.getApiKey(service)
-            if (apiKey.isNotBlank()) keys[service.id] = apiKey
-        }
-        // External-services keys use an "EXT_" prefix so they can't collide with provider IDs
-        // (note: "HUGGINGFACE" is also an AppService id — the old key name was ambiguous).
-        if (huggingFaceApiKey.isNotBlank()) keys["EXT_HUGGINGFACE"] = huggingFaceApiKey
-        if (openRouterApiKey.isNotBlank()) keys["EXT_OPENROUTER"] = openRouterApiKey
-        if (artificialAnalysisApiKey.isNotBlank()) keys["EXT_ARTIFICIALANALYSIS"] = artificialAnalysisApiKey
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(keys))
-        Toast.makeText(context, "${keys.size} API keys exported", Toast.LENGTH_SHORT).show()
+        val json = buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey)
+        // Count is just the populated key count — re-derive from the
+        // payload to keep the toast in step with the helper's logic.
+        @Suppress("DEPRECATION")
+        val count = JsonParser().parse(json).asJsonObject.size()
+        writeToUri(uri, json)
+        Toast.makeText(context, "$count API keys exported", Toast.LENGTH_SHORT).show()
     }
 
     val exportProvidersJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -204,43 +198,19 @@ fun ImportExportScreen(
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
                 try {
-                    // Parse as JsonObject so we can be robust about value types and detect the
-                    // common mistake of picking a full config JSON in the "API Keys" button.
-                    @Suppress("DEPRECATION")
-                    val root = JsonParser().parse(json)
-                    if (!root.isJsonObject) {
+                    val result = applyApiKeysJson(json, aiSettings)
+                    if (result == null) {
                         Toast.makeText(context, "Expected a JSON object like {\"OPENAI\": \"sk-...\"}", Toast.LENGTH_LONG).show()
                         return@rememberLauncherForActivityResult
                     }
-                    val obj: JsonObject = root.asJsonObject
-                    if (obj.has("version") && obj.has("providers")) {
-                        Toast.makeText(context, "This looks like a full config — use the Config import button instead.", Toast.LENGTH_LONG).show()
-                        return@rememberLauncherForActivityResult
-                    }
-                    var updated = aiSettings; var count = 0; var skipped = 0
-                    for (entry in obj.entrySet()) {
-                        val id = entry.key
-                        val valueEl = entry.value
-                        val prim = if (valueEl != null && valueEl.isJsonPrimitive) valueEl.asJsonPrimitive else null
-                        val key = if (prim != null && prim.isString) prim.asString else { skipped++; continue }
-                        if (key.isBlank()) { skipped++; continue }
-                        when (id) {
-                            // New canonical names.
-                            "EXT_HUGGINGFACE" -> { onSaveHuggingFaceApiKey(key); count++ }
-                            "EXT_OPENROUTER" -> { onSaveOpenRouterApiKey(key); count++ }
-                            "EXT_ARTIFICIALANALYSIS" -> { onSaveArtificialAnalysisApiKey(key); count++ }
-                            // Legacy aliases kept for backward-compatible imports of older keys.json files.
-                            "HUGGINGFACE" -> { onSaveHuggingFaceApiKey(key); count++ }
-                            "OPENROUTER_KEY" -> { onSaveOpenRouterApiKey(key); count++ }
-                            else -> {
-                                val service = AppService.findById(id)
-                                if (service != null) { updated = updated.withApiKey(service, key); count++ } else skipped++
-                            }
-                        }
-                    }
-                    onSave(updated)
-                    val msg = "$count API keys imported" + if (skipped > 0) ", $skipped skipped" else ""
+                    result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
+                    result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
+                    result.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
+                    onSave(result.settings)
+                    val msg = "${result.imported} API keys imported" + if (result.skipped > 0) ", ${result.skipped} skipped" else ""
                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                } catch (e: ConfigBundleMistakenForKeysException) {
+                    Toast.makeText(context, "This looks like a full config — use the Config import button instead.", Toast.LENGTH_LONG).show()
                 } catch (e: JsonSyntaxException) {
                     android.util.Log.e("ImportExport", "API keys import parse error", e)
                     Toast.makeText(context, "Not valid JSON", Toast.LENGTH_SHORT).show()

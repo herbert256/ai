@@ -862,12 +862,13 @@ fun HousekeepingScreenNav(
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToProviderAdmin: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     HousekeepingScreen(
         onBackToHome = onNavigateHome,
-        onClearConfiguration = {
-            viewModel.updateSettings(Settings())
-            viewModel.updateGeneralSettings(GeneralSettings())
-        },
+        onClearUsageStatistics = { viewModel.clearUsageStatistics() },
+        onClearRuntimeData = { viewModel.clearAllRuntimeData(context) },
+        onClearConfiguration = { viewModel.clearAllConfiguration(context) },
+        onResetApplication = { onComplete -> viewModel.resetApplication(context, onComplete) },
         onNavigateToImportExport = onNavigateToImportExport,
         onNavigateToRefresh = onNavigateToRefresh,
         onNavigateToProviderAdmin = onNavigateToProviderAdmin
