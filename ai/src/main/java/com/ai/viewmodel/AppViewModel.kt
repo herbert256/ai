@@ -365,14 +365,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return ConfigWipeResult(llms, embedders)
     }
 
-    /** Factory-style reset that preserves API keys. Runs the nine-step
-     *  cascade documented in the Reset application dialog: snapshot
-     *  the keys to a temp file in cacheDir, wipe usage stats / runtime
-     *  data / provider registry, reload providers.json + prompts.json
-     *  from assets, clear configuration (so Settings() is built against
-     *  the freshly loaded registry), then re-import the keys. The temp
-     *  file is deleted in finally so a mid-cascade crash can't strand
-     *  the keys on disk. */
+    /** Factory-style reset that preserves API keys. Runs the cascade
+     *  documented in the Reset application dialog: snapshot the keys
+     *  to a temp file in cacheDir, wipe usage stats / runtime data /
+     *  provider registry, reload providers.json + prompts.json from
+     *  assets, clear configuration (so Settings() is built against
+     *  the freshly loaded registry), re-import the keys, and finally
+     *  run the same Refresh-all chain the Refresh screen exposes so
+     *  the freshly-reset app starts with current catalogs, verified
+     *  provider keys, model lists, and default agents. The temp file
+     *  is deleted in finally so a mid-cascade crash can't strand the
+     *  keys on disk. */
     fun resetApplication(context: Context, onComplete: (success: Boolean, message: String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             val tempFile = java.io.File(context.cacheDir, "reset_keys_${System.currentTimeMillis()}.json")
@@ -421,6 +424,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // 9. Always delete the temp keys file
             runCatching { tempFile.delete() }
 
+            // 10. Refresh all — mirrors the Refresh screen's "Refresh all"
+            // chain so the freshly-reset app starts with up-to-date catalogs,
+            // verified provider keys, current model lists, and a default
+            // agents flock. Best-effort: a failure here doesn't roll back
+            // the reset, since the keys-restored state is already useful.
+            if (outcome.isSuccess) {
+                runCatching { performRefreshAllCascade(context) }
+            }
+
             withContext(Dispatchers.Main) {
                 outcome.fold(
                     onSuccess = { count ->
@@ -433,6 +445,96 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+    }
+
+    /** Headless equivalent of the Refresh screen's "Refresh all" chain.
+     *  Fetches every pricing/capability catalog, tests each provider's
+     *  API key, refreshes per-provider model lists, then rebuilds the
+     *  "default agents" flock. Each catalog fetch is wrapped so a single
+     *  network failure can't abort the whole cascade. Used by
+     *  [resetApplication] as the final step. */
+    private suspend fun performRefreshAllCascade(context: Context) {
+        val openRouterKey = _uiState.value.generalSettings.openRouterApiKey
+        val aaKey = _uiState.value.generalSettings.artificialAnalysisApiKey
+
+        if (openRouterKey.isNotBlank()) {
+            runCatching {
+                val pricing = PricingCache.fetchOpenRouterPricing(openRouterKey)
+                if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
+                PricingCache.fetchAndSaveModelSpecifications(context, openRouterKey)
+            }
+        }
+        runCatching {
+            val n = PricingCache.fetchLiteLLMPricingOnline(context)
+            if (n != null) updateSettings(_uiState.value.aiSettings.recomputeAllCapabilities())
+        }
+        runCatching {
+            val n = PricingCache.fetchModelsDevOnline(context)
+            if (n != null) updateSettings(_uiState.value.aiSettings.recomputeAllCapabilities())
+        }
+        runCatching { PricingCache.fetchHeliconeOnline(context) }
+        runCatching { PricingCache.fetchLLMPricesOnline(context) }
+        if (aaKey.isNotBlank()) {
+            runCatching { PricingCache.fetchArtificialAnalysisOnline(context, aaKey) }
+        }
+
+        val testSnap = _uiState.value.aiSettings
+        coroutineScope {
+            AppService.entries
+                .filter { service ->
+                    testSnap.getProviderState(service) != "inactive" &&
+                        testSnap.getApiKey(service).isNotBlank()
+                }
+                .map { service ->
+                    async(Dispatchers.IO) {
+                        val apiKey = _uiState.value.aiSettings.getApiKey(service)
+                        val model = _uiState.value.aiSettings.getModel(service)
+                        val error = try { testAiModel(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
+                        val newState = if (error == null) "ok" else "error"
+                        withContext(Dispatchers.Main) { updateProviderState(service, newState) }
+                    }
+                }
+                .awaitAll()
+        }
+
+        runCatching { refreshAllModelLists(_uiState.value.aiSettings, forceRefresh = true) }
+
+        val current = _uiState.value.aiSettings
+        val candidates = current.getActiveServices().map { s ->
+            Triple(s, current.getApiKey(s), current.getModel(s))
+        }
+        val results: List<Pair<AppService, Boolean>> = coroutineScope {
+            candidates.map { (service, key, model) ->
+                async(Dispatchers.IO) {
+                    val error = try { testAiModel(service, key, model) } catch (e: Exception) { e.message ?: "error" }
+                    service to (error == null)
+                }
+            }.awaitAll()
+        }
+        var updatedSettings = _uiState.value.aiSettings
+        for ((service, _, model) in candidates) {
+            val success = results.find { it.first == service }?.second == true
+            if (success) {
+                val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
+                if (existing == null) {
+                    val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
+                    updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
+                }
+            }
+        }
+        val defaultAgentIds = updatedSettings.agents
+            .filter { a -> results.any { it.first == a.provider && it.second } }
+            .map { it.id }
+        val existingFlock = updatedSettings.flocks.find { it.name == DEFAULT_AGENTS_FLOCK_NAME }
+        updatedSettings = if (existingFlock != null) {
+            updatedSettings.copy(flocks = updatedSettings.flocks.map {
+                if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it
+            })
+        } else {
+            val flock = Flock(java.util.UUID.randomUUID().toString(), DEFAULT_AGENTS_FLOCK_NAME, defaultAgentIds)
+            updatedSettings.copy(flocks = updatedSettings.flocks + flock)
+        }
+        updateSettings(updatedSettings)
     }
 
     // ===== Settings =====
