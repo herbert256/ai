@@ -57,10 +57,10 @@
   },
   {
     "name": "factcheck",
-    "type": "cross",
+    "type": "after_cross",
     "reference": false,
-    "category": "meta",
-    "agent": "*n/a",
-    "text": "Can you please check below text, do a factcheck for every fact in it. \n\n @RESPONSE@"
+    "category": "after_cross",
+    "agent": "*select",
+    "text": "Here are @COUNT@ reports, with for each report @CROSS_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
   }
 ]

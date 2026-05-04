@@ -93,6 +93,9 @@ fun ReportsScreenNav(
         onRunCrossMeta = { reportId, metaPrompt, scopeChoice ->
             reportViewModel.runCrossMetaPrompt(scope, context, reportId, metaPrompt, scopeChoice)
         },
+        onRunAfterCrossMeta = { reportId, metaPrompt, pick ->
+            reportViewModel.runAfterCrossMetaPrompt(scope, context, reportId, metaPrompt, pick)
+        },
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.runLocalRerank(scope, context, reportId, modelName)
         },
@@ -237,6 +240,7 @@ fun ReportsScreen(
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
     onRunCrossMeta: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope) -> Unit = { _, _, _ -> },
+    onRunAfterCrossMeta: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
@@ -400,6 +404,9 @@ fun ReportsScreen(
     // kicking off N answerers × S sources calls. The user can still
     // cancel from here if the count looks too high.
     var crossConfirmMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    // After_cross run model picker. Triggered from the cross detail
+    // screen's "Combine reports and all cross responses" button.
+    var afterCrossPickerPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
     // Unified Meta screen overlay reached from the Actions card.
     var showMetaScreen by remember { mutableStateOf(false) }
     // Per-name (or per-legacy-kind) list overlay reached from the View
@@ -719,6 +726,28 @@ fun ReportsScreen(
         return
     }
 
+    // After_cross model picker — shown when the user taps the
+    // "Combine reports and all cross responses" button on the cross
+    // detail screen. Single-pick; on confirm we kick the runner and
+    // pop back so the cross detail screen's inline preview can pick
+    // up the placeholder via the isBatching poll.
+    val afterCrossPicker = afterCrossPickerPrompt
+    if (afterCrossPicker != null && currentReportId != null) {
+        val rid = currentReportId
+        ReportSelectModelsScreen(
+            aiSettings = aiSettings,
+            titleText = "${afterCrossPicker.name} — pick model",
+            modelTypeFilter = null,
+            onConfirm = { pick ->
+                onRunAfterCrossMeta(rid, afterCrossPicker, pick)
+                afterCrossPickerPrompt = null
+            },
+            onBack = { afterCrossPickerPrompt = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     // Translate overlays. Order: language picker → model picker →
     // progress screen. The first two close the picker once a choice is
     // made; the progress screen sticks around until the run finishes
@@ -788,10 +817,16 @@ fun ReportsScreen(
     val openListKind = listKind
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
+        val afterCrossList = aiSettings.internalPrompts.filter { it.type == "after_cross" }
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
             nameFilter = listFilterByName,
+            isBatching = uiState.activeSecondaryBatches > 0,
+            afterCrossPrompts = afterCrossList,
+            onRunAfterCross = if (afterCrossList.isNotEmpty()) {
+                { afterCrossPickerPrompt = afterCrossList.first() }
+            } else null,
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBack = { listKind = null; listFilterByName = null },
             onNavigateHome = onNavigateHome,

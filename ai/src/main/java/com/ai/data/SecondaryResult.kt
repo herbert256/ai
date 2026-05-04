@@ -77,7 +77,13 @@ data class SecondaryResult(
      *  produced this content. Together they form the (answerer,
      *  source) pair the cross drill-in keys on. Null on every
      *  non-cross row. */
-    val crossSourceAgentId: String? = null
+    val crossSourceAgentId: String? = null,
+    /** For after_cross-type Meta runs: id of the [com.ai.model.InternalPrompt]
+     *  that produced this combined-report row. Lets the cross detail
+     *  screen distinguish the single combined output from the per-pair
+     *  factcheck rows even though both share `metaPromptName`. Null on
+     *  every non-after_cross row. */
+    val afterCrossOf: String? = null
 )
 
 /**
@@ -242,6 +248,48 @@ fun resolveSecondaryPrompt(
         .replace("@COUNT@", count.toString())
         .replace("@DATE@", now)
         .replace("@TITLE@", title ?: "")
+}
+
+/** Substitutes placeholders for an after_cross run.
+ *  Top-level placeholders (@QUESTION@, @TITLE@, @DATE@, @COUNT@,
+ *  @CROSS_COUNT@) are plain string replaces. The iterable block
+ *  `\n\n***Report*** @REPORT@@RESPONSES@` is found once in the template
+ *  and expanded N times — one per (reportBody, factchecks) entry —
+ *  with @RESPONSE@ inside @RESPONSES@ replaced by each factcheck
+ *  content. */
+fun resolveAfterCrossPrompt(
+    template: String,
+    question: String,
+    count: Int,
+    crossCount: Int,
+    perReport: List<Pair<String, List<String>>>,
+    title: String? = null
+): String {
+    val now = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
+    val withTopLevel = template
+        .replace("@QUESTION@", question)
+        .replace("@TITLE@", title ?: "")
+        .replace("@DATE@", now)
+        .replace("@COUNT@", count.toString())
+        .replace("@CROSS_COUNT@", crossCount.toString())
+    val iterable = "\n\n***Report*** @REPORT@@RESPONSES@"
+    val expansion = buildString {
+        perReport.forEach { (reportBody, factchecks) ->
+            append("\n\n***Report*** ").append(reportBody)
+            factchecks.forEach { fc -> append("\n\n***Response*** ").append(fc) }
+        }
+    }
+    val expanded = if (withTopLevel.contains(iterable)) {
+        withTopLevel.replaceFirst(iterable, expansion)
+    } else {
+        withTopLevel
+            .replace("@REPORT@", "")
+            .replace("@RESPONSES@", "")
+    }
+    return expanded
+        .replace("@REPORT@", "")
+        .replace("@RESPONSES@", "")
+        .replace("@RESPONSE@", "")
 }
 
 /** Build the @RESULTS@ block: per-agent text, prefixed only with the

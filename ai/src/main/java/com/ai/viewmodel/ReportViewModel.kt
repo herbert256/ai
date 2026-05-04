@@ -887,6 +887,90 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Combines a cross-type run's per-pair factchecks plus every
+     *  successful agent's response body into a single combined report
+     *  via a single chat call on [pick]. The template's iterable block
+     *  `\n\n***Report*** @REPORT@@RESPONSES@` is expanded once per
+     *  successful (source) agent, with its `@RESPONSES@` populated
+     *  from the latest cross-factcheck row of every other answerer.
+     *
+     *  Persists one [SecondaryResult] with kind=META and
+     *  afterCrossOf=metaPrompt.id, so the cross detail screen can show
+     *  it inline above the L1 list while the View bucket still buckets
+     *  by `metaPromptName`.
+     */
+    fun runAfterCrossMetaPrompt(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        pick: Pair<AppService, String>
+    ): Job? {
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        return scope.launch(Dispatchers.IO) {
+            val cat = "Report meta: ${metaPrompt.name}"
+            try {
+                withTracerTags(reportId = reportId, category = cat) {
+                    val state = appViewModel.uiState.value
+                    val aiSettings = state.aiSettings
+                    val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                    ReportStorage.bumpReportTimestamp(context, reportId)
+                    val successful = report.agents.filter {
+                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                    }
+                    val crossRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                        .filter { it.crossSourceAgentId != null }
+                    val byPair = LinkedHashMap<String, SecondaryResult>()
+                    crossRows.sortedBy { it.timestamp }.forEach { r ->
+                        val src = r.crossSourceAgentId ?: return@forEach
+                        byPair["${r.providerId}|${r.model}|$src"] = r
+                    }
+                    val perReport: List<Pair<String, List<String>>> = successful.map { source ->
+                        val factchecks = successful.mapNotNull other@{ other ->
+                            if (other.agentId == source.agentId) return@other null
+                            val row = byPair["${other.provider}|${other.model}|${source.agentId}"]
+                                ?: return@other null
+                            if (row.errorMessage != null) return@other null
+                            val c = row.content
+                            if (c.isNullOrBlank()) null else c.trim()
+                        }
+                        (source.responseBody?.trim().orEmpty()) to factchecks
+                    }
+                    if (perReport.all { it.second.isEmpty() }) {
+                        val (provider, model) = pick
+                        val agentName = "${provider.displayName} / $model"
+                        val placeholder = SecondaryResultStorage.create(
+                            context, reportId, SecondaryKind.META, provider.id, model, agentName
+                        ).copy(
+                            metaPromptId = metaPrompt.id,
+                            metaPromptName = metaPrompt.name,
+                            afterCrossOf = metaPrompt.id,
+                            errorMessage = "No cross factchecks available — run the cross-type factcheck prompt first."
+                        )
+                        SecondaryResultStorage.save(context, placeholder)
+                        return@withTracerTags
+                    }
+                    val resolved = resolveAfterCrossPrompt(
+                        template = metaPrompt.text,
+                        question = report.prompt,
+                        count = perReport.size,
+                        crossCount = (perReport.size - 1).coerceAtLeast(0),
+                        perReport = perReport,
+                        title = report.title
+                    )
+                    val (provider, model) = pick
+                    executeSecondaryTask(
+                        context, reportId, SecondaryKind.META, metaPrompt,
+                        provider, model, resolved, aiSettings, report,
+                        afterCrossOf = metaPrompt.id
+                    )
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+            }
+        }
+    }
+
     fun runMetaPrompt(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
@@ -1056,7 +1140,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         targetLanguage: String? = null,
         targetLanguageNative: String? = null,
         referenceLegend: String? = null,
-        crossSourceAgentId: String? = null
+        crossSourceAgentId: String? = null,
+        afterCrossOf: String? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
@@ -1067,7 +1152,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 targetLanguageNative = targetLanguageNative,
                 metaPromptId = metaPrompt.id,
                 metaPromptName = metaPrompt.name,
-                crossSourceAgentId = crossSourceAgentId
+                crossSourceAgentId = crossSourceAgentId,
+                afterCrossOf = afterCrossOf
             )
         SecondaryResultStorage.save(context, placeholder)
 

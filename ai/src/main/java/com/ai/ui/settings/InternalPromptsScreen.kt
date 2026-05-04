@@ -19,12 +19,12 @@ import com.ai.ui.shared.*
  *  default for new entries. `cross` runs across every pair of
  *  report-models — N×(N-1) calls — substituting `@RESPONSE@` in
  *  the prompt body with each source model's response. */
-private val INTERNAL_TYPES = listOf("chat", "rerank", "moderation", "cross")
+private val INTERNAL_TYPES = listOf("chat", "rerank", "moderation", "cross", "after_cross")
 
 /** Allowed categories. `meta` rows show as launchers on the Report
  *  Result screen; `internal` rows are templates consumed by app
  *  features (Translate / Model info / Intro). */
-private val INTERNAL_CATEGORIES = listOf("meta", "internal")
+private val INTERNAL_CATEGORIES = listOf("meta", "internal", "after_cross")
 
 /** Sentinel meaning the run-time picker should ask the user which
  *  model to fire on (the legacy behaviour). Stored verbatim in
@@ -160,6 +160,7 @@ fun InternalPromptEditScreen(
             Text(
                 when (category) {
                     "meta" -> "Surfaces as a launcher button on the Report Result screen's Meta card."
+                    "after_cross" -> "Combines per-report responses and their cross-type factchecks into a single combined report. Surfaces as a button on the cross-type result detail screen."
                     else -> "Internal template used by an app feature (e.g. Translate, Model info)."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary
@@ -180,6 +181,7 @@ fun InternalPromptEditScreen(
                     "rerank" -> "Routes to a rerank API model (currently Cohere). Template body is unused — rerank uses the report prompt as the query and the per-agent responses as documents."
                     "moderation" -> "Routes to a moderation API model (currently Mistral). Template body is unused — the moderation endpoint takes the per-agent responses as inputs."
                     "cross" -> "Runs across every pair of report-models. The template body supports @RESPONSE@ (replaced per-call with each source model's response) plus @QUESTION@, @TITLE@, @DATE@, @COUNT@. N×(N-1) calls."
+                    "after_cross" -> "Combines a cross-type run's per-pair factchecks into a single report. Runs once on a picked model. The template body supports @COUNT@ (N reports), @CROSS_COUNT@ (N-1 responses per report), @QUESTION@, @TITLE@, @DATE@, plus the iterable block `\\n\\n***Report*** @REPORT@@RESPONSES@` (repeated N times) where @RESPONSE@ inside @RESPONSES@ is each factcheck content."
                     else -> "Runs as a chat completion. Template body supports @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary
@@ -245,10 +247,10 @@ fun InternalPromptEditScreen(
 
             OutlinedTextField(
                 value = text, onValueChange = { text = it },
-                label = { Text("Template (chat: @QUESTION@ @RESULTS@ @COUNT@ @TITLE@ @DATE@; cross: @RESPONSE@ + same)") },
+                label = { Text("Template (chat: @QUESTION@ @RESULTS@ @COUNT@ @TITLE@ @DATE@; cross: @RESPONSE@ + same; after_cross: @COUNT@ @CROSS_COUNT@ + iterable ***Report*** @REPORT@@RESPONSES@ with @RESPONSE@ inside)") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 8, maxLines = 22,
-                enabled = type == "chat" || type == "cross",
+                enabled = type == "chat" || type == "cross" || type == "after_cross",
                 colors = AppColors.outlinedFieldColors()
             )
             Text("${text.length} characters", fontSize = 11.sp, color = AppColors.TextTertiary)

@@ -27,6 +27,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -43,6 +44,9 @@ internal fun SecondaryResultsScreen(
     reportId: String,
     kind: SecondaryKind,
     nameFilter: String? = null,
+    isBatching: Boolean = false,
+    afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
@@ -53,6 +57,12 @@ internal fun SecondaryResultsScreen(
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
     var openId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(isBatching) {
+        while (isBatching) {
+            delay(500)
+            refreshTick++
+        }
+    }
     val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, kind, nameFilter, refreshTick) {
         value = withContext(Dispatchers.IO) {
             val all = SecondaryResultStorage.listForReport(context, reportId, kind)
@@ -161,13 +171,23 @@ internal fun SecondaryResultsScreen(
             return@Column
         }
 
-        // Cross-type META: every row carries a crossSourceAgentId
+        // Cross-type META: every cross row carries a crossSourceAgentId
         // pointing at the source whose response was factchecked. The
-        // L1 → L2 → L3 drill-in below replaces the flat picker.
-        if (kind == SecondaryKind.META && filteredResults.any { it.crossSourceAgentId != null }) {
+        // L1 → L2 → L3 drill-in below replaces the flat picker. Rows
+        // tagged afterCrossOf are the after_cross combined output —
+        // they hand off to the inline preview inside CrossMetaDrillInView,
+        // not the drill-in itself. Routing branches on the cross rows
+        // alone so a lone combined row falls through to the chat-style
+        // picker below.
+        val crossRows = filteredResults.filter { it.afterCrossOf == null }
+        val combinedRows = filteredResults.filter { it.afterCrossOf != null }
+        if (kind == SecondaryKind.META && crossRows.any { it.crossSourceAgentId != null }) {
             CrossMetaDrillInView(
                 reportId = reportId,
-                results = filteredResults,
+                results = crossRows,
+                combinedRows = combinedRows,
+                afterCrossPrompts = afterCrossPrompts,
+                onRunAfterCross = onRunAfterCross,
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onNavigateToTraceFile = onNavigateToTraceFile
             )
@@ -344,6 +364,9 @@ private fun ColumnScope.MetaResultsPickerView(
 private fun ColumnScope.CrossMetaDrillInView(
     reportId: String,
     results: List<SecondaryResult>,
+    combinedRows: List<SecondaryResult> = emptyList(),
+    afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit
 ) {
@@ -514,6 +537,22 @@ private fun ColumnScope.CrossMetaDrillInView(
         // list stays full even when some pairs haven't run yet.
         successful.map { "${it.provider}|${it.model}" }.distinct()
     }
+    val latestCombined = remember(combinedRows) { combinedRows.maxByOrNull { it.timestamp } }
+    if (latestCombined != null) {
+        CombinedPreviewCard(latestCombined)
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
+        Button(
+            onClick = { onRunAfterCross() },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+        ) {
+            Text("Combine reports and all cross responses",
+                fontSize = 13.sp, maxLines = 1, softWrap = false)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+    }
     Text("Pick the answerer (the model that produced the factcheck).",
         fontSize = 11.sp, color = AppColors.TextTertiary)
     Spacer(modifier = Modifier.height(8.dp))
@@ -552,6 +591,37 @@ private fun ColumnScope.CrossMetaDrillInView(
     // onDelete is reserved for a future bulk-delete affordance on
     // the cross drill-in; not surfaced yet.
     @Suppress("UNUSED_EXPRESSION") onDelete
+}
+
+/** Inline preview of the latest after_cross combined-report row,
+ *  rendered above the L1 answerers list on the cross detail screen.
+ *  Shows the same provider/model header + body that
+ *  SecondaryResultDetailScreen does, just inline. Status placeholders
+ *  match the L3 split view styling. */
+@Composable
+private fun CombinedPreviewCard(r: SecondaryResult) {
+    val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
+    val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(r.timestamp))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text("Combined report", fontSize = 13.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold)
+            Text("$provider · ${r.model}", fontSize = 12.sp, color = AppColors.Blue,
+                fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(ts, fontSize = 11.sp, color = AppColors.TextTertiary)
+            Spacer(modifier = Modifier.height(6.dp))
+            when {
+                r.errorMessage != null -> Text("❌ ${r.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                r.content.isNullOrBlank() -> Text("⏳ Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                else -> Box(modifier = Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
+                    ContentWithThinkSections(analysis = r.content)
+                }
+            }
+        }
+    }
 }
 
 @Composable
