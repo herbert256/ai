@@ -304,9 +304,11 @@ private fun ColumnScope.SummariesComparesPickerView(
     }
 
     if (confirmDelete) {
+        val noun = (selected.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(selected.kind)).lowercase()
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this ${if (selected.kind == SecondaryKind.SUMMARIZE) "summary" else "compare"}?") },
+            title = { Text("Delete this $noun?") },
             text = { Text("$provider · ${selected.model}") },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete(selected.id) }) {
@@ -345,13 +347,8 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
     }
 
     if (confirmDelete) {
-        val noun = when (r.kind) {
-            SecondaryKind.RERANK -> "rerank"
-            SecondaryKind.SUMMARIZE -> "summary"
-            SecondaryKind.COMPARE -> "compare"
-            SecondaryKind.MODERATION -> "moderation"
-            SecondaryKind.TRANSLATE -> "translation"
-        }
+        val noun = (r.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(r.kind)).lowercase()
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this $noun?") },
@@ -379,13 +376,11 @@ internal fun SecondaryResultDetailScreen(
     val context = LocalContext.current
     val providerService = AppService.findById(result.providerId)
     val provider = providerService?.displayName ?: result.providerId
-    val title = when (result.kind) {
-        SecondaryKind.RERANK -> "Rerank"
-        SecondaryKind.SUMMARIZE -> "Summary"
-        SecondaryKind.COMPARE -> "Compare"
-        SecondaryKind.MODERATION -> "Moderation"
-        SecondaryKind.TRANSLATE -> "Translate"
-    }
+    // Prefer the user-given Meta-prompt name over the legacy kind label —
+    // every chat-type Meta runs under kind=SUMMARIZE, so the kind alone
+    // would surface "Summary" even when the user picked "Compare".
+    val title = result.metaPromptName?.takeIf { it.isNotBlank() }
+        ?: com.ai.data.legacyKindDisplayName(result.kind)
     var confirmDelete by remember { mutableStateOf(false) }
 
     // Find the trace file for this meta call: same report, same model,
