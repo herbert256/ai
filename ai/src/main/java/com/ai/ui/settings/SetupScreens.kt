@@ -27,11 +27,9 @@ fun SetupScreen(
     huggingFaceApiKey: String = "",
     openRouterApiKey: String = "",
     aaApiKey: String = "",
-    rerankPrompt: String = "",
-    summarizePrompt: String = "",
-    comparePrompt: String = "",
     introPrompt: String = "",
     modelInfoPrompt: String = "",
+    translatePrompt: String = "",
     onBackToSettings: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
@@ -82,13 +80,11 @@ fun SetupScreen(
             SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
             run {
-                val metaCount = (if (rerankPrompt.isNotBlank()) 1 else 0) +
-                    (if (summarizePrompt.isNotBlank()) 1 else 0) +
-                    (if (comparePrompt.isNotBlank()) 1 else 0) +
-                    (if (introPrompt.isNotBlank()) 1 else 0) +
-                    (if (modelInfoPrompt.isNotBlank()) 1 else 0)
-                val promptsCount = aiSettings.systemPrompts.size + metaCount
-                SetupNavCard("\uD83D\uDCDD", "Prompt management", "System prompts and Internal prompt templates", "$promptsCount",
+                val internalCustomised = (if (introPrompt.isNotBlank()) 1 else 0) +
+                    (if (modelInfoPrompt.isNotBlank()) 1 else 0) +
+                    (if (translatePrompt.isNotBlank()) 1 else 0)
+                val promptsCount = aiSettings.systemPrompts.size + aiSettings.metaPrompts.size + internalCustomised
+                SetupNavCard("\uD83D\uDCDD", "Prompt management", "System, Internal, and Report Meta prompts", "$promptsCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS_SETUP) })
             }
             SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
@@ -210,11 +206,9 @@ fun PromptsSetupScreen(
 ) {
     BackHandler { onBack() }
     val internalPromptsCount = remember(generalSettings) {
-        (if (generalSettings.rerankPrompt.isNotBlank()) 1 else 0) +
-            (if (generalSettings.summarizePrompt.isNotBlank()) 1 else 0) +
-            (if (generalSettings.comparePrompt.isNotBlank()) 1 else 0) +
-            (if (generalSettings.introPrompt.isNotBlank()) 1 else 0) +
-            (if (generalSettings.modelInfoPrompt.isNotBlank()) 1 else 0)
+        (if (generalSettings.introPrompt.isNotBlank()) 1 else 0) +
+            (if (generalSettings.modelInfoPrompt.isNotBlank()) 1 else 0) +
+            (if (generalSettings.translatePrompt.isNotBlank()) 1 else 0)
     }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -225,7 +219,9 @@ fun PromptsSetupScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            ModelsSetupNavCard("🔄", "Internal Prompts", "Rerank, Summarize, Compare, Intro, Model info", "$internalPromptsCount",
+            ModelsSetupNavCard("🧩", "Report Meta Prompts", "Rerank, Summarize, Compare, Moderation and custom Meta prompts", "${aiSettings.metaPrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_META_PROMPTS) })
+            ModelsSetupNavCard("🔄", "Internal Prompts", "Intro, Model info, Translate", "$internalPromptsCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_SECONDARY_PROMPTS) })
         }
     }

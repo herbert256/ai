@@ -90,12 +90,11 @@ data class ConfigExport(
     val providerStates: Map<String, String>? = null,
     val modelTypeOverrides: List<ModelTypeOverride>? = null,
     val defaultTypePaths: Map<String, String>? = null,
-    /** Custom rerank / summarize / compare prompt overrides. Null when the
-     *  user hasn't customised them (the runtime falls back to the hardcoded
-     *  default in SecondaryPrompts). */
-    val rerankPrompt: String? = null,
-    val summarizePrompt: String? = null,
-    val comparePrompt: String? = null,
+    /** User-managed Meta prompts (Rerank / Summarize / Compare /
+     *  Moderation and any custom variants). Null when the user has
+     *  none, in which case the importer leaves the existing list
+     *  untouched. */
+    val metaPrompts: List<MetaPromptExport>? = null,
     /** Self-introduction template (was an Internal Prompt named "intro";
      *  Internal Prompts have been removed). Null when unset. */
     val introPrompt: String? = null,
@@ -106,6 +105,14 @@ data class ConfigExport(
      *  Report result screen. Null when unset (runtime falls back to
      *  SecondaryPrompts.DEFAULT_TRANSLATE). */
     val translatePrompt: String? = null
+)
+
+data class MetaPromptExport(
+    val id: String,
+    val name: String,
+    val type: String,
+    val reference: Boolean = false,
+    val text: String = ""
 )
 
 data class ApiKeyEntry(val service: String, val apiKey: String)
@@ -124,9 +131,6 @@ data class ConfigImportResult(
     val openRouterApiKey: String? = null,
     val artificialAnalysisApiKey: String? = null,
     val defaultTypePaths: Map<String, String>? = null,
-    val rerankPrompt: String? = null,
-    val summarizePrompt: String? = null,
-    val comparePrompt: String? = null,
     val introPrompt: String? = null,
     val modelInfoPrompt: String? = null,
     /** Translation template — used by the Report result screen's

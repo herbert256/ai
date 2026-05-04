@@ -20,11 +20,13 @@ import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.GeneralSettings
 
 /**
- * Editor for the five meta prompt templates: Rerank / Summarize /
- * Compare / Intro / Model info. Each prompt gets its own collapsible
- * card — closed by default so the screen opens compact and the user
- * taps a card header to expand and edit one. Empty body falls back to
- * the matching SecondaryPrompts default.
+ * Editor for the three remaining built-in prompt templates: Intro
+ * (per-model self-intro on the Comprehensive PDF), Model info (the
+ * Model Info screen), and Translate (Translate button on the Report
+ * Result screen). Each card is collapsible — closed by default so the
+ * screen opens compact. Empty body falls back to the matching
+ * SecondaryPrompts default. The Rerank / Summarize / Compare /
+ * Moderation templates moved to the Report Meta Prompts CRUD.
  */
 @Composable
 fun SecondaryPromptsScreen(
@@ -34,16 +36,12 @@ fun SecondaryPromptsScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    var rerank by remember { mutableStateOf(generalSettings.rerankPrompt) }
-    var summarize by remember { mutableStateOf(generalSettings.summarizePrompt) }
-    var compare by remember { mutableStateOf(generalSettings.comparePrompt) }
     var intro by remember { mutableStateOf(generalSettings.introPrompt) }
     var modelInfo by remember { mutableStateOf(generalSettings.modelInfoPrompt) }
     var translate by remember { mutableStateOf(generalSettings.translatePrompt) }
 
-    LaunchedEffect(rerank, summarize, compare, intro, modelInfo, translate) {
+    LaunchedEffect(intro, modelInfo, translate) {
         val updated = generalSettings.copy(
-            rerankPrompt = rerank, summarizePrompt = summarize, comparePrompt = compare,
             introPrompt = intro, modelInfoPrompt = modelInfo, translatePrompt = translate
         )
         if (updated != generalSettings) onSave(updated)
@@ -57,43 +55,10 @@ fun SecondaryPromptsScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "Templates used by Rerank / Summarize / Compare on the Report screen, the per-model self-intro on the Comprehensive PDF export, and the model-info request on the Model Info screen. Leave a card empty to use the built-in default.",
+                "Templates used by the per-model self-intro on the Comprehensive PDF export, the Model Info screen, and the Translate button on the Report Result screen. Leave a card empty to use the built-in default. Rerank / Summarize / Compare / Moderation now live under Report Meta Prompts.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
 
-            PromptCard(
-                title = "Rerank prompt",
-                summary = "Variables: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@",
-                value = rerank,
-                placeholder = SecondaryPrompts.DEFAULT_RERANK,
-                expanded = expanded == "rerank",
-                onToggle = { expanded = if (expanded == "rerank") null else "rerank" },
-                onValueChange = { rerank = it },
-                onResetToDefault = { rerank = SecondaryPrompts.DEFAULT_RERANK },
-                onClear = { rerank = "" }
-            )
-            PromptCard(
-                title = "Summarize prompt",
-                summary = "Variables: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@",
-                value = summarize,
-                placeholder = SecondaryPrompts.DEFAULT_SUMMARIZE,
-                expanded = expanded == "summarize",
-                onToggle = { expanded = if (expanded == "summarize") null else "summarize" },
-                onValueChange = { summarize = it },
-                onResetToDefault = { summarize = SecondaryPrompts.DEFAULT_SUMMARIZE },
-                onClear = { summarize = "" }
-            )
-            PromptCard(
-                title = "Compare prompt",
-                summary = "Variables: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@",
-                value = compare,
-                placeholder = SecondaryPrompts.DEFAULT_COMPARE,
-                expanded = expanded == "compare",
-                onToggle = { expanded = if (expanded == "compare") null else "compare" },
-                onValueChange = { compare = it },
-                onResetToDefault = { compare = SecondaryPrompts.DEFAULT_COMPARE },
-                onClear = { compare = "" }
-            )
             PromptCard(
                 title = "Intro prompt",
                 summary = "Per-model self-intro on PDF export. Variables: @MODEL@, @PROVIDER@, @AGENT@, @NOW@",

@@ -18,10 +18,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.ReportAgent
-import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryLanguageScope
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryScope
+import com.ai.model.MetaPrompt
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import java.text.SimpleDateFormat
@@ -29,14 +29,15 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Inserted between the Summarize / Compare button and the model picker.
- * Always shown for these kinds — the user picks the input set (all
- * model reports / top-N from a rerank / a manual subset) and, when the
- * report has translation rows, which target languages to include.
+ * Inserted between a Meta-prompt button (or Summarize / Compare button
+ * — same flow either way) and the model picker. The user picks the
+ * input set (all model reports / top-N from a rerank / a manual
+ * subset) and, when the report has translation rows AND the prompt's
+ * type is `chat`, which target languages to include.
  */
 @Composable
 internal fun SecondaryScopeScreen(
-    kind: SecondaryKind,
+    metaPrompt: MetaPrompt,
     agents: List<ReportAgent>,
     reranks: List<SecondaryResult>,
     languages: List<Pair<String, String?>>, // (English, native) pairs; empty when no translations
@@ -46,13 +47,8 @@ internal fun SecondaryScopeScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    val kindLabel = when (kind) {
-        SecondaryKind.SUMMARIZE -> "Summarize"
-        SecondaryKind.COMPARE -> "Compare"
-        SecondaryKind.RERANK -> "Rerank"
-        SecondaryKind.MODERATION -> "Moderation"
-        SecondaryKind.TRANSLATE -> "Translate"
-    }
+    val kindLabel = metaPrompt.name
+    val isChatType = metaPrompt.type == "chat"
     var scopeMode by remember { mutableStateOf(ScopeMode.ALL) }
     var countText by remember {
         mutableStateOf(minOf(3, totalReports.coerceAtLeast(1)).toString())
@@ -87,7 +83,7 @@ internal fun SecondaryScopeScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             Text(
-                "Choose which model results $kindLabel.lowercase() should look at.",
+                "Choose which model results to feed into ${kindLabel}.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -99,7 +95,9 @@ internal fun SecondaryScopeScreen(
                 onSelect = { scopeMode = ScopeMode.ALL }
             )
             Spacer(modifier = Modifier.height(8.dp))
-            if (reranks.isNotEmpty()) {
+            // Top-Ranked scope only makes sense for chat-type prompts —
+            // rerank/moderation runs always operate on the full set.
+            if (isChatType && reranks.isNotEmpty()) {
                 ScopeOption(
                     selected = scopeMode == ScopeMode.TOP_RANKED,
                     label = "Only top ranked reports",
@@ -202,7 +200,9 @@ internal fun SecondaryScopeScreen(
                 }
             }
 
-            if (languages.isNotEmpty()) {
+            // Translation language fan-out only applies to chat-type
+            // prompts. Rerank / moderation runs always use the original.
+            if (isChatType && languages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Text("Languages", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))

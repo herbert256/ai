@@ -488,30 +488,45 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         val all = SecondaryResultStorage.listForReport(context, reportId)
         if (all.isEmpty()) return
-        val byKind = all.groupBy { it.kind }
 
-        suspend fun rerunMetaKind(kind: SecondaryKind) {
-            val metas = byKind[kind].orEmpty()
-            if (metas.isEmpty()) return
-            val picks = metas
+        // Group non-translate rows by their Meta prompt id so we can
+        // re-run each one. Legacy rows (no metaPromptId) are skipped:
+        // we don't have enough info to regenerate them under the new
+        // CRUD-driven flow, so leaving them in place preserves their
+        // history. Rerun order: rerank-typed first (chat-type may
+        // consume their output as Top-Ranked scope, although this
+        // cascade always uses AllReports — order is still cheaper for
+        // when re-runs interact through report-state).
+        val nonTranslate = all.filter { it.kind != SecondaryKind.TRANSLATE }
+        val groups = nonTranslate
+            .filter { !it.metaPromptId.isNullOrBlank() }
+            .groupBy { it.metaPromptId!! }
+        val metaPromptsLookup = appViewModel.uiState.value.aiSettings.metaPrompts.associateBy { it.id }
+        val ordered = groups.entries.sortedBy { (id, _) ->
+            when (metaPromptsLookup[id]?.type) {
+                "rerank" -> 0
+                "moderation" -> 1
+                else -> 2
+            }
+        }
+        for ((metaPromptId, rows) in ordered) {
+            val mp = metaPromptsLookup[metaPromptId] ?: continue
+            val picks = rows
                 .mapNotNull { meta ->
                     val provider = AppService.findById(meta.providerId) ?: return@mapNotNull null
                     provider to meta.model
                 }
                 .distinct()
-            if (picks.isEmpty()) return
-            for (m in metas) SecondaryResultStorage.delete(context, reportId, m.id)
+            if (picks.isEmpty()) continue
+            for (m in rows) SecondaryResultStorage.delete(context, reportId, m.id)
             // Original scope (AllReports vs TopRanked) isn't persisted on
             // the row, so we default to AllReports — the safe answer
             // when the rerank we'd reference might itself be in the
             // process of being re-run.
-            runSecondary(scope, context, reportId, kind, picks, SecondaryScope.AllReports)?.join()
+            runMetaPrompt(scope, context, reportId, mp, picks, SecondaryScope.AllReports)?.join()
         }
 
-        rerunMetaKind(SecondaryKind.RERANK)
-        rerunMetaKind(SecondaryKind.SUMMARIZE)
-        rerunMetaKind(SecondaryKind.COMPARE)
-        rerunMetaKind(SecondaryKind.MODERATION)
+        val byKind = all.groupBy { it.kind }
 
         val translates = byKind[SecondaryKind.TRANSLATE].orEmpty()
         if (translates.isNotEmpty()) {
@@ -693,32 +708,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // category) — no manual clear here.
     }
 
-    // ===== Secondary results: rerank + summarize =====
+    // ===== Meta prompt results =====
 
-    /** Resolve the prompt template for [kind]: prefer a user-supplied
-     *  Internal Prompt named "rerank", "summarize", or "compare", fall back
-     *  to the GeneralSettings dedicated field, finally fall back to the
-     *  hardcoded default in [SecondaryPrompts]. Moderation doesn't use a
-     *  chat prompt — it goes through the dedicated /v1/moderations
-     *  endpoint — so this returns "" for MODERATION; callers must check
-     *  the kind before using the result. */
-    private fun resolveTemplate(aiSettings: Settings, generalSettings: GeneralSettings, kind: SecondaryKind): String {
-        if (kind == SecondaryKind.MODERATION) return ""
-        val fromGs = when (kind) {
-            SecondaryKind.RERANK -> generalSettings.rerankPrompt
-            SecondaryKind.SUMMARIZE -> generalSettings.summarizePrompt
-            SecondaryKind.COMPARE -> generalSettings.comparePrompt
-            SecondaryKind.MODERATION -> "" // unreachable
-            SecondaryKind.TRANSLATE -> "" // unreachable — translation runs through its own startTranslation flow
-        }
-        if (fromGs.isNotBlank()) return fromGs
-        return when (kind) {
-            SecondaryKind.RERANK -> SecondaryPrompts.DEFAULT_RERANK
-            SecondaryKind.SUMMARIZE -> SecondaryPrompts.DEFAULT_SUMMARIZE
-            SecondaryKind.COMPARE -> SecondaryPrompts.DEFAULT_COMPARE
-            SecondaryKind.MODERATION -> "" // unreachable
-            SecondaryKind.TRANSLATE -> "" // unreachable
-        }
+    /** Map a [com.ai.model.MetaPrompt.type] to the legacy [SecondaryKind]
+     *  used by storage / counts. The kind is only a routing label here —
+     *  the user-given Meta prompt name (persisted on the result) is what
+     *  the View card buckets on. */
+    private fun metaTypeToKind(type: String): SecondaryKind = when (type) {
+        "rerank" -> SecondaryKind.RERANK
+        "moderation" -> SecondaryKind.MODERATION
+        else -> SecondaryKind.SUMMARIZE  // every chat-type Meta lives under SUMMARIZE
     }
 
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
@@ -800,46 +799,38 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    fun runSecondary(
+    fun runMetaPrompt(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
-        kind: SecondaryKind,
+        metaPrompt: com.ai.model.MetaPrompt,
         picks: List<Pair<AppService, String>>,
         scopeChoice: SecondaryScope = SecondaryScope.AllReports,
         languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
     ): Job? {
         if (picks.isEmpty()) return null
+        val kind = metaTypeToKind(metaPrompt.type)
+        val isChatType = metaPrompt.type == "chat"
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
         return scope.launch(Dispatchers.IO) {
             // Tag every API call this batch makes with the parent
-            // report's id and a kind-specific category. Without the
+            // report's id and a Meta-prompt-name category. Without the
             // reportId tag the resulting trace files would land with
             // reportId=null and the report's JSON export wouldn't
-            // pull them in (same goes for a translated report's
-            // source/ bucket — meta runs on the source report would
-            // be invisible). withTracerTags saves and restores both
+            // pull them in. withTracerTags saves and restores both
             // values so this works correctly when nested.
-            val cat = when (kind) {
-                SecondaryKind.RERANK -> "Report rerank"
-                SecondaryKind.SUMMARIZE -> "Report summarize"
-                SecondaryKind.COMPARE -> "Report compare"
-                SecondaryKind.MODERATION -> "Report moderation"
-                SecondaryKind.TRANSLATE -> "Report translate"
-            }
+            val cat = "Report meta: ${metaPrompt.name}"
             try {
               withTracerTags(reportId = reportId, category = cat) {
                 val state = appViewModel.uiState.value
                 val aiSettings = state.aiSettings
-                val generalSettings = state.generalSettings
                 val report = ReportStorage.getReport(context, reportId) ?: return@launch
                 val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
                 // Bump the parent report's timestamp so it sorts to the top
                 // of the History list — adding a meta result is a real
                 // update to the report, not a passive read.
                 ReportStorage.bumpReportTimestamp(context, reportId)
-                val template = resolveTemplate(aiSettings, generalSettings, kind)
                 // Resolve scope: AllReports → no filter; TopRanked → parse
                 // the chosen rerank, take the top-N original ids. If parsing
                 // fails (legacy / malformed rerank output) fall back to
@@ -865,14 +856,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val successfulCount = if (includeIds != null) includeIds.size
                     else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
 
-                // Multi-language fan-out for SUMMARIZE / COMPARE: one
-                // batch per language present on the report. RERANK and
-                // MODERATION always run on the original — their content
-                // is structured JSON / per-response classifications and
-                // doesn't translate. The Original language is encoded
+                // Multi-language fan-out for chat-type Meta prompts:
+                // one batch per language present on the report. Rerank
+                // and moderation always run on the original — their
+                // content is structured JSON / per-response classifications
+                // and doesn't translate. The Original language is encoded
                 // as null and the SecondaryResult.targetLanguage stays
                 // null for it; translations get the human English name.
-                val translationLanguages = if (kind == SecondaryKind.SUMMARIZE || kind == SecondaryKind.COMPARE) {
+                val translationLanguages = if (isChatType) {
                     val nativeByLang = LinkedHashMap<String, String?>()
                     allSecondaries
                         .filter { it.kind == SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
@@ -880,8 +871,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val l = tr.targetLanguage!!
                             if (l !in nativeByLang) nativeByLang[l] = tr.targetLanguageNative
                         }
-                    // Apply the user's language filter, if any. Selected is
-                    // a positive list, AllPresent keeps every language.
                     when (languageScope) {
                         SecondaryLanguageScope.AllPresent -> nativeByLang
                         is SecondaryLanguageScope.Selected -> {
@@ -899,21 +888,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // not capped against each other (intentional; that's the
                 // whole point of allowing concurrent runs).
                 val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
-                // Reference legend for COMPARE — same for every (lang, pick)
-                // tuple in the batch, so compute once. Null for the other
-                // kinds; the executor only appends when this is set.
-                val compareLegend = if (kind == SecondaryKind.COMPARE) buildCompareLegend(report, includeIds) else null
+                // Reference legend — only built when the prompt is
+                // chat-type AND its reference flag is on. Computed once
+                // per batch.
+                val referenceLegend = if (isChatType && metaPrompt.reference)
+                    buildReferenceLegend(report, includeIds) else null
                 coroutineScope {
                     languages.flatMap { (lang, langNative) ->
                         val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
                         val resolvedPrompt = resolveSecondaryPrompt(
-                            template, question = translatedPrompt, results = resultsBlock,
+                            metaPrompt.text, question = translatedPrompt, results = resultsBlock,
                             count = successfulCount, title = report.title
                         )
                         picks.map { (provider, model) ->
                             async {
                                 sem.withPermit {
-                                    executeSecondaryTask(context, reportId, kind, provider, model, resolvedPrompt, aiSettings, report, lang, langNative, compareLegend)
+                                    executeSecondaryTask(
+                                        context, reportId, kind, metaPrompt,
+                                        provider, model, resolvedPrompt, aiSettings, report,
+                                        lang, langNative, referenceLegend
+                                    )
                                 }
                             }
                         }
@@ -968,17 +962,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private suspend fun executeSecondaryTask(
         context: Context, reportId: String, kind: SecondaryKind,
+        metaPrompt: com.ai.model.MetaPrompt,
         provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings,
         report: Report,
         targetLanguage: String? = null,
         targetLanguageNative: String? = null,
-        compareLegend: String? = null
+        referenceLegend: String? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
         val agentName = "${provider.displayName} / $model$langSuffix"
         val placeholder = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
-            .copy(targetLanguage = targetLanguage, targetLanguageNative = targetLanguageNative)
+            .copy(
+                targetLanguage = targetLanguage,
+                targetLanguageNative = targetLanguageNative,
+                metaPromptId = metaPrompt.id,
+                metaPromptName = metaPrompt.name
+            )
         SecondaryResultStorage.save(context, placeholder)
 
         // Moderation runs through the dedicated /v1/moderations
@@ -1077,14 +1077,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val inCost = tu?.let { it.inputTokens * pricing.promptPrice }
         val outCost = tu?.let { it.outputTokens * pricing.completionPrice }
 
-        // For COMPARE, append the deterministic reference legend so each
-        // [N] in the model's prose has a "[N] = Provider / Model" entry
-        // at the bottom regardless of whether the model bothered to
-        // include one. Only when the call actually produced content —
-        // an error response is left untouched so the failure is visible.
-        val finalContent = if (kind == SecondaryKind.COMPARE && response.error == null
-                && !response.analysis.isNullOrBlank() && !compareLegend.isNullOrBlank()) {
-            "${response.analysis.trimEnd()}\n\n---\n\n## References\n\n$compareLegend\n"
+        // For chat-type Meta prompts with reference=true, append the
+        // deterministic legend so each [N] in the model's prose has a
+        // "[N] = Provider / Model" entry at the bottom regardless of
+        // whether the model bothered to include one. Only when the
+        // call actually produced content — an error response is left
+        // untouched so the failure is visible.
+        val finalContent = if (response.error == null
+                && !response.analysis.isNullOrBlank() && !referenceLegend.isNullOrBlank()) {
+            "${response.analysis.trimEnd()}\n\n---\n\n## References\n\n$referenceLegend\n"
         } else response.analysis
         SecondaryResultStorage.save(context, placeholder.copy(
             content = finalContent,

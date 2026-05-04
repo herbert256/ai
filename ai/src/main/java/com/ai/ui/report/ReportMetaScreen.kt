@@ -38,24 +38,21 @@ import java.util.Locale
 
 /**
  * Unified Meta screen reached from the Actions card. Lists every
- * Rerank/Summarize/Compare entry the report has — combined, no per-kind
- * tabs — newest first. Tapping a row opens [SecondaryResultDetailScreen].
+ * Meta-prompt result on the report (every kind except TRANSLATE),
+ * newest first. Tapping a row opens [SecondaryResultDetailScreen].
  *
- * The bottom "Add" card carries the three launchers that used to live on
- * the Report result screen's Actions card. They stay enabled even while
- * a batch is in flight, and a fresh click does NOT cancel any batches
- * already running — every launch gets its own coroutine, so multiple
- * Rerank/Summarize/Compare batches can be in flight at once. The running
- * rows show a spinning hourglass until each result lands.
+ * The bottom "Add" card lists every user-managed Meta prompt — one
+ * row per entry from [Settings.metaPrompts]. Tapping a row launches
+ * the matching scope/picker flow. Every launch gets its own
+ * coroutine, so multiple Meta batches can be in flight at once; the
+ * running rows show a spinning hourglass until each result lands.
  */
 @Composable
 internal fun ReportMetaScreen(
     reportId: String,
     isRunning: Boolean,
-    onRerank: () -> Unit,
-    onSummarize: () -> Unit,
-    onCompare: () -> Unit,
-    onModerate: () -> Unit,
+    metaPrompts: List<com.ai.model.MetaPrompt>,
+    onLaunchMetaPrompt: (com.ai.model.MetaPrompt) -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
@@ -143,31 +140,26 @@ internal fun ReportMetaScreen(
             Column(modifier = Modifier.padding(12.dp)) {
                 Text("Add", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button(
-                        onClick = onRerank,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
-                    ) { Text("Rerank", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                    Button(
-                        onClick = onSummarize,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
-                    ) { Text("Summarize", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                    Button(
-                        onClick = onCompare,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
-                    ) { Text("Compare", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                    Button(
-                        onClick = onModerate,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
-                    ) { Text("Moderation", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                if (metaPrompts.isEmpty()) {
+                    Text(
+                        "No Meta prompts configured. Add one under AI Setup → Prompt management → Report Meta Prompts.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                } else {
+                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                    androidx.compose.foundation.layout.FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
+                            Button(
+                                onClick = { onLaunchMetaPrompt(mp) },
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) { Text(mp.name, fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                        }
+                    }
                 }
             }
         }
@@ -178,13 +170,8 @@ internal fun ReportMetaScreen(
 private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {
     val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
     val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(r.timestamp))
-    val kindLabel = when (r.kind) {
-        SecondaryKind.RERANK -> "Rerank"
-        SecondaryKind.SUMMARIZE -> "Summary"
-        SecondaryKind.COMPARE -> "Compare"
-        SecondaryKind.MODERATION -> "Moderation"
-        SecondaryKind.TRANSLATE -> "Translate"
-    }
+    val kindLabel = r.metaPromptName?.takeIf { it.isNotBlank() }
+        ?: com.ai.data.legacyKindDisplayName(r.kind)
     var confirmDelete by remember { mutableStateOf(false) }
 
     Row(
@@ -230,13 +217,8 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
     }
 
     if (confirmDelete) {
-        val noun = when (r.kind) {
-            SecondaryKind.RERANK -> "rerank"
-            SecondaryKind.SUMMARIZE -> "summary"
-            SecondaryKind.COMPARE -> "compare"
-            SecondaryKind.MODERATION -> "moderation"
-            SecondaryKind.TRANSLATE -> "translate"
-        }
+        val noun = (r.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(r.kind)).lowercase()
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this $noun?") },

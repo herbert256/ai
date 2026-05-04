@@ -27,6 +27,7 @@ enum class SettingsSubScreen {
     AI_SWARMS, AI_SWARM_EDIT,
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
+    AI_META_PROMPTS, AI_META_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
     AI_PROMPTS_SETUP,
     AI_SECONDARY_PROMPTS,
@@ -70,6 +71,7 @@ fun SettingsScreen(
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
     var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
+    var editingMetaPromptId by remember { mutableStateOf<String?>(null) }
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
     var modelEditFromProvider by remember { mutableStateOf(false) }
@@ -101,6 +103,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
+            SettingsSubScreen.AI_META_PROMPTS,
             SettingsSubScreen.AI_SECONDARY_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
@@ -116,6 +119,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SWARM_EDIT -> { editingSwarmId = null; currentSubScreen = SettingsSubScreen.AI_SWARMS }
             SettingsSubScreen.AI_PARAMETERS_EDIT -> { editingParametersId = null; currentSubScreen = SettingsSubScreen.AI_PARAMETERS }
             SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT -> { editingSystemPromptId = null; currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS }
+            SettingsSubScreen.AI_META_PROMPT_EDIT -> { editingMetaPromptId = null; currentSubScreen = SettingsSubScreen.AI_META_PROMPTS }
         }
     }
 
@@ -133,11 +137,9 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
                 aaApiKey = generalSettings.artificialAnalysisApiKey,
-                rerankPrompt = generalSettings.rerankPrompt,
-                summarizePrompt = generalSettings.summarizePrompt,
-                comparePrompt = generalSettings.comparePrompt,
                 introPrompt = generalSettings.introPrompt,
                 modelInfoPrompt = generalSettings.modelInfoPrompt,
+                translatePrompt = generalSettings.translatePrompt,
                 onBackToSettings = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }, onSave = onSaveAi,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
@@ -365,6 +367,26 @@ fun SettingsScreen(
                 onSave = { saved ->
                     val updated = if (sp != null) aiSettings.copy(systemPrompts = aiSettings.systemPrompts.map { if (it.id == sp.id) saved else it })
                     else aiSettings.copy(systemPrompts = aiSettings.systemPrompts + saved)
+                    onSaveAi(updated); goBack()
+                },
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_META_PROMPTS -> {
+            MetaPromptsListScreen(
+                aiSettings = aiSettings, onBackToPromptsSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
+                onAddMetaPrompt = { editingMetaPromptId = null; currentSubScreen = SettingsSubScreen.AI_META_PROMPT_EDIT },
+                onEditMetaPrompt = { editingMetaPromptId = it; currentSubScreen = SettingsSubScreen.AI_META_PROMPT_EDIT }
+            )
+        }
+        SettingsSubScreen.AI_META_PROMPT_EDIT -> {
+            val mp = editingMetaPromptId?.let { aiSettings.getMetaPromptById(it) }
+            MetaPromptEditScreen(
+                metaPrompt = mp,
+                existingNames = aiSettings.metaPrompts.filter { it.id != (mp?.id ?: "") }.map { it.name.lowercase() }.toSet(),
+                onSave = { saved ->
+                    val updated = if (mp != null) aiSettings.copy(metaPrompts = aiSettings.metaPrompts.map { if (it.id == mp.id) saved else it })
+                    else aiSettings.copy(metaPrompts = aiSettings.metaPrompts + saved)
                     onSaveAi(updated); goBack()
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome

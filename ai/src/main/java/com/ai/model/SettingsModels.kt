@@ -144,6 +144,25 @@ data class Parameters(
 data class SystemPrompt(val id: String, val name: String, val prompt: String)
 
 /**
+ * User-managed Meta prompt (Rerank / Summarize / Compare / Moderation
+ * and any custom variant). [type] selects the executor — "rerank"
+ * routes to a rerank-API model, "moderation" to a moderation-API
+ * model, "chat" to a regular chat completion. [reference] applies
+ * only to type=chat: when true, the executor appends a `[N] =
+ * Provider / Model` legend to the response. [text] is the chat
+ * template body (substituted with @QUESTION@ / @RESULTS@ / @COUNT@ /
+ * @TITLE@ / @DATE@); ignored for type=moderation since the moderation
+ * API takes the raw inputs and has no template.
+ */
+data class MetaPrompt(
+    val id: String,
+    val name: String,
+    val type: String,
+    val reference: Boolean = false,
+    val text: String = ""
+)
+
+/**
  * Manual user-supplied type assignment for a single (provider, model) pair. Wins
  * over the type stored on ProviderConfig.modelTypes (which comes from native
  * list-API metadata or the heuristic). Lives at the Settings root rather than
@@ -173,6 +192,7 @@ data class Settings(
     val swarms: List<Swarm> = emptyList(),
     val parameters: List<Parameters> = emptyList(),
     val systemPrompts: List<SystemPrompt> = emptyList(),
+    val metaPrompts: List<MetaPrompt> = emptyList(),
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
     val providerStates: Map<String, String> = emptyMap(),
     val modelTypeOverrides: List<ModelTypeOverride> = emptyList()
@@ -476,6 +496,7 @@ data class Settings(
     fun getMembersForSwarms(swarmIds: Set<String>) = swarmIds.flatMap { id -> getSwarmById(id)?.members ?: emptyList() }.distinctBy { "${it.provider.id}:${it.model}" }
 
     fun getSystemPromptById(id: String) = systemPrompts.find { it.id == id }
+    fun getMetaPromptById(id: String) = metaPrompts.find { it.id == id }
     fun getParametersById(id: String) = parameters.find { it.id == id }
     fun getParametersByName(name: String) = parameters.find { it.name.equals(name, ignoreCase = true) }
 
@@ -515,6 +536,10 @@ data class Settings(
         agents = agents.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
         flocks = flocks.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
         swarms = swarms.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it }
+    )
+
+    fun removeMetaPrompt(metaPromptId: String) = copy(
+        metaPrompts = metaPrompts.filter { it.id != metaPromptId }
     )
 
     fun removeParameters(parametersId: String) = copy(

@@ -41,6 +41,7 @@ import java.util.Locale
 internal fun SecondaryResultsScreen(
     reportId: String,
     kind: SecondaryKind,
+    nameFilter: String? = null,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
@@ -51,9 +52,15 @@ internal fun SecondaryResultsScreen(
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
     var openId by remember { mutableStateOf<String?>(null) }
-    val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, kind, refreshTick) {
+    val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, kind, nameFilter, refreshTick) {
         value = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, reportId, kind)
+            val all = SecondaryResultStorage.listForReport(context, reportId, kind)
+            if (nameFilter == null) all
+            else all.filter {
+                val rowName = it.metaPromptName?.takeIf { n -> n.isNotBlank() }
+                    ?: com.ai.data.legacyKindDisplayName(it.kind)
+                rowName == nameFilter
+            }
         }
     }
     // TRANSLATE rows on this report — drives the language picker for
@@ -127,7 +134,7 @@ internal fun SecondaryResultsScreen(
         return
     }
 
-    val title = when (kind) {
+    val title = nameFilter ?: when (kind) {
         SecondaryKind.RERANK -> "Reranks"
         SecondaryKind.SUMMARIZE -> "Summaries"
         SecondaryKind.COMPARE -> "Compares"

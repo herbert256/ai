@@ -34,17 +34,9 @@ data class GeneralSettings(
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS
      *  when this map is empty for a given type. */
     val defaultTypePaths: Map<String, String> = emptyMap(),
-    /** Templates for the rerank / summarize / compare secondary-result
-     *  flows. Empty means "use the hardcoded default in SecondaryPrompts."
-     *  All three round-trip through the eval_prefs backup zip and the
-     *  JSON config export. */
-    val rerankPrompt: String = "",
-    val summarizePrompt: String = "",
-    val comparePrompt: String = "",
     /** Self-introduction prompt — run by each model in the report when
      *  generating a Comprehensive PDF. Empty falls back to a built-in
-     *  default. Same template substitution variables as the meta
-     *  prompts plus @MODEL@ / @PROVIDER@. */
+     *  default. Variables: @MODEL@ / @PROVIDER@. */
     val introPrompt: String = "",
     /** Model-info prompt — run on the Model Info screen so a model
      *  describes itself. Empty falls back to a built-in default. */
@@ -279,9 +271,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         openRouterApiKey = result.openRouterApiKey ?: gs.openRouterApiKey,
                         artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: gs.artificialAnalysisApiKey,
                         defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths,
-                        rerankPrompt = result.rerankPrompt ?: gs.rerankPrompt,
-                        summarizePrompt = result.summarizePrompt ?: gs.summarizePrompt,
-                        comparePrompt = result.comparePrompt ?: gs.comparePrompt,
                         introPrompt = result.introPrompt ?: gs.introPrompt,
                         modelInfoPrompt = result.modelInfoPrompt ?: gs.modelInfoPrompt,
                         translatePrompt = result.translatePrompt ?: gs.translatePrompt
@@ -290,6 +279,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 application.writeBoolean(AppPrefKeys.SETUP_IMPORTED, true)
             }
+        }
+
+        // One-shot Meta-prompt seed from assets/prompts.json. Independent
+        // of the setup.json import so users on existing installs (already
+        // marked SETUP_IMPORTED) still receive the new built-in Meta
+        // prompts on first run with this build.
+        if (!com.ai.data.MetaPromptSeed.isSeeded(application)) {
+            val seeded = com.ai.data.MetaPromptSeed.loadSeedFromAssets(application)
+            if (seeded.isNotEmpty()) {
+                ai = ai.copy(metaPrompts = ai.metaPrompts + seeded)
+                settingsPrefs.saveSettings(ai)
+            }
+            com.ai.data.MetaPromptSeed.markSeeded(application)
         }
 
         return gs to ai

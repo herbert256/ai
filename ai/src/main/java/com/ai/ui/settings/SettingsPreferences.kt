@@ -28,6 +28,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listSwarmType: Type = object : TypeToken<List<Swarm>>() {}.type
         val listParametersType: Type = object : TypeToken<List<Parameters>>() {}.type
         val listSystemPromptType: Type = object : TypeToken<List<SystemPrompt>>() {}.type
+        val listMetaPromptType: Type = object : TypeToken<List<MetaPrompt>>() {}.type
         val listModelTypeOverrideType: Type = object : TypeToken<List<ModelTypeOverride>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
@@ -52,9 +53,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
-            rerankPrompt = prefs.getString(KEY_RERANK_PROMPT, "") ?: "",
-            summarizePrompt = prefs.getString(KEY_SUMMARIZE_PROMPT, "") ?: "",
-            comparePrompt = prefs.getString(KEY_COMPARE_PROMPT, "") ?: "",
             introPrompt = prefs.getString(KEY_INTRO_PROMPT, "") ?: "",
             modelInfoPrompt = prefs.getString(KEY_MODEL_INFO_PROMPT, "") ?: "",
             translatePrompt = prefs.getString(KEY_TRANSLATE_PROMPT, "") ?: ""
@@ -69,9 +67,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AA_API_KEY, settings.artificialAnalysisApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
-            putString(KEY_RERANK_PROMPT, settings.rerankPrompt)
-            putString(KEY_SUMMARIZE_PROMPT, settings.summarizePrompt)
-            putString(KEY_COMPARE_PROMPT, settings.comparePrompt)
             putString(KEY_INTRO_PROMPT, settings.introPrompt)
             putString(KEY_MODEL_INFO_PROMPT, settings.modelInfoPrompt)
             putString(KEY_TRANSLATE_PROMPT, settings.translatePrompt)
@@ -88,6 +83,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
+            metaPrompts = loadList(KEY_AI_META_PROMPTS, TypeTokens.listMetaPromptType),
             endpoints = loadEndpoints(),
             providerStates = loadMap(KEY_PROVIDER_STATES),
             modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType)
@@ -211,6 +207,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
+            putString(KEY_AI_META_PROMPTS, gson.toJson(settings.metaPrompts))
             putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
             putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
             putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
@@ -417,9 +414,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AA_API_KEY = "artificial_analysis_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
-        private const val KEY_RERANK_PROMPT = "rerank_prompt"
-        private const val KEY_SUMMARIZE_PROMPT = "summarize_prompt"
-        private const val KEY_COMPARE_PROMPT = "compare_prompt"
         private const val KEY_INTRO_PROMPT = "intro_prompt"
         private const val KEY_MODEL_INFO_PROMPT = "model_info_prompt"
         private const val KEY_TRANSLATE_PROMPT = "translate_prompt"
@@ -428,6 +422,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_SWARMS = "ai_swarms"
         private const val KEY_AI_PARAMETERS = "ai_parameters"
         private const val KEY_AI_SYSTEM_PROMPTS = "ai_system_prompts"
+        private const val KEY_AI_META_PROMPTS = "ai_meta_prompts"
+        const val KEY_AI_META_PROMPTS_SEEDED = "ai_meta_prompts_seeded"
         private const val KEY_AI_ENDPOINTS = "ai_endpoints"
         private const val KEY_PROVIDER_STATES = "provider_states"
         private const val KEY_AI_MODEL_TYPE_OVERRIDES = "ai_model_type_overrides"

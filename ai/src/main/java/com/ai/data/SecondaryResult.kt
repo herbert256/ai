@@ -56,7 +56,18 @@ data class SecondaryResult(
      *  translated report. New translations don't fork the report so
      *  this stays null on every TRANSLATE row written by the current
      *  code path; preserved on disk so old reports still load. */
-    val translatedFromSecondaryId: String? = null
+    val translatedFromSecondaryId: String? = null,
+    /** Id of the [com.ai.model.MetaPrompt] entry that produced this
+     *  row. Null on TRANSLATE rows and on legacy rows written before
+     *  the Meta-prompt CRUD existed; UI falls back to the legacy
+     *  `kind` label in that case. */
+    val metaPromptId: String? = null,
+    /** Display name of the Meta prompt that produced this row, copied
+     *  from the [com.ai.model.MetaPrompt] at run time so the View
+     *  card can group results by user-given name even after the user
+     *  renames or deletes the Meta prompt. Null on TRANSLATE / legacy
+     *  rows. */
+    val metaPromptName: String? = null
 )
 
 /**
@@ -150,9 +161,8 @@ object SecondaryResultStorage {
     }
 
     /** Counts persisted across all kinds for a report. Used by the Report
-     *  result screen to decide whether to surface the View Reranks /
-     *  Summaries / Compares buttons without paying for the full file parse
-     *  on every recomposition. */
+     *  result screen for the Translate / legacy buckets. The redesigned
+     *  Meta card uses [countByMetaName] instead. */
     data class Counts(val rerank: Int, val summarize: Int, val compare: Int, val moderation: Int, val translate: Int)
     fun countForReport(context: Context, reportId: String): Counts {
         init(context)
@@ -175,77 +185,50 @@ object SecondaryResultStorage {
             Counts(rerank, summarize, compare, moderation, translate)
         }
     }
+
+    /** Group non-translate Meta results on a report by the user-given
+     *  Meta prompt name, returning name → count. Legacy rows (written
+     *  before metaPromptName existed) fall back to a kind-derived
+     *  label so the View card keeps a stable history. */
+    fun countByMetaName(context: Context, reportId: String): Map<String, Int> {
+        init(context)
+        return lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock emptyMap()
+            if (!dir.exists()) return@withLock emptyMap()
+            val tally = LinkedHashMap<String, Int>()
+            dir.listFiles { f -> f.extension == "json" }?.forEach { file ->
+                try {
+                    val r = gson.fromJson(file.readText(), SecondaryResult::class.java)
+                    if (r.kind == SecondaryKind.TRANSLATE) return@forEach
+                    val name = r.metaPromptName?.takeIf { it.isNotBlank() } ?: legacyKindDisplayName(r.kind)
+                    tally[name] = (tally[name] ?: 0) + 1
+                } catch (_: Exception) {}
+            }
+            tally
+        }
+    }
+}
+
+/** Display label for legacy SecondaryResult rows that pre-date the
+ *  Meta-prompt CRUD (no metaPromptName persisted). Used by the View
+ *  card / Meta detail to keep old reports readable. */
+fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
+    SecondaryKind.RERANK -> "Rerank"
+    SecondaryKind.SUMMARIZE -> "Summary"
+    SecondaryKind.COMPARE -> "Compare"
+    SecondaryKind.MODERATION -> "Moderation"
+    SecondaryKind.TRANSLATE -> "Translate"
 }
 
 /**
- * Hardcoded fallback prompts. Used when the user hasn't supplied an override
- * via GeneralSettings.rerankPrompt / summarizePrompt. Placeholders match the
- * existing @VAR@ convention used elsewhere — substituted by [resolveSecondaryPrompt].
+ * Hardcoded fallback prompts for the *Internal Prompts* editor. The
+ * Meta-prompt templates (Rerank / Summarize / Compare / Moderation)
+ * are no longer kept here — they ship as seed entries in
+ * `assets/prompts.json` and are user-managed via the Report Meta
+ * Prompts CRUD. Placeholders in the strings below match the existing
+ * @VAR@ convention used elsewhere.
  */
 object SecondaryPrompts {
-    const val DEFAULT_RERANK = """You are an impartial judge ranking @COUNT@ AI responses to the same question.
-
-QUESTION:
-@QUESTION@
-
-RESPONSES:
-@RESULTS@
-
-Evaluate each response on accuracy, completeness, clarity, and usefulness.
-Output ONLY a JSON array — no prose, no code fences — of the form:
-
-[
-  {"id": 1, "rank": 1, "score": 92, "reason": "..."},
-  {"id": 2, "rank": 2, "score": 78, "reason": "..."}
-]
-
-`id` must match the bracketed [N] in RESPONSES.
-`rank` is 1 for the best response, 2 for second, etc. — every id appears exactly once.
-`score` is 0-100. `reason` is one sentence."""
-
-    const val DEFAULT_SUMMARIZE = """The following are @COUNT@ AI responses to the same question. Synthesize a single,
-authoritative answer that captures the best of all responses.
-
-QUESTION:
-@QUESTION@
-
-RESPONSES:
-@RESULTS@
-
-Guidelines:
-- Combine the strongest, most accurate points from each response.
-- Resolve contradictions explicitly; if responses disagree on a fact, say so.
-- Drop redundancy. Do not repeat the question.
-- Match the tone and depth of the original responses.
-- Do not mention that you are summarizing or reference the source responses by number."""
-
-    const val DEFAULT_COMPARE = """You are comparing @COUNT@ AI responses to the same question. Identify where they agree and where they diverge.
-
-QUESTION:
-@QUESTION@
-
-RESPONSES:
-@RESULTS@
-
-Reference rules — follow them exactly:
-- Each response is identified by ONLY a bracketed number — `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.
-- When ALL @COUNT@ responses agree on a point, write "all responses agree" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] … [@COUNT@] is noise.
-- Only enumerate IDs when a subset (not all) of the responses share a position — then list just that subset, e.g. "[1] and [3] argue …".
-
-Produce a comparative analysis with these sections:
-
-## Points of agreement
-Claims, conclusions, or recommendations that most or all responses share. Apply the reference rules above.
-
-## Points of disagreement
-Where responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.
-
-## Unique contributions
-Facts, framings, or arguments that only one response raised. Note the source [N] and whether the contribution adds genuine value.
-
-## Overall takeaway
-One paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above."""
-
     const val DEFAULT_INTRO = """Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.
 
 You are: @MODEL@ from @PROVIDER@."""
@@ -305,12 +288,13 @@ fun buildResultsBlock(report: Report, includeIds: Set<Int>? = null): String {
     return sb.toString()
 }
 
-/** Build the reference legend appended to a Compare result. Mirrors
+/** Build the reference legend appended to a chat-type Meta-prompt
+ *  result when its `reference` flag is true. Mirrors
  *  [buildResultsBlock]'s 1-based id assignment so each `[N]` in the
- *  generated comparison maps to the matching `[N] = Provider / Model`
- *  line here. Honours [includeIds] the same way the results block
- *  does — restrict the legend to the same subset that fed the prompt. */
-fun buildCompareLegend(report: Report, includeIds: Set<Int>? = null): String {
+ *  generated text maps to the matching `[N] = Provider / Model` line
+ *  here. Honours [includeIds] the same way the results block does —
+ *  restrict the legend to the same subset that fed the prompt. */
+fun buildReferenceLegend(report: Report, includeIds: Set<Int>? = null): String {
     val sb = StringBuilder()
     val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
     successful.forEachIndexed { idx, agent ->
