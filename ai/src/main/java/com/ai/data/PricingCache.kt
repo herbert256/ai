@@ -1575,4 +1575,51 @@ object PricingCache {
     }
 
     fun clearSupportedParametersCache() { supportedParametersCache = null }
+
+    /** Wipe every cached pricing tier and manual override — used by
+     *  the housekeeping "clear all runtime data" flow. Drops the
+     *  pricing prefs file, the tier blobs under filesDir/pricing/,
+     *  and every in-memory cache so the next [ensureLoaded] starts
+     *  from a clean slate. */
+    fun clearAll(context: Context) = synchronized(lock) {
+        // Disk: remove every tier blob plus the supported-parameters
+        // catalog file maintained alongside it.
+        try {
+            java.io.File(context.filesDir, "pricing").deleteRecursively()
+        } catch (_: Exception) {}
+        try {
+            java.io.File(context.filesDir, "model_pricing.json").delete()
+        } catch (_: Exception) {}
+        try {
+            java.io.File(context.filesDir, "model_supported_parameters.json").delete()
+        } catch (_: Exception) {}
+        // Prefs: wipe the whole pricing_cache file.
+        getPrefs(context).edit { clear() }
+        // In-memory: drop every loaded tier + lookup memo so the next
+        // ensureLoaded call repopulates from the now-empty stores.
+        manualPricing = null
+        openRouterPricing = null
+        togetherPricing = null
+        togetherTimestamp = 0
+        litellmPricing = null
+        litellmMeta = null
+        modelsDevPricing = null
+        modelsDevMeta = null
+        heliconePricing = null
+        heliconePatterns = null
+        llmPricesPricing = null
+        aaPricing = null
+        aaMeta = null
+        openRouterTimestamp = 0
+        litellmTimestamp = 0
+        modelsDevTimestamp = 0
+        heliconeTimestamp = 0
+        llmPricesTimestamp = 0
+        aaTimestamp = 0
+        preloadCompleted = false
+        litellmMetaLookupCache.clear()
+        modelsDevMetaLookupCache.clear()
+        litellmPricingLookupCache.clear()
+        supportedParametersCache = null
+    }
 }

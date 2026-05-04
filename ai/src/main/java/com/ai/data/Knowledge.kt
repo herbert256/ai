@@ -141,6 +141,19 @@ object KnowledgeStore {
         kbDirOrNull(kbId)?.deleteRecursively()
     }
 
+    /** Wipe every knowledge base — used by the housekeeping
+     *  "clear all runtime data" flow. Returns the count of KBs
+     *  removed so the caller can surface it in the toast. */
+    fun clearAll(context: Context): Int {
+        init(context)
+        val dir = rootDir ?: return 0
+        var removed = 0
+        dir.listFiles()?.forEach { kb ->
+            if (kb.isDirectory && kb.deleteRecursively()) removed++
+        }
+        return removed
+    }
+
     /** Persist a freshly indexed source's chunks + add the source to
      *  the KB manifest. If a source with [source.id] already exists,
      *  its chunks file is replaced (re-index). */
