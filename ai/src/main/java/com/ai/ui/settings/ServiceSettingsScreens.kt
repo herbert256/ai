@@ -257,6 +257,28 @@ fun ProviderModelSettingsScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                         ) { Text(if (testInProgress) "Testing..." else "Test all models", maxLines = 1, softWrap = false) }
                     }
+                    // Surface the prune affordance only after a Test all
+                    // run has finished and at least one model came back
+                    // failing. Removing them updates the local `models`
+                    // list, which the auto-save LaunchedEffect picks up
+                    // and persists; the matching testStatuses entries
+                    // are dropped at the same time so the badge counter
+                    // stays accurate.
+                    val failedModels = remember(testStatuses) {
+                        testStatuses.entries
+                            .filter { it.value is ModelTestStatus.Fail }
+                            .map { it.key }
+                    }
+                    if (!testInProgress && failedModels.isNotEmpty()) {
+                        Button(
+                            onClick = {
+                                val drop = failedModels.toSet()
+                                models = models.filterNot { it in drop }
+                                testStatuses = testStatuses - drop
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                        ) { Text("Remove ${failedModels.size} failed", maxLines = 1, softWrap = false) }
+                    }
                 }
             } else if (modelSource == ModelSource.API && apiKey.isBlank()) {
                 Text("Set an API key for ${service.displayName} in Providers to fetch models.", fontSize = 12.sp, color = AppColors.TextTertiary)
