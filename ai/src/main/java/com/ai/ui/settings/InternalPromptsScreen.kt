@@ -16,8 +16,10 @@ import com.ai.ui.shared.*
 
 /** Allowed values for [InternalPrompt.type]. Order is the display
  *  order in the FilterChip row on the edit screen. `chat` is the
- *  default for new entries. */
-private val INTERNAL_TYPES = listOf("chat", "rerank", "moderation")
+ *  default for new entries. `cross` runs across every pair of
+ *  report-models — N×(N-1) calls — substituting `@RESPONSE@` in
+ *  the prompt body with each source model's response. */
+private val INTERNAL_TYPES = listOf("chat", "rerank", "moderation", "cross")
 
 /** Allowed categories. `meta` rows show as launchers on the Report
  *  Result screen; `internal` rows are templates consumed by app
@@ -29,6 +31,11 @@ private val INTERNAL_CATEGORIES = listOf("meta", "internal")
  *  [InternalPrompt.agent]; any other string is interpreted as the
  *  name of an [Agent] in [Settings.agents]. */
 private const val AGENT_SELECT = "*select"
+
+/** Sentinel meaning "no agent applies" — used by `cross` prompts
+ *  which fan out across every pair of report-models and never
+ *  consult [Settings.agents]. */
+private const val AGENT_NA = "*n/a"
 
 @Composable
 fun InternalPromptsListScreen(
@@ -118,6 +125,10 @@ fun InternalPromptEditScreen(
     // the user switches type so the persisted value can't disagree
     // with the executor's behaviour.
     LaunchedEffect(type) { if (type != "chat" && reference) reference = false }
+    // cross prompts never consult Settings.agents — pin the value to
+    // the *n/a sentinel whenever the user lands on type=cross. They
+    // can re-edit the agent after switching back to another type.
+    LaunchedEffect(type) { if (type == "cross") agent = AGENT_NA }
 
     var agentMenuOpen by remember { mutableStateOf(false) }
 
@@ -168,6 +179,7 @@ fun InternalPromptEditScreen(
                 when (type) {
                     "rerank" -> "Routes to a rerank API model (currently Cohere). Template body is unused — rerank uses the report prompt as the query and the per-agent responses as documents."
                     "moderation" -> "Routes to a moderation API model (currently Mistral). Template body is unused — the moderation endpoint takes the per-agent responses as inputs."
+                    "cross" -> "Runs across every pair of report-models. The template body supports @RESPONSE@ (replaced per-call with each source model's response) plus @QUESTION@, @TITLE@, @DATE@, @COUNT@. N×(N-1) calls."
                     else -> "Runs as a chat completion. Template body supports @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary
@@ -233,10 +245,10 @@ fun InternalPromptEditScreen(
 
             OutlinedTextField(
                 value = text, onValueChange = { text = it },
-                label = { Text("Template (chat only — supports @QUESTION@ @RESULTS@ @COUNT@ @TITLE@ @DATE@)") },
+                label = { Text("Template (chat: @QUESTION@ @RESULTS@ @COUNT@ @TITLE@ @DATE@; cross: @RESPONSE@ + same)") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 8, maxLines = 22,
-                enabled = type == "chat",
+                enabled = type == "chat" || type == "cross",
                 colors = AppColors.outlinedFieldColors()
             )
             Text("${text.length} characters", fontSize = 11.sp, color = AppColors.TextTertiary)

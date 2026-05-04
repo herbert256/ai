@@ -54,5 +54,13 @@
     "category": "internal",
     "agent": "*select",
     "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@"
+  },
+  {
+    "name": "factcheck",
+    "type": "cross",
+    "reference": false,
+    "category": "meta",
+    "agent": "*n/a",
+    "text": "Can you please check below text, do a factcheck for every fact in it. \n\n @RESPONSE@"
   }
 ]

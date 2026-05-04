@@ -49,6 +49,12 @@ internal fun SecondaryScopeScreen(
     BackHandler { onBack() }
     val kindLabel = metaPrompt.name
     val isChatType = metaPrompt.type == "chat"
+    // Cross-type meta also picks a subset of report-models as
+    // "sources" (the answerer set is always the full successful list).
+    // Top-Ranked / Manual scope therefore make sense for both chat and
+    // cross. Language fan-out, however, stays chat-only — cross
+    // always runs on the original.
+    val supportsSubsetScope = isChatType || metaPrompt.type == "cross"
     var scopeMode by remember { mutableStateOf(ScopeMode.ALL) }
     var countText by remember {
         mutableStateOf(minOf(3, totalReports.coerceAtLeast(1)).toString())
@@ -95,9 +101,10 @@ internal fun SecondaryScopeScreen(
                 onSelect = { scopeMode = ScopeMode.ALL }
             )
             Spacer(modifier = Modifier.height(8.dp))
-            // Top-Ranked scope only makes sense for chat-type prompts —
-            // rerank/moderation runs always operate on the full set.
-            if (isChatType && reranks.isNotEmpty()) {
+            // Top-Ranked scope makes sense for chat / cross prompts
+            // (both pick a subset of report-models as input). Rerank
+            // and moderation runs always operate on the full set.
+            if (supportsSubsetScope && reranks.isNotEmpty()) {
                 ScopeOption(
                     selected = scopeMode == ScopeMode.TOP_RANKED,
                     label = "Only top ranked reports",

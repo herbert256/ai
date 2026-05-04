@@ -70,7 +70,14 @@ data class SecondaryResult(
      *  card can group results by user-given name even after the user
      *  renames or deletes the Meta prompt. Null on TRANSLATE / legacy
      *  rows. */
-    val metaPromptName: String? = null
+    val metaPromptName: String? = null,
+    /** For cross-type Meta runs: agentId of the report-model whose
+     *  response was substituted into the prompt's `@RESPONSE@` slot.
+     *  This row's own (providerId, model) is the answerer that
+     *  produced this content. Together they form the (answerer,
+     *  source) pair the cross drill-in keys on. Null on every
+     *  non-cross row. */
+    val crossSourceAgentId: String? = null
 )
 
 /**

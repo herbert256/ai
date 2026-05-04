@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -157,6 +158,19 @@ internal fun SecondaryResultsScreen(
                 else "No ${title.lowercase()} for this report"
                 Text(msg, color = AppColors.TextSecondary, fontSize = 14.sp)
             }
+            return@Column
+        }
+
+        // Cross-type META: every row carries a crossSourceAgentId
+        // pointing at the source whose response was factchecked. The
+        // L1 → L2 → L3 drill-in below replaces the flat picker.
+        if (kind == SecondaryKind.META && filteredResults.any { it.crossSourceAgentId != null }) {
+            CrossMetaDrillInView(
+                reportId = reportId,
+                results = filteredResults,
+                onDelete = { id -> onDelete(id); refreshTick++ },
+                onNavigateToTraceFile = onNavigateToTraceFile
+            )
             return@Column
         }
 
@@ -317,6 +331,228 @@ private fun ColumnScope.MetaResultsPickerView(
     }
 }
 
+/** L1 → L2 → L3 drill-in for cross-type META results.
+ *  L1: list of every successful report-model that produced at least
+ *      one factcheck row (the "answerer").
+ *  L2: for the chosen answerer, list of every source model whose
+ *      response was factchecked.
+ *  L3: split view — top half shows the source's report response,
+ *      bottom half shows the answerer's factcheck content (or a
+ *      ⏳ / ❌ / "(no result)" placeholder if missing).
+ */
+@Composable
+private fun ColumnScope.CrossMetaDrillInView(
+    reportId: String,
+    results: List<SecondaryResult>,
+    onDelete: (String) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit
+) {
+    val context = LocalContext.current
+    // Load the parent report once so L1 / L2 can label rows by the
+    // agents' provider/model and L3 can pull source.responseBody.
+    val report by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
+    }
+    val r = report
+    if (r == null) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp)
+        }
+        return
+    }
+
+    val successful = remember(r) {
+        r.agents.filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+    }
+    val agentsById = remember(successful) { successful.associateBy { it.agentId } }
+
+    // Latest-by-timestamp result per (answerer.providerId, answerer.model, sourceAgentId).
+    val latestByPair = remember(results) {
+        val byKey = LinkedHashMap<String, SecondaryResult>()
+        results.sortedBy { it.timestamp }.forEach { row ->
+            val src = row.crossSourceAgentId ?: return@forEach
+            val key = "${row.providerId}|${row.model}|$src"
+            byKey[key] = row // last write wins → newest
+        }
+        byKey
+    }
+
+    var selectedAnswererKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedSourceAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = selectedSourceAgentId != null) { selectedSourceAgentId = null }
+    BackHandler(enabled = selectedAnswererKey != null && selectedSourceAgentId == null) {
+        selectedAnswererKey = null
+    }
+
+    // L3 — split view
+    val srcAgentId = selectedSourceAgentId
+    val answererKey = selectedAnswererKey
+    if (srcAgentId != null && answererKey != null) {
+        val pairResult = latestByPair["$answererKey|$srcAgentId"]
+        val sourceAgent = agentsById[srcAgentId]
+        val sourceLabel = sourceAgent?.let {
+            val pn = AppService.findById(it.provider)?.displayName ?: it.provider
+            "$pn / ${it.model}"
+        } ?: srcAgentId
+        val answererLabel = answererKey.split("|").let { parts ->
+            val pid = parts.getOrNull(0).orEmpty()
+            val mdl = parts.getOrNull(1).orEmpty()
+            val pn = AppService.findById(pid)?.displayName ?: pid
+            "$pn / $mdl"
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Source: $sourceLabel", fontSize = 12.sp, color = AppColors.TextTertiary,
+            fontFamily = FontFamily.Monospace)
+        Text("Answerer: $answererLabel", fontSize = 12.sp, color = AppColors.TextTertiary,
+            fontFamily = FontFamily.Monospace)
+        Spacer(modifier = Modifier.height(8.dp))
+        // Top half — source's original report response.
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+        ) {
+            Text("Source response", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(4.dp))
+            val srcBody = sourceAgent?.responseBody
+            if (srcBody.isNullOrBlank()) {
+                Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
+            } else {
+                ContentWithThinkSections(analysis = srcBody)
+            }
+        }
+        HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
+            modifier = Modifier.padding(vertical = 8.dp))
+        // Bottom half — answerer's factcheck or a status placeholder.
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                val tf = pairResult?.let { res ->
+                    // closest-timestamp trace, same lookup other detail
+                    // screens use.
+                    val all = ApiTracer.getTraceFiles()
+                        .filter { it.reportId == reportId && it.model == res.model }
+                    all.minByOrNull { kotlin.math.abs(it.timestamp - res.timestamp) }?.filename
+                }
+                if (ApiTracer.isTracingEnabled && tf != null) {
+                    Text("🐞", fontSize = 16.sp,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clickable { onNavigateToTraceFile(tf) })
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            when {
+                pairResult == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                pairResult.errorMessage != null -> {
+                    Text("❌ ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                }
+                pairResult.content.isNullOrBlank() -> {
+                    Text("⏳ Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                }
+                else -> ContentWithThinkSections(analysis = pairResult.content)
+            }
+        }
+        return
+    }
+
+    // L2 — sources list, given the chosen answerer
+    if (answererKey != null) {
+        val answererLabel = answererKey.split("|").let { parts ->
+            val pid = parts.getOrNull(0).orEmpty()
+            val mdl = parts.getOrNull(1).orEmpty()
+            val pn = AppService.findById(pid)?.displayName ?: pid
+            "$pn / $mdl"
+        }
+        Text("Answerer: $answererLabel", fontSize = 13.sp, color = AppColors.Blue,
+            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        Text("Pick the source whose response you want to read.",
+            fontSize = 11.sp, color = AppColors.TextTertiary)
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(successful, key = { it.agentId }) { src ->
+                // Skip the answerer itself — a model never factchecks
+                // its own response.
+                val parts = answererKey.split("|")
+                val ansPid = parts.getOrNull(0).orEmpty()
+                val ansModel = parts.getOrNull(1).orEmpty()
+                if (src.provider == ansPid && src.model == ansModel) return@items
+                val pairResult = latestByPair["$answererKey|${src.agentId}"]
+                val statusEmoji = when {
+                    pairResult == null -> "⏳"
+                    pairResult.errorMessage != null -> "❌"
+                    pairResult.content.isNullOrBlank() -> "⏳"
+                    else -> "✅"
+                }
+                val srcProv = AppService.findById(src.provider)?.displayName ?: src.provider
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { selectedSourceAgentId = src.agentId }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("$srcProv · ${src.model}", fontSize = 14.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                }
+                HorizontalDivider(color = AppColors.DividerDark)
+            }
+        }
+        return
+    }
+
+    // L1 — answerers list. One row per (provider, model) that produced
+    // at least one factcheck on this report. Status summary shows
+    // pair-completion as ok/total.
+    val answererKeys = remember(latestByPair, successful) {
+        // Build the set of every successful (provider, model) so the
+        // list stays full even when some pairs haven't run yet.
+        successful.map { "${it.provider}|${it.model}" }.distinct()
+    }
+    Text("Pick the answerer (the model that produced the factcheck).",
+        fontSize = 11.sp, color = AppColors.TextTertiary)
+    Spacer(modifier = Modifier.height(8.dp))
+    LazyColumn(modifier = Modifier.weight(1f)) {
+        items(answererKeys, key = { it }) { ak ->
+            val parts = ak.split("|")
+            val pid = parts.getOrNull(0).orEmpty()
+            val mdl = parts.getOrNull(1).orEmpty()
+            val provName = AppService.findById(pid)?.displayName ?: pid
+            // Pair status: count successful / total potential sources
+            // (every other successful agent).
+            val totalSources = successful.count { !(it.provider == pid && it.model == mdl) }
+            val okCount = successful.count { src ->
+                if (src.provider == pid && src.model == mdl) return@count false
+                val res = latestByPair["$ak|${src.agentId}"]
+                res != null && res.errorMessage == null && !res.content.isNullOrBlank()
+            }
+            val statusText = "$okCount / $totalSources"
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable { selectedAnswererKey = ak }
+                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("$provName · $mdl", fontSize = 14.sp, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(statusText, fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontFamily = FontFamily.Monospace)
+                }
+                Text(">", fontSize = 16.sp, color = AppColors.Blue)
+            }
+            HorizontalDivider(color = AppColors.DividerDark)
+        }
+    }
+    // onDelete is reserved for a future bulk-delete affordance on
+    // the cross drill-in; not surfaced yet.
+    @Suppress("UNUSED_EXPRESSION") onDelete
+}
 
 @Composable
 private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {

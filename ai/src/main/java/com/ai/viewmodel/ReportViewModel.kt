@@ -800,6 +800,80 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Cross-type Meta runner: for each successful report-model
+     *  (the "answerer") and each source model in [scopeChoice], runs
+     *  the prompt with `@RESPONSE@` substituted by the source's
+     *  response body. Self-pairs are skipped. Always runs on the
+     *  Original language; cross does not fan out to translations.
+     *
+     *  Persists one [SecondaryResult] per (answerer, source) with
+     *  kind=META and crossSourceAgentId=source.agentId so the result
+     *  drill-in can group by answerer then by source.
+     */
+    fun runCrossMetaPrompt(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        scopeChoice: SecondaryScope = SecondaryScope.AllReports
+    ): Job? {
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        return scope.launch(Dispatchers.IO) {
+            val cat = "Report meta: ${metaPrompt.name}"
+            try {
+                withTracerTags(reportId = reportId, category = cat) {
+                    val state = appViewModel.uiState.value
+                    val aiSettings = state.aiSettings
+                    val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                    ReportStorage.bumpReportTimestamp(context, reportId)
+                    val successful = report.agents.filter {
+                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                    }
+                    if (successful.size < 2) return@launch
+                    val sources = when (scopeChoice) {
+                        SecondaryScope.AllReports -> successful
+                        is SecondaryScope.TopRanked -> {
+                            val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
+                            val topIds = extractTopRankedIds(rerank?.content, scopeChoice.count)
+                            if (topIds.isNullOrEmpty()) successful
+                            else topIds.mapNotNull { idx -> successful.getOrNull(idx - 1) }
+                        }
+                        is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
+                    }
+                    if (sources.isEmpty()) return@launch
+                    val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
+                    coroutineScope {
+                        successful.flatMap { answerer ->
+                            val provider = AppService.findById(answerer.provider) ?: return@flatMap emptyList()
+                            sources.mapNotNull source@{ source ->
+                                if (source.agentId == answerer.agentId) return@source null
+                                val resolvedBase = resolveSecondaryPrompt(
+                                    metaPrompt.text,
+                                    question = report.prompt,
+                                    results = "",
+                                    count = sources.size,
+                                    title = report.title
+                                )
+                                val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
+                                async {
+                                    sem.withPermit {
+                                        executeSecondaryTask(
+                                            context, reportId, SecondaryKind.META, metaPrompt,
+                                            provider, answerer.model, resolved, aiSettings, report,
+                                            crossSourceAgentId = source.agentId
+                                        )
+                                    }
+                                }
+                            }
+                        }.awaitAll()
+                    }
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+            }
+        }
+    }
+
     fun runMetaPrompt(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
@@ -968,7 +1042,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         report: Report,
         targetLanguage: String? = null,
         targetLanguageNative: String? = null,
-        referenceLegend: String? = null
+        referenceLegend: String? = null,
+        crossSourceAgentId: String? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
@@ -978,7 +1053,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 targetLanguage = targetLanguage,
                 targetLanguageNative = targetLanguageNative,
                 metaPromptId = metaPrompt.id,
-                metaPromptName = metaPrompt.name
+                metaPromptName = metaPrompt.name,
+                crossSourceAgentId = crossSourceAgentId
             )
         SecondaryResultStorage.save(context, placeholder)
 

@@ -88,6 +88,9 @@ fun ReportsScreenNav(
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(scope, context, reportId, metaPrompt, picks, scopeChoice, languageScope)
         },
+        onRunCrossMeta = { reportId, metaPrompt, scopeChoice ->
+            reportViewModel.runCrossMetaPrompt(scope, context, reportId, metaPrompt, scopeChoice)
+        },
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.runLocalRerank(scope, context, reportId, modelName)
         },
@@ -229,6 +232,7 @@ fun ReportsScreen(
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
+    onRunCrossMeta: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
@@ -386,6 +390,10 @@ fun ReportsScreen(
     var secondaryScopeMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
     var pendingSecondaryScope by remember { mutableStateOf<com.ai.data.SecondaryScope>(com.ai.data.SecondaryScope.AllReports) }
     var pendingLanguageScope by remember { mutableStateOf<com.ai.data.SecondaryLanguageScope>(com.ai.data.SecondaryLanguageScope.AllPresent) }
+    // Cross-type confirm dialog: shown after the scope screen, before
+    // kicking off N answerers × S sources calls. The user can still
+    // cancel from here if the count looks too high.
+    var crossConfirmMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
     // Unified Meta screen overlay reached from the Actions card.
     var showMetaScreen by remember { mutableStateOf(false) }
     // Per-name (or per-legacy-kind) list overlay reached from the View
@@ -582,12 +590,90 @@ fun ReportsScreen(
                 pendingSecondaryScope = chosenScope
                 pendingLanguageScope = chosenLangScope
                 secondaryScopeMetaPrompt = null
-                secondaryPickerMetaPrompt = scopeMetaPrompt
+                if (scopeMetaPrompt.type == "cross") {
+                    // No model picker for cross — answerers are always
+                    // every successful report-model. Jump straight to
+                    // the call-count confirm dialog.
+                    crossConfirmMetaPrompt = scopeMetaPrompt
+                } else {
+                    secondaryPickerMetaPrompt = scopeMetaPrompt
+                }
             },
             onBack = { secondaryScopeMetaPrompt = null },
             onNavigateHome = onNavigateHome
         )
         return
+    }
+
+    // Cross-type confirm dialog: shown after the scope screen, before
+    // the runner kicks off. Re-derives the (answerers, sources) set
+    // from the chosen scope so the user can see exactly how many
+    // calls they're authorising.
+    val crossMp = crossConfirmMetaPrompt
+    if (crossMp != null && currentReportId != null) {
+        val rid = currentReportId
+        data class CrossCounts(val answerers: Int, val sources: Int, val pairs: Int)
+        val countsState = produceState<CrossCounts?>(initialValue = null, rid, pendingSecondaryScope) {
+            value = withContext(Dispatchers.IO) {
+                val report = com.ai.data.ReportStorage.getReport(context, rid) ?: return@withContext null
+                val successful = report.agents.filter {
+                    it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                }
+                val sources = when (val sc = pendingSecondaryScope) {
+                    com.ai.data.SecondaryScope.AllReports -> successful
+                    is com.ai.data.SecondaryScope.TopRanked -> {
+                        val rerank = com.ai.data.SecondaryResultStorage.get(context, rid, sc.rerankResultId)
+                        val ids = com.ai.data.extractTopRankedIds(rerank?.content, sc.count)
+                        if (ids.isNullOrEmpty()) successful
+                        else ids.mapNotNull { successful.getOrNull(it - 1) }
+                    }
+                    is com.ai.data.SecondaryScope.Manual -> successful.filter { it.agentId in sc.agentIds }
+                }
+                val pairs = successful.sumOf { ans -> sources.count { it.agentId != ans.agentId } }
+                CrossCounts(successful.size, sources.size, pairs)
+            }
+        }
+        val counts = countsState.value
+        AlertDialog(
+            onDismissRequest = { crossConfirmMetaPrompt = null },
+            title = { Text("Run ${crossMp.name}") },
+            text = {
+                Column {
+                    if (counts == null) {
+                        Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
+                    } else {
+                        Text(
+                            "Running ${crossMp.name} will call every report-model for every other model's response.",
+                            fontSize = 13.sp, color = AppColors.TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "${counts.answerers} answerer${if (counts.answerers == 1) "" else "s"} × ${counts.sources} source${if (counts.sources == 1) "" else "s"} = ${counts.pairs} call${if (counts.pairs == 1) "" else "s"}",
+                            fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val mp = crossConfirmMetaPrompt ?: return@TextButton
+                        val sc = pendingSecondaryScope
+                        crossConfirmMetaPrompt = null
+                        pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                        pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                        onRunCrossMeta(rid, mp, sc)
+                    },
+                    enabled = counts != null && counts.pairs > 0
+                ) { Text("Run", color = AppColors.Green, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { crossConfirmMetaPrompt = null }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 
     // Meta prompt model picker. Reuses the same multi-select screen
@@ -711,7 +797,10 @@ fun ReportsScreen(
     // list — applies the chat / non-chat scope-skip rule and stamps
     // the launching MetaPrompt into the right state.
     val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        if (mp.type == "chat") {
+        if (mp.type == "chat" || mp.type == "cross") {
+            // Cross goes through the same scope screen so the user can
+            // pick which sources to factcheck; the screen itself hides
+            // the language picker for cross.
             secondaryScopeMetaPrompt = mp
         } else {
             // Rerank / moderation always operate on the full set — no scope step.
