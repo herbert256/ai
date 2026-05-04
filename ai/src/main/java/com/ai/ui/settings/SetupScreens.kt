@@ -297,6 +297,7 @@ fun ProvidersScreen(
     onBackToHome: () -> Unit,
     onProviderSelected: (AppService) -> Unit,
     onAddProvider: () -> Unit = {},
+    onAdminLinks: () -> Unit = {},
     activeOnly: Boolean = true,
     onActiveOnlyChange: (Boolean) -> Unit = {}
 ) {
@@ -318,7 +319,11 @@ fun ProvidersScreen(
         TitleBar(title = "Providers", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             FilterChip(
                 selected = activeOnly,
                 onClick = { onActiveOnlyChange(true) },
@@ -329,6 +334,12 @@ fun ProvidersScreen(
                 onClick = { onActiveOnlyChange(false) },
                 label = { Text("All (${allProviders.size})") }
             )
+            Spacer(modifier = Modifier.weight(1f))
+            OutlinedButton(
+                onClick = onAdminLinks,
+                colors = AppColors.outlinedButtonColors(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) { Text("Admin links", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {

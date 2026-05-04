@@ -170,13 +170,15 @@ fun AppNavHost(
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) })
         }
         composable(NavRoutes.AI_SETUP) {
             SetupScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) })
         }
 
         // ===== Reports =====
@@ -678,6 +680,7 @@ fun AppNavHost(
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
                 initialSubScreen = SettingsSubScreen.AI_IMPORT_EXPORT
             )
         }
@@ -687,6 +690,7 @@ fun AppNavHost(
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
                 initialSubScreen = SettingsSubScreen.AI_REFRESH
             )
         }
@@ -738,6 +742,7 @@ fun AppNavHost(
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
                 initialSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT,
                 initialProviderId = pid)
         }
@@ -747,6 +752,7 @@ fun AppNavHost(
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
                 initialSubScreen = SettingsSubScreen.AI_AGENT_EDIT,
                 initialEditingAgentId = aid)
         }
@@ -768,6 +774,7 @@ fun SettingsScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToProviderAdmin: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null
@@ -785,6 +792,7 @@ fun SettingsScreenNav(
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },
         onSaveArtificialAnalysisApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(artificialAnalysisApiKey = it)) },
         onNavigateToCostConfig = onNavigateToCostConfig,
+        onNavigateToProviderAdmin = onNavigateToProviderAdmin,
         onTestModelWithPrompt = { s, k, m, p -> viewModel.testModelWithPrompt(s, k, m, p) },
         onTestSpecificModel = { s, k, m, p -> viewModel.testSpecificModel(s, k, m, p) },
         onNavigateToTrace = onNavigateToTrace,
@@ -799,11 +807,13 @@ fun SettingsScreenNav(
 fun SetupScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToProviderAdmin: () -> Unit = {}
 ) {
     SettingsScreenNav(viewModel = viewModel, onNavigateBack = onNavigateBack, onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig, onNavigateToTrace = onNavigateToTrace,
         onNavigateToModelInfo = onNavigateToModelInfo,
+        onNavigateToProviderAdmin = onNavigateToProviderAdmin,
         initialSubScreen = SettingsSubScreen.AI_SETUP)
 }
 

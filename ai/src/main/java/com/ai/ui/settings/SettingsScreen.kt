@@ -54,6 +54,7 @@ fun SettingsScreen(
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onSaveArtificialAnalysisApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
+    onNavigateToProviderAdmin: () -> Unit = {},
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
@@ -150,7 +151,8 @@ fun SettingsScreen(
                 activeOnly = providersActiveOnly,
                 onActiveOnlyChange = { providersActiveOnly = it },
                 onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
-                onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD }
+                onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD },
+                onAdminLinks = onNavigateToProviderAdmin
             )
         }
         SettingsSubScreen.AI_PROVIDER_ADD -> {
