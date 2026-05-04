@@ -1432,6 +1432,11 @@ private fun ColumnScope.GenerationPhase(
                 withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
             } ?: false
         }
+        // Meta picker popup — replaces the per-prompt button row that
+        // used to live below this card. The popup lists every
+        // user-managed Meta prompt; tapping a row dismisses and fires
+        // the same launchMetaPrompt callback the old buttons used.
+        var showMetaPicker by remember { mutableStateOf(false) }
         ActionRow {
             CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
             CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
@@ -1443,22 +1448,43 @@ private fun ColumnScope.GenerationPhase(
             )
             CompactButton(onClick = onDelete, color = AppColors.Red, text = "Delete")
             CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
+            CompactButton(
+                onClick = { showMetaPicker = true },
+                color = AppColors.Orange,
+                text = "Meta",
+                enabled = metaPrompts.isNotEmpty()
+            )
         }
 
-        // Meta — one launcher button per user-managed Meta prompt.
-        // Tapping opens the scope/picker flow for that prompt; the
-        // resulting row appears in the View bar by its name.
-        if (metaPrompts.isNotEmpty()) {
-            SectionLabel("Meta")
-            ActionRow {
-                metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
-                    CompactButton(
-                        onClick = { onLaunchMetaPrompt(mp) },
-                        color = AppColors.Orange,
-                        text = mp.name
-                    )
+        if (showMetaPicker) {
+            AlertDialog(
+                onDismissRequest = { showMetaPicker = false },
+                title = { Text("Meta") },
+                text = {
+                    Column {
+                        metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
+                            Text(
+                                mp.name,
+                                fontSize = 15.sp,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showMetaPicker = false
+                                        onLaunchMetaPrompt(mp)
+                                    }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showMetaPicker = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
                 }
-            }
+            )
         }
     }
 }
