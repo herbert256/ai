@@ -301,10 +301,39 @@ fun AppNavHost(
                     navController.navigate(NavRoutes.traceListForReportCategory(rid, cat))
                 },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
-                onContinueInChat = { rid, aid ->
+                onContinueWithCurrent = { rid, aid ->
                     scope.launch {
-                        val sessionId = continueReportInChat(context, rid, aid) ?: return@launch
+                        val sessionId = continueReportInChat(
+                            context, rid, aid,
+                            aiSettings = appViewModel.uiState.value.aiSettings
+                        ) ?: return@launch
                         navController.navigate(NavRoutes.aiChatContinue(sessionId))
+                    }
+                },
+                onContinueWithAgentPicker = { rid, aid ->
+                    scope.launch {
+                        val response = readReportAgentResponse(context, rid, aid) ?: return@launch
+                        appViewModel.updateUiState {
+                            it.copy(
+                                chatStarterText = response,
+                                chatStarterImageBase64 = null,
+                                chatStarterImageMime = null
+                            )
+                        }
+                        navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT)
+                    }
+                },
+                onContinueWithOnTheFly = { rid, aid ->
+                    scope.launch {
+                        val response = readReportAgentResponse(context, rid, aid) ?: return@launch
+                        appViewModel.updateUiState {
+                            it.copy(
+                                chatStarterText = response,
+                                chatStarterImageBase64 = null,
+                                chatStarterImageMime = null
+                            )
+                        }
+                        navController.navigate(NavRoutes.AI_CHAT_PROVIDER)
                     }
                 })
         }
@@ -900,17 +929,35 @@ private suspend fun routeShareToReport(
  *  Uses the agent's actual provider/model so the user keeps talking
  *  to the same model that produced the report response. The first
  *  user turn carries the report's vision attachment if there was
- *  one. ChatParameters defaults are used for the new session — the
- *  user can adjust them per-turn from the chat screen. */
+ *  one. The new session inherits the agent's resolved system prompt
+ *  + parameters from current settings (same mapping the
+ *  AI_CHAT_WITH_AGENT route uses); if the agent has been deleted
+ *  since the report was written we fall back to ChatParameters
+ *  defaults. */
 private suspend fun continueReportInChat(
     context: android.content.Context,
     reportId: String,
-    agentId: String
+    agentId: String,
+    aiSettings: com.ai.model.Settings
 ): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
     val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
     val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
     val provider = AppService.findById(agent.provider) ?: return@withContext null
     val responseBody = agent.responseBody?.takeIf { it.isNotBlank() } ?: return@withContext null
+
+    val settingsAgent = aiSettings.getAgentById(agentId)
+    val chatParams = if (settingsAgent != null) {
+        val rp = aiSettings.resolveAgentParameters(settingsAgent)
+        com.ai.data.ChatParameters(
+            temperature = rp.temperature, maxTokens = rp.maxTokens,
+            topP = rp.topP, topK = rp.topK,
+            frequencyPenalty = rp.frequencyPenalty, presencePenalty = rp.presencePenalty,
+            systemPrompt = rp.systemPrompt ?: "",
+            searchEnabled = rp.searchEnabled, returnCitations = rp.returnCitations,
+            searchRecency = rp.searchRecency, webSearchTool = rp.webSearchTool
+        )
+    } else com.ai.data.ChatParameters()
+
     val now = System.currentTimeMillis()
     val session = com.ai.data.ChatSession(
         provider = provider,
@@ -929,9 +976,23 @@ private suspend fun continueReportInChat(
                 timestamp = (agent.durationMs ?: 0L).let { d -> if (d > 0) report.timestamp + d else now }
             )
         ),
-        parameters = com.ai.data.ChatParameters(),
+        parameters = chatParams,
         createdAt = now,
         updatedAt = now
     )
     if (com.ai.data.ChatHistoryManager.saveSession(session)) session.id else null
+}
+
+/** Fetch just the assistant response text for one agent of one
+ *  report. Used by the "Continue in chat … with this response only"
+ *  flows to stash the text as `chatStarterText` before routing into
+ *  the agent picker / configure-on-the-fly chains. */
+private suspend fun readReportAgentResponse(
+    context: android.content.Context,
+    reportId: String,
+    agentId: String
+): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
+    val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
+    agent.responseBody?.takeIf { it.isNotBlank() }
 }

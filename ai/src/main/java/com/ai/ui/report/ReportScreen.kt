@@ -47,7 +47,9 @@ fun ReportsScreenNav(
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    onContinueInChat: (String, String) -> Unit = { _, _ -> }
+    onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
+    onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -155,7 +157,9 @@ fun ReportsScreenNav(
         },
         onCancelTranslation = { runId -> reportViewModel.cancelTranslation(runId) },
         onConsumeTranslation = { runId -> reportViewModel.consumeTranslationRun(runId) },
-        onContinueInChat = onContinueInChat
+        onContinueWithCurrent = onContinueWithCurrent,
+        onContinueWithAgentPicker = onContinueWithAgentPicker,
+        onContinueWithOnTheFly = onContinueWithOnTheFly
     )
 }
 
@@ -244,7 +248,9 @@ fun ReportsScreen(
     onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
     onCancelTranslation: (String) -> Unit = {},
     onConsumeTranslation: (String) -> Unit = {},
-    onContinueInChat: (String, String) -> Unit = { _, _ -> }
+    onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
+    onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -499,7 +505,9 @@ fun ReportsScreen(
             onNavigateToTraceFile = onNavigateToTraceFile,
             onRemoveAgent = onRemoveAgent,
             onRegenerateAgent = onRegenerateAgent,
-            onContinueInChat = onContinueInChat
+            onContinueWithCurrent = onContinueWithCurrent,
+            onContinueWithAgentPicker = onContinueWithAgentPicker,
+            onContinueWithOnTheFly = onContinueWithOnTheFly
         )
         return
     }

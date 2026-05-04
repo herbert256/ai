@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -44,12 +45,19 @@ fun ReportSingleResultScreen(
     onNavigateToTraceFile: (String) -> Unit,
     onRemoveAgent: (String, String) -> Unit,
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
-    /** Open a fresh chat session pre-seeded with the report prompt
-     *  as the user turn and this agent's response as the assistant
-     *  turn, then drop the user into ChatSessionScreen against the
-     *  same provider/model so they can keep going. Caller persists
-     *  the session and navigates. */
-    onContinueInChat: (String, String) -> Unit = { _, _ -> }
+    /** Pre-seed a fresh chat session with the report prompt + this
+     *  agent's response and the agent's resolved system prompt /
+     *  parameters from current settings, then open it against the
+     *  same provider/model. */
+    onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
+    /** Stash this agent's response as the next chat's input-box
+     *  starter and route to the agent picker (same flow as
+     *  AI Chat → New Chat with Agent). */
+    onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
+    /** Stash this agent's response as the next chat's input-box
+     *  starter and route to the configure-on-the-fly chain
+     *  (provider → model → params → session). */
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -224,18 +232,41 @@ fun ReportSingleResultScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("Call model API again", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            // Continue in chat — open a fresh chat session against
-            // the same provider/model with the report's prompt and
-            // this agent's response pre-seeded as the first two
-            // turns. Disabled when the response is empty / errored
-            // since there's nothing to seed the assistant turn with.
+            // "Continue in chat ..." card — three follow-up flows.
+            // Disabled when the response is empty / errored since
+            // there's nothing meaningful to seed any of them with.
             val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
-            Button(
-                onClick = { onContinueInChat(reportId, agentId) },
-                enabled = canContinueInChat,
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("💬 Continue in chat", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Text(
+                        "💬 Continue in chat ...",
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = AppColors.TextSecondary,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    ContinueRow(
+                        icon = "📜",
+                        title = "... with current history and model",
+                        enabled = canContinueInChat,
+                        onClick = { onContinueWithCurrent(reportId, agentId) }
+                    )
+                    ContinueRow(
+                        icon = "🤖",
+                        title = "... with this response only and select an agent",
+                        enabled = canContinueInChat,
+                        onClick = { onContinueWithAgentPicker(reportId, agentId) }
+                    )
+                    ContinueRow(
+                        icon = "🛠️",
+                        title = "... with this response only and configure on the fly",
+                        enabled = canContinueInChat,
+                        onClick = { onContinueWithOnTheFly(reportId, agentId) }
+                    )
+                }
+            }
         }
     }
 
@@ -261,6 +292,27 @@ fun ReportSingleResultScreen(
                     Text("Cancel", maxLines = 1, softWrap = false)
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun ContinueRow(icon: String, title: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = icon, fontSize = 20.sp,
+            modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+            color = if (enabled) Color.White else AppColors.TextDim
         )
     }
 }
