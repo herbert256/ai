@@ -121,10 +121,19 @@ internal fun TranslationRunDetailScreen(
             return@Column
         }
 
-        // Single model header for the whole run.
-        Text("$providerDisplay — $modelName",
-            fontSize = 14.sp, color = AppColors.Blue,
-            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        // Single model header for the whole run. The 🐞 ladybug links to
+        // the report's trace list pre-filtered to "Translation"; rendered
+        // only when at least one translation trace exists.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("$providerDisplay — $modelName",
+                fontSize = 14.sp, color = AppColors.Blue,
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f))
+            if (translationTraceCount > 0) {
+                Text("🐞", fontSize = 18.sp,
+                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceList() })
+            }
+        }
         Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)) {
             Text("${results.size} calls", fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
             if (totalCost > 0.0) {
@@ -158,9 +167,9 @@ internal fun TranslationRunDetailScreen(
             }
         }
 
-        // Bottom action row — Model / Delete / Trace, mirroring
-        // SecondaryResultDetailScreen. Delete drops every TRANSLATE
-        // row in this run after confirmation.
+        // Bottom action row — Model / Delete. Trace lives at the top as
+        // a 🐞 icon next to the provider/model header. Delete drops every
+        // TRANSLATE row in this run after confirmation.
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -176,13 +185,6 @@ internal fun TranslationRunDetailScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = onNavigateToTraceList,
-                enabled = translationTraceCount > 0,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
     }
 

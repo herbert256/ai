@@ -1141,11 +1141,26 @@ private fun ColumnScope.GenerationPhase(
     // is visible without scrolling. Sums tokens and cents across the
     // per-agent rows, every persisted meta run (rerank / summarize
     // / compare / moderation / translate), and any in-flight translation
-    // batch's live state. Hidden when nothing has billed anything yet.
-    if (totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0) {
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-            Text("Total: $totalInputTokens/$totalOutputTokens tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-            Text("${formatCents(totalCost)} ¢", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+    // batch's live state. The trailing 🐞 ladybug opens the report's
+    // trace list (replacing the former View → Trace button); rendered
+    // whenever the report has an id, so it's always reachable from the
+    // top of the screen.
+    val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
+    if (showTotals || currentReportId != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (showTotals) {
+                Text("Total: $totalInputTokens/$totalOutputTokens tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
+                Text("${formatCents(totalCost)} ¢", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            if (currentReportId != null) {
+                Text("🐞", fontSize = 18.sp,
+                    modifier = Modifier.padding(start = 8.dp).clickable { onTrace() })
+            }
         }
     }
 
@@ -1384,7 +1399,8 @@ private fun ColumnScope.GenerationPhase(
             CompactButton(onClick = onViewResults, color = AppColors.Purple, text = "Reports")
             CompactButton(onClick = onViewPrompt, color = AppColors.Blue, text = "Prompt")
             CompactButton(onClick = onViewCosts, color = AppColors.Green, text = "Costs")
-            CompactButton(onClick = onTrace, color = AppColors.Indigo, text = "Trace", enabled = currentReportId != null)
+            // Trace lives at the top of the screen as a 🐞 icon next to
+            // the totals banner — see the showTotals row above.
             // Per-Meta-prompt viewers — one button per unique prompt
             // name that has at least one row on this report. Legacy
             // rows (no metaPromptName) bucket under their kind label.

@@ -238,14 +238,11 @@ private fun ColumnScope.MetaResultsPickerView(
     // Provider / model / timestamp header for the selected item.
     val providerService = AppService.findById(selected.providerId)
     val provider = providerService?.displayName ?: selected.providerId
-    Text("$provider — ${selected.model}", fontSize = 16.sp, color = AppColors.Blue,
-        fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
-    Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(selected.timestamp)),
-        fontSize = 11.sp, color = AppColors.TextTertiary)
-    Spacer(modifier = Modifier.height(8.dp))
 
     // Trace lookup mirrors SecondaryResultDetailScreen — pick the
     // closest-timestamped trace tagged with the same (reportId, model).
+    // Hoisted above the header so the 🐞 ladybug can sit next to the
+    // model name instead of in a bottom button row.
     val traceFilename by produceState<String?>(initialValue = null, selected.id) {
         value = withContext(Dispatchers.IO) {
             ApiTracer.getTraceFiles()
@@ -253,6 +250,18 @@ private fun ColumnScope.MetaResultsPickerView(
                 .minByOrNull { kotlin.math.abs(it.timestamp - selected.timestamp) }?.filename
         }
     }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("$provider — ${selected.model}", fontSize = 16.sp, color = AppColors.Blue,
+            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f))
+        if (traceFilename != null) {
+            Text("🐞", fontSize = 18.sp,
+                modifier = Modifier.padding(start = 8.dp).clickable { traceFilename?.let(onNavigateToTraceFile) })
+        }
+    }
+    Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(selected.timestamp)),
+        fontSize = 11.sp, color = AppColors.TextTertiary)
+    Spacer(modifier = Modifier.height(8.dp))
 
     // Selected item body (scrolls independently of the picker row).
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -271,8 +280,8 @@ private fun ColumnScope.MetaResultsPickerView(
         }
     }
 
-    // Bottom action row — Delete / Model Info / Trace, same trio
-    // SecondaryResultDetailScreen exposes.
+    // Bottom action row — Delete / Model. Trace lives at the top as a
+    // 🐞 icon next to the provider/model header.
     var confirmDelete by remember { mutableStateOf(false) }
     Spacer(modifier = Modifier.height(8.dp))
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -289,13 +298,6 @@ private fun ColumnScope.MetaResultsPickerView(
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
             contentPadding = PaddingValues(horizontal = 4.dp)
         ) { Text("Model", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-        Button(
-            onClick = { traceFilename?.let(onNavigateToTraceFile) },
-            enabled = traceFilename != null,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
-            contentPadding = PaddingValues(horizontal = 4.dp)
-        ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
     }
 
     if (confirmDelete) {
@@ -446,7 +448,17 @@ internal fun SecondaryResultDetailScreen(
         TitleBar(title = "$title — $provider", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
 
-        Text(result.model, fontSize = 13.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        // Model header with the trace 🐞 ladybug at the right — tapping
+        // opens the closest-timestamp trace for this (report, model).
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(result.model, fontSize = 13.sp, color = AppColors.Blue,
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f))
+            if (traceFilename != null) {
+                Text("🐞", fontSize = 18.sp,
+                    modifier = Modifier.padding(start = 8.dp).clickable { traceFilename?.let(onNavigateToTraceFile) })
+            }
+        }
         Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(result.timestamp)),
             fontSize = 11.sp, color = AppColors.TextTertiary)
         Spacer(modifier = Modifier.height(12.dp))
@@ -509,13 +521,6 @@ internal fun SecondaryResultDetailScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) { Text("Model", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { traceFilename?.let(onNavigateToTraceFile) },
-                enabled = traceFilename != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
     }
 

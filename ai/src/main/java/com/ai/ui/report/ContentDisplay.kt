@@ -254,8 +254,29 @@ private fun ReportsViewerScreenLoaded(
 
             if (selectedReportAgent != null) {
                 val provDisplay = AppService.findById(selectedReportAgent.provider)?.displayName ?: selectedReportAgent.provider
-                Text("$provDisplay \u2014 ${selectedReportAgent.model}", fontSize = 18.sp, color = AppColors.Blue,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+                // Trace lookup hoisted next to the model header so the
+                // \ud83d\udc1e ladybug can sit at the top of the screen instead of
+                // a separate Trace button below the body.
+                val traceFilenameState = produceState<String?>(initialValue = null, report.id, selectedReportAgent.model, selectedReportAgent.agentId) {
+                    value = withContext(Dispatchers.IO) {
+                        ApiTracer.getTraceFiles()
+                            .filter { it.reportId == report.id && it.model == selectedReportAgent.model }
+                            .maxByOrNull { it.timestamp }?.filename
+                    }
+                }
+                val headerTraceFilename = traceFilenameState.value
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("$provDisplay \u2014 ${selectedReportAgent.model}",
+                        fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f))
+                    if (headerTraceFilename != null) {
+                        Text("\ud83d\udc1e", fontSize = 18.sp,
+                            modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(headerTraceFilename) })
+                    }
+                }
             }
         }
 
@@ -298,28 +319,6 @@ private fun ReportsViewerScreenLoaded(
                     selectedReportAgent.citations?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); CitationsSection(it) }
                     selectedReportAgent.searchResults?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); SearchResultsSection(it) }
                     selectedReportAgent.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { Spacer(modifier = Modifier.height(16.dp)); RelatedQuestionsSection(it) }
-
-                    // "Trace" button — finds the most recent on-disk trace
-                    // for (reportId, agent.model) and opens its detail view.
-                    // Hidden when there's no matching trace (purged, never
-                    // captured, or another agent's call is selected).
-                    val traceFilenameState = produceState<String?>(initialValue = null, report.id, selectedReportAgent.model, selectedReportAgent.agentId) {
-                        value = withContext(Dispatchers.IO) {
-                            ApiTracer.getTraceFiles()
-                                .filter { it.reportId == report.id && it.model == selectedReportAgent.model }
-                                .maxByOrNull { it.timestamp }?.filename
-                        }
-                    }
-                    val traceFilename = traceFilenameState.value
-                    if (traceFilename != null) {
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Button(
-                            onClick = { onNavigateToTraceFile(traceFilename) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                        ) { Text("Trace", fontSize = 14.sp, maxLines = 1, softWrap = false) }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
                 }
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

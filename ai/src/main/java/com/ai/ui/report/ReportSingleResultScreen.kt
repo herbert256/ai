@@ -121,11 +121,23 @@ fun ReportSingleResultScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(title = provider.displayName, onBackClick = onBack, onAiClick = onNavigateHome)
 
-        Text(
-            "${provider.displayName} — ${agent.model}",
-            fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
-        )
+        // Provider/model header with the trace 🐞 ladybug at the right —
+        // tapping it opens the most recent trace for this (report, model).
+        // Hidden when no trace was captured for this agent.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "${provider.displayName} — ${agent.model}",
+                fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            if (traceFilename != null) {
+                Text("🐞", fontSize = 18.sp,
+                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(traceFilename) })
+            }
+        }
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             val rawBody = agent.responseBody
@@ -176,7 +188,8 @@ fun ReportSingleResultScreen(
             }
         }
 
-        // Bottom action row: Remove / Model Info / Trace / Re-run.
+        // Bottom action row: Remove / Model Info / Re-run. Trace lives at
+        // the top as a 🐞 icon next to the provider/model header.
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
@@ -191,13 +204,6 @@ fun ReportSingleResultScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) { Text("Model Info", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { traceFilename?.let(onNavigateToTraceFile) },
-                    enabled = traceFilename != null,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) { Text("Trace", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
             if (canShowTranslation) {
                 Button(
