@@ -433,16 +433,18 @@ data class OpenAiModel(
  *  Multi-modal fields (image / video / transcribe) are out of scope
  *  for the chat tier — captured here for completeness so a future
  *  per-modality cost feature can read them without re-fetching. */
+/** Together AI's per-model `pricing` block. Only the chat token
+ *  fields (`input` / `output`, USD per 1M tokens) are consumed — by
+ *  fetchModelsOpenAi to seed the TOGETHER pricing tier. The block
+ *  also carries `image`, `video`, `transcribe` keys whose values are
+ *  *objects* on image/video/audio entries (`{example_price, ...}` or
+ *  `{price_per_minute}`), not plain numbers, so declaring them here
+ *  as `Double?` would make Gson throw on every refresh and zero out
+ *  the whole catalog. We deliberately leave them undeclared so Gson
+ *  skips them. */
 data class TogetherPricing(
     val input: Double? = null,
-    val output: Double? = null,
-    val cached_input: Double? = null,
-    val image: Double? = null,
-    val video: Double? = null,
-    val transcribe: Double? = null,
-    val hourly: Double? = null,
-    val finetune: Double? = null,
-    val base: Double? = null
+    val output: Double? = null
 )
 
 data class MistralCapabilities(
