@@ -189,10 +189,9 @@ internal fun SecondaryResultsScreen(
 
 /** Reports-viewer-style screen for Summaries / Compares: a FlowRow of
  *  picker buttons (one per result) plus the selected result's content
- *  inline. Picker labels show the result's provider · model. Content
- *  is rendered with [annotateBracketRefs] so per-agent [N] references
- *  stay readable. The trailing action row mirrors
- *  [SecondaryResultDetailScreen]: Delete / Model Info / Trace. */
+ *  inline. Picker labels show the result's provider · model. The
+ *  trailing action row mirrors [SecondaryResultDetailScreen]:
+ *  Delete / Model Info / Trace. */
 @Composable
 private fun ColumnScope.SummariesComparesPickerView(
     results: List<SecondaryResult>,
@@ -201,7 +200,6 @@ private fun ColumnScope.SummariesComparesPickerView(
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit
 ) {
-    val context = LocalContext.current
     var selectedId by remember(results) { mutableStateOf(results.firstOrNull()?.id) }
     LaunchedEffect(results) {
         if (results.none { it.id == selectedId }) selectedId = results.firstOrNull()?.id
@@ -244,20 +242,6 @@ private fun ColumnScope.SummariesComparesPickerView(
         fontSize = 11.sp, color = AppColors.TextTertiary)
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Build the same agent-label map the inline content rendering uses
-    // to annotate bracketed [N] references. Loaded once per report id
-    // (recomputed cheaply on the IO dispatcher).
-    val agentLabels by produceState(initialValue = emptyMap<Int, String>(), reportId) {
-        value = withContext(Dispatchers.IO) {
-            val report = ReportStorage.getReport(context, reportId) ?: return@withContext emptyMap()
-            report.agents
-                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .mapIndexed { idx, agent ->
-                    val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
-                    (idx + 1) to "$provDisplay / ${agent.model}"
-                }.toMap()
-        }
-    }
     // Trace lookup mirrors SecondaryResultDetailScreen — pick the
     // closest-timestamped trace tagged with the same (reportId, model).
     val traceFilename by produceState<String?>(initialValue = null, selected.id) {
@@ -280,10 +264,7 @@ private fun ColumnScope.SummariesComparesPickerView(
                 Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
             }
             else -> {
-                val annotated = remember(selected.content, agentLabels) {
-                    annotateBracketRefs(selected.content, agentLabels)
-                }
-                ContentWithThinkSections(analysis = annotated)
+                ContentWithThinkSections(analysis = selected.content)
             }
         }
     }
@@ -503,13 +484,7 @@ internal fun SecondaryResultDetailScreen(
                     }
                 }
                 else -> {
-                    // Summarize / Compare: replace bracketed [N] tags
-                    // inline with "[N: provider/model]" so the user sees
-                    // who said what without flipping back to the report.
-                    val annotated = remember(result.content, agentLabels) {
-                        annotateBracketRefs(result.content, agentLabels)
-                    }
-                    ContentWithThinkSections(analysis = annotated)
+                    ContentWithThinkSections(analysis = result.content)
                 }
             }
         }
@@ -625,19 +600,6 @@ internal fun RerankTable(rows: List<RerankRow>, agentLabels: Map<Int, String>) {
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
             }
         }
-    }
-}
-
-/** Replace bracketed `[N]` tags inline with `[N: provider/model]` when
- *  the id is in the agent map. Used by the Summarize / Compare viewers
- *  so a reader can see who's being cited without bouncing back to the
- *  report. Unmatched ids are left as-is. */
-internal fun annotateBracketRefs(content: String?, agentLabels: Map<Int, String>): String {
-    if (content.isNullOrBlank() || agentLabels.isEmpty()) return content.orEmpty()
-    return Regex("""\[(\d+)\]""").replace(content) { m ->
-        val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-        val label = agentLabels[id] ?: return@replace m.value
-        "[$id: $label]"
     }
 }
 
