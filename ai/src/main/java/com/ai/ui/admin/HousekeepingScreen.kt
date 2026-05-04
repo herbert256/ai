@@ -306,7 +306,7 @@ fun HousekeepingScreen(
                     ) { Text("Cleanup manual cost overrides", maxLines = 1, softWrap = false) }
             }
 
-            CollapsibleCard("Full reset") {
+            CollapsibleCard("Reset") {
                     Button(
                         onClick = { showClearAllConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
