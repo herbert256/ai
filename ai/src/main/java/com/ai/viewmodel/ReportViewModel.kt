@@ -441,15 +441,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 for (task in tasksToRun) {
                     if (task.resultId in existingIds) ReportStorage.resetAgentToPending(context, reportId, task.resultId)
                 }
+                val tasksToRunIds = tasksToRun.map { it.resultId }.toSet()
                 _agentResults.update { existing ->
-                    existing.filterKeys { k -> k !in removedIds && k !in tasksToRun.map { it.resultId }.toSet() }
+                    existing.filterKeys { k -> k !in removedIds && k !in tasksToRunIds }
                 }
                 ReportStorage.bumpReportTimestamp(context, reportId)
+                // The result-row list is driven by genericReportsSelectedAgents;
+                // sync it with the post-mutation agent set so newly-added rows
+                // appear (with the spinning hourglass via empty _agentResults)
+                // and removed rows disappear. Reset progress to count only the
+                // agents not being re-run — each task-to-run will bump progress
+                // on completion (isRegeneration = false below) until it equals
+                // total again. Without this, additive regenerate would silently
+                // drop new rows from the UI.
+                val finalAgentIds = tasks.map { it.resultId }.toSet()
                 appViewModel.updateUiState { s -> s.copy(
                     stagedReportModels = emptyList(),
                     pendingReportModels = emptyList(),
                     hasPendingPromptChange = false,
-                    hasPendingParametersChange = false
+                    hasPendingParametersChange = false,
+                    genericReportsSelectedAgents = finalAgentIds,
+                    genericReportsTotal = finalAgentIds.size,
+                    genericReportsProgress = finalAgentIds.size - tasksToRunIds.size
                 ) }
 
                 if (tasksToRun.isNotEmpty()) {
@@ -463,7 +476,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             async {
                                 sem.withPermit {
                                     executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
-                                        finalReport.imageBase64, finalReport.imageMime, isRegeneration = true)
+                                        finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
                                 }
                             }
                         }.awaitAll()
