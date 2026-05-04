@@ -802,6 +802,7 @@ fun SettingsScreenNav(
         onTestSpecificModel = { s, k, m, p -> viewModel.testSpecificModel(s, k, m, p) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToModelInfo = onNavigateToModelInfo,
+        onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() },
         initialSubScreen = initialSubScreen,
         initialProviderId = initialProviderId,
         initialEditingAgentId = initialEditingAgentId

@@ -319,21 +319,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             prefs.edit().also { e -> keysToClear.forEach { e.remove(it) } }.apply()
         }
 
-        // Ensure every prompt declared in assets/prompts.json is
-        // present in Settings.internalPrompts. Runs on every startup —
-        // existing entries are left alone (no overwrites), missing
-        // entries are appended. Lets the bundle ship new built-in
-        // prompts to existing installs without losing user edits.
-        val bundledPrompts = com.ai.data.InternalPromptSeed.loadFromAssets(application)
-        val mergedPrompts = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundledPrompts)
         // Save unconditionally so the migration applied at load
-        // (null category/agent → "meta"/"*select" for pre-rename rows)
-        // persists to disk on the very first boot of this build, not
-        // only after the user makes a CRUD edit.
-        ai = ai.copy(internalPrompts = mergedPrompts)
+        // (null category/agent → "meta"/"*select" for pre-rename rows,
+        // plus the legacy intro/translate/model-info → InternalPrompt
+        // promotion above) persists on the very first boot of this
+        // build. assets/prompts.json is no longer consulted here —
+        // the Internal Prompts list screen exposes a button that runs
+        // [loadBundledInternalPrompts] on demand, so users don't get
+        // entries reappearing after they delete them.
         settingsPrefs.saveSettings(ai)
 
         return gs to ai
+    }
+
+    /** On-demand merge of the prompts declared in `assets/prompts.json`
+     *  into [Settings.internalPrompts]. Existing rows are left strictly
+     *  alone (no overwrites); only names not yet present are appended.
+     *  Returns the count of newly added prompts so the caller can show
+     *  feedback ("3 new prompts added", "all prompts already present"). */
+    fun loadBundledInternalPrompts(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        val merged = com.ai.data.InternalPromptSeed.ensureAllPresent(current.internalPrompts, bundled)
+        val added = merged.size - current.internalPrompts.size
+        if (added > 0) updateSettings(current.copy(internalPrompts = merged))
+        return added
     }
 
     // ===== Settings =====

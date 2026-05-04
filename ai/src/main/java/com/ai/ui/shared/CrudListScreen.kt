@@ -49,7 +49,11 @@ fun <T> CrudListScreen(
     onHome: () -> Unit,
     deleteEntityType: String,
     deleteEntityName: (T) -> String,
-    itemKey: (T) -> Any = { it as Any }
+    itemKey: (T) -> Any = { it as Any },
+    /** Optional slot rendered between the Add button and the list —
+     *  used by InternalPromptsListScreen to surface the
+     *  "Load new prompts from assets/prompts.json" action. */
+    headerContent: @Composable ColumnScope.() -> Unit = {}
 ) {
     var showDeleteDialog by remember { mutableStateOf<T?>(null) }
 
@@ -70,6 +74,8 @@ fun <T> CrudListScreen(
         ) {
             Text(addLabel, maxLines = 1, softWrap = false)
         }
+
+        headerContent()
 
         Spacer(modifier = Modifier.height(16.dp))
 
