@@ -571,6 +571,33 @@
       "defaultModel": "Meta-Llama-3.1-70B-Instruct",
       "prefsKey": "ai_krutrim",
       "defaultModelSource": "API"
+    },
+    {
+      "id": "NEBIUS",
+      "displayName": "Nebius AI Studio",
+      "baseUrl": "https://api.studio.nebius.com/",
+      "adminUrl": "https://studio.nebius.com/settings/api-keys",
+      "defaultModel": "meta-llama/Meta-Llama-3.1-70B-Instruct",
+      "prefsKey": "ai_nebius",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "CHUTES",
+      "displayName": "Chutes",
+      "baseUrl": "https://llm.chutes.ai/",
+      "adminUrl": "https://chutes.ai/app/api",
+      "defaultModel": "deepseek-ai/DeepSeek-V3",
+      "prefsKey": "ai_chutes",
+      "defaultModelSource": "API"
+    },
+    {
+      "id": "INFERENCE_NET",
+      "displayName": "Inference.net",
+      "baseUrl": "https://api.inference.net/",
+      "adminUrl": "https://inference.net/dashboard/api-keys",
+      "defaultModel": "meta-llama/llama-3.3-70b-instruct/fp-8",
+      "prefsKey": "ai_inference_net",
+      "defaultModelSource": "API"
     }
   ]
 }
