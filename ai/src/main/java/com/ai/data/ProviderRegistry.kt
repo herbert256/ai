@@ -51,8 +51,34 @@ object ProviderRegistry {
             // new built-in providers to existing installs without a
             // "Reset to defaults" step.
             ensureBundledProvidersPresent(context)
+            // One-shot field-level migrations for known bugs in the
+            // initial setup.json bundle. Each entry patches a single
+            // field on a single provider and is idempotent — the
+            // condition fails on subsequent boots once the fix has
+            // been applied.
+            applyFieldBugfixMigrations()
             initialized = true
         }
+    }
+
+    /** Patch persisted ProviderDefinition fields for known shipped-bad
+     *  values that the user can't fix via the UI. Each migration runs
+     *  every startup but only writes when the condition matches, so
+     *  re-applying is harmless once a user has corrected the field
+     *  manually (the condition won't match anymore). */
+    private fun applyFieldBugfixMigrations() {
+        var changed = false
+        // Perplexity: setup.json originally shipped modelsPath="models",
+        // which 404s. The actual endpoint is /v1/models (verified by
+        // 401 vs 404 probe). Patch any persisted entry that still has
+        // the bad value.
+        val pp = providers.indexOfFirst { it.id == "PERPLEXITY" }
+        if (pp >= 0 && providers[pp].modelsPath == "models") {
+            val def = ProviderDefinition.fromAppService(providers[pp]).copy(modelsPath = "v1/models")
+            providers[pp] = def.toAppService()
+            changed = true
+        }
+        if (changed) save()
     }
 
     private fun ensureBundledProvidersPresent(context: Context) {

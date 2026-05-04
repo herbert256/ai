@@ -126,7 +126,7 @@
       "typePaths": {
         "chat": "chat/completions"
       },
-      "modelsPath": "models",
+      "modelsPath": "v1/models",
       "prefsKey": "ai_perplexity",
       "supportsCitations": true,
       "supportsSearchRecency": true,
