@@ -163,7 +163,14 @@ object ProviderRegistry {
     }
 
     fun resetToDefaults(context: Context) {
-        initialized = false
+        // Drop the in-memory list as well as the persisted prefs.
+        // Otherwise importFromAsset's "skip if id already present"
+        // check sees the old entries and adds nothing — the registry
+        // keeps the pre-reset providers, just dissociated from disk.
+        synchronized(lock) {
+            providers.clear()
+            initialized = false
+        }
         prefs?.edit { clear() }
         init(context)
     }

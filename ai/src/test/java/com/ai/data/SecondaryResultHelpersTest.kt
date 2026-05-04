@@ -37,13 +37,17 @@ class SecondaryResultHelpersTest {
         val all = buildResultsBlock(report)
         val subset = buildResultsBlock(report, includeIds = setOf(1, 3))
 
-        assertThat(all).contains("[1] provider=UNIT model=m1\nfirst")
-        assertThat(all).contains("[2] provider=UNIT model=m3\nthird")
-        assertThat(all).contains("[3] provider=UNIT model=m4\nfourth")
+        // @RESULTS@ headers are short — just the bracketed [N] id.
+        // Provider / model identifiers reach the user via the legend
+        // appended to the secondary result, not via the prompt block.
+        assertThat(all).contains("[1]\nfirst")
+        assertThat(all).contains("[2]\nthird")
+        assertThat(all).contains("[3]\nfourth")
         assertThat(all).doesNotContain("failed")
-        assertThat(subset).contains("[1] provider=UNIT model=m1\nfirst")
-        assertThat(subset).contains("[3] provider=UNIT model=m4\nfourth")
-        assertThat(subset).doesNotContain("[2] provider=UNIT model=m3")
+        assertThat(all).doesNotContain("provider=UNIT")
+        assertThat(subset).contains("[1]\nfirst")
+        assertThat(subset).contains("[3]\nfourth")
+        assertThat(subset).doesNotContain("[2]")
     }
 
     @Test fun extractTopRankedIds_accepts_plain_json_and_fenced_json() {
