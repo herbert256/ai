@@ -107,6 +107,39 @@ object ProviderRegistry {
         }
     }
 
+    /** Upsert from a user-picked JSON blob shaped like the bundled
+     *  `assets/providers.json` (top-level `{ "providers": [...] }`).
+     *  For each entry: replace the existing provider with the same id,
+     *  or append if absent. Per-provider API keys / model lists live
+     *  in [com.ai.model.Settings], not here, so they stay untouched.
+     *  Returns the count of (added + updated) rows, or `-1` on parse
+     *  failure. */
+    fun upsertFromJson(json: String): Int {
+        return try {
+            val root = JsonParser.parseString(json) as? JsonObject ?: return -1
+            val arr = root.getAsJsonArray("providers") ?: return -1
+            val gson = createAppGson()
+            val defs: List<ProviderDefinition> = gson.fromJson(arr, providerListType)
+            synchronized(lock) {
+                var changed = 0
+                for (def in defs) {
+                    val service = try { def.toAppService() } catch (e: Exception) {
+                        android.util.Log.w("ProviderRegistry", "Skipped imported provider ${def.id}: ${e.message}")
+                        continue
+                    }
+                    val i = providers.indexOfFirst { it.id == service.id }
+                    if (i >= 0) providers[i] = service else providers.add(service)
+                    changed++
+                }
+                if (changed > 0) save()
+                changed
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ProviderRegistry", "upsertFromJson failed: ${e.message}")
+            -1
+        }
+    }
+
     private fun parseProvidersJson(json: String): List<AppService> {
         val defs: List<ProviderDefinition> = createAppGson().fromJson(json, providerListType)
         return defs.map { it.toAppService() }

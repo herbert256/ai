@@ -185,13 +185,7 @@ fun HousekeepingScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            CollapsibleCard("Export / Import") {
-                Button(
-                    onClick = onNavigateToImportExport,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text("Export / Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
+            NavCard("Export / Import", onClick = onNavigateToImportExport)
 
             CollapsibleCard("Refresh") {
                 Button(
@@ -324,6 +318,25 @@ fun HousekeepingScreen(
 // — see ui/settings/LocalRuntimeScreens.kt. They're configuration of
 // on-device runtimes, not housekeeping, and naturally belong with
 // the rest of the AI configuration cards.
+
+/** Card that doesn't expand — clicking the whole row fires [onClick].
+ *  Used by Housekeeping rows whose entire purpose is a single
+ *  navigation, so the user shouldn't have to expand-then-tap-button. */
+@Composable
+private fun NavCard(title: String, onClick: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+            Text(">", color = AppColors.Blue, fontSize = 16.sp)
+        }
+    }
+}
 
 /** Card that starts collapsed — the title row is always visible and
  *  acts as a click target; tapping reveals [content]. Lets the

@@ -97,6 +97,25 @@ fun ImportExportScreen(
         Toast.makeText(context, "Providers exported (${defs.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
+    val exportPromptsJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        // Drop-in shape for assets/prompts.json — top-level array of
+        // {name, type, reference, category, agent, text} objects, no
+        // ids (the seed loader assigns fresh UUIDs on read).
+        val payload = aiSettings.internalPrompts.map {
+            linkedMapOf(
+                "name" to it.name,
+                "type" to it.type,
+                "reference" to it.reference,
+                "category" to it.category,
+                "agent" to it.agent,
+                "text" to it.text
+            )
+        }
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(payload))
+        Toast.makeText(context, "Internal prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val manual = PricingCache.getAllManualPricing(context)
@@ -248,6 +267,27 @@ fun ImportExportScreen(
                 }
                 Toast.makeText(context, "Imported $imported costs" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
             }
+            "providers" -> {
+                // Catalog-only update. Per-provider API keys live in
+                // Settings (different prefs file) and are not touched.
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val n = ProviderRegistry.upsertFromJson(json)
+                if (n < 0) Toast.makeText(context, "Could not parse providers.json", Toast.LENGTH_LONG).show()
+                else Toast.makeText(context, "Updated $n provider${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+            }
+            "prompts" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val pair = com.ai.data.InternalPromptSeed.upsertFromJson(json, aiSettings.internalPrompts)
+                if (pair == null) {
+                    Toast.makeText(context, "Could not parse prompts.json", Toast.LENGTH_LONG).show()
+                } else {
+                    val (updated, n) = pair
+                    onSave(aiSettings.copy(internalPrompts = updated))
+                    Toast.makeText(context, "Updated $n internal prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -271,13 +311,19 @@ fun ImportExportScreen(
                             exportCostsLauncher.launch("ai_costs-${exportTimestamp()}.csv")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
-                    // Bundle-shape export: provider catalog only, no API
-                    // keys. Drop-in shape for assets/providers.json so a
-                    // developer can ship the user's tuned catalog as the
-                    // new bundled defaults.
-                    OutlinedButton(onClick = {
-                        exportProvidersJsonLauncher.launch("providers.json")
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    // Bundle-shape exports: provider catalog and internal
+                    // prompts. Drop-in shape for assets/providers.json
+                    // and assets/prompts.json so a developer can ship the
+                    // user's tuned catalog as the new bundled defaults.
+                    // Neither carries an API key.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            exportProvidersJsonLauncher.launch("providers.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            exportPromptsJsonLauncher.launch("prompts.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
                 }
             }
 
@@ -316,6 +362,18 @@ fun ImportExportScreen(
                         OutlinedButton(onClick = {
                             importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    // Bundle-shape imports: provider catalog and internal
+                    // prompts. Upsert by id (providers) or by name
+                    // (prompts). API keys are stored in a separate prefs
+                    // file and stay untouched.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            importType = "providers"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                 }
             }

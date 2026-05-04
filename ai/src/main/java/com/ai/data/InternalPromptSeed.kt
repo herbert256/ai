@@ -65,4 +65,53 @@ object InternalPromptSeed {
         val toAdd = bundled.filter { it.name.lowercase() !in knownNames }
         return if (toAdd.isEmpty()) existing else existing + toAdd
     }
+
+    /** Upsert by case-insensitive name from a JSON blob shaped like
+     *  `assets/prompts.json` (a top-level array of Entry-shaped
+     *  objects). Existing rows keep their UUID and only get their
+     *  non-name fields overwritten; missing names are appended with a
+     *  fresh UUID. Returns the new list and the count of (added +
+     *  updated) rows, or null on parse failure. */
+    fun upsertFromJson(
+        json: String,
+        existing: List<InternalPrompt>
+    ): Pair<List<InternalPrompt>, Int>? {
+        return try {
+            val gson = createAppGson()
+            val type = object : TypeToken<List<Entry>>() {}.type
+            val entries: List<Entry> = gson.fromJson(json, type) ?: return null
+            val result = existing.toMutableList()
+            var changed = 0
+            for (e in entries) {
+                if (e.name.isBlank()) continue
+                val i = result.indexOfFirst { it.name.equals(e.name, ignoreCase = true) }
+                if (i >= 0) {
+                    result[i] = result[i].copy(
+                        type = e.type.ifBlank { "chat" },
+                        reference = e.reference,
+                        category = e.category.ifBlank { "internal" },
+                        agent = e.agent.ifBlank { "*select" },
+                        text = e.text
+                    )
+                } else {
+                    result.add(
+                        InternalPrompt(
+                            id = UUID.randomUUID().toString(),
+                            name = e.name,
+                            type = e.type.ifBlank { "chat" },
+                            reference = e.reference,
+                            category = e.category.ifBlank { "internal" },
+                            agent = e.agent.ifBlank { "*select" },
+                            text = e.text
+                        )
+                    )
+                }
+                changed++
+            }
+            result to changed
+        } catch (e: Exception) {
+            android.util.Log.w("InternalPromptSeed", "upsertFromJson failed: ${e.message}")
+            null
+        }
+    }
 }
