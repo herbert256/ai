@@ -137,13 +137,19 @@ fun HousekeepingScreen(
         AlertDialog(
             onDismissRequest = { showClearConfigConfirm = false },
             title = { Text("Clear all configuration?") },
-            text = { Text("This permanently deletes every provider's API key, models, endpoints, plus all agents, flocks, swarms, parameters, prompts, system prompts, External Services keys (HuggingFace, OpenRouter), user name, and default email. Reports, chats, traces, and usage statistics are kept.") },
+            text = { Text("This permanently deletes every provider's API key, models, endpoints, plus all agents, flocks, swarms, parameters, prompts, system prompts, External Services keys (HuggingFace, OpenRouter), user name, default email, and every installed Local LLM (.task) and LiteRT model (.tflite). Reports, chats, traces, and usage statistics are kept.") },
             confirmButton = {
                 Button(
                     onClick = {
                         onClearConfiguration()
+                        val llms = LocalLlm.clearAll(context)
+                        val embedders = LocalEmbedder.clearAll(context)
                         showClearConfigConfirm = false
-                        Toast.makeText(context, "Configuration cleared", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "Configuration cleared, $llms local LLM${if (llms == 1) "" else "s"} and $embedders LiteRT model${if (embedders == 1) "" else "s"} removed",
+                            Toast.LENGTH_LONG
+                        ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }

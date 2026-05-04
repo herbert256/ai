@@ -106,6 +106,17 @@ object LocalLlm {
         instances.clear()
     }
 
+    /** Release every engine and delete every `.task` file under
+     *  [localLlmsDir]. Returns the count of files removed. Used by
+     *  the housekeeping "clear all configuration" flow. */
+    fun clearAll(context: Context): Int {
+        releaseAll()
+        var removed = 0
+        localLlmsDir(context).listFiles { f -> f.extension.equals("task", ignoreCase = true) }
+            ?.forEach { if (it.delete()) removed++ }
+        return removed
+    }
+
     /** Synchronously generate a response for [prompt]. Records one
      *  trace entry per call. Returns null on failure. */
     fun generate(context: Context, modelName: String, prompt: String): String? {

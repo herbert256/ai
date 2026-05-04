@@ -184,6 +184,22 @@ object LocalEmbedder {
         instances.remove(modelName)?.close()
     }
 
+    fun releaseAll() {
+        instances.values.forEach { runCatching { it.close() } }
+        instances.clear()
+    }
+
+    /** Release every embedder and delete every `.tflite` file under
+     *  [localModelsDir]. Returns the count of files removed. Used by
+     *  the housekeeping "clear all configuration" flow. */
+    fun clearAll(context: Context): Int {
+        releaseAll()
+        var removed = 0
+        localModelsDir(context).listFiles { f -> f.extension.equals("tflite", ignoreCase = true) }
+            ?.forEach { if (it.delete()) removed++ }
+        return removed
+    }
+
     /** Run the model on each input string. Records one trace entry per
      *  embed-batch (input array → output dims) so the Trace screen
      *  shows local calls alongside HTTP. Returns null on failure.
