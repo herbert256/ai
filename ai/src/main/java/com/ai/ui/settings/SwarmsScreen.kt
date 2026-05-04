@@ -3,6 +3,8 @@ package com.ai.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.AppService
 import com.ai.model.*
 import com.ai.ui.chat.ParametersSelectorDialog
 import com.ai.ui.chat.SystemPromptSelectorDialog
@@ -51,6 +54,7 @@ fun SwarmsScreen(
 fun SwarmEditScreen(
     swarm: Swarm?,
     aiSettings: Settings,
+    loadingModelsFor: Set<AppService>,
     existingNames: Set<String>,
     onSave: (Swarm) -> Unit,
     onBack: () -> Unit,
@@ -60,12 +64,12 @@ fun SwarmEditScreen(
     val isEditing = swarm != null
 
     var name by remember { mutableStateOf(swarm?.name ?: "") }
-    var selectedMembers by remember { mutableStateOf((swarm?.members ?: emptyList()).toSet()) }
-    var searchQuery by remember { mutableStateOf("") }
+    var selectedMembers by remember { mutableStateOf(swarm?.members ?: emptyList()) }
     var selectedParamsIds by remember { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
     var selectedSystemPromptId by remember { mutableStateOf(swarm?.systemPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
+    var showModelPicker by remember { mutableStateOf(false) }
 
     val nameError = when {
         name.isBlank() -> "Name is required"
@@ -73,20 +77,20 @@ fun SwarmEditScreen(
         else -> null
     }
 
-    // Build all available members from active providers
-    val allMembers = remember(aiSettings) {
-        aiSettings.getActiveServices().flatMap { provider ->
-            val models = aiSettings.getModels(provider)
-            if (models.isNotEmpty()) models.map { SwarmMember(provider, it) }
-            else listOf(SwarmMember(provider, aiSettings.getModel(provider)))
-        }.sortedWith(compareBy({ it.provider.displayName }, { it.model }))
-    }
-    val filteredMembers = remember(searchQuery, allMembers) {
-        if (searchQuery.isBlank()) allMembers
-        else allMembers.filter { it.provider.displayName.contains(searchQuery, ignoreCase = true) || it.model.contains(searchQuery, ignoreCase = true) }
-    }
-    val sortedMembers = remember(filteredMembers, selectedMembers) {
-        filteredMembers.sortedWith(compareByDescending<SwarmMember> { it in selectedMembers }.thenBy { it.provider.displayName }.thenBy { it.model })
+    if (showModelPicker) {
+        com.ai.ui.models.ModelSearchScreen(
+            aiSettings = aiSettings, loadingModelsFor = loadingModelsFor,
+            onBackToAiSetup = { showModelPicker = false }, onBackToHome = onNavigateHome,
+            onNavigateToModelInfo = { _, _ -> },
+            onPickModel = { provider, model ->
+                val candidate = SwarmMember(provider, model)
+                if (selectedMembers.none { it.provider.id == provider.id && it.model == model }) {
+                    selectedMembers = selectedMembers + candidate
+                }
+                showModelPicker = false
+            }
+        )
+        return
     }
 
     if (showParamsDialog) {
@@ -114,7 +118,7 @@ fun SwarmEditScreen(
             Button(
                 onClick = {
                     val id = swarm?.id ?: java.util.UUID.randomUUID().toString()
-                    onSave(Swarm(id, name.trim(), selectedMembers.toList(), selectedParamsIds, selectedSystemPromptId))
+                    onSave(Swarm(id, name.trim(), selectedMembers, selectedParamsIds, selectedSystemPromptId))
                 },
                 enabled = nameError == null && selectedMembers.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
@@ -133,35 +137,49 @@ fun SwarmEditScreen(
             ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = searchQuery, onValueChange = { searchQuery = it },
-            placeholder = { Text("Search models...") }, modifier = Modifier.fillMaxWidth(),
-            singleLine = true, colors = AppColors.outlinedFieldColors()
-        )
-        Text("${selectedMembers.size} selected of ${allMembers.size}", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${selectedMembers.size} member${if (selectedMembers.size == 1) "" else "s"}",
+                fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+            Button(
+                onClick = { showModelPicker = true },
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            ) { Text("+ Add model", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            sortedMembers.forEach { member ->
-                val isChecked = member in selectedMembers
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        selectedMembers = if (isChecked) selectedMembers - member else selectedMembers + member
-                    }.padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(checked = isChecked, onCheckedChange = {
-                        selectedMembers = if (isChecked) selectedMembers - member else selectedMembers + member
-                    })
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(member.provider.displayName, fontSize = 13.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(member.model, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(member.provider, member.model))
-                            com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(member.provider, member.model))
-                            com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(member.provider, member.model))
+        if (selectedMembers.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No models in this swarm yet. Tap “+ Add model” to pick one.",
+                    fontSize = 13.sp, color = AppColors.TextTertiary)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                items(selectedMembers, key = { "${it.provider.id}:${it.model}" }) { member ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(member.provider.displayName, fontSize = 13.sp, color = AppColors.Blue,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(member.model, fontSize = 12.sp, color = Color.White,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(member.provider, member.model))
+                                    com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(member.provider, member.model))
+                                    com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(member.provider, member.model))
+                                }
+                            }
+                            IconButton(onClick = {
+                                selectedMembers = selectedMembers.filterNot {
+                                    it.provider.id == member.provider.id && it.model == member.model
+                                }
+                            }) { Text("✕", fontSize = 16.sp, color = AppColors.Red) }
                         }
                     }
                 }

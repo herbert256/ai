@@ -74,7 +74,13 @@ fun ModelSearchScreen(
     loadingModelsFor: Set<AppService>,
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
-    onNavigateToModelInfo: (AppService, String) -> Unit
+    onNavigateToModelInfo: (AppService, String) -> Unit,
+    /** When non-null, the screen runs in pick mode: the title becomes
+     *  "Select Model", row click invokes this callback instead of
+     *  navigating to the model-info screen. Used by Swarm edit + the
+     *  AI Chat configure-on-the-fly entry to reuse the same rich model
+     *  browser as a one-shot picker. */
+    onPickModel: ((AppService, String) -> Unit)? = null
 ) {
     BackHandler { onBackToAiSetup() }
     val context = LocalContext.current
@@ -158,7 +164,7 @@ fun ModelSearchScreen(
     val isLoading = loadingModelsFor.isNotEmpty()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Models", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
+        TitleBar(title = if (onPickModel != null) "Select Model" else "Models", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
 
         // Type + Provider dropdowns share a row; capability checkboxes
         // sit on a row below. Each dropdown is anchored in its own Box
@@ -376,7 +382,10 @@ fun ModelSearchScreen(
                     isVisionCapable = aiSettings.isVisionCapable(item.provider, item.modelName),
                     isWebSearchCapable = aiSettings.isWebSearchCapable(item.provider, item.modelName),
                     isReasoningCapable = aiSettings.isReasoningCapable(item.provider, item.modelName),
-                    onClick = { onNavigateToModelInfo(item.provider, item.modelName) }
+                    onClick = {
+                        if (onPickModel != null) onPickModel(item.provider, item.modelName)
+                        else onNavigateToModelInfo(item.provider, item.modelName)
+                    }
                 )
             }
         }
