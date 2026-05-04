@@ -134,13 +134,11 @@ internal fun SecondaryResultsScreen(
         return
     }
 
-    val title = nameFilter ?: when (kind) {
-        SecondaryKind.RERANK -> "Reranks"
-        SecondaryKind.SUMMARIZE -> "Summaries"
-        SecondaryKind.COMPARE -> "Compares"
-        SecondaryKind.MODERATION -> "Moderations"
-        SecondaryKind.TRANSLATE -> "Translations"
-    }
+    // Always entered via the View card buckets, which pass the
+    // user-given Meta-prompt name (or the legacy kind label for rows
+    // pre-dating the Meta-prompt CRUD). No hardcoded plural labels —
+    // the screen is driven entirely by what the bucket button said.
+    val title = nameFilter ?: com.ai.data.legacyKindDisplayName(kind)
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
